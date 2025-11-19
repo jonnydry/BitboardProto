@@ -1,0 +1,5 @@
+{
+  "name": "BitBoard",
+  "description": "A high-efficiency, terminal-styled message board where user influence is a finite resource called Bits.",
+  "requestFramePermissions": []
+}
