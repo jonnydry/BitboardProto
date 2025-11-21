@@ -4,6 +4,7 @@ import { Post, UserState, ViewMode, Board } from './types';
 import { PostItem } from './components/PostItem';
 import { BitStatus } from './components/BitStatus';
 import { CreatePost } from './components/CreatePost';
+import { CreateBoard } from './components/CreateBoard';
 import { Terminal, HelpCircle, ArrowLeft, Hash, Lock, Globe } from 'lucide-react';
 
 export default function App() {
@@ -99,6 +100,17 @@ export default function App() {
       comments: []
     };
     setPosts(prev => [newPost, ...prev]);
+    setViewMode(ViewMode.FEED);
+  };
+
+  const handleCreateBoard = (newBoardData: Omit<Board, 'id' | 'memberCount'>) => {
+    const newBoard: Board = {
+      ...newBoardData,
+      id: `b-${newBoardData.name.toLowerCase()}`,
+      memberCount: 1
+    };
+    setBoards(prev => [...prev, newBoard]);
+    setActiveBoardId(newBoard.id);
     setViewMode(ViewMode.FEED);
   };
 
@@ -220,7 +232,10 @@ export default function App() {
                   </button>
                 ))}
               </div>
-              <button className="mt-4 w-full text-xs border border-terminal-dim border-dashed text-terminal-dim p-2 hover:text-terminal-text hover:border-solid transition-all">
+              <button 
+                onClick={() => setViewMode(ViewMode.CREATE_BOARD)}
+                className="mt-4 w-full text-xs border border-terminal-dim border-dashed text-terminal-dim p-2 hover:text-terminal-text hover:border-solid transition-all"
+              >
                 + INIT_NEW_BOARD
               </button>
             </div>
@@ -321,6 +336,13 @@ export default function App() {
                 activeUser={userState.username}
                 onSubmit={handleCreatePost} 
                 onCancel={returnToFeed} 
+              />
+            )}
+
+            {viewMode === ViewMode.CREATE_BOARD && (
+              <CreateBoard
+                onSubmit={handleCreateBoard}
+                onCancel={returnToFeed}
               />
             )}
           </main>

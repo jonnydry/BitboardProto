@@ -40,5 +40,6 @@ export enum ViewMode {
   FEED = 'FEED',
   CREATE = 'CREATE',
   ABOUT = 'ABOUT',
-  SINGLE_BIT = 'SINGLE_BIT'
+  SINGLE_BIT = 'SINGLE_BIT',
+  CREATE_BOARD = 'CREATE_BOARD'
 }
