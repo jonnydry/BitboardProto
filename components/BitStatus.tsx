@@ -1,19 +1,25 @@
 import React from 'react';
 import { UserState } from '../types';
-import { Battery, BatteryWarning, Zap } from 'lucide-react';
+import { Zap } from 'lucide-react';
 
 interface BitStatusProps {
   userState: UserState;
 }
 
 export const BitStatus: React.FC<BitStatusProps> = ({ userState }) => {
-  const percentage = (userState.bits / userState.maxBits) * 100;
+  // Use a fixed number of blocks (e.g., 20) to represent the bit level.
+  // This prevents layout overflow when maxBits is high (e.g., 100).
+  const VISUAL_BLOCK_COUNT = 20;
   
-  // Generate visual blocks for bits: [■■■■■□□□□□]
+  // Calculate filled blocks based on the ratio
+  const ratio = userState.maxBits > 0 ? userState.bits / userState.maxBits : 0;
+  const filledCount = Math.ceil(ratio * VISUAL_BLOCK_COUNT);
+
+  // Generate visual blocks: [■■■■■□□□□□]
   const renderBlocks = () => {
     const blocks = [];
-    for (let i = 0; i < userState.maxBits; i++) {
-      if (i < userState.bits) {
+    for (let i = 0; i < VISUAL_BLOCK_COUNT; i++) {
+      if (i < filledCount) {
         blocks.push(<span key={i} className="text-terminal-text">■</span>);
       } else {
         blocks.push(<span key={i} className="text-terminal-dim opacity-30">□</span>);
@@ -29,14 +35,16 @@ export const BitStatus: React.FC<BitStatusProps> = ({ userState }) => {
           <Zap className={userState.bits === 0 ? "text-terminal-alert" : "text-terminal-text"} />
           USER_BITS
         </h2>
-        <span className="text-2xl font-terminal">{String(userState.bits).padStart(2, '0')}/{userState.maxBits}</span>
+        {/* Pad to 3 digits to accommodate 100 */}
+        <span className="text-2xl font-terminal">{String(userState.bits).padStart(3, '0')}/{userState.maxBits}</span>
       </div>
       
-      <div className="flex justify-between items-center font-mono tracking-widest text-lg break-all">
-        <div>[{renderBlocks()}]</div>
+      {/* Centered progress bar with fixed visual width */}
+      <div className="font-mono tracking-widest text-lg text-center whitespace-nowrap overflow-hidden">
+        [{renderBlocks()}]
       </div>
 
-      <p className="text-xs text-terminal-dim mt-2 uppercase leading-relaxed">
+      <p className="text-xs text-terminal-dim mt-2 uppercase leading-relaxed text-center">
         {userState.bits === 0 
           ? "CRITICAL: INFLUENCE DEPLETED. RECHARGE PENDING..." 
           : "Influence available. MAX 1 BIT PER DATA PACKET."}

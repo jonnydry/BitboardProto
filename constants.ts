@@ -1,6 +1,6 @@
 import { Post, Board } from './types';
 
-export const MAX_DAILY_BITS = 10;
+export const MAX_DAILY_BITS = 100;
 
 export const INITIAL_BOARDS: Board[] = [
   {
