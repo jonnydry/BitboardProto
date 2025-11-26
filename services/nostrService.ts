@@ -268,6 +268,13 @@ class NostrService {
 
     if (disconnectedRelays.length === 0) return;
 
+    // Enforce queue size limit - drop oldest messages if queue is full
+    if (this.messageQueue.length >= this.MESSAGE_QUEUE_MAX_SIZE) {
+      // Remove oldest 10% of messages
+      const removeCount = Math.floor(this.MESSAGE_QUEUE_MAX_SIZE * 0.1);
+      this.messageQueue.splice(0, removeCount);
+    }
+
     this.messageQueue.push({
       event,
       privateKey,
@@ -494,16 +501,34 @@ class NostrService {
     filter['#client'] = ['bitboard'];
 
     try {
-      const events = await this.pool.querySync(this.relays, filter);
+      // Query fastest relays first with timeout
+      const connectedRelays = this.relays.filter(url => {
+        const status = this.relayStatuses.get(url);
+        return status?.isConnected !== false; // Include unknown status
+      });
+
+      // If we have connected relays, query them first
+      const relaysToQuery = connectedRelays.length > 0 ? connectedRelays : this.relays;
+      
+      // Use Promise.race with timeout for faster response
+      const QUERY_TIMEOUT_MS = 5000; // 5 second timeout
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Query timeout')), QUERY_TIMEOUT_MS);
+      });
+
+      const queryPromise = this.pool.querySync(relaysToQuery, filter);
+      
+      const events = await Promise.race([queryPromise, timeoutPromise]);
       
       // Update relay statuses on success
-      this.relays.forEach(url => this.updateRelayStatus(url, true));
+      relaysToQuery.forEach(url => this.updateRelayStatus(url, true));
       
       // Filter out duplicates
       return events.filter(event => !nostrEventDeduplicator.isEventDuplicate(event.id));
     } catch (error) {
       console.error('[Nostr] Failed to fetch posts:', error);
-      throw error;
+      // Don't throw - return empty array for graceful degradation
+      return [];
     }
   }
 
@@ -607,25 +632,65 @@ class NostrService {
       filter['#g'] = [filters.geohash];
     }
 
-    // Wrap the event handler to deduplicate
-    const deduplicatedHandler = (event: NostrEvent) => {
-      if (!nostrEventDeduplicator.isEventDuplicate(event.id)) {
-        onEvent(event);
+    // Debounce event handler to reduce UI updates during rapid event streams
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const pendingEvents: NostrEvent[] = [];
+    const DEBOUNCE_MS = 150; // 150ms debounce window
+
+    const debouncedHandler = (event: NostrEvent) => {
+      // Deduplicate immediately
+      if (nostrEventDeduplicator.isEventDuplicate(event.id)) {
+        return;
       }
+
+      pendingEvents.push(event);
+
+      // Clear existing timer
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+
+      // Set new timer
+      debounceTimer = setTimeout(() => {
+        // Process all pending events
+        const eventsToProcess = [...pendingEvents];
+        pendingEvents.length = 0;
+        debounceTimer = null;
+
+        // Fire events in batch
+        eventsToProcess.forEach(e => onEvent(e));
+      }, DEBOUNCE_MS);
     };
 
     const sub = this.pool.subscribeMany(
       this.relays,
       [filter],
       {
-        onevent: deduplicatedHandler,
+        onevent: debouncedHandler,
         oneose: () => {
+          // Flush any pending events when subscription ends
+          if (debounceTimer) {
+            clearTimeout(debounceTimer);
+            debounceTimer = null;
+          }
+          if (pendingEvents.length > 0) {
+            pendingEvents.forEach(e => onEvent(e));
+            pendingEvents.length = 0;
+          }
           console.log('[Nostr] End of stored events for subscription:', subscriptionId);
         }
       }
     );
 
-    this.subscriptions.set(subscriptionId, { unsub: () => sub.close() });
+    this.subscriptions.set(subscriptionId, { 
+      unsub: () => {
+        // Cleanup debounce timer
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
+        }
+        sub.close();
+      }
+    });
     return subscriptionId;
   }
 
@@ -654,6 +719,7 @@ class NostrService {
     this.reconnectTimers.forEach(timer => clearTimeout(timer));
     this.reconnectTimers.clear();
     this.messageQueue = [];
+    this.relayStatuses.clear();
   }
 
   // ----------------------------------------

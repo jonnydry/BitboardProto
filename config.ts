@@ -24,7 +24,19 @@ export const UserConfig = {
   /** Cost to create a post */
   POST_COST: 0,
   
-  /** Cost to vote (refunded if vote is retracted) */
+  /**
+   * Cost to vote (refunded if vote is retracted)
+   * 
+   * BIT-TO-VOTE MAPPING:
+   * - 1 bit = permission to cast 1 cryptographic Nostr vote
+   * - Bits are spent locally BEFORE publishing to Nostr
+   * - If Nostr publish fails, bit is refunded (rollback)
+   * - Switching vote direction is FREE (bit stays locked)
+   * - Retracting vote refunds the bit
+   * 
+   * This matches the cryptographic model: one vote per pubkey per post.
+   * Bits gate access; Nostr enforces the rule cryptographically.
+   */
   VOTE_COST: 1,
   
   /** Cost to create a board */

@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Post, UserState, Board } from '../types';
-import { ArrowBigUp, ArrowBigDown, MessageSquare, Clock, Hash, ExternalLink, CornerDownRight, Maximize2, Minimize2, Image as ImageIcon, Shield, Users } from 'lucide-react';
+import { EXPANSION_THRESHOLD } from '../constants';
+import { ArrowBigUp, ArrowBigDown, MessageSquare, Clock, Hash, ExternalLink, CornerDownRight, Maximize2, Minimize2, Image as ImageIcon, Shield, Users, UserX } from 'lucide-react';
 
 interface PostItemProps {
   post: Post;
@@ -13,7 +14,7 @@ interface PostItemProps {
   isNostrConnected?: boolean;
 }
 
-export const PostItem: React.FC<PostItemProps> = ({
+const PostItemComponent: React.FC<PostItemProps> = ({
   post,
   boardName,
   userState,
@@ -32,34 +33,23 @@ export const PostItem: React.FC<PostItemProps> = ({
     if (isFullPage) setIsExpanded(true);
   }, [isFullPage]);
 
-  const voteDirection = userState.votedPosts[post.id];
-  const isUpvoted = voteDirection === 'up';
-  const isDownvoted = voteDirection === 'down';
-  const hasInvested = isUpvoted || isDownvoted;
+  const voteDirection = useMemo(() => userState.votedPosts[post.id], [userState.votedPosts, post.id]);
+  const isUpvoted = useMemo(() => voteDirection === 'up', [voteDirection]);
+  const isDownvoted = useMemo(() => voteDirection === 'down', [voteDirection]);
+  const hasInvested = useMemo(() => isUpvoted || isDownvoted, [isUpvoted, isDownvoted]);
   
-  // Expansion Rule: Inline if <= 5 comments, otherwise Full Page
-  const EXPANSION_THRESHOLD = 5;
-  const requiresFullPage = post.commentCount > EXPANSION_THRESHOLD;
+  // Expansion Rule: Inline if <= EXPANSION_THRESHOLD comments, otherwise Full Page
+  const requiresFullPage = useMemo(() => post.commentCount > EXPANSION_THRESHOLD, [post.commentCount]);
 
-  const handleInteraction = () => {
-    if (isFullPage) return; // Already expanded in full view
-
-    if (requiresFullPage) {
-      onViewBit(post.id);
-    } else {
-      setIsExpanded(!isExpanded);
-    }
-  };
-
-  const formatTime = (timestamp: number) => {
+  const formatTime = useCallback((timestamp: number) => {
     const diff = Date.now() - timestamp;
     const hours = Math.floor(diff / (1000 * 60 * 60));
     if (hours < 1) return '< 1h';
     if (hours > 24) return `${Math.floor(hours / 24)}d`;
     return `${hours}h`;
-  };
+  }, []);
 
-  const handleCommentSubmit = (e: React.FormEvent) => {
+  const handleCommentSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim()) return;
     
@@ -69,7 +59,32 @@ export const PostItem: React.FC<PostItemProps> = ({
       setNewComment('');
       setIsTransmitting(false);
     }, 500);
-  };
+  }, [newComment, onComment, post.id]);
+
+  const handleInteraction = useCallback(() => {
+    if (isFullPage) return; // Already expanded in full view
+
+    if (requiresFullPage) {
+      onViewBit(post.id);
+    } else {
+      setIsExpanded(!isExpanded);
+    }
+  }, [isFullPage, requiresFullPage, onViewBit, post.id, isExpanded]);
+
+  const handleVoteUp = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onVote(post.id, 'up');
+  }, [onVote, post.id]);
+
+  const handleVoteDown = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onVote(post.id, 'down');
+  }, [onVote, post.id]);
+
+  const handleCommentClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    handleInteraction();
+  }, [handleInteraction]);
 
   return (
     <div 
@@ -87,9 +102,16 @@ export const PostItem: React.FC<PostItemProps> = ({
       <div className={`flex flex-row gap-4 p-3 ${isExpanded ? 'p-5' : ''}`}>
         {/* Voting Column - Cryptographically Verified */}
         <div className="flex flex-col items-center min-w-[3.5rem] border-r border-terminal-dim pr-3 justify-start pt-1 gap-1">
+          {/* Guest User Indicator */}
+          {!userState.identity && (
+            <div className="mb-1 flex items-center gap-1 px-1.5 py-0.5 border border-terminal-dim/50 bg-terminal-dim/10 rounded" title="Guest mode: Connect identity to cast verified votes">
+              <UserX size={10} className="text-terminal-dim" />
+              <span className="text-[8px] text-terminal-dim uppercase">GUEST</span>
+            </div>
+          )}
           <button 
-            onClick={(e) => { e.stopPropagation(); onVote(post.id, 'up'); }}
-            className={`p-1 hover:bg-terminal-dim transition-colors ${isUpvoted ? 'text-terminal-text font-bold' : 'text-terminal-dim'}`}
+            onClick={handleVoteUp}
+            className={`p-1 hover:bg-terminal-dim transition-colors ${isUpvoted ? 'text-terminal-text font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
             disabled={(!userState.identity) || (userState.bits <= 0 && !hasInvested)}
             title={
               !userState.identity
@@ -109,8 +131,8 @@ export const PostItem: React.FC<PostItemProps> = ({
           </span>
 
           <button 
-            onClick={(e) => { e.stopPropagation(); onVote(post.id, 'down'); }}
-            className={`p-1 hover:bg-terminal-dim transition-colors ${isDownvoted ? 'text-terminal-alert font-bold' : 'text-terminal-dim'}`}
+            onClick={handleVoteDown}
+            className={`p-1 hover:bg-terminal-dim transition-colors ${isDownvoted ? 'text-terminal-alert font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
             disabled={(!userState.identity) || (userState.bits <= 0 && !hasInvested)}
             title={
               !userState.identity
@@ -219,6 +241,7 @@ export const PostItem: React.FC<PostItemProps> = ({
                 <img 
                   src={post.imageUrl} 
                   alt="Content Preview" 
+                  loading="lazy"
                   className="w-full h-auto max-h-[300px] object-cover grayscale sepia contrast-125 brightness-75 group-hover/image:filter-none group-hover/image:brightness-100 transition-all duration-300"
                 />
                 <div className="absolute bottom-0 left-0 bg-terminal-bg/80 px-2 py-1 text-[10px] text-terminal-text border-t border-r border-terminal-dim">
@@ -245,7 +268,7 @@ export const PostItem: React.FC<PostItemProps> = ({
             </div>
             
             <button 
-              onClick={(e) => { e.stopPropagation(); handleInteraction(); }}
+              onClick={handleCommentClick}
               className={`flex items-center gap-2 text-sm px-2 py-0.5 transition-colors border border-transparent shrink-0
                 ${isExpanded 
                   ? 'text-terminal-text border-terminal-dim bg-terminal-bg/30' 
@@ -319,3 +342,20 @@ export const PostItem: React.FC<PostItemProps> = ({
     </div>
   );
 };
+
+// Memoize PostItem to prevent unnecessary re-renders
+export const PostItem = React.memo(PostItemComponent, (prevProps, nextProps) => {
+  // Custom comparison function for better performance
+  return (
+    prevProps.post.id === nextProps.post.id &&
+    prevProps.post.score === nextProps.post.score &&
+    prevProps.post.commentCount === nextProps.post.commentCount &&
+    prevProps.post.comments.length === nextProps.post.comments.length &&
+    prevProps.userState.bits === nextProps.userState.bits &&
+    prevProps.userState.votedPosts[prevProps.post.id] === nextProps.userState.votedPosts[nextProps.post.id] &&
+    prevProps.userState.identity?.pubkey === nextProps.userState.identity?.pubkey &&
+    prevProps.boardName === nextProps.boardName &&
+    prevProps.isNostrConnected === nextProps.isNostrConnected &&
+    prevProps.isFullPage === nextProps.isFullPage
+  );
+});

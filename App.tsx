@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { MAX_DAILY_BITS, INITIAL_POSTS, INITIAL_BOARDS } from './constants';
 import { Post, UserState, ViewMode, Board, ThemeId, BoardType, NostrIdentity } from './types';
 import { PostItem } from './components/PostItem';
@@ -11,7 +11,7 @@ import { Terminal, HelpCircle, ArrowLeft, Hash, Lock, Globe, Eye, Key, MapPin, W
 import { nostrService } from './services/nostrService';
 import { identityService } from './services/identityService';
 import { geohashService } from './services/geohashService';
-import { votingService, computeVoteScoreDelta } from './services/votingService';
+import { votingService, computeOptimisticUpdate, computeRollback } from './services/votingService';
 
 export default function App() {
   const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
@@ -50,29 +50,30 @@ export default function App() {
         if (nostrPosts.length > 0) {
           const convertedPosts = nostrPosts.map(event => nostrService.eventToPost(event));
           
-          // Fetch cryptographically verified votes for each post
+          // Batch fetch cryptographically verified votes for all posts
           // Uses votingService to ensure one vote per pubkey (equal influence)
-          const postsWithVotes = await Promise.all(
-            convertedPosts.map(async (post) => {
-              if (post.nostrEventId) {
-                try {
-                  // Use votingService for cryptographic verification
-                  const tally = await votingService.fetchVotesForPost(post.nostrEventId);
-                  return {
-                    ...post,
-                    upvotes: tally.upvotes,
-                    downvotes: tally.downvotes,
-                    score: tally.score,
-                    uniqueVoters: tally.uniqueVoters,
-                    votesVerified: true,
-                  };
-                } catch {
-                  return post;
-                }
+          const postsWithNostrIds = convertedPosts.filter(p => p.nostrEventId);
+          const postIds = postsWithNostrIds.map(p => p.nostrEventId!);
+          
+          // Batch fetch votes (more efficient than individual requests)
+          const voteTallies = await votingService.fetchVotesForPosts(postIds);
+          
+          const postsWithVotes = convertedPosts.map((post) => {
+            if (post.nostrEventId) {
+              const tally = voteTallies.get(post.nostrEventId);
+              if (tally) {
+                return {
+                  ...post,
+                  upvotes: tally.upvotes,
+                  downvotes: tally.downvotes,
+                  score: tally.score,
+                  uniqueVoters: tally.uniqueVoters,
+                  votesVerified: true,
+                };
               }
-              return post;
-            })
-          );
+            }
+            return post;
+          });
 
           setPosts(prev => {
             // Merge Nostr posts with initial posts, avoiding duplicates
@@ -116,73 +117,126 @@ export default function App() {
     };
   }, []);
 
+  // Cleanup on unmount and beforeunload
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      nostrService.cleanup();
+      votingService.cleanup();
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      // Cleanup subscriptions and caches on app shutdown
+      nostrService.cleanup();
+      votingService.cleanup();
+    };
+  }, []);
+
   // Fetch comments when viewing a single post
   useEffect(() => {
     const fetchCommentsForPost = async () => {
       if (!selectedBitId) return;
       
-      const post = posts.find(p => p.id === selectedBitId);
-      if (!post?.nostrEventId) return;
-      
-      // Only fetch if post has no comments loaded yet
-      if (post.comments.length > 0) return;
-
-      try {
-        const commentEvents = await nostrService.fetchComments(post.nostrEventId);
-        if (commentEvents.length > 0) {
-          const comments = commentEvents.map(event => nostrService.eventToComment(event));
-          setPosts(currentPosts =>
-            currentPosts.map(p => {
-              if (p.id === selectedBitId) {
-                return {
-                  ...p,
-                  comments: [...p.comments, ...comments],
-                  commentCount: p.comments.length + comments.length,
-                };
-              }
-              return p;
-            })
-          );
-        }
-      } catch (error) {
-        console.error('[App] Failed to fetch comments:', error);
-      }
+      // Find post inside effect to avoid dependency on posts array
+      setPosts(currentPosts => {
+        const post = currentPosts.find(p => p.id === selectedBitId);
+        if (!post?.nostrEventId) return currentPosts;
+        
+        // Only fetch if post has no comments loaded yet
+        if (post.comments.length > 0) return currentPosts;
+        
+        // Fetch comments asynchronously
+        nostrService.fetchComments(post.nostrEventId)
+          .then(commentEvents => {
+            if (commentEvents.length > 0) {
+              const comments = commentEvents.map(event => nostrService.eventToComment(event));
+              setPosts(prevPosts =>
+                prevPosts.map(p => {
+                  if (p.id === selectedBitId) {
+                    return {
+                      ...p,
+                      comments: [...p.comments, ...comments],
+                      commentCount: p.comments.length + comments.length,
+                    };
+                  }
+                  return p;
+                })
+              );
+            }
+          })
+          .catch(error => {
+            console.error('[App] Failed to fetch comments:', error);
+          });
+        
+        return currentPosts;
+      });
     };
 
     fetchCommentsForPost();
-  }, [selectedBitId, posts]);
+  }, [selectedBitId]);
+
+  // Create boardsById Map for O(1) lookups
+  const boardsById = useMemo(() => {
+    const map = new Map<string, Board>();
+    boards.forEach(b => map.set(b.id, b));
+    locationBoards.forEach(b => map.set(b.id, b));
+    return map;
+  }, [boards, locationBoards]);
+
+  // Create postsById Map for O(1) lookups
+  const postsById = useMemo(() => {
+    const map = new Map<string, Post>();
+    posts.forEach(p => map.set(p.id, p));
+    return map;
+  }, [posts]);
 
   // Filter posts based on view (Global vs Specific Board) and feed filter
-  const filteredPosts = activeBoardId 
-    ? posts.filter(p => p.boardId === activeBoardId)
-    : posts.filter(p => {
-        const board = boards.find(b => b.id === p.boardId);
-        if (!board?.isPublic) return false;
-        
-        if (feedFilter === 'topic') return board.type === BoardType.TOPIC;
-        if (feedFilter === 'location') return board.type === BoardType.GEOHASH;
-        return true;
-      });
+  const filteredPosts = useMemo(() => {
+    if (activeBoardId) {
+      return posts.filter(p => p.boardId === activeBoardId);
+    }
+    return posts.filter(p => {
+      const board = boardsById.get(p.boardId);
+      if (!board?.isPublic) return false;
+      
+      if (feedFilter === 'topic') return board.type === BoardType.TOPIC;
+      if (feedFilter === 'location') return board.type === BoardType.GEOHASH;
+      return true;
+    });
+  }, [posts, activeBoardId, boardsById, feedFilter]);
 
   // Sort posts: Global feed = Score desc
-  const sortedPosts = [...filteredPosts].sort((a, b) => b.score - a.score);
+  const sortedPosts = useMemo(() => {
+    return [...filteredPosts].sort((a, b) => b.score - a.score);
+  }, [filteredPosts]);
 
   // Find selected post for single view
-  const selectedPost = selectedBitId ? posts.find(p => p.id === selectedBitId) : null;
+  const selectedPost = useMemo(() => {
+    return selectedBitId ? postsById.get(selectedBitId) || null : null;
+  }, [selectedBitId, postsById]);
   
   // Find active board object
-  const activeBoard = activeBoardId ? boards.find(b => b.id === activeBoardId) : null;
+  const activeBoard = useMemo(() => {
+    return activeBoardId ? boardsById.get(activeBoardId) : null;
+  }, [activeBoardId, boardsById]);
 
   // Split boards by type
-  const topicBoards = boards.filter(b => b.type === BoardType.TOPIC);
+  const topicBoards = useMemo(() => {
+    return boards.filter(b => b.type === BoardType.TOPIC);
+  }, [boards]);
+
   // Deduplicate geohash boards: combine boards from state and locationBoards, removing duplicates by id
-  const geohashBoardsFromState = boards.filter(b => b.type === BoardType.GEOHASH);
-  const geohashBoardsMap = new Map<string, Board>();
-  // Add boards from state first
-  geohashBoardsFromState.forEach(b => geohashBoardsMap.set(b.id, b));
-  // Add location boards, which will overwrite duplicates (locationBoards take precedence)
-  locationBoards.forEach(b => geohashBoardsMap.set(b.id, b));
-  const geohashBoards = Array.from(geohashBoardsMap.values());
+  const geohashBoards = useMemo(() => {
+    const geohashBoardsFromState = boards.filter(b => b.type === BoardType.GEOHASH);
+    const geohashBoardsMap = new Map<string, Board>();
+    // Add boards from state first
+    geohashBoardsFromState.forEach(b => geohashBoardsMap.set(b.id, b));
+    // Add location boards, which will overwrite duplicates (locationBoards take precedence)
+    locationBoards.forEach(b => geohashBoardsMap.set(b.id, b));
+    return Array.from(geohashBoardsMap.values());
+  }, [boards, locationBoards]);
 
   /**
    * Handle voting with cryptographic verification
@@ -192,7 +246,8 @@ export default function App() {
    * - Verifiable vote counts
    */
   const handleVote = useCallback(async (postId: string, direction: 'up' | 'down') => {
-    const post = posts.find(p => p.id === postId);
+    // Use postsById for O(1) lookup instead of O(n) find
+    const post = postsById.get(postId);
     
     // Get current user state for validation
     const currentUserState = userState;
@@ -204,55 +259,32 @@ export default function App() {
       return;
     }
     
-    // Calculate bit cost in local \"bit\" economy:
-    // - First vote on a post costs 1 bit
-    // - Switching direction is free (bit stays locked on that post)
-    // - Retracting refunds 1 bit
-    let bitCost = 0;
-    if (currentVote === direction) {
-      // Retracting vote - refund bit
-      bitCost = -1; // Negative means refund
-    } else if (!currentVote) {
-      // New vote - costs 1 bit
-      if (currentUserState.bits <= 0) {
-        console.warn('[Vote] Insufficient bits');
-        return;
-      }
-      bitCost = 1;
+    // Check bit availability before calculating optimistic update
+    if (!currentVote && currentUserState.bits <= 0) {
+      console.warn('[Vote] Insufficient bits');
+      return;
     }
-    // Switching vote direction costs nothing (already invested)
 
-    // Optimistically update UI
-    setUserState(prev => {
-      const newVotedPosts = { ...prev.votedPosts };
-      let newBits = prev.bits;
+    // Calculate optimistic update using centralized logic from votingService
+    const optimisticUpdate = computeOptimisticUpdate(
+      currentVote ?? null,
+      direction,
+      currentUserState.bits,
+      currentUserState.votedPosts,
+      postId
+    );
 
-      if (currentVote === direction) {
-        // Retracting vote
-        delete newVotedPosts[postId];
-        newBits += 1;
-      } else {
-        // New vote or switching
-        newVotedPosts[postId] = direction;
-        if (!currentVote) {
-          newBits -= 1;
-        }
-      }
-
-      return {
-        ...prev,
-        bits: newBits,
-        votedPosts: newVotedPosts,
-      };
-    });
-
-    // Calculate optimistic score delta for immediate UI feedback
-    const scoreDelta = computeVoteScoreDelta(currentVote ?? null, direction);
+    // Apply optimistic UI update
+    setUserState(prev => ({
+      ...prev,
+      bits: optimisticUpdate.newBits,
+      votedPosts: optimisticUpdate.newVotedPosts,
+    }));
 
     // Optimistically update post score
     setPosts(currentPosts => 
       currentPosts.map(p => 
-        p.id === postId ? { ...p, score: p.score + scoreDelta } : p
+        p.id === postId ? { ...p, score: p.score + optimisticUpdate.scoreDelta } : p
       )
     );
 
@@ -285,19 +317,16 @@ export default function App() {
             console.log(`[Vote] Verified: ${result.newTally.uniqueVoters} unique voters`);
           } else if (result.error) {
             console.error('[Vote] Failed:', result.error);
-            // Revert optimistic update on failure
-            // bitCost is negative for retracts (-1) and positive for new votes (+1)
-            // To revert, we subtract the bitCost (which reverses the optimistic change)
+            // Revert optimistic update on failure using centralized rollback logic
+            const rollback = computeRollback(optimisticUpdate, currentUserState.votedPosts, postId);
             setUserState(prev => ({
               ...prev,
-              bits: prev.bits - bitCost,
-              votedPosts: currentVote 
-                ? { ...prev.votedPosts, [postId]: currentVote }
-                : (() => { const v = { ...prev.votedPosts }; delete v[postId]; return v; })(),
+              bits: prev.bits + rollback.bitAdjustment,
+              votedPosts: rollback.previousVotedPosts,
             }));
             setPosts(currentPosts => 
               currentPosts.map(p => 
-                p.id === postId ? { ...p, score: p.score - scoreDelta } : p
+                p.id === postId ? { ...p, score: p.score + rollback.scoreDelta } : p
               )
             );
           }
@@ -306,7 +335,7 @@ export default function App() {
         }
       }
     }
-  }, [posts, userState]);
+  }, [postsById, userState]);
 
   const handleCreatePost = async (
     newPostData: Omit<Post, 'id' | 'timestamp' | 'score' | 'commentCount' | 'comments' | 'nostrEventId' | 'upvotes' | 'downvotes'>
@@ -330,7 +359,7 @@ export default function App() {
       if (privateKey) {
         try {
           // Check if posting to a geohash board and include the geohash
-          const targetBoard = [...boards, ...locationBoards].find(b => b.id === newPostData.boardId);
+          const targetBoard = boardsById.get(newPostData.boardId);
           const geohash = targetBoard?.type === BoardType.GEOHASH ? targetBoard.geohash : undefined;
           
           const eventPayload = {
@@ -378,8 +407,9 @@ export default function App() {
     setViewMode(ViewMode.FEED);
   };
 
-  const handleComment = async (postId: string, content: string) => {
-    const post = posts.find(p => p.id === postId);
+  const handleComment = useCallback(async (postId: string, content: string) => {
+    const post = postsById.get(postId);
+    if (!post) return;
     
     const newComment = {
       id: `c-${Date.now()}`,
@@ -390,15 +420,27 @@ export default function App() {
     };
 
     // Publish to Nostr if connected
-    if (userState.identity && post?.nostrEventId) {
+    if (userState.identity && post.nostrEventId) {
       const privateKey = identityService.getPrivateKeyBytes();
       if (privateKey) {
-        try {
-          const event = await nostrService.publishComment(post.nostrEventId, content, privateKey);
-          newComment.id = event.id;
-        } catch (error) {
-          console.error('[App] Failed to publish comment to Nostr:', error);
-        }
+        nostrService.publishComment(post.nostrEventId, content, privateKey)
+          .then(event => {
+            setPosts(prevPosts =>
+              prevPosts.map(p => {
+                if (p.id === postId) {
+                  const updatedComment = { ...newComment, id: event.id };
+                  return {
+                    ...p,
+                    comments: p.comments.map(c => c.id === newComment.id ? updatedComment : c)
+                  };
+                }
+                return p;
+              })
+            );
+          })
+          .catch(error => {
+            console.error('[App] Failed to publish comment to Nostr:', error);
+          });
       }
     }
 
@@ -414,19 +456,19 @@ export default function App() {
         return p;
       })
     );
-  };
+  }, [postsById, userState.username, userState.identity]);
 
-  const handleViewBit = (postId: string) => {
+  const handleViewBit = useCallback((postId: string) => {
     setSelectedBitId(postId);
     setViewMode(ViewMode.SINGLE_BIT);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  }, []);
 
-  const navigateToBoard = (boardId: string | null) => {
+  const navigateToBoard = useCallback((boardId: string | null) => {
     setActiveBoardId(boardId);
     setSelectedBitId(null);
     setViewMode(ViewMode.FEED);
-  };
+  }, []);
 
   const returnToFeed = () => {
     setSelectedBitId(null);
@@ -452,17 +494,29 @@ export default function App() {
     setViewMode(ViewMode.FEED);
   };
 
-  const getThemeColor = (id: ThemeId) => {
-    switch(id) {
-      case ThemeId.AMBER: return '#ffb000';
-      case ThemeId.PHOSPHOR: return '#00ff41';
-      case ThemeId.PLASMA: return '#00f0ff';
-      case ThemeId.VERMILION: return '#ff4646';
-      case ThemeId.SLATE: return '#c8c8c8';
-      case ThemeId.BITBORING: return '#ffffff';
-      default: return '#fff';
-    }
-  };
+  // Memoize theme colors map
+  const themeColors = useMemo(() => {
+    return new Map<ThemeId, string>([
+      [ThemeId.AMBER, '#ffb000'],
+      [ThemeId.PHOSPHOR, '#00ff41'],
+      [ThemeId.PLASMA, '#00f0ff'],
+      [ThemeId.VERMILION, '#ff4646'],
+      [ThemeId.SLATE, '#c8c8c8'],
+      [ThemeId.BITBORING, '#ffffff'],
+    ]);
+  }, []);
+
+  const getThemeColor = useCallback((id: ThemeId) => {
+    return themeColors.get(id) || '#fff';
+  }, [themeColors]);
+
+  // Helper function to get board name
+  const getBoardName = useCallback((postId: string) => {
+    const post = postsById.get(postId);
+    if (!post) return undefined;
+    const board = boardsById.get(post.boardId);
+    return board?.name;
+  }, [postsById, boardsById]);
 
   return (
     <div className="min-h-screen bg-terminal-bg text-terminal-text font-mono selection:bg-terminal-text selection:text-black relative">
@@ -737,7 +791,7 @@ export default function App() {
                   <PostItem 
                     key={post.id} 
                     post={post} 
-                    boardName={boards.find(b => b.id === post.boardId)?.name || locationBoards.find(b => b.id === post.boardId)?.name}
+                    boardName={getBoardName(post.id)}
                     userState={userState}
                     onVote={handleVote}
                     onComment={handleComment}
@@ -761,7 +815,7 @@ export default function App() {
                 <div className="border-t border-terminal-dim/30 pt-2">
                   <PostItem 
                     post={selectedPost} 
-                    boardName={boards.find(b => b.id === selectedPost.boardId)?.name || locationBoards.find(b => b.id === selectedPost.boardId)?.name}
+                    boardName={selectedPost ? getBoardName(selectedPost.id) : undefined}
                     userState={userState}
                     onVote={handleVote}
                     onComment={handleComment}

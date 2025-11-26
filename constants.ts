@@ -26,6 +26,13 @@ export const DEFAULT_RELAYS = [
 export const DEFAULT_GEOHASH_PRECISION = GeohashPrecision.NEIGHBORHOOD;
 
 // ============================================
+// UI CONSTANTS
+// ============================================
+
+/** Maximum comments before requiring full page view */
+export const EXPANSION_THRESHOLD = 5;
+
+// ============================================
 // INITIAL DATA (Fallback when offline)
 // ============================================
 
