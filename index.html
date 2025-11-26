@@ -18,21 +18,31 @@
             },
             colors: {
               terminal: {
-                bg: '#100b05',
-                text: '#ffb000',
-                dim: '#805800',
-                alert: '#e05b12', /* Rust/Burnt Orange */
-                highlight: '#291d00'
+                bg: 'rgb(var(--color-terminal-bg) / <alpha-value>)',
+                text: 'rgb(var(--color-terminal-text) / <alpha-value>)',
+                dim: 'rgb(var(--color-terminal-dim) / <alpha-value>)',
+                alert: 'rgb(var(--color-terminal-alert) / <alpha-value>)',
+                highlight: 'rgb(var(--color-terminal-highlight) / <alpha-value>)'
               }
+            },
+            boxShadow: {
+              'glow': 'var(--shadow-glow)',
+              'hard': '4px 4px 0px 0px rgb(var(--color-terminal-text) / 0.2)',
+              'hard-lg': '8px 8px 0px 0px rgb(var(--color-terminal-text) / 0.15)',
             },
             animation: {
               'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
               'cursor': 'cursor .75s step-end infinite',
+              'fade-in': 'fadeIn 0.3s ease-out',
             },
             keyframes: {
               cursor: {
                 '0%, 100%': { opacity: '1' },
                 '50%': { opacity: '0' },
+              },
+              fadeIn: {
+                '0%': { opacity: '0', transform: 'translateY(5px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
               }
             }
           }
@@ -40,22 +50,89 @@
       }
     </script>
     <style>
-      body {
-        background-color: #100b05;
-        color: #ffb000;
-        overflow-x: hidden;
-        text-shadow: 0 0 2px rgba(255, 176, 0, 0.3);
+      :root {
+        /* AMBER (Default) */
+        --color-terminal-bg: 16 11 5;      /* #100b05 */
+        --color-terminal-text: 255 176 0;  /* #ffb000 */
+        --color-terminal-dim: 128 88 0;    /* #805800 */
+        --color-terminal-alert: 224 91 18; /* #e05b12 */
+        --color-terminal-highlight: 41 29 0; /* #291d00 */
+        --scanline-color: rgba(255, 176, 0, 0.03);
+        --text-shadow-val: 0 0 2px rgb(var(--color-terminal-text) / 0.3);
+        --shadow-glow: 0 0 15px rgb(var(--color-terminal-text) / 0.1);
+        --scanline-display: block;
       }
-      /* CRT Scanline effect - Monochromatic Amber */
+
+      [data-theme="phosphor"] {
+        /* PHOSPHOR (Green) */
+        --color-terminal-bg: 5 13 5;       /* #050d05 */
+        --color-terminal-text: 0 255 65;   /* #00ff41 */
+        --color-terminal-dim: 0 100 25;    /* #006419 */
+        --color-terminal-alert: 255 51 51; /* #ff3333 */
+        --color-terminal-highlight: 0 40 10;
+        --scanline-color: rgba(0, 255, 65, 0.03);
+      }
+
+      [data-theme="plasma"] {
+        /* PLASMA (Blue/Cyan) */
+        --color-terminal-bg: 5 10 16;      /* #050a10 */
+        --color-terminal-text: 0 240 255;  /* #00f0ff */
+        --color-terminal-dim: 0 100 110;   /* #00646e */
+        --color-terminal-alert: 255 0 85;  /* #ff0055 */
+        --color-terminal-highlight: 0 30 40;
+        --scanline-color: rgba(0, 240, 255, 0.03);
+      }
+
+      [data-theme="vermilion"] {
+        /* VERMILION (Red) */
+        --color-terminal-bg: 16 5 5;       /* #100505 */
+        --color-terminal-text: 255 70 70;  /* #ff4646 */
+        --color-terminal-dim: 120 20 20;   /* #781414 */
+        --color-terminal-alert: 255 200 0; /* #ffc800 */
+        --color-terminal-highlight: 40 10 10;
+        --scanline-color: rgba(255, 70, 70, 0.03);
+      }
+
+      [data-theme="slate"] {
+        /* SLATE (Monochrome) */
+        --color-terminal-bg: 15 15 15;     /* #0f0f0f */
+        --color-terminal-text: 200 200 200;/* #c8c8c8 */
+        --color-terminal-dim: 80 80 80;    /* #505050 */
+        --color-terminal-alert: 255 80 80; /* #ff5050 */
+        --color-terminal-highlight: 35 35 35;
+        --scanline-color: rgba(255, 255, 255, 0.03);
+      }
+
+      [data-theme="bitboring"] {
+        /* BITBORING (The "Bad" Theme) */
+        --color-terminal-bg: 255 255 255;  /* #ffffff */
+        --color-terminal-text: 0 0 0;      /* #000000 */
+        --color-terminal-dim: 120 120 120; /* #787878 */
+        --color-terminal-alert: 255 0 0;   /* #ff0000 */
+        --color-terminal-highlight: 235 240 255; /* #ebf0ff - ugly light blueish grey */
+        --scanline-color: transparent;
+        --text-shadow-val: none;
+        --shadow-glow: none;
+        --scanline-display: none;
+      }
+
+      body {
+        background-color: rgb(var(--color-terminal-bg));
+        color: rgb(var(--color-terminal-text));
+        overflow-x: hidden;
+        text-shadow: var(--text-shadow-val);
+        transition: background-color 0.3s, color 0.3s;
+      }
+      /* CRT Scanline effect - Dynamic */
       .scanlines::before {
         content: " ";
-        display: block;
+        display: var(--scanline-display);
         position: absolute;
         top: 0;
         left: 0;
         bottom: 0;
         right: 0;
-        background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 176, 0, 0.03), rgba(0, 0, 0, 0.05), rgba(255, 176, 0, 0.03));
+        background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, var(--scanline-color), rgba(0, 0, 0, 0.05), var(--scanline-color));
         z-index: 2;
         background-size: 100% 3px, 3px 100%;
         pointer-events: none;
@@ -63,11 +140,11 @@
       /* Scrollbar styling */
       ::-webkit-scrollbar {
         width: 10px;
-        background: #100b05;
+        background: rgb(var(--color-terminal-bg));
       }
       ::-webkit-scrollbar-thumb {
-        background: #805800; 
-        border: 1px solid #ffb000;
+        background: rgb(var(--color-terminal-dim)); 
+        border: 1px solid rgb(var(--color-terminal-text));
       }
     </style>
   <script type="importmap">

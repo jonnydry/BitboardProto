@@ -1,11 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { MAX_DAILY_BITS, INITIAL_POSTS, INITIAL_BOARDS } from './constants';
-import { Post, UserState, ViewMode, Board } from './types';
+import { Post, UserState, ViewMode, Board, ThemeId } from './types';
 import { PostItem } from './components/PostItem';
 import { BitStatus } from './components/BitStatus';
 import { CreatePost } from './components/CreatePost';
 import { CreateBoard } from './components/CreateBoard';
-import { Terminal, HelpCircle, ArrowLeft, Hash, Lock, Globe } from 'lucide-react';
+import { Terminal, HelpCircle, ArrowLeft, Hash, Lock, Globe, Eye } from 'lucide-react';
 
 export default function App() {
   const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
@@ -13,6 +13,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.FEED);
   const [selectedBitId, setSelectedBitId] = useState<string | null>(null);
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null); // null = Global Feed
+  const [theme, setTheme] = useState<ThemeId>(ThemeId.AMBER);
   
   const [userState, setUserState] = useState<UserState>({
     username: 'u/guest_' + Math.floor(Math.random() * 10000).toString(16),
@@ -20,6 +21,11 @@ export default function App() {
     maxBits: MAX_DAILY_BITS,
     votedPosts: {}
   });
+
+  // Apply theme to body
+  useEffect(() => {
+    document.body.setAttribute('data-theme', theme);
+  }, [theme]);
 
   // Filter posts based on view (Global vs Specific Board)
   const filteredPosts = activeBoardId 
@@ -156,6 +162,18 @@ export default function App() {
     setUserState(prev => ({ ...prev, username: newUsername }));
   };
 
+  const getThemeColor = (id: ThemeId) => {
+    switch(id) {
+      case ThemeId.AMBER: return '#ffb000';
+      case ThemeId.PHOSPHOR: return '#00ff41';
+      case ThemeId.PLASMA: return '#00f0ff';
+      case ThemeId.VERMILION: return '#ff4646';
+      case ThemeId.SLATE: return '#c8c8c8';
+      case ThemeId.BITBORING: return '#ffffff';
+      default: return '#fff';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-terminal-bg text-terminal-text font-mono selection:bg-terminal-text selection:text-black relative">
       {/* Scanline Overlay */}
@@ -168,23 +186,32 @@ export default function App() {
             className="flex items-center gap-2 cursor-pointer hover:text-white transition-colors"
             onClick={() => navigateToBoard(null)}
           >
-            <Terminal size={32} />
-            <div className="flex flex-col">
-              <h1 className="text-4xl font-terminal tracking-wider leading-none">BitBoard</h1>
-              <span className="text-xs text-terminal-dim tracking-[0.2em]">DECENTRALIZED_NET</span>
-            </div>
+            {theme === ThemeId.BITBORING ? (
+              <div className="flex flex-col">
+                <h1 className="text-3xl font-bold tracking-tight leading-none">BitBoring</h1>
+                <span className="text-sm text-terminal-dim">( -_-) zzz</span>
+              </div>
+            ) : (
+              <>
+                <Terminal size={32} />
+                <div className="flex flex-col">
+                  <h1 className="text-4xl font-terminal tracking-wider leading-none">BitBoard</h1>
+                  <span className="text-xs text-terminal-dim tracking-[0.2em]">DECENTRALIZED_NET</span>
+                </div>
+              </>
+            )}
           </div>
           
           <nav className="flex gap-4 text-sm md:text-base">
             <button 
               onClick={() => navigateToBoard(null)}
-              className={`uppercase hover:underline ${viewMode === ViewMode.FEED && activeBoardId === null ? 'font-bold text-white' : 'text-terminal-dim'}`}
+              className={`uppercase hover:underline ${viewMode === ViewMode.FEED && activeBoardId === null ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
             >
               [ Global_Feed ]
             </button>
             <button 
               onClick={() => setViewMode(ViewMode.CREATE)}
-              className={`uppercase hover:underline ${viewMode === ViewMode.CREATE ? 'font-bold text-white' : 'text-terminal-dim'}`}
+              className={`uppercase hover:underline ${viewMode === ViewMode.CREATE ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
             >
               [ New_Bit ]
             </button>
@@ -197,7 +224,7 @@ export default function App() {
             <BitStatus userState={userState} />
             
             {/* Board Directory */}
-            <div className="border border-terminal-dim p-4 bg-black/50">
+            <div className="border border-terminal-dim p-4 bg-terminal-bg shadow-hard">
               <h3 className="font-bold border-b border-terminal-dim mb-2 pb-1 text-sm flex items-center gap-2">
                 <Hash size={14} /> FREQUENCY_LIST
               </h3>
@@ -240,7 +267,34 @@ export default function App() {
               </button>
             </div>
 
-            <div className="border border-terminal-dim p-4 bg-black/50">
+            {/* Theme Selector */}
+            <div className="border border-terminal-dim p-4 bg-terminal-bg shadow-hard">
+              <h3 className="font-bold border-b border-terminal-dim mb-2 pb-1 text-sm flex items-center gap-2">
+                <Eye size={14} /> VISUAL_CONFIG
+              </h3>
+              <div className="grid grid-cols-3 gap-2 py-2">
+                {Object.values(ThemeId).map(t => (
+                  <button 
+                    key={t}
+                    onClick={() => setTheme(t)}
+                    className="group flex items-center justify-center gap-0.5 font-mono text-sm transition-colors"
+                    title={t === ThemeId.BITBORING ? "BITBORING (UGLY MODE)" : t.toUpperCase()}
+                  >
+                    <span className={`transition-colors ${theme === t ? 'text-terminal-text font-bold' : 'text-terminal-dim group-hover:text-terminal-text'}`}>[</span>
+                    <span 
+                      className={`w-3 h-3 mx-0.5 transition-transform ${theme === t ? 'scale-125' : 'scale-100 group-hover:scale-110'}`} 
+                      style={{ 
+                        backgroundColor: getThemeColor(t),
+                        border: t === ThemeId.BITBORING ? '1px solid black' : 'none'
+                      }}
+                    />
+                    <span className={`transition-colors ${theme === t ? 'text-terminal-text font-bold' : 'text-terminal-dim group-hover:text-terminal-text'}`}>]</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="border border-terminal-dim p-4 bg-terminal-bg shadow-hard">
               <h3 className="font-bold border-b border-terminal-dim mb-2 pb-1 text-sm flex items-center gap-2">
                 <HelpCircle size={14} /> USER_ID_CONFIG
               </h3>
@@ -250,7 +304,7 @@ export default function App() {
                   type="text"
                   value={userState.username}
                   onChange={(e) => handleChangeUsername(e.target.value)}
-                  className="bg-black border border-terminal-dim p-1 text-sm text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
+                  className="bg-terminal-bg border border-terminal-dim p-1 text-sm text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
                 />
               </div>
             </div>
@@ -263,7 +317,7 @@ export default function App() {
                 {/* Feed Header */}
                 <div className="flex justify-between items-end mb-6 pb-2 border-b border-terminal-dim/30">
                   <div>
-                    <h2 className="text-2xl font-terminal uppercase tracking-widest text-white">
+                    <h2 className="text-2xl font-terminal uppercase tracking-widest text-terminal-text">
                        {activeBoard ? `// ${activeBoard.name}` : 'GLOBAL_FEED'}
                     </h2>
                     <p className="text-xs text-terminal-dim mt-1">

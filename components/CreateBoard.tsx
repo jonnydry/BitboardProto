@@ -39,7 +39,7 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({ onSubmit, onCancel }) 
   };
 
   return (
-    <div className="border-2 border-terminal-text bg-black p-6 max-w-2xl mx-auto w-full shadow-[8px_8px_0px_0px_rgba(255,176,0,0.15)] animate-fade-in">
+    <div className="border-2 border-terminal-text bg-terminal-bg p-6 max-w-2xl mx-auto w-full shadow-hard-lg animate-fade-in">
       <h2 className="text-2xl font-bold mb-6 border-b border-terminal-dim pb-2">
         > INITIALIZE_NEW_FREQUENCY
       </h2>
@@ -57,7 +57,7 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({ onSubmit, onCancel }) 
               type="text" 
               value={name}
               onChange={handleNameChange}
-              className="flex-1 bg-black border border-terminal-dim p-3 text-terminal-text focus:border-terminal-text focus:outline-none font-mono text-lg tracking-widest uppercase"
+              className="flex-1 bg-terminal-bg border border-terminal-dim p-3 text-terminal-text focus:border-terminal-text focus:outline-none font-mono text-lg tracking-widest uppercase"
               placeholder="MYBOARD"
             />
           </div>
@@ -70,7 +70,7 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({ onSubmit, onCancel }) 
           <textarea 
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="bg-black border border-terminal-dim p-3 text-terminal-text focus:border-terminal-text focus:outline-none font-mono min-h-[100px]"
+            className="bg-terminal-bg border border-terminal-dim p-3 text-terminal-text focus:border-terminal-text focus:outline-none font-mono min-h-[100px]"
             placeholder="Define the purpose of this communication node..."
           />
         </div>

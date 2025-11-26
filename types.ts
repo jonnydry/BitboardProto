@@ -43,3 +43,12 @@ export enum ViewMode {
   SINGLE_BIT = 'SINGLE_BIT',
   CREATE_BOARD = 'CREATE_BOARD'
 }
+
+export enum ThemeId {
+  AMBER = 'amber',
+  PHOSPHOR = 'phosphor',
+  PLASMA = 'plasma',
+  VERMILION = 'vermilion',
+  SLATE = 'slate',
+  BITBORING = 'bitboring'
+}

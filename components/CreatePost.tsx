@@ -61,7 +61,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ availableBoards, current
   };
 
   return (
-    <div className="border-2 border-terminal-text bg-black p-6 max-w-2xl mx-auto w-full shadow-[8px_8px_0px_0px_rgba(255,176,0,0.15)] animate-fade-in">
+    <div className="border-2 border-terminal-text bg-terminal-bg p-6 max-w-2xl mx-auto w-full shadow-hard-lg animate-fade-in">
       <h2 className="text-2xl font-bold mb-6 border-b border-terminal-dim pb-2 flex justify-between items-end">
         <span>> COMPILE_NEW_BIT</span>
         <span className="text-xs text-terminal-dim font-normal flex items-center gap-2">
@@ -77,7 +77,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ availableBoards, current
           <select
             value={selectedBoardId}
             onChange={(e) => setSelectedBoardId(e.target.value)}
-            className="bg-black border border-terminal-dim p-3 text-terminal-text focus:border-terminal-text focus:outline-none font-mono text-lg appearance-none cursor-pointer hover:bg-terminal-dim/10"
+            className="bg-terminal-bg border border-terminal-dim p-3 text-terminal-text focus:border-terminal-text focus:outline-none font-mono text-lg appearance-none cursor-pointer hover:bg-terminal-dim/10"
           >
             {availableBoards.map(board => (
               <option key={board.id} value={board.id}>
@@ -95,7 +95,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ availableBoards, current
               type="url" 
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              className="flex-1 bg-black border border-terminal-dim p-2 text-terminal-text focus:border-terminal-text focus:outline-none font-mono"
+              className="flex-1 bg-terminal-bg border border-terminal-dim p-2 text-terminal-text focus:border-terminal-text focus:outline-none font-mono"
               placeholder="https://example.com"
             />
             <button
@@ -127,11 +127,11 @@ export const CreatePost: React.FC<CreatePostProps> = ({ availableBoards, current
                 <button 
                   type="button" 
                   onClick={() => setImageUrl('')}
-                  className="absolute top-2 right-2 bg-black border border-terminal-alert text-terminal-alert px-2 text-xs hover:bg-terminal-alert hover:text-black"
+                  className="absolute top-2 right-2 bg-terminal-bg border border-terminal-alert text-terminal-alert px-2 text-xs hover:bg-terminal-alert hover:text-black"
                 >
                   REMOVE
                 </button>
-                <div className="absolute bottom-2 left-2 bg-black/80 px-2 py-1 text-xs text-terminal-text">
+                <div className="absolute bottom-2 left-2 bg-terminal-bg/90 px-2 py-1 text-xs text-terminal-text">
                   PREVIEW_ASSET_DETECTED
                 </div>
               </div>
@@ -146,7 +146,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ availableBoards, current
             type="text" 
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="bg-black border border-terminal-dim p-3 text-terminal-text focus:border-terminal-text focus:outline-none font-mono text-lg"
+            className="bg-terminal-bg border border-terminal-dim p-3 text-terminal-text focus:border-terminal-text focus:outline-none font-mono text-lg"
             placeholder="Enter subject..."
           />
           {!title.trim() && title !== '' && <span className="text-terminal-alert text-xs">* HEADER REQUIRED</span>}
@@ -158,7 +158,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ availableBoards, current
           <textarea 
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            className="bg-black border border-terminal-dim p-2 text-terminal-text focus:border-terminal-text focus:outline-none font-mono min-h-[150px]"
+            className="bg-terminal-bg border border-terminal-dim p-2 text-terminal-text focus:border-terminal-text focus:outline-none font-mono min-h-[150px]"
             placeholder="Enter data packet content..."
           />
         </div>
@@ -172,7 +172,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ availableBoards, current
             type="text" 
             value={imageUrl}
             onChange={(e) => setImageUrl(e.target.value)}
-            className="bg-black border border-terminal-dim p-2 text-terminal-text focus:border-terminal-text focus:outline-none font-mono text-sm opacity-70 focus:opacity-100"
+            className="bg-terminal-bg border border-terminal-dim p-2 text-terminal-text focus:border-terminal-text focus:outline-none font-mono text-sm opacity-70 focus:opacity-100"
             placeholder="Auto-filled by scanner or enter manually..."
           />
         </div>
@@ -183,7 +183,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ availableBoards, current
             type="text" 
             value={tagsStr}
             onChange={(e) => setTagsStr(e.target.value)}
-            className="bg-black border border-terminal-dim p-2 text-terminal-text focus:border-terminal-text focus:outline-none font-mono"
+            className="bg-terminal-bg border border-terminal-dim p-2 text-terminal-text focus:border-terminal-text focus:outline-none font-mono"
             placeholder="tech, discussion, news (comma separated)"
           />
         </div>

@@ -65,7 +65,7 @@ export const PostItem: React.FC<PostItemProps> = ({ post, boardName, userState, 
     <div 
       className={`w-full border-2 transition-all duration-200 mb-4 relative group font-mono
         ${isExpanded 
-          ? 'border-terminal-text bg-[#1a1408] shadow-[0_0_15px_rgba(255,176,0,0.1)]' 
+          ? 'border-terminal-text bg-terminal-highlight shadow-glow' 
           : 'border-terminal-dim bg-terminal-bg hover:border-terminal-text'
         }
       `}
@@ -86,7 +86,7 @@ export const PostItem: React.FC<PostItemProps> = ({ post, boardName, userState, 
             <ArrowBigUp size={24} fill={isUpvoted ? "currentColor" : "none"} />
           </button>
           
-          <span className={`text-lg font-bold ${post.score > 0 ? 'text-terminal-text' : post.score < 0 ? 'text-terminal-alert' : 'text-gray-500'}`}>
+          <span className={`text-lg font-bold ${post.score > 0 ? 'text-terminal-text' : post.score < 0 ? 'text-terminal-alert' : 'text-terminal-dim/50'}`}>
             {post.score > 0 ? '+' : ''}{post.score}
           </span>
 
@@ -162,7 +162,7 @@ export const PostItem: React.FC<PostItemProps> = ({ post, boardName, userState, 
                   alt="Content Preview" 
                   className="w-full h-auto max-h-[300px] object-cover grayscale sepia contrast-125 brightness-75 group-hover/image:filter-none group-hover/image:brightness-100 transition-all duration-300"
                 />
-                <div className="absolute bottom-0 left-0 bg-black/80 px-2 py-1 text-[10px] text-terminal-text border-t border-r border-terminal-dim">
+                <div className="absolute bottom-0 left-0 bg-terminal-bg/80 px-2 py-1 text-[10px] text-terminal-text border-t border-r border-terminal-dim">
                   IMG_PREVIEW_ASSET
                 </div>
                </a>
@@ -171,7 +171,7 @@ export const PostItem: React.FC<PostItemProps> = ({ post, boardName, userState, 
 
           <div 
             onClick={handleInteraction}
-            className={`text-sm md:text-base text-gray-400 font-mono leading-relaxed mb-3 cursor-pointer break-words ${!isExpanded ? 'line-clamp-2 opacity-80' : 'opacity-100'}`}
+            className={`text-sm md:text-base text-terminal-text/80 font-mono leading-relaxed mb-3 cursor-pointer break-words ${!isExpanded ? 'line-clamp-2' : 'opacity-100'}`}
           >
             {post.content}
           </div>
@@ -189,7 +189,7 @@ export const PostItem: React.FC<PostItemProps> = ({ post, boardName, userState, 
               onClick={(e) => { e.stopPropagation(); handleInteraction(); }}
               className={`flex items-center gap-2 text-sm px-2 py-0.5 transition-colors border border-transparent shrink-0
                 ${isExpanded 
-                  ? 'text-terminal-text border-terminal-dim bg-black/30' 
+                  ? 'text-terminal-text border-terminal-dim bg-terminal-bg/30' 
                   : 'text-terminal-dim hover:text-terminal-text hover:border-terminal-dim'
                 }`}
             >
@@ -225,7 +225,7 @@ export const PostItem: React.FC<PostItemProps> = ({ post, boardName, userState, 
                          <span>::</span>
                          <span>{formatTime(comment.timestamp)}</span>
                       </div>
-                      <p className="text-gray-300 text-sm leading-relaxed break-words">{comment.content}</p>
+                      <p className="text-terminal-text/80 text-sm leading-relaxed break-words">{comment.content}</p>
                     </div>
                   ))}
                 </div>
@@ -235,14 +235,14 @@ export const PostItem: React.FC<PostItemProps> = ({ post, boardName, userState, 
                 </p>
               )}
 
-              <form onSubmit={handleCommentSubmit} className="flex gap-3 items-start bg-black/40 p-3 border border-terminal-dim/30">
+              <form onSubmit={handleCommentSubmit} className="flex gap-3 items-start bg-terminal-bg/40 p-3 border border-terminal-dim/30">
                 <div className="flex-1 flex flex-col gap-2">
                   <label className="text-[10px] uppercase text-terminal-dim font-bold">Append Data:</label>
                   <textarea
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
                     placeholder="Type response..."
-                    className="bg-black border border-terminal-dim p-2 text-sm text-terminal-text focus:border-terminal-text focus:outline-none w-full min-h-[60px] font-mono"
+                    className="bg-terminal-bg border border-terminal-dim p-2 text-sm text-terminal-text focus:border-terminal-text focus:outline-none w-full min-h-[60px] font-mono"
                   />
                 </div>
                 <button 

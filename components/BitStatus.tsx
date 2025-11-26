@@ -29,7 +29,7 @@ export const BitStatus: React.FC<BitStatusProps> = ({ userState }) => {
   };
 
   return (
-    <div className="border-2 border-terminal-text bg-black p-4 sticky top-4 w-full mb-6 shadow-[4px_4px_0px_0px_rgba(255,176,0,0.2)]">
+    <div className="border-2 border-terminal-text bg-terminal-bg p-4 sticky top-4 w-full mb-6 shadow-hard">
       <div className="flex justify-between items-end mb-2">
         <h2 className="text-xl font-bold flex items-center gap-2">
           <Zap className={userState.bits === 0 ? "text-terminal-alert" : "text-terminal-text"} />
