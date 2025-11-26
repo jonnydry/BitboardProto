@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Post, UserState, Board } from '../types';
-import { ArrowBigUp, ArrowBigDown, MessageSquare, Clock, Hash, ExternalLink, CornerDownRight, Maximize2, Minimize2, Image as ImageIcon } from 'lucide-react';
+import { ArrowBigUp, ArrowBigDown, MessageSquare, Clock, Hash, ExternalLink, CornerDownRight, Maximize2, Minimize2, Image as ImageIcon, Shield, Users } from 'lucide-react';
 
 interface PostItemProps {
   post: Post;
@@ -10,9 +10,19 @@ interface PostItemProps {
   onComment: (postId: string, content: string) => void;
   onViewBit: (postId: string) => void;
   isFullPage?: boolean;
+  isNostrConnected?: boolean;
 }
 
-export const PostItem: React.FC<PostItemProps> = ({ post, boardName, userState, onVote, onComment, onViewBit, isFullPage = false }) => {
+export const PostItem: React.FC<PostItemProps> = ({
+  post,
+  boardName,
+  userState,
+  onVote,
+  onComment,
+  onViewBit,
+  isFullPage = false,
+  isNostrConnected = false,
+}) => {
   const [isExpanded, setIsExpanded] = useState(isFullPage);
   const [newComment, setNewComment] = useState('');
   const [isTransmitting, setIsTransmitting] = useState(false);
@@ -75,13 +85,21 @@ export const PostItem: React.FC<PostItemProps> = ({ post, boardName, userState, 
       <div className="absolute -bottom-1 -right-1 w-2 h-2 border-b-2 border-r-2 border-terminal-text opacity-0 group-hover:opacity-100 transition-opacity"></div>
 
       <div className={`flex flex-row gap-4 p-3 ${isExpanded ? 'p-5' : ''}`}>
-        {/* Voting Column */}
+        {/* Voting Column - Cryptographically Verified */}
         <div className="flex flex-col items-center min-w-[3.5rem] border-r border-terminal-dim pr-3 justify-start pt-1 gap-1">
           <button 
             onClick={(e) => { e.stopPropagation(); onVote(post.id, 'up'); }}
             className={`p-1 hover:bg-terminal-dim transition-colors ${isUpvoted ? 'text-terminal-text font-bold' : 'text-terminal-dim'}`}
-            disabled={userState.bits <= 0 && !hasInvested}
-            title={isUpvoted ? "RETRACT BIT (+1 REFUND)" : hasInvested ? "SWITCH VOTE (0 COST)" : "INVEST 1 BIT (-1)"}
+            disabled={(!userState.identity) || (userState.bits <= 0 && !hasInvested)}
+            title={
+              !userState.identity
+                ? "CONNECT IDENTITY TO VOTE"
+                : isUpvoted
+                  ? "RETRACT BIT (+1 REFUND)"
+                  : hasInvested
+                    ? "SWITCH VOTE (0 COST)"
+                    : "INVEST 1 BIT (-1)"
+            }
           >
             <ArrowBigUp size={24} fill={isUpvoted ? "currentColor" : "none"} />
           </button>
@@ -93,11 +111,52 @@ export const PostItem: React.FC<PostItemProps> = ({ post, boardName, userState, 
           <button 
             onClick={(e) => { e.stopPropagation(); onVote(post.id, 'down'); }}
             className={`p-1 hover:bg-terminal-dim transition-colors ${isDownvoted ? 'text-terminal-alert font-bold' : 'text-terminal-dim'}`}
-            disabled={userState.bits <= 0 && !hasInvested}
-            title={isDownvoted ? "RETRACT BIT (+1 REFUND)" : hasInvested ? "SWITCH VOTE (0 COST)" : "INVEST 1 BIT (-1)"}
+            disabled={(!userState.identity) || (userState.bits <= 0 && !hasInvested)}
+            title={
+              !userState.identity
+                ? "CONNECT IDENTITY TO VOTE"
+                : isDownvoted
+                  ? "RETRACT BIT (+1 REFUND)"
+                  : hasInvested
+                    ? "SWITCH VOTE (0 COST)"
+                    : "INVEST 1 BIT (-1)"
+            }
           >
             <ArrowBigDown size={24} fill={isDownvoted ? "currentColor" : "none"} />
           </button>
+
+          {/* Nostr Verification Badge + Voter Count */}
+          {post.nostrEventId && (
+            <div className="mt-1 flex flex-col items-center gap-0.5">
+              {post.votesVerified ? (
+                <div
+                  className="flex items-center gap-0.5"
+                  title="Score synced with verified Nostr votes"
+                >
+                  <Shield size={10} className="text-terminal-text" />
+                  {typeof post.uniqueVoters === 'number' && (
+                    <span className="text-[9px] text-terminal-dim flex items-center gap-0.5">
+                      <Users size={8} /> {post.uniqueVoters}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div
+                  className="flex items-center gap-0.5"
+                  title={
+                    isNostrConnected
+                      ? 'Syncing verified votes from relays...'
+                      : 'Offline: showing local/last known score.'
+                  }
+                >
+                  <Shield
+                    size={10}
+                    className={isNostrConnected ? 'text-terminal-dim' : 'text-terminal-alert'}
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Investment Indicator */}
           {hasInvested && (
@@ -231,7 +290,7 @@ export const PostItem: React.FC<PostItemProps> = ({ post, boardName, userState, 
                 </div>
               ) : (
                 <p className="text-terminal-dim italic text-sm mb-6 border border-terminal-dim p-2 inline-block">
-                  > Null signal. Awaiting input...
+                  &gt; Null signal. Awaiting input...
                 </p>
               )}
 

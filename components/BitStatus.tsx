@@ -30,13 +30,10 @@ export const BitStatus: React.FC<BitStatusProps> = ({ userState }) => {
 
   return (
     <div className="border-2 border-terminal-text bg-terminal-bg p-4 sticky top-4 w-full mb-6 shadow-hard">
-      <div className="flex justify-between items-end mb-2">
-        <h2 className="text-xl font-bold flex items-center gap-2">
-          <Zap className={userState.bits === 0 ? "text-terminal-alert" : "text-terminal-text"} />
-          USER_BITS
-        </h2>
-        {/* Pad to 3 digits to accommodate 100 */}
-        <span className="text-2xl font-terminal">{String(userState.bits).padStart(3, '0')}/{userState.maxBits}</span>
+      <div className="flex justify-center items-center mb-4 gap-3">
+        <Zap size={24} className={userState.bits === 0 ? "text-terminal-alert" : "text-terminal-text"} />
+        <h2 className="text-xl font-bold tracking-wide">USER_BITS</h2>
+        <span className="text-xl font-terminal">{String(userState.bits).padStart(3, '0')}/{userState.maxBits}</span>
       </div>
       
       {/* Centered progress bar with fixed visual width */}
@@ -47,7 +44,7 @@ export const BitStatus: React.FC<BitStatusProps> = ({ userState }) => {
       <p className="text-xs text-terminal-dim mt-2 uppercase leading-relaxed text-center">
         {userState.bits === 0 
           ? "CRITICAL: INFLUENCE DEPLETED. RECHARGE PENDING..." 
-          : "Influence available. MAX 1 BIT PER DATA PACKET."}
+          : "BITS GATE LOCAL VOTES. EACH NOSTR ID = 1 VOTE PER POST."}
       </p>
     </div>
   );

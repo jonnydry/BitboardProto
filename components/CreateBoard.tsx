@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Board } from '../types';
-import { Globe, Lock, Hash, Radio } from 'lucide-react';
+import { Board, BoardType } from '../types';
+import { Globe, Lock, Hash, AlertTriangle } from 'lucide-react';
+import { inputValidator, InputLimits } from '../services/inputValidator';
 
 interface CreateBoardProps {
-  onSubmit: (board: Omit<Board, 'id' | 'memberCount'>) => void;
+  onSubmit: (board: Omit<Board, 'id' | 'memberCount' | 'nostrEventId'>) => void;
   onCancel: () => void;
 }
 
@@ -12,21 +13,70 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({ onSubmit, onCancel }) 
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Validation error states
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [descriptionError, setDescriptionError] = useState<string | null>(null);
+
+  const validateForm = (): boolean => {
+    let isValid = true;
+
+    // Validate name
+    const validatedName = inputValidator.validateBoardName(name);
+    if (!validatedName) {
+      if (!name.trim()) {
+        setNameError('Board name is required');
+      } else if (!/^[a-zA-Z]/.test(name)) {
+        setNameError('Board name must start with a letter');
+      } else {
+        setNameError('Board name can only contain letters, numbers, and underscores');
+      }
+      isValid = false;
+    } else {
+      setNameError(null);
+    }
+
+    // Validate description (optional but must be valid if provided)
+    if (description.trim()) {
+      const validatedDesc = inputValidator.validateBoardDescription(description);
+      if (!validatedDesc) {
+        if (description.length > InputLimits.MAX_BOARD_DESCRIPTION_LENGTH) {
+          setDescriptionError(`Description must be ${InputLimits.MAX_BOARD_DESCRIPTION_LENGTH} characters or less`);
+        } else {
+          setDescriptionError('Description contains invalid characters');
+        }
+        isValid = false;
+      } else {
+        setDescriptionError(null);
+      }
+    } else {
+      setDescriptionError(null);
+    }
+
+    return isValid;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    
+    if (!validateForm()) {
+      return;
+    }
 
     setIsSubmitting(true);
     
     setTimeout(() => {
-      // Sanitize name: Uppercase, alphanumeric only
-      const cleanName = name.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      // Use validated name
+      const cleanName = inputValidator.validateBoardName(name)!;
+      const cleanDescription = description.trim() 
+        ? inputValidator.validateBoardDescription(description) || ''
+        : '';
       
       onSubmit({
         name: cleanName,
-        description,
-        isPublic
+        description: cleanDescription,
+        isPublic,
+        type: BoardType.TOPIC,
       });
       setIsSubmitting(false);
     }, 800);
@@ -34,45 +84,80 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({ onSubmit, onCancel }) 
 
   // Handle name input to enforce format
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (val.length <= 12) setName(val);
+    const val = e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '');
+    if (val.length <= InputLimits.MAX_BOARD_NAME_LENGTH) {
+      setName(val);
+      setNameError(null);
+    }
   };
+
+  // Character count helpers
+  const descCharCount = description.length;
+  const descOverLimit = descCharCount > InputLimits.MAX_BOARD_DESCRIPTION_LENGTH;
 
   return (
     <div className="border-2 border-terminal-text bg-terminal-bg p-6 max-w-2xl mx-auto w-full shadow-hard-lg animate-fade-in">
       <h2 className="text-2xl font-bold mb-6 border-b border-terminal-dim pb-2">
-        > INITIALIZE_NEW_FREQUENCY
+        &gt; INITIALIZE_NEW_FREQUENCY
       </h2>
       
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         
         {/* Name Input */}
         <div className="flex flex-col gap-2">
-          <label className="text-sm text-terminal-dim uppercase font-bold flex items-center gap-2">
-            <Hash size={14} /> Frequency Name (ID)
-          </label>
+          <div className="flex justify-between items-center">
+            <label className="text-sm text-terminal-dim uppercase font-bold flex items-center gap-2">
+              <Hash size={14} /> Frequency Name (ID)
+            </label>
+            <span className="text-xs text-terminal-dim">
+              {name.length}/{InputLimits.MAX_BOARD_NAME_LENGTH}
+            </span>
+          </div>
           <div className="flex items-center">
              <span className="bg-terminal-dim/20 border border-r-0 border-terminal-dim p-3 text-terminal-dim font-mono">//</span>
              <input 
               type="text" 
               value={name}
               onChange={handleNameChange}
-              className="flex-1 bg-terminal-bg border border-terminal-dim p-3 text-terminal-text focus:border-terminal-text focus:outline-none font-mono text-lg tracking-widest uppercase"
+              className={`flex-1 bg-terminal-bg border p-3 text-terminal-text focus:border-terminal-text focus:outline-none font-mono text-lg tracking-widest uppercase ${
+                nameError ? 'border-terminal-alert' : 'border-terminal-dim'
+              }`}
               placeholder="MYBOARD"
             />
           </div>
-          <span className="text-[10px] text-terminal-dim">* MAX 12 CHARS. ALPHANUMERIC ONLY.</span>
+          {nameError ? (
+            <span className="text-terminal-alert text-xs flex items-center gap-1">
+              <AlertTriangle size={12} /> {nameError}
+            </span>
+          ) : (
+            <span className="text-[10px] text-terminal-dim">* STARTS WITH LETTER. ALPHANUMERIC + UNDERSCORE ONLY.</span>
+          )}
         </div>
 
         {/* Description */}
         <div className="flex flex-col gap-2">
-          <label className="text-sm text-terminal-dim uppercase font-bold">Manifesto / Description</label>
+          <div className="flex justify-between items-center">
+            <label className="text-sm text-terminal-dim uppercase font-bold">Manifesto / Description</label>
+            <span className={`text-xs ${descOverLimit ? 'text-terminal-alert' : 'text-terminal-dim'}`}>
+              {descCharCount}/{InputLimits.MAX_BOARD_DESCRIPTION_LENGTH}
+            </span>
+          </div>
           <textarea 
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="bg-terminal-bg border border-terminal-dim p-3 text-terminal-text focus:border-terminal-text focus:outline-none font-mono min-h-[100px]"
+            onChange={(e) => {
+              setDescription(e.target.value);
+              setDescriptionError(null);
+            }}
+            className={`bg-terminal-bg border p-3 text-terminal-text focus:border-terminal-text focus:outline-none font-mono min-h-[100px] ${
+              descriptionError ? 'border-terminal-alert' : 'border-terminal-dim'
+            }`}
             placeholder="Define the purpose of this communication node..."
           />
+          {descriptionError && (
+            <span className="text-terminal-alert text-xs flex items-center gap-1">
+              <AlertTriangle size={12} /> {descriptionError}
+            </span>
+          )}
         </div>
 
         {/* Visibility Toggle */}

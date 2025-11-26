@@ -1,11 +1,29 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Initialize Gemini client
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Initialize Gemini client lazily to avoid errors when API key is missing
+let ai: GoogleGenAI | null = null;
+
+const getAI = () => {
+  if (!ai) {
+    const apiKey = typeof process !== 'undefined' ? process.env?.API_KEY : undefined;
+    if (!apiKey) {
+      console.warn('[Gemini] No API key configured - link scanning disabled');
+      return null;
+    }
+    ai = new GoogleGenAI({ apiKey });
+  }
+  return ai;
+};
 
 export const scanLink = async (url: string) => {
+  const client = getAI();
+  if (!client) {
+    console.warn('[Gemini] Link scanning not available - no API key');
+    return null;
+  }
+
   try {
-    const response = await ai.models.generateContent({
+    const response = await client.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: `Analyze this URL: ${url}. Return a JSON object with the page title, a brief summary (description), and a relevant main image URL (imageUrl) if one can be found via search or context.`,
       config: {
@@ -28,7 +46,7 @@ export const scanLink = async (url: string) => {
     }
     return null;
   } catch (error) {
-    console.error("Link scan failed:", error);
+    console.error("[Gemini] Link scan failed:", error);
     return null;
   }
 };
