@@ -47,6 +47,8 @@ import { nostrService } from './nostrService';
 import { rateLimiter } from './rateLimiter';
 import { voteDeduplicator } from './messageDeduplicator';
 import { NOSTR_KINDS } from '../types';
+import type { NostrIdentity } from '../types';
+import { identityService } from './identityService';
 
 // ============================================
 // TYPES
@@ -624,9 +626,10 @@ class VotingService {
   async castVote(
     postId: string,
     direction: 'up' | 'down',
-    userPubkey: string,
-    privateKey: Uint8Array
+    identity: NostrIdentity,
+    postAuthorPubkey?: string
   ): Promise<VoteResult> {
+    const userPubkey = identity.pubkey;
     // Rate limit check
     if (!rateLimiter.allowVote(userPubkey)) {
       return {
@@ -642,8 +645,10 @@ class VotingService {
     }
 
     try {
-      // Publish vote to Nostr
-      const event = await nostrService.publishVote(postId, direction, privateKey);
+      // Build + sign + publish vote to Nostr
+      const unsigned = nostrService.buildVoteEvent(postId, direction, userPubkey, { postAuthorPubkey });
+      const signed = await identityService.signEvent(unsigned);
+      const event = await nostrService.publishSignedEvent(signed);
       
       // Mark as processed
       voteDeduplicator.markVoteProcessed(userPubkey, postId);

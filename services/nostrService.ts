@@ -1,10 +1,9 @@
 import { 
   SimplePool, 
-  finalizeEvent, 
   type Event as NostrEvent,
   type Filter 
 } from 'nostr-tools';
-import { NOSTR_KINDS, type Post, type Board, type Comment, BoardType } from '../types';
+import { NOSTR_KINDS, type Post, type Board, type Comment, BoardType, type UnsignedNostrEvent } from '../types';
 import { NostrConfig } from '../config';
 import { nostrEventDeduplicator } from './messageDeduplicator';
 
@@ -13,6 +12,8 @@ import { nostrEventDeduplicator } from './messageDeduplicator';
 // ============================================
 
 export const DEFAULT_RELAYS = NostrConfig.DEFAULT_RELAYS;
+
+const USER_RELAYS_STORAGE_KEY = 'bitboard_user_relays_v1';
 
 // ============================================
 // RELAY STATUS TYPES
@@ -29,8 +30,7 @@ interface RelayStatus {
 }
 
 interface PendingMessage {
-  event: Partial<NostrEvent>;
-  privateKey: Uint8Array;
+  event: NostrEvent;
   pendingRelays: Set<string>;
   timestamp: number;
 }
@@ -43,13 +43,15 @@ class NostrService {
   private pool: SimplePool;
   private relays: string[];
   private subscriptions: Map<string, { unsub: () => void }>;
+  private userRelays: string[] = [];
   
   // Relay status tracking
   private relayStatuses: Map<string, RelayStatus> = new Map();
   
   // Message queue for offline resilience
   private messageQueue: PendingMessage[] = [];
-  private readonly MESSAGE_QUEUE_MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes
+  private readonly MESSAGE_QUEUE_MAX_AGE_MS = NostrConfig.MESSAGE_QUEUE_MAX_AGE_MS;
+  private readonly MESSAGE_QUEUE_MAX_SIZE = NostrConfig.MESSAGE_QUEUE_MAX_SIZE;
   
   // Backoff configuration (from BitChat's NostrRelayManager)
   private readonly INITIAL_BACKOFF_MS = NostrConfig.RELAY_INITIAL_BACKOFF_MS;
@@ -62,7 +64,10 @@ class NostrService {
 
   constructor() {
     this.pool = new SimplePool();
-    this.relays = [...DEFAULT_RELAYS];
+
+    // Load user-configured relays (if any) and merge with defaults
+    this.userRelays = this.loadUserRelaysFromStorage();
+    this.relays = this.mergeRelays(this.userRelays, [...DEFAULT_RELAYS]);
     this.subscriptions = new Map();
     
     // Initialize relay statuses
@@ -77,6 +82,91 @@ class NostrService {
         nextReconnectTime: null,
       });
     });
+  }
+
+  // ----------------------------------------
+  // RELAY PREFERENCES (User-configurable)
+  // ----------------------------------------
+
+  /**
+   * Get user-configured relays (does not include defaults)
+   */
+  getUserRelays(): string[] {
+    return [...this.userRelays];
+  }
+
+  /**
+   * Set user-configured relays and persist them. Defaults are always included.
+   */
+  setUserRelays(relays: string[]) {
+    const normalized = this.normalizeRelayList(relays);
+    this.userRelays = normalized;
+    this.saveUserRelaysToStorage(normalized);
+    // User relays first, then defaults
+    this.setRelays(this.mergeRelays(this.userRelays, [...DEFAULT_RELAYS]));
+  }
+
+  private loadUserRelaysFromStorage(): string[] {
+    try {
+      if (typeof localStorage === 'undefined') return [];
+      const raw = localStorage.getItem(USER_RELAYS_STORAGE_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return this.normalizeRelayList(parsed);
+    } catch {
+      return [];
+    }
+  }
+
+  private saveUserRelaysToStorage(relays: string[]) {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      localStorage.setItem(USER_RELAYS_STORAGE_KEY, JSON.stringify(relays));
+    } catch {
+      // ignore
+    }
+  }
+
+  private normalizeRelayList(relays: unknown[]): string[] {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const r of relays) {
+      if (typeof r !== 'string') continue;
+      const url = r.trim();
+      if (!url) continue;
+      // Only accept wss:// (most relays) and ws:// (dev/testing)
+      if (!url.startsWith('wss://') && !url.startsWith('ws://')) continue;
+      if (seen.has(url)) continue;
+      seen.add(url);
+      out.push(url);
+    }
+    return out;
+  }
+
+  private mergeRelays(primary: string[], secondary: string[]): string[] {
+    const merged: string[] = [];
+    const seen = new Set<string>();
+    for (const url of [...primary, ...secondary]) {
+      if (seen.has(url)) continue;
+      seen.add(url);
+      merged.push(url);
+    }
+    return merged;
+  }
+
+  /**
+   * Prefer user relays for publishing, then fall back to defaults.
+   */
+  private getPublishRelays(): string[] {
+    return this.mergeRelays(this.userRelays, [...DEFAULT_RELAYS]);
+  }
+
+  /**
+   * Prefer user relays for reads/subscriptions, then fall back to defaults.
+   */
+  private getReadRelays(): string[] {
+    return this.mergeRelays(this.userRelays, [...DEFAULT_RELAYS]);
   }
 
   // ----------------------------------------
@@ -259,7 +349,7 @@ class NostrService {
   // MESSAGE QUEUE MANAGEMENT
   // ----------------------------------------
 
-  private queueMessage(event: Partial<NostrEvent>, privateKey: Uint8Array, targetRelays: string[]) {
+  private queueMessage(event: NostrEvent, targetRelays: string[]) {
     // Find relays that aren't connected
     const disconnectedRelays = targetRelays.filter(url => {
       const status = this.relayStatuses.get(url);
@@ -277,7 +367,6 @@ class NostrService {
 
     this.messageQueue.push({
       event,
-      privateKey,
       pendingRelays: new Set(disconnectedRelays),
       timestamp: Date.now(),
     });
@@ -301,7 +390,7 @@ class NostrService {
       // Check if this relay is in the pending list
       if (item.pendingRelays.has(relayUrl)) {
         // Try to send
-        this.publishEventToRelay(item.event, item.privateKey, relayUrl)
+        this.publishEventToRelay(item.event, relayUrl)
           .then(() => {
             item.pendingRelays.delete(relayUrl);
             if (item.pendingRelays.size === 0) {
@@ -324,32 +413,29 @@ class NostrService {
   }
 
   private async publishEventToRelay(
-    event: Partial<NostrEvent>, 
-    privateKey: Uint8Array, 
+    event: NostrEvent,
     relayUrl: string
   ): Promise<NostrEvent> {
-    const signedEvent = finalizeEvent(event as any, privateKey);
-    await this.pool.publish([relayUrl], signedEvent);
-    return signedEvent;
+    await this.pool.publish([relayUrl], event);
+    return event;
   }
 
   // ----------------------------------------
   // PUBLISHING EVENTS
   // ----------------------------------------
 
-  async publishEvent(event: Partial<NostrEvent>, privateKey: Uint8Array): Promise<NostrEvent> {
-    const signedEvent = finalizeEvent(event as any, privateKey);
-    
+  async publishSignedEvent(signedEvent: NostrEvent): Promise<NostrEvent> {
     try {
+      const publishRelays = this.getPublishRelays();
       // Get connected relays
-      const connectedRelays = this.relays.filter(url => {
+      const connectedRelays = publishRelays.filter(url => {
         const status = this.relayStatuses.get(url);
         return status?.isConnected !== false; // Include unknown status
       });
 
       if (connectedRelays.length === 0) {
         // Queue for later if no relays connected
-        this.queueMessage(event, privateKey, this.relays);
+        this.queueMessage(signedEvent, publishRelays);
         throw new Error('No relays connected');
       }
 
@@ -359,21 +445,27 @@ class NostrService {
       nostrEventDeduplicator.markProcessed(signedEvent.id);
       
       // Queue for disconnected relays
-      this.queueMessage(event, privateKey, this.relays);
+      this.queueMessage(signedEvent, publishRelays);
       
       return signedEvent;
     } catch (error) {
       // Queue the message for retry
-      this.queueMessage(event, privateKey, this.relays);
+      this.queueMessage(signedEvent, this.getPublishRelays());
       throw error;
     }
   }
 
-  async publishPost(
+  buildPostEvent(
     post: Omit<Post, 'id' | 'score' | 'commentCount' | 'comments' | 'nostrEventId' | 'upvotes' | 'downvotes'>,
-    privateKey: Uint8Array,
-    geohash?: string  // For location-based boards
-  ): Promise<NostrEvent> {
+    pubkey: string,
+    geohash?: string,  // For location-based boards
+    opts?: {
+      /** NIP-33 board address (30001:<pubkey>:<d>) */
+      boardAddress?: string;
+      /** Used as a discoverability hashtag */
+      boardName?: string;
+    }
+  ): UnsignedNostrEvent {
     const tags: string[][] = [
       ['client', 'bitboard'],
       ['title', post.title],
@@ -382,6 +474,19 @@ class NostrService {
 
     // Add topic tags
     post.tags.forEach(tag => tags.push(['t', tag]));
+
+    // NIP-33: addressable reference to board (preferred), keep legacy 'board' tag too
+    if (opts?.boardAddress) {
+      tags.push(['a', opts.boardAddress]);
+    }
+
+    // Discoverability hashtag for board name
+    if (opts?.boardName) {
+      const boardTag = opts.boardName.toLowerCase();
+      if (boardTag && !post.tags.some(t => t.toLowerCase() === boardTag)) {
+        tags.push(['t', boardTag]);
+      }
+    }
 
     // Add URL if present
     if (post.url) {
@@ -399,60 +504,88 @@ class NostrService {
     }
 
     const event: Partial<NostrEvent> = {
+      pubkey,
       kind: NOSTR_KINDS.POST,
       created_at: Math.floor(Date.now() / 1000),
       tags,
       content: post.content,
     };
 
-    return this.publishEvent(event, privateKey);
+    return event as UnsignedNostrEvent;
   }
 
-  async publishComment(
+  buildCommentEvent(
     postEventId: string,
     content: string,
-    privateKey: Uint8Array,
-    parentCommentId?: string
-  ): Promise<NostrEvent> {
+    pubkey: string,
+    parentCommentId?: string,
+    opts?: {
+      /** Post author's pubkey (for NIP-10 p tags) */
+      postAuthorPubkey?: string;
+      /** Parent comment author's pubkey (for NIP-10 p tags) */
+      parentCommentAuthorPubkey?: string;
+    }
+  ): UnsignedNostrEvent {
     const tags: string[][] = [
       ['e', postEventId, '', 'root'],  // Reference to the original post
       ['client', 'bitboard'],
     ];
 
+    // NIP-10: include pubkeys referenced by the thread
+    if (opts?.postAuthorPubkey) {
+      tags.push(['p', opts.postAuthorPubkey]);
+    }
+
     // If this is a reply to another comment, add parent reference
     if (parentCommentId) {
       tags.push(['e', parentCommentId, '', 'reply']);
+      if (opts?.parentCommentAuthorPubkey) {
+        tags.push(['p', opts.parentCommentAuthorPubkey]);
+      }
     }
 
     const event: Partial<NostrEvent> = {
+      pubkey,
       kind: NOSTR_KINDS.POST,
       created_at: Math.floor(Date.now() / 1000),
       tags,
       content,
     };
 
-    return this.publishEvent(event, privateKey);
+    return event as UnsignedNostrEvent;
   }
 
-  async publishVote(
+  buildVoteEvent(
     postEventId: string,
     direction: 'up' | 'down',
-    privateKey: Uint8Array
-  ): Promise<NostrEvent> {
+    pubkey: string,
+    opts?: {
+      /** Post author's pubkey (NIP-25 p tag) */
+      postAuthorPubkey?: string;
+    }
+  ): UnsignedNostrEvent {
+    const tags: string[][] = [['e', postEventId]];
+
+    // NIP-25: include 'p' tag for the author of the reacted-to event
+    if (opts?.postAuthorPubkey) {
+      tags.push(['p', opts.postAuthorPubkey]);
+    }
+
     const event: Partial<NostrEvent> = {
+      pubkey,
       kind: NOSTR_KINDS.REACTION,
       created_at: Math.floor(Date.now() / 1000),
-      tags: [['e', postEventId]],
+      tags,
       content: direction === 'up' ? '+' : '-',
     };
 
-    return this.publishEvent(event, privateKey);
+    return event as UnsignedNostrEvent;
   }
 
-  async publishBoard(
+  buildBoardEvent(
     board: Omit<Board, 'id' | 'memberCount' | 'nostrEventId'>,
-    privateKey: Uint8Array
-  ): Promise<NostrEvent> {
+    pubkey: string
+  ): UnsignedNostrEvent {
     const boardId = `b-${board.name.toLowerCase()}`;
     
     const tags: string[][] = [
@@ -468,13 +601,14 @@ class NostrService {
     }
 
     const event: Partial<NostrEvent> = {
+      pubkey,
       kind: NOSTR_KINDS.BOARD_DEFINITION,
       created_at: Math.floor(Date.now() / 1000),
       tags,
       content: board.description,
     };
 
-    return this.publishEvent(event, privateKey);
+    return event as UnsignedNostrEvent;
   }
 
   // ----------------------------------------
@@ -483,6 +617,7 @@ class NostrService {
 
   async fetchPosts(filters: {
     boardId?: string;
+    boardAddress?: string;
     geohash?: string;
     limit?: number;
     since?: number;
@@ -502,6 +637,11 @@ class NostrService {
     }
 
     // Add board or geohash filter via tags
+    if (filters.boardAddress) {
+      filter['#a'] = [filters.boardAddress];
+    }
+
+    // Legacy board filter (keep for backward compatibility)
     if (filters.boardId) {
       filter['#board'] = [filters.boardId];
     }
@@ -514,14 +654,15 @@ class NostrService {
     filter['#client'] = ['bitboard'];
 
     try {
+      const readRelays = this.getReadRelays();
       // Query fastest relays first with timeout
-      const connectedRelays = this.relays.filter(url => {
+      const connectedRelays = readRelays.filter(url => {
         const status = this.relayStatuses.get(url);
         return status?.isConnected !== false; // Include unknown status
       });
 
       // If we have connected relays, query them first
-      const relaysToQuery = connectedRelays.length > 0 ? connectedRelays : this.relays;
+      const relaysToQuery = connectedRelays.length > 0 ? connectedRelays : readRelays;
       
       // Use Promise.race with timeout for faster response
       const QUERY_TIMEOUT_MS = 5000; // 5 second timeout
@@ -557,7 +698,7 @@ class NostrService {
     }
 
     try {
-      const events = await this.pool.querySync(this.relays, filter);
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
       return events.filter(event => !nostrEventDeduplicator.isEventDuplicate(event.id));
     } catch (error) {
       console.error('[Nostr] Failed to fetch boards:', error);
@@ -575,7 +716,7 @@ class NostrService {
       '#e': [postEventId],
     };
 
-    const events = await this.pool.querySync(this.relays, filter);
+    const events = await this.pool.querySync(this.getReadRelays(), filter);
     return events;
   }
 
@@ -617,7 +758,7 @@ class NostrService {
       '#client': ['bitboard'],
     };
 
-    const events = await this.pool.querySync(this.relays, filter);
+    const events = await this.pool.querySync(this.getReadRelays(), filter);
     return events.filter(event => !nostrEventDeduplicator.isEventDuplicate(event.id));
   }
 
@@ -627,7 +768,7 @@ class NostrService {
 
   subscribeToFeed(
     onEvent: (event: NostrEvent) => void,
-    filters: { boardId?: string; geohash?: string } = {}
+    filters: { boardId?: string; boardAddress?: string; geohash?: string } = {}
   ): string {
     const subscriptionId = `feed-${Date.now()}`;
     
@@ -636,6 +777,10 @@ class NostrService {
       '#client': ['bitboard'],
       since: Math.floor(Date.now() / 1000) - NostrConfig.SUBSCRIPTION_SINCE_SECONDS,
     };
+
+    if (filters.boardAddress) {
+      filter['#a'] = [filters.boardAddress];
+    }
 
     if (filters.boardId) {
       filter['#board'] = [filters.boardId];
@@ -676,7 +821,7 @@ class NostrService {
     };
 
     const sub = this.pool.subscribeMany(
-      this.relays,
+      this.getReadRelays(),
       [filter],
       {
         onevent: debouncedHandler,
@@ -732,7 +877,14 @@ class NostrService {
     this.reconnectTimers.forEach(timer => clearTimeout(timer));
     this.reconnectTimers.clear();
     this.messageQueue = [];
-    this.relayStatuses.clear();
+    // Keep relay status map so callers can still read relays/status after cleanup
+    this.relayStatuses.forEach((status) => {
+      status.isConnected = false;
+      status.nextReconnectTime = null;
+      status.reconnectAttempts = 0;
+      status.lastError = null;
+      status.lastDisconnectedAt = Date.now();
+    });
   }
 
   // ----------------------------------------
@@ -745,14 +897,26 @@ class NostrService {
       return tag ? tag[1] : undefined;
     };
 
+    const getARef = (): string | undefined => {
+      const tag = event.tags.find(t => t[0] === 'a');
+      return tag ? tag[1] : undefined;
+    };
+
     const getAllTags = (name: string): string[] => {
       return event.tags.filter(t => t[0] === name).map(t => t[1]);
     };
 
+    // NIP-33 board reference: a = 30001:<pubkey>:<d>
+    const aRef = getARef();
+    const boardIdFromA =
+      aRef && aRef.startsWith(`${NOSTR_KINDS.BOARD_DEFINITION}:`)
+        ? aRef.split(':').slice(2).join(':') || undefined
+        : undefined;
+
     return {
       id: event.id,
       nostrEventId: event.id,
-      boardId: getTag('board') || 'b-random',
+      boardId: getTag('board') || boardIdFromA || 'b-random',
       title: getTag('title') || 'Untitled',
       author: event.pubkey.slice(0, 8) + '...',
       authorPubkey: event.pubkey,
@@ -791,14 +955,9 @@ class NostrService {
   }
 
   eventToComment(event: NostrEvent): Comment {
-    // Extract parent comment ID from tags (look for 'reply' marker)
-    let parentId: string | undefined;
-    for (const tag of event.tags) {
-      if (tag[0] === 'e' && tag[3] === 'reply') {
-        parentId = tag[1];
-        break;
-      }
-    }
+    // NIP-10: extract parent comment ID from 'e' tag with marker 'reply'
+    const replyTag = event.tags.find(t => t[0] === 'e' && t[3] === 'reply');
+    const parentId = replyTag?.[1];
 
     return {
       id: event.id,
@@ -809,6 +968,64 @@ class NostrService {
       timestamp: event.created_at * 1000,
       parentId,
     };
+  }
+
+  // ----------------------------------------
+  // NIP-65 (optional): Relay list events
+  // ----------------------------------------
+
+  /**
+   * Build a NIP-65 relay list event (kind 10002).
+   * Tags are of the form: ['r', <url>, <mode?>] where mode is 'read' or 'write'.
+   */
+  buildRelayListEvent(
+    pubkey: string,
+    relays: Array<{ url: string; read?: boolean; write?: boolean }>
+  ): UnsignedNostrEvent {
+    const tags: string[][] = [];
+    for (const r of relays) {
+      const url = r.url?.trim();
+      if (!url) continue;
+      if (r.read && r.write) {
+        tags.push(['r', url]);
+      } else if (r.read) {
+        tags.push(['r', url, 'read']);
+      } else if (r.write) {
+        tags.push(['r', url, 'write']);
+      } else {
+        tags.push(['r', url]);
+      }
+    }
+
+    const event: Partial<NostrEvent> = {
+      pubkey,
+      kind: NOSTR_KINDS.RELAY_LIST,
+      created_at: Math.floor(Date.now() / 1000),
+      tags,
+      content: '',
+    };
+
+    return event as UnsignedNostrEvent;
+  }
+
+  /**
+   * Fetch a user's latest relay list (kind 10002). Returns the raw event (if any).
+   */
+  async fetchRelayListEvent(pubkey: string): Promise<NostrEvent | null> {
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.RELAY_LIST],
+      authors: [pubkey],
+      limit: 1,
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      if (!events.length) return null;
+      // Latest by created_at
+      return events.sort((a, b) => b.created_at - a.created_at)[0];
+    } catch {
+      return null;
+    }
   }
 }
 

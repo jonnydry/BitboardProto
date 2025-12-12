@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Post, Board, BoardType } from '../types';
 import { scanLink } from '../services/geminiService';
-import { inputValidator, InputLimits } from '../services/inputValidator';
+import { inputValidator } from '../services/inputValidator';
+import { InputLimits } from '../config';
 import { rateLimiter } from '../services/rateLimiter';
 import { Loader, ImageIcon, AlertTriangle } from 'lucide-react';
 

@@ -2,8 +2,6 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Post, UserState, Board } from '../types';
 import { EXPANSION_THRESHOLD } from '../constants';
 import { ArrowBigUp, ArrowBigDown, MessageSquare, Clock, Hash, ExternalLink, CornerDownRight, Maximize2, Minimize2, Image as ImageIcon, Shield, Users, UserX, Bookmark, Edit3, Flag } from 'lucide-react';
-import { bookmarkService } from '../services/bookmarkService';
-import { reportService } from '../services/reportService';
 import { CommentThread, buildCommentTree } from './CommentThread';
 import { MentionText } from './MentionText';
 import { MentionInput } from './MentionInput';
@@ -21,6 +19,9 @@ interface PostItemProps {
   onViewProfile?: (author: string, authorPubkey?: string) => void;
   onEditPost?: (postId: string) => void;
   onTagClick?: (tag: string) => void;
+  isBookmarked?: boolean;
+  onToggleBookmark?: (postId: string) => void;
+  hasReported?: boolean;
   isFullPage?: boolean;
   isNostrConnected?: boolean;
 }
@@ -36,31 +37,16 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   onViewProfile,
   onEditPost,
   onTagClick,
+  isBookmarked = false,
+  onToggleBookmark,
+  hasReported = false,
   isFullPage = false,
   isNostrConnected = false,
 }) => {
   const [isExpanded, setIsExpanded] = useState(isFullPage);
   const [newComment, setNewComment] = useState('');
   const [isTransmitting, setIsTransmitting] = useState(false);
-  const [isBookmarked, setIsBookmarked] = useState(() => bookmarkService.isBookmarked(post.id));
   const [showReportModal, setShowReportModal] = useState(false);
-  const [hasReported, setHasReported] = useState(() => reportService.hasReported('post', post.id));
-
-  // Subscribe to bookmark changes
-  useEffect(() => {
-    const unsubscribe = bookmarkService.subscribe(() => {
-      setIsBookmarked(bookmarkService.isBookmarked(post.id));
-    });
-    return unsubscribe;
-  }, [post.id]);
-
-  // Subscribe to report changes
-  useEffect(() => {
-    const unsubscribe = reportService.subscribe(() => {
-      setHasReported(reportService.hasReported('post', post.id));
-    });
-    return unsubscribe;
-  }, [post.id]);
 
   const handleReportClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -77,8 +63,8 @@ const PostItemComponent: React.FC<PostItemProps> = ({
 
   const handleBookmarkClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    bookmarkService.toggleBookmark(post.id);
-  }, [post.id]);
+    onToggleBookmark?.(post.id);
+  }, [onToggleBookmark, post.id]);
 
   const handleAuthorClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -501,6 +487,8 @@ export const PostItem = React.memo(PostItemComponent, (prevProps, nextProps) => 
     prevProps.userState.identity?.pubkey === nextProps.userState.identity?.pubkey &&
     prevProps.userState.username === nextProps.userState.username &&
     prevProps.boardName === nextProps.boardName &&
+    prevProps.isBookmarked === nextProps.isBookmarked &&
+    prevProps.hasReported === nextProps.hasReported &&
     prevProps.isNostrConnected === nextProps.isNostrConnected &&
     prevProps.isFullPage === nextProps.isFullPage
   );

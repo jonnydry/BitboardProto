@@ -1,6 +1,6 @@
-import { generateSecretKey, getPublicKey, nip19 } from 'nostr-tools';
+import { finalizeEvent, generateSecretKey, getPublicKey, nip19, type Event as NostrEvent } from 'nostr-tools';
 import { bytesToHex, hexToBytes } from 'nostr-tools/utils';
-import type { NostrIdentity } from '../types';
+import type { NostrIdentity, UnsignedNostrEvent } from '../types';
 import { cryptoService } from './cryptoService';
 
 // ============================================
@@ -56,6 +56,14 @@ class IdentityService {
   // ----------------------------------------
 
   /**
+   * Override identity for the current session (e.g. NIP-07).
+   * Note: Only local identities are persisted; session identities are not.
+   */
+  setSessionIdentity(identity: NostrIdentity | null): void {
+    this.identity = identity;
+  }
+
+  /**
    * Generate a new Nostr keypair
    */
   async generateIdentity(displayName?: string): Promise<NostrIdentity> {
@@ -67,6 +75,7 @@ class IdentityService {
     const npub = nip19.npubEncode(pubkey);
 
     const identity: NostrIdentity = {
+      kind: 'local',
       pubkey,
       privkey,
       npub,
@@ -100,6 +109,7 @@ class IdentityService {
       const npub = nip19.npubEncode(pubkey);
 
       const identity: NostrIdentity = {
+        kind: 'local',
         pubkey,
         privkey,
         npub,
@@ -131,6 +141,7 @@ class IdentityService {
       const npub = nip19.npubEncode(pubkey);
 
       const identity: NostrIdentity = {
+        kind: 'local',
         pubkey,
         privkey: hexPrivkey,
         npub,
@@ -171,6 +182,7 @@ class IdentityService {
    */
   getPrivateKeyBytes(): Uint8Array | null {
     if (!this.identity) return null;
+    if (this.identity.kind !== 'local') return null;
     return hexToBytes(this.identity.privkey);
   }
 
@@ -179,6 +191,7 @@ class IdentityService {
    */
   exportNsec(): string | null {
     if (!this.identity) return null;
+    if (this.identity.kind !== 'local') return null;
     const privateKeyBytes = hexToBytes(this.identity.privkey);
     return nip19.nsecEncode(privateKeyBytes);
   }
@@ -198,7 +211,9 @@ class IdentityService {
     
     if (this.identity) {
       this.identity.displayName = name;
-      await this.saveIdentity();
+      if (this.identity.kind === 'local') {
+        await this.saveIdentity();
+      }
     }
   }
 
@@ -221,6 +236,7 @@ class IdentityService {
    */
   private async saveIdentity(): Promise<void> {
     if (!this.identity) return;
+    if (this.identity.kind !== 'local') return;
 
     try {
       // Check if crypto is available
@@ -260,7 +276,9 @@ class IdentityService {
         // Decrypt and parse
         if (cryptoService.isAvailable()) {
           const decrypted = await cryptoService.decrypt(encryptedData);
-          this.identity = JSON.parse(decrypted);
+          const parsed = JSON.parse(decrypted);
+          // Backward-compat: older identities won't have kind
+          this.identity = parsed?.kind ? parsed : { ...parsed, kind: 'local' };
           console.log('[Identity] Loaded encrypted identity');
           return;
         } else {
@@ -273,7 +291,8 @@ class IdentityService {
       
       if (legacyData) {
         console.log('[Identity] Found legacy unencrypted identity, migrating...');
-        this.identity = JSON.parse(legacyData);
+        const parsed = JSON.parse(legacyData);
+        this.identity = parsed?.kind ? parsed : { ...parsed, kind: 'local' };
         
         // Migrate to encrypted storage
         if (cryptoService.isAvailable()) {
@@ -330,6 +349,37 @@ class IdentityService {
       console.error('[Identity] NIP-07 signEvent failed:', error);
       return null;
     }
+  }
+
+  // ----------------------------------------
+  // SIGNING (Local + NIP-07)
+  // ----------------------------------------
+
+  /**
+   * Sign an unsigned event with the active identity.
+   * - Local: signs with stored private key
+   * - NIP-07: delegates to browser extension
+   */
+  async signEvent(unsigned: UnsignedNostrEvent): Promise<NostrEvent> {
+    await this.ensureInitialized();
+    if (!this.identity) {
+      throw new Error('No identity available');
+    }
+
+    if (this.identity.kind === 'local') {
+      const privateKeyBytes = hexToBytes(this.identity.privkey);
+      const eventWithPubkey = { ...unsigned, pubkey: this.identity.pubkey };
+      const signed = finalizeEvent(eventWithPubkey as any, privateKeyBytes);
+      // Best-effort clear
+      cryptoService.secureClearBytes(privateKeyBytes);
+      return signed;
+    }
+
+    const signed = await this.signEventWithExtension({ ...unsigned, pubkey: this.identity.pubkey });
+    if (!signed) {
+      throw new Error('Failed to sign with NIP-07 extension');
+    }
+    return signed as NostrEvent;
   }
 
   // ----------------------------------------

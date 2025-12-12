@@ -4,12 +4,22 @@ import type { Event as NostrEvent } from 'nostr-tools';
 // NOSTR PROTOCOL TYPES
 // ============================================
 
-export interface NostrIdentity {
-  pubkey: string;      // npub in hex format
-  privkey: string;     // nsec in hex format (stored encrypted)
+export type LocalNostrIdentity = {
+  kind: 'local';
+  pubkey: string;      // hex public key (32 bytes -> 64 hex chars)
+  privkey: string;     // hex private key (stored encrypted at rest)
   npub: string;        // bech32 encoded public key
   displayName?: string;
-}
+};
+
+export type Nip07NostrIdentity = {
+  kind: 'nip07';
+  pubkey: string;      // hex public key from extension
+  npub: string;        // bech32 encoded public key
+  displayName?: string;
+};
+
+export type NostrIdentity = LocalNostrIdentity | Nip07NostrIdentity;
 
 export interface NostrRelay {
   url: string;
@@ -18,6 +28,9 @@ export interface NostrRelay {
 
 // Re-export for convenience
 export type { NostrEvent };
+
+// Unsigned event shape used for signing (NIP-07 + local keys)
+export type UnsignedNostrEvent = Omit<NostrEvent, 'id' | 'sig'>;
 
 // ============================================
 // BOARD TYPES (Hybrid: Topic + Geohash)
@@ -148,6 +161,7 @@ export enum ThemeId {
 export const NOSTR_KINDS = {
   POST: 1,                    // Standard text note (we add tags)
   REACTION: 7,                // Upvote/downvote
+  RELAY_LIST: 10002,          // NIP-65 relay list (kind 10002)
   BOARD_DEFINITION: 30001,    // Parameterized replaceable for boards
   LONG_FORM: 30023,           // Long-form content
 } as const;

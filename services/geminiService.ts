@@ -5,7 +5,8 @@ let ai: GoogleGenAI | null = null;
 
 const getAI = () => {
   if (!ai) {
-    const apiKey = typeof process !== 'undefined' ? process.env?.API_KEY : undefined;
+    // Note: VITE_* env vars are embedded into the client bundle (public).
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
     if (!apiKey) {
       console.warn('[Gemini] No API key configured - link scanning disabled');
       return null;

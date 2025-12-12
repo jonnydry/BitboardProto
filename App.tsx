@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { MAX_DAILY_BITS, INITIAL_POSTS, INITIAL_BOARDS } from './constants';
-import { Post, UserState, ViewMode, Board, ThemeId, BoardType, NostrIdentity, SortMode } from './types';
+import { Post, UserState, ViewMode, Board, ThemeId, BoardType, NostrIdentity, SortMode, NOSTR_KINDS } from './types';
 import { PostItem } from './components/PostItem';
 import { BitStatus } from './components/BitStatus';
 import { CreatePost } from './components/CreatePost';
@@ -16,10 +16,16 @@ import { Terminal, HelpCircle, ArrowLeft, Hash, Lock, Globe, Eye, Key, MapPin, W
 import { nostrService } from './services/nostrService';
 import { identityService } from './services/identityService';
 import { geohashService } from './services/geohashService';
-import { votingService, computeOptimisticUpdate, computeRollback } from './services/votingService';
+import { votingService } from './services/votingService';
 import { bookmarkService } from './services/bookmarkService';
+import { reportService } from './services/reportService';
 import { useInfiniteScroll } from './hooks/useInfiniteScroll';
 import { UIConfig } from './config';
+import { useTheme } from './hooks/useTheme';
+import { useUrlPostRouting } from './hooks/useUrlPostRouting';
+import { useNostrFeed } from './hooks/useNostrFeed';
+import { useCommentsLoader } from './hooks/useCommentsLoader';
+import { useVoting } from './hooks/useVoting';
 
 export default function App() {
   const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
@@ -38,6 +44,9 @@ export default function App() {
   const [profileUser, setProfileUser] = useState<{ username: string; pubkey?: string } | null>(null);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [bookmarkedIds, setBookmarkedIds] = useState<string[]>(() => bookmarkService.getBookmarkedIds());
+  const [reportedPostIds, setReportedPostIds] = useState<string[]>(() =>
+    reportService.getReportsByType('post').map(r => r.targetId)
+  );
   
   // Pagination state for infinite scroll
   const [hasMorePosts, setHasMorePosts] = useState(true);
@@ -55,47 +64,8 @@ export default function App() {
     };
   });
 
-  // Apply theme to body
-  useEffect(() => {
-    document.body.setAttribute('data-theme', theme);
-  }, [theme]);
-
-  // Handle URL routing for direct post links
-  useEffect(() => {
-    const handleUrlNavigation = () => {
-      const params = new URLSearchParams(window.location.search);
-      const postId = params.get('post');
-      
-      if (postId) {
-        // Navigate to the post
-        setSelectedBitId(postId);
-        setViewMode(ViewMode.SINGLE_BIT);
-      }
-    };
-
-    // Check on initial load
-    handleUrlNavigation();
-
-    // Listen for popstate (back/forward navigation)
-    window.addEventListener('popstate', handleUrlNavigation);
-    return () => window.removeEventListener('popstate', handleUrlNavigation);
-  }, []);
-
-  // Update URL when viewing a single post
-  useEffect(() => {
-    if (viewMode === ViewMode.SINGLE_BIT && selectedBitId) {
-      const url = new URL(window.location.href);
-      url.searchParams.set('post', selectedBitId);
-      window.history.pushState({ postId: selectedBitId }, '', url.toString());
-    } else if (viewMode === ViewMode.FEED) {
-      // Clear post param when returning to feed
-      const url = new URL(window.location.href);
-      if (url.searchParams.has('post')) {
-        url.searchParams.delete('post');
-        window.history.pushState({}, '', url.toString());
-      }
-    }
-  }, [viewMode, selectedBitId]);
+  useTheme(theme);
+  useUrlPostRouting({ viewMode, selectedBitId, setViewMode, setSelectedBitId });
 
   // Subscribe to bookmark changes
   useEffect(() => {
@@ -105,154 +75,15 @@ export default function App() {
     return unsubscribe;
   }, []);
 
-  // Initialize Nostr connection and fetch posts
+  // Subscribe to report changes (posts only)
   useEffect(() => {
-    const initNostr = async () => {
-      try {
-        // Fetch initial batch of posts from Nostr
-        const initialLimit = UIConfig.INITIAL_POSTS_COUNT;
-        const nostrPosts = await nostrService.fetchPosts({ limit: initialLimit });
-        
-        if (nostrPosts.length > 0) {
-          const convertedPosts = nostrPosts.map(event => nostrService.eventToPost(event));
-          
-          // Batch fetch cryptographically verified votes for all posts
-          // Uses votingService to ensure one vote per pubkey (equal influence)
-          const postsWithNostrIds = convertedPosts.filter(p => p.nostrEventId);
-          const postIds = postsWithNostrIds.map(p => p.nostrEventId!);
-          
-          // Batch fetch votes (more efficient than individual requests)
-          const voteTallies = await votingService.fetchVotesForPosts(postIds);
-          
-          const postsWithVotes = convertedPosts.map((post) => {
-            if (post.nostrEventId) {
-              const tally = voteTallies.get(post.nostrEventId);
-              if (tally) {
-                return {
-                  ...post,
-                  upvotes: tally.upvotes,
-                  downvotes: tally.downvotes,
-                  score: tally.score,
-                  uniqueVoters: tally.uniqueVoters,
-                  votesVerified: true,
-                };
-              }
-            }
-            return post;
-          });
-
-          setPosts(prev => {
-            // Merge Nostr posts with initial posts, avoiding duplicates
-            const existingIds = new Set(prev.map(p => p.nostrEventId).filter(Boolean));
-            const newPosts = postsWithVotes.filter(p => !existingIds.has(p.nostrEventId));
-            return [...prev, ...newPosts];
-          });
-
-          // Track oldest timestamp for pagination
-          const timestamps = postsWithVotes.map(p => p.timestamp);
-          if (timestamps.length > 0) {
-            setOldestTimestamp(Math.min(...timestamps));
-          }
-
-          // Check if there might be more posts
-          setHasMorePosts(nostrPosts.length >= initialLimit);
-        } else {
-          setHasMorePosts(false);
-        }
-
-        // Fetch boards from Nostr
-        const nostrBoards = await nostrService.fetchBoards();
-        if (nostrBoards.length > 0) {
-          const convertedBoards = nostrBoards.map(event => nostrService.eventToBoard(event));
-          setBoards(prev => {
-            const existingIds = new Set(prev.map(b => b.id));
-            const newBoards = convertedBoards.filter(b => !existingIds.has(b.id));
-            return [...prev, ...newBoards];
-          });
-        }
-
-        setIsNostrConnected(true);
-      } catch (error) {
-        console.error('[App] Failed to initialize Nostr:', error);
-        setIsNostrConnected(false);
-      }
-    };
-
-    initNostr();
-
-    // Subscribe to real-time updates
-    const subId = nostrService.subscribeToFeed((event) => {
-      const post = nostrService.eventToPost(event);
-      setPosts(prev => {
-        if (prev.some(p => p.nostrEventId === post.nostrEventId)) return prev;
-        return [post, ...prev];
-      });
+    const unsubscribe = reportService.subscribe(() => {
+      setReportedPostIds(reportService.getReportsByType('post').map(r => r.targetId));
     });
-
-    return () => {
-      nostrService.unsubscribe(subId);
-    };
+    return unsubscribe;
   }, []);
 
-  // Cleanup on unmount and beforeunload
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      nostrService.cleanup();
-      votingService.cleanup();
-    };
-    
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      // Cleanup subscriptions and caches on app shutdown
-      nostrService.cleanup();
-      votingService.cleanup();
-    };
-  }, []);
-
-  // Fetch comments when viewing a single post
-  useEffect(() => {
-    const fetchCommentsForPost = async () => {
-      if (!selectedBitId) return;
-      
-      // Find post inside effect to avoid dependency on posts array
-      setPosts(currentPosts => {
-        const post = currentPosts.find(p => p.id === selectedBitId);
-        if (!post?.nostrEventId) return currentPosts;
-        
-        // Only fetch if post has no comments loaded yet
-        if (post.comments.length > 0) return currentPosts;
-        
-        // Fetch comments asynchronously
-        nostrService.fetchComments(post.nostrEventId)
-          .then(commentEvents => {
-            if (commentEvents.length > 0) {
-              const comments = commentEvents.map(event => nostrService.eventToComment(event));
-              setPosts(prevPosts =>
-                prevPosts.map(p => {
-                  if (p.id === selectedBitId) {
-                    return {
-                      ...p,
-                      comments: [...p.comments, ...comments],
-                      commentCount: p.comments.length + comments.length,
-                    };
-                  }
-                  return p;
-                })
-              );
-            }
-          })
-          .catch(error => {
-            console.error('[App] Failed to fetch comments:', error);
-          });
-        
-        return currentPosts;
-      });
-    };
-
-    fetchCommentsForPost();
-  }, [selectedBitId]);
+  useNostrFeed({ setPosts, setBoards, setIsNostrConnected, setOldestTimestamp, setHasMorePosts });
 
   // Create boardsById Map for O(1) lookups
   const boardsById = useMemo(() => {
@@ -268,6 +99,8 @@ export default function App() {
     posts.forEach(p => map.set(p.id, p));
     return map;
   }, [posts]);
+
+  useCommentsLoader({ selectedBitId, postsById, setPosts });
 
   // Filter posts based on view (Global vs Specific Board), feed filter, and search
   const filteredPosts = useMemo(() => {
@@ -367,104 +200,7 @@ export default function App() {
     return Array.from(geohashBoardsMap.values());
   }, [boards, locationBoards]);
 
-  /**
-   * Handle voting with cryptographic verification
-   * Uses Nostr signatures to ensure:
-   * - One vote per user (pubkey) per post
-   * - Equal influence for all users
-   * - Verifiable vote counts
-   */
-  const handleVote = useCallback(async (postId: string, direction: 'up' | 'down') => {
-    // Use postsById for O(1) lookup instead of O(n) find
-    const post = postsById.get(postId);
-    
-    // Get current user state for validation
-    const currentUserState = userState;
-    const currentVote = currentUserState.votedPosts[postId];
-    
-    // Check if user has identity (required for cryptographic voting)
-    if (!currentUserState.identity) {
-      console.warn('[Vote] No identity - connect an identity to vote.');
-      return;
-    }
-    
-    // Check bit availability before calculating optimistic update
-    if (!currentVote && currentUserState.bits <= 0) {
-      console.warn('[Vote] Insufficient bits');
-      return;
-    }
-
-    // Calculate optimistic update using centralized logic from votingService
-    const optimisticUpdate = computeOptimisticUpdate(
-      currentVote ?? null,
-      direction,
-      currentUserState.bits,
-      currentUserState.votedPosts,
-      postId
-    );
-
-    // Apply optimistic UI update
-    setUserState(prev => ({
-      ...prev,
-      bits: optimisticUpdate.newBits,
-      votedPosts: optimisticUpdate.newVotedPosts,
-    }));
-
-    // Optimistically update post score
-    setPosts(currentPosts => 
-      currentPosts.map(p => 
-        p.id === postId ? { ...p, score: p.score + optimisticUpdate.scoreDelta } : p
-      )
-    );
-
-    // Publish cryptographically signed vote to Nostr
-    if (currentUserState.identity && post?.nostrEventId) {
-      const privateKey = identityService.getPrivateKeyBytes();
-      if (privateKey) {
-        try {
-          const result = await votingService.castVote(
-            post.nostrEventId,
-            direction,
-            currentUserState.identity.pubkey,
-            privateKey
-          );
-
-          if (result.success && result.newTally) {
-            // Update with verified tally from Nostr
-            setPosts(currentPosts => 
-              currentPosts.map(p => 
-                p.id === postId ? {
-                  ...p,
-                  upvotes: result.newTally!.upvotes,
-                  downvotes: result.newTally!.downvotes,
-                  score: result.newTally!.score,
-                  uniqueVoters: result.newTally!.uniqueVoters,
-                  votesVerified: true,
-                } : p
-              )
-            );
-            console.log(`[Vote] Verified: ${result.newTally.uniqueVoters} unique voters`);
-          } else if (result.error) {
-            console.error('[Vote] Failed:', result.error);
-            // Revert optimistic update on failure using centralized rollback logic
-            const rollback = computeRollback(optimisticUpdate, currentUserState.votedPosts, postId);
-            setUserState(prev => ({
-              ...prev,
-              bits: prev.bits + rollback.bitAdjustment,
-              votedPosts: rollback.previousVotedPosts,
-            }));
-            setPosts(currentPosts => 
-              currentPosts.map(p => 
-                p.id === postId ? { ...p, score: p.score + rollback.scoreDelta } : p
-              )
-            );
-          }
-        } catch (error) {
-          console.error('[Vote] Error publishing:', error);
-        }
-      }
-    }
-  }, [postsById, userState]);
+  const { handleVote } = useVoting({ postsById, userState, setUserState, setPosts });
 
   const handleCreatePost = async (
     newPostData: Omit<Post, 'id' | 'timestamp' | 'score' | 'commentCount' | 'comments' | 'nostrEventId' | 'upvotes' | 'downvotes'>
@@ -484,26 +220,32 @@ export default function App() {
 
     // Publish to Nostr if identity exists
     if (userState.identity) {
-      const privateKey = identityService.getPrivateKeyBytes();
-      if (privateKey) {
-        try {
-          // Check if posting to a geohash board and include the geohash
-          const targetBoard = boardsById.get(newPostData.boardId);
-          const geohash = targetBoard?.type === BoardType.GEOHASH ? targetBoard.geohash : undefined;
-          
-          const eventPayload = {
-            ...newPostData,
-            timestamp,
-            upvotes: 0,
-            downvotes: 0,
-          };
+      try {
+        // Check if posting to a geohash board and include the geohash
+        const targetBoard = boardsById.get(newPostData.boardId);
+        const geohash = targetBoard?.type === BoardType.GEOHASH ? targetBoard.geohash : undefined;
+        const boardAddress =
+          targetBoard?.createdBy
+            ? `${NOSTR_KINDS.BOARD_DEFINITION}:${targetBoard.createdBy}:${targetBoard.id}`
+            : undefined;
+        
+        const eventPayload = {
+          ...newPostData,
+          timestamp,
+          upvotes: 0,
+          downvotes: 0,
+        };
 
-          const event = await nostrService.publishPost(eventPayload, privateKey, geohash);
-          newPost.nostrEventId = event.id;
-          newPost.id = event.id;
-        } catch (error) {
-          console.error('[App] Failed to publish post to Nostr:', error);
-        }
+        const unsigned = nostrService.buildPostEvent(eventPayload, userState.identity.pubkey, geohash, {
+          boardAddress,
+          boardName: targetBoard?.name,
+        });
+        const signed = await identityService.signEvent(unsigned);
+        const event = await nostrService.publishSignedEvent(signed);
+        newPost.nostrEventId = event.id;
+        newPost.id = event.id;
+      } catch (error) {
+        console.error('[App] Failed to publish post to Nostr:', error);
       }
     }
 
@@ -515,19 +257,19 @@ export default function App() {
     const newBoard: Board = {
       ...newBoardData,
       id: `b-${newBoardData.name.toLowerCase()}`,
-      memberCount: 1
+      memberCount: 1,
+      createdBy: userState.identity?.pubkey,
     };
 
     // Publish to Nostr if identity exists
     if (userState.identity) {
-      const privateKey = identityService.getPrivateKeyBytes();
-      if (privateKey) {
-        try {
-          const event = await nostrService.publishBoard(newBoardData, privateKey);
-          newBoard.nostrEventId = event.id;
-        } catch (error) {
-          console.error('[App] Failed to publish board to Nostr:', error);
-        }
+      try {
+        const unsigned = nostrService.buildBoardEvent(newBoardData, userState.identity.pubkey);
+        const signed = await identityService.signEvent(unsigned);
+        const event = await nostrService.publishSignedEvent(signed);
+        newBoard.nostrEventId = event.id;
+      } catch (error) {
+        console.error('[App] Failed to publish board to Nostr:', error);
       }
     }
 
@@ -551,27 +293,36 @@ export default function App() {
 
     // Publish to Nostr if connected
     if (userState.identity && post.nostrEventId) {
-      const privateKey = identityService.getPrivateKeyBytes();
-      if (privateKey) {
-        nostrService.publishComment(post.nostrEventId, content, privateKey, parentCommentId)
-          .then(event => {
-            setPosts(prevPosts =>
-              prevPosts.map(p => {
-                if (p.id === postId) {
-                  const updatedComment = { ...newComment, id: event.id, nostrEventId: event.id };
-                  return {
-                    ...p,
-                    comments: p.comments.map(c => c.id === newComment.id ? updatedComment : c)
-                  };
-                }
-                return p;
-              })
-            );
-          })
-          .catch(error => {
-            console.error('[App] Failed to publish comment to Nostr:', error);
-          });
-      }
+      const parentComment = parentCommentId ? post.comments.find(c => c.id === parentCommentId) : undefined;
+      const unsigned = nostrService.buildCommentEvent(
+        post.nostrEventId,
+        content,
+        userState.identity.pubkey,
+        parentCommentId,
+        {
+          postAuthorPubkey: post.authorPubkey,
+          parentCommentAuthorPubkey: parentComment?.authorPubkey,
+        }
+      );
+      identityService.signEvent(unsigned)
+        .then(signed => nostrService.publishSignedEvent(signed))
+        .then(event => {
+          setPosts(prevPosts =>
+            prevPosts.map(p => {
+              if (p.id === postId) {
+                const updatedComment = { ...newComment, id: event.id, nostrEventId: event.id };
+                return {
+                  ...p,
+                  comments: p.comments.map(c => c.id === newComment.id ? updatedComment : c)
+                };
+              }
+              return p;
+            })
+          );
+        })
+        .catch(error => {
+          console.error('[App] Failed to publish comment to Nostr:', error);
+        });
     }
 
     setPosts(currentPosts => 
@@ -760,6 +511,9 @@ export default function App() {
     const board = boardsById.get(post.boardId);
     return board?.name;
   }, [postsById, boardsById]);
+
+  const bookmarkedIdSet = useMemo(() => new Set(bookmarkedIds), [bookmarkedIds]);
+  const reportedPostIdSet = useMemo(() => new Set(reportedPostIds), [reportedPostIds]);
 
   return (
     <div className="min-h-screen bg-terminal-bg text-terminal-text font-mono selection:bg-terminal-text selection:text-black relative">
@@ -1065,6 +819,9 @@ export default function App() {
                     onViewProfile={handleViewProfile}
                     onEditPost={handleEditPost}
                     onTagClick={handleTagClick}
+                    isBookmarked={bookmarkedIdSet.has(post.id)}
+                    onToggleBookmark={(id) => bookmarkService.toggleBookmark(id)}
+                    hasReported={reportedPostIdSet.has(post.id)}
                     isNostrConnected={isNostrConnected}
                   />
                 ))}
@@ -1112,6 +869,9 @@ export default function App() {
                     onViewProfile={handleViewProfile}
                     onEditPost={handleEditPost}
                     onTagClick={handleTagClick}
+                    isBookmarked={bookmarkedIdSet.has(selectedPost.id)}
+                    onToggleBookmark={(id) => bookmarkService.toggleBookmark(id)}
+                    hasReported={reportedPostIdSet.has(selectedPost.id)}
                     isFullPage={true}
                     isNostrConnected={isNostrConnected}
                   />
@@ -1156,6 +916,9 @@ export default function App() {
                 username={profileUser.username}
                 authorPubkey={profileUser.pubkey}
                 posts={posts}
+                bookmarkedIdSet={bookmarkedIdSet}
+                reportedPostIdSet={reportedPostIdSet}
+                onToggleBookmark={(id) => bookmarkService.toggleBookmark(id)}
                 userState={userState}
                 onVote={handleVote}
                 onComment={handleComment}
@@ -1169,6 +932,7 @@ export default function App() {
               <Bookmarks
                 posts={posts}
                 bookmarkedIds={bookmarkedIds}
+                reportedPostIdSet={reportedPostIdSet}
                 userState={userState}
                 onVote={handleVote}
                 onComment={handleComment}

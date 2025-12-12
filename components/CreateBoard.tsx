@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Board, BoardType } from '../types';
 import { Globe, Lock, Hash, AlertTriangle } from 'lucide-react';
-import { inputValidator, InputLimits } from '../services/inputValidator';
+import { inputValidator } from '../services/inputValidator';
+import { InputLimits } from '../config';
 
 interface CreateBoardProps {
   onSubmit: (board: Omit<Board, 'id' | 'memberCount' | 'nostrEventId'>) => void;

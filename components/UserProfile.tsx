@@ -7,6 +7,9 @@ interface UserProfileProps {
   username: string;
   authorPubkey?: string;
   posts: Post[];
+  bookmarkedIdSet: Set<string>;
+  reportedPostIdSet: Set<string>;
+  onToggleBookmark: (postId: string) => void;
   userState: UserState;
   onVote: (postId: string, direction: 'up' | 'down') => void;
   onComment: (postId: string, content: string) => void;
@@ -19,6 +22,9 @@ export const UserProfile: React.FC<UserProfileProps> = ({
   username,
   authorPubkey,
   posts,
+  bookmarkedIdSet,
+  reportedPostIdSet,
+  onToggleBookmark,
   userState,
   onVote,
   onComment,
@@ -132,6 +138,9 @@ export const UserProfile: React.FC<UserProfileProps> = ({
               onVote={onVote}
               onComment={onComment}
               onViewBit={onViewBit}
+              isBookmarked={bookmarkedIdSet.has(post.id)}
+              onToggleBookmark={onToggleBookmark}
+              hasReported={reportedPostIdSet.has(post.id)}
               isNostrConnected={isNostrConnected}
             />
           ))}

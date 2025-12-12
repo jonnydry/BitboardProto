@@ -87,12 +87,13 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChan
       if (pubkey) {
         // Create a partial identity for extension users (no private key stored)
         const extensionIdentity: NostrIdentity = {
+          kind: 'nip07',
           pubkey,
-          privkey: '', // Not stored - extension handles signing
           npub: nip19.npubEncode(pubkey), // Properly bech32 encoded
           displayName: displayName || `ext_${pubkey.slice(0, 6)}`,
         };
         setIdentity(extensionIdentity);
+        identityService.setSessionIdentity(extensionIdentity);
         onIdentityChange(extensionIdentity);
       }
     } catch (err) {
@@ -132,6 +133,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChan
 
   const handleLogout = () => {
     identityService.clearIdentity();
+    identityService.setSessionIdentity(null);
     setIdentity(null);
     onIdentityChange(null);
   };
@@ -193,7 +195,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChan
           </div>
 
           {/* Private Key (hidden by default) */}
-          {identity.privkey && (
+          {identity.kind === 'local' && (
             <div className="space-y-2">
               <label className="text-xs text-terminal-dim uppercase font-bold flex items-center gap-2">
                 Private Key (nsec) 

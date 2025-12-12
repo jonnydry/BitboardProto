@@ -5,23 +5,11 @@
 // Prevents injection attacks, XSS, and malformed data
 // Adopted from BitChat's InputValidator.swift
 
+import { InputLimits } from '../config';
+
 // ============================================
 // CONSTANTS
 // ============================================
-
-export const InputLimits = {
-  MAX_USERNAME_LENGTH: 50,
-  MAX_TITLE_LENGTH: 300,
-  MAX_POST_CONTENT_LENGTH: 60000, // 60KB - matches BitChat's limit
-  MAX_COMMENT_LENGTH: 10000,
-  MAX_TAG_LENGTH: 50,
-  MAX_TAGS_COUNT: 10,
-  MAX_URL_LENGTH: 2048,
-  MAX_BOARD_NAME_LENGTH: 50,
-  MAX_BOARD_DESCRIPTION_LENGTH: 500,
-  // Timestamp validation window (1 hour in ms)
-  TIMESTAMP_WINDOW_MS: 60 * 60 * 1000,
-} as const;
 
 // ============================================
 // INPUT VALIDATOR CLASS

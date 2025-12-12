@@ -7,6 +7,7 @@ import { bookmarkService } from '../services/bookmarkService';
 interface BookmarksProps {
   posts: Post[];
   bookmarkedIds: string[];
+  reportedPostIdSet: Set<string>;
   userState: UserState;
   onVote: (postId: string, direction: 'up' | 'down') => void;
   onComment: (postId: string, content: string) => void;
@@ -18,6 +19,7 @@ interface BookmarksProps {
 export const Bookmarks: React.FC<BookmarksProps> = ({
   posts,
   bookmarkedIds,
+  reportedPostIdSet,
   userState,
   onVote,
   onComment,
@@ -95,6 +97,9 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
               onVote={onVote}
               onComment={onComment}
               onViewBit={onViewBit}
+              isBookmarked={true}
+              onToggleBookmark={(id) => bookmarkService.toggleBookmark(id)}
+              hasReported={reportedPostIdSet.has(post.id)}
               isNostrConnected={isNostrConnected}
             />
           ))}

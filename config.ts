@@ -80,6 +80,12 @@ export const NostrConfig = {
   /** Maximum reconnection attempts before giving up */
   RELAY_MAX_RECONNECT_ATTEMPTS: 10,
 
+  // Offline message queue (when some relays are down)
+  /** Maximum queued messages to retain */
+  MESSAGE_QUEUE_MAX_SIZE: 500,
+  /** Drop queued messages older than this */
+  MESSAGE_QUEUE_MAX_AGE_MS: 5 * 60 * 1000,
+
   // Geohash settings
   /** Initial lookback for geohash queries (1 hour) */
   GEOHASH_INITIAL_LOOKBACK_SECONDS: 3600,
@@ -320,7 +326,7 @@ export const FeatureFlags = {
   ENABLE_OFFLINE_MODE: true,
   
   /** Enable debug logging */
-  ENABLE_DEBUG_LOGGING: process.env.NODE_ENV === 'development',
+  ENABLE_DEBUG_LOGGING: import.meta.env.DEV,
 } as const;
 
 // ============================================
