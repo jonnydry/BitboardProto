@@ -62,6 +62,11 @@ export interface Comment {
   content: string;
   timestamp: number;
   nostrEventId?: string;
+  // Threading fields
+  parentId?: string;        // null/undefined = top-level, otherwise references parent comment
+  replies?: Comment[];      // Populated client-side for tree rendering
+  depth?: number;           // Calculated depth for indentation
+  isCollapsed?: boolean;    // UI state for collapsing threads
 }
 
 export interface Post {
@@ -113,7 +118,18 @@ export enum ViewMode {
   SINGLE_BIT = 'SINGLE_BIT',
   CREATE_BOARD = 'CREATE_BOARD',
   IDENTITY = 'IDENTITY',
-  LOCATION = 'LOCATION'
+  LOCATION = 'LOCATION',
+  USER_PROFILE = 'USER_PROFILE',
+  BOOKMARKS = 'BOOKMARKS',
+  EDIT_POST = 'EDIT_POST'
+}
+
+export enum SortMode {
+  TOP = 'top',           // By score (default)
+  NEWEST = 'newest',     // Most recent first
+  OLDEST = 'oldest',     // Oldest first
+  TRENDING = 'trending', // Recent + high engagement
+  COMMENTS = 'comments'  // Most commented
 }
 
 export enum ThemeId {

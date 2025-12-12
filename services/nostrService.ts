@@ -411,15 +411,23 @@ class NostrService {
   async publishComment(
     postEventId: string,
     content: string,
-    privateKey: Uint8Array
+    privateKey: Uint8Array,
+    parentCommentId?: string
   ): Promise<NostrEvent> {
+    const tags: string[][] = [
+      ['e', postEventId, '', 'root'],  // Reference to the original post
+      ['client', 'bitboard'],
+    ];
+
+    // If this is a reply to another comment, add parent reference
+    if (parentCommentId) {
+      tags.push(['e', parentCommentId, '', 'reply']);
+    }
+
     const event: Partial<NostrEvent> = {
       kind: NOSTR_KINDS.POST,
       created_at: Math.floor(Date.now() / 1000),
-      tags: [
-        ['e', postEventId, '', 'reply'],
-        ['client', 'bitboard'],
-      ],
+      tags,
       content,
     };
 
@@ -478,6 +486,7 @@ class NostrService {
     geohash?: string;
     limit?: number;
     since?: number;
+    until?: number;  // For pagination: fetch posts older than this timestamp
   } = {}): Promise<NostrEvent[]> {
     const filter: Filter = {
       kinds: [NOSTR_KINDS.POST],
@@ -486,6 +495,10 @@ class NostrService {
 
     if (filters.since) {
       filter.since = filters.since;
+    }
+
+    if (filters.until) {
+      filter.until = filters.until;
     }
 
     // Add board or geohash filter via tags
@@ -778,6 +791,15 @@ class NostrService {
   }
 
   eventToComment(event: NostrEvent): Comment {
+    // Extract parent comment ID from tags (look for 'reply' marker)
+    let parentId: string | undefined;
+    for (const tag of event.tags) {
+      if (tag[0] === 'e' && tag[3] === 'reply') {
+        parentId = tag[1];
+        break;
+      }
+    }
+
     return {
       id: event.id,
       nostrEventId: event.id,
@@ -785,6 +807,7 @@ class NostrService {
       authorPubkey: event.pubkey,
       content: event.content,
       timestamp: event.created_at * 1000,
+      parentId,
     };
   }
 }

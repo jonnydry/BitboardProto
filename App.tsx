@@ -1,17 +1,25 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { MAX_DAILY_BITS, INITIAL_POSTS, INITIAL_BOARDS } from './constants';
-import { Post, UserState, ViewMode, Board, ThemeId, BoardType, NostrIdentity } from './types';
+import { Post, UserState, ViewMode, Board, ThemeId, BoardType, NostrIdentity, SortMode } from './types';
 import { PostItem } from './components/PostItem';
 import { BitStatus } from './components/BitStatus';
 import { CreatePost } from './components/CreatePost';
 import { CreateBoard } from './components/CreateBoard';
 import { IdentityManager } from './components/IdentityManager';
 import { LocationSelector } from './components/LocationSelector';
-import { Terminal, HelpCircle, ArrowLeft, Hash, Lock, Globe, Eye, Key, MapPin, Wifi, WifiOff, Radio } from 'lucide-react';
+import { SearchBar } from './components/SearchBar';
+import { SortSelector } from './components/SortSelector';
+import { UserProfile } from './components/UserProfile';
+import { Bookmarks } from './components/Bookmarks';
+import { EditPost } from './components/EditPost';
+import { Terminal, HelpCircle, ArrowLeft, Hash, Lock, Globe, Eye, Key, MapPin, Wifi, WifiOff, Radio, Bookmark } from 'lucide-react';
 import { nostrService } from './services/nostrService';
 import { identityService } from './services/identityService';
 import { geohashService } from './services/geohashService';
 import { votingService, computeOptimisticUpdate, computeRollback } from './services/votingService';
+import { bookmarkService } from './services/bookmarkService';
+import { useInfiniteScroll } from './hooks/useInfiniteScroll';
+import { UIConfig } from './config';
 
 export default function App() {
   const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
@@ -23,6 +31,17 @@ export default function App() {
   const [isNostrConnected, setIsNostrConnected] = useState(false);
   const [locationBoards, setLocationBoards] = useState<Board[]>([]);
   const [feedFilter, setFeedFilter] = useState<'all' | 'topic' | 'location'>('all');
+  
+  // New features state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortMode, setSortMode] = useState<SortMode>(SortMode.TOP);
+  const [profileUser, setProfileUser] = useState<{ username: string; pubkey?: string } | null>(null);
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>(() => bookmarkService.getBookmarkedIds());
+  
+  // Pagination state for infinite scroll
+  const [hasMorePosts, setHasMorePosts] = useState(true);
+  const [oldestTimestamp, setOldestTimestamp] = useState<number | null>(null);
   
   const [userState, setUserState] = useState<UserState>(() => {
     const existingIdentity = identityService.getIdentity();
@@ -41,12 +60,59 @@ export default function App() {
     document.body.setAttribute('data-theme', theme);
   }, [theme]);
 
+  // Handle URL routing for direct post links
+  useEffect(() => {
+    const handleUrlNavigation = () => {
+      const params = new URLSearchParams(window.location.search);
+      const postId = params.get('post');
+      
+      if (postId) {
+        // Navigate to the post
+        setSelectedBitId(postId);
+        setViewMode(ViewMode.SINGLE_BIT);
+      }
+    };
+
+    // Check on initial load
+    handleUrlNavigation();
+
+    // Listen for popstate (back/forward navigation)
+    window.addEventListener('popstate', handleUrlNavigation);
+    return () => window.removeEventListener('popstate', handleUrlNavigation);
+  }, []);
+
+  // Update URL when viewing a single post
+  useEffect(() => {
+    if (viewMode === ViewMode.SINGLE_BIT && selectedBitId) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('post', selectedBitId);
+      window.history.pushState({ postId: selectedBitId }, '', url.toString());
+    } else if (viewMode === ViewMode.FEED) {
+      // Clear post param when returning to feed
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('post')) {
+        url.searchParams.delete('post');
+        window.history.pushState({}, '', url.toString());
+      }
+    }
+  }, [viewMode, selectedBitId]);
+
+  // Subscribe to bookmark changes
+  useEffect(() => {
+    const unsubscribe = bookmarkService.subscribe(() => {
+      setBookmarkedIds(bookmarkService.getBookmarkedIds());
+    });
+    return unsubscribe;
+  }, []);
+
   // Initialize Nostr connection and fetch posts
   useEffect(() => {
     const initNostr = async () => {
       try {
-        // Fetch posts from Nostr
-        const nostrPosts = await nostrService.fetchPosts({ limit: 50 });
+        // Fetch initial batch of posts from Nostr
+        const initialLimit = UIConfig.INITIAL_POSTS_COUNT;
+        const nostrPosts = await nostrService.fetchPosts({ limit: initialLimit });
+        
         if (nostrPosts.length > 0) {
           const convertedPosts = nostrPosts.map(event => nostrService.eventToPost(event));
           
@@ -81,6 +147,17 @@ export default function App() {
             const newPosts = postsWithVotes.filter(p => !existingIds.has(p.nostrEventId));
             return [...prev, ...newPosts];
           });
+
+          // Track oldest timestamp for pagination
+          const timestamps = postsWithVotes.map(p => p.timestamp);
+          if (timestamps.length > 0) {
+            setOldestTimestamp(Math.min(...timestamps));
+          }
+
+          // Check if there might be more posts
+          setHasMorePosts(nostrPosts.length >= initialLimit);
+        } else {
+          setHasMorePosts(false);
         }
 
         // Fetch boards from Nostr
@@ -192,25 +269,77 @@ export default function App() {
     return map;
   }, [posts]);
 
-  // Filter posts based on view (Global vs Specific Board) and feed filter
+  // Filter posts based on view (Global vs Specific Board), feed filter, and search
   const filteredPosts = useMemo(() => {
+    let result = posts;
+    
+    // Filter by board
     if (activeBoardId) {
-      return posts.filter(p => p.boardId === activeBoardId);
+      result = result.filter(p => p.boardId === activeBoardId);
+    } else {
+      result = result.filter(p => {
+        const board = boardsById.get(p.boardId);
+        if (!board?.isPublic) return false;
+        
+        if (feedFilter === 'topic') return board.type === BoardType.TOPIC;
+        if (feedFilter === 'location') return board.type === BoardType.GEOHASH;
+        return true;
+      });
     }
-    return posts.filter(p => {
-      const board = boardsById.get(p.boardId);
-      if (!board?.isPublic) return false;
-      
-      if (feedFilter === 'topic') return board.type === BoardType.TOPIC;
-      if (feedFilter === 'location') return board.type === BoardType.GEOHASH;
-      return true;
-    });
-  }, [posts, activeBoardId, boardsById, feedFilter]);
+    
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      result = result.filter(p => 
+        p.title.toLowerCase().includes(query) ||
+        p.content.toLowerCase().includes(query) ||
+        p.author.toLowerCase().includes(query) ||
+        p.tags.some(tag => tag.toLowerCase().includes(query))
+      );
+    }
+    
+    return result;
+  }, [posts, activeBoardId, boardsById, feedFilter, searchQuery]);
 
-  // Sort posts: Global feed = Score desc
+  // Sort posts based on selected sort mode
   const sortedPosts = useMemo(() => {
-    return [...filteredPosts].sort((a, b) => b.score - a.score);
-  }, [filteredPosts]);
+    const sorted = [...filteredPosts];
+    
+    switch (sortMode) {
+      case SortMode.NEWEST:
+        return sorted.sort((a, b) => b.timestamp - a.timestamp);
+      case SortMode.OLDEST:
+        return sorted.sort((a, b) => a.timestamp - b.timestamp);
+      case SortMode.TRENDING:
+        // Trending = recent posts with high engagement (score + comments weighted by recency)
+        const now = Date.now();
+        const HOUR = 1000 * 60 * 60;
+        return sorted.sort((a, b) => {
+          const ageA = (now - a.timestamp) / HOUR;
+          const ageB = (now - b.timestamp) / HOUR;
+          const trendA = (a.score + a.commentCount * 2) / Math.pow(ageA + 2, 1.5);
+          const trendB = (b.score + b.commentCount * 2) / Math.pow(ageB + 2, 1.5);
+          return trendB - trendA;
+        });
+      case SortMode.COMMENTS:
+        return sorted.sort((a, b) => b.commentCount - a.commentCount);
+      case SortMode.TOP:
+      default:
+        return sorted.sort((a, b) => b.score - a.score);
+    }
+  }, [filteredPosts, sortMode]);
+
+  // Collect known usernames for @mention autocomplete
+  const knownUsers = useMemo(() => {
+    const users = new Set<string>();
+    posts.forEach(post => {
+      users.add(post.author);
+      post.comments.forEach(comment => {
+        users.add(comment.author);
+      });
+    });
+    return users;
+  }, [posts]);
 
   // Find selected post for single view
   const selectedPost = useMemo(() => {
@@ -407,7 +536,7 @@ export default function App() {
     setViewMode(ViewMode.FEED);
   };
 
-  const handleComment = useCallback(async (postId: string, content: string) => {
+  const handleComment = useCallback(async (postId: string, content: string, parentCommentId?: string) => {
     const post = postsById.get(postId);
     if (!post) return;
     
@@ -416,19 +545,20 @@ export default function App() {
       author: userState.username,
       authorPubkey: userState.identity?.pubkey,
       content: content,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      parentId: parentCommentId, // For threaded comments
     };
 
     // Publish to Nostr if connected
     if (userState.identity && post.nostrEventId) {
       const privateKey = identityService.getPrivateKeyBytes();
       if (privateKey) {
-        nostrService.publishComment(post.nostrEventId, content, privateKey)
+        nostrService.publishComment(post.nostrEventId, content, privateKey, parentCommentId)
           .then(event => {
             setPosts(prevPosts =>
               prevPosts.map(p => {
                 if (p.id === postId) {
-                  const updatedComment = { ...newComment, id: event.id };
+                  const updatedComment = { ...newComment, id: event.id, nostrEventId: event.id };
                   return {
                     ...p,
                     comments: p.comments.map(c => c.id === newComment.id ? updatedComment : c)
@@ -493,6 +623,119 @@ export default function App() {
     setActiveBoardId(board.id);
     setViewMode(ViewMode.FEED);
   };
+
+  // Handle viewing a user's profile
+  const handleViewProfile = useCallback((username: string, pubkey?: string) => {
+    setProfileUser({ username, pubkey });
+    setViewMode(ViewMode.USER_PROFILE);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  // Handle editing a post
+  const handleEditPost = useCallback((postId: string) => {
+    setEditingPostId(postId);
+    setViewMode(ViewMode.EDIT_POST);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  // Handle saving edited post
+  const handleSavePost = useCallback((postId: string, updates: Partial<Post>) => {
+    setPosts(currentPosts =>
+      currentPosts.map(p =>
+        p.id === postId ? { ...p, ...updates } : p
+      )
+    );
+    setEditingPostId(null);
+    setViewMode(ViewMode.FEED);
+  }, []);
+
+  // Handle deleting a post
+  const handleDeletePost = useCallback((postId: string) => {
+    setPosts(currentPosts => currentPosts.filter(p => p.id !== postId));
+    // Also remove from bookmarks if bookmarked
+    bookmarkService.removeBookmark(postId);
+    setEditingPostId(null);
+    setViewMode(ViewMode.FEED);
+  }, []);
+
+  // Handle tag click (search by tag)
+  const handleTagClick = useCallback((tag: string) => {
+    setSearchQuery(tag);
+    setActiveBoardId(null);
+    setViewMode(ViewMode.FEED);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  // Handle search
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query);
+  }, []);
+
+  // Load more posts for infinite scroll
+  const loadMorePosts = useCallback(async () => {
+    if (!oldestTimestamp || !hasMorePosts) return;
+
+    try {
+      // Fetch posts older than the current oldest
+      const loadMoreLimit = UIConfig.POSTS_LOAD_MORE_COUNT;
+      const olderPosts = await nostrService.fetchPosts({
+        limit: loadMoreLimit,
+        until: Math.floor(oldestTimestamp / 1000) - 1, // Convert to seconds, get older posts
+      });
+
+      if (olderPosts.length > 0) {
+        const convertedPosts = olderPosts.map(event => nostrService.eventToPost(event));
+        
+        // Fetch votes for new posts
+        const postsWithNostrIds = convertedPosts.filter(p => p.nostrEventId);
+        const postIds = postsWithNostrIds.map(p => p.nostrEventId!);
+        const voteTallies = await votingService.fetchVotesForPosts(postIds);
+        
+        const postsWithVotes = convertedPosts.map((post) => {
+          if (post.nostrEventId) {
+            const tally = voteTallies.get(post.nostrEventId);
+            if (tally) {
+              return {
+                ...post,
+                upvotes: tally.upvotes,
+                downvotes: tally.downvotes,
+                score: tally.score,
+                uniqueVoters: tally.uniqueVoters,
+                votesVerified: true,
+              };
+            }
+          }
+          return post;
+        });
+
+        setPosts(prev => {
+          const existingIds = new Set(prev.map(p => p.nostrEventId).filter(Boolean));
+          const newPosts = postsWithVotes.filter(p => !existingIds.has(p.nostrEventId));
+          return [...prev, ...newPosts];
+        });
+
+        // Update oldest timestamp
+        const timestamps = postsWithVotes.map(p => p.timestamp);
+        if (timestamps.length > 0) {
+          setOldestTimestamp(Math.min(...timestamps));
+        }
+
+        // Check if there might be more
+        setHasMorePosts(olderPosts.length >= loadMoreLimit);
+      } else {
+        setHasMorePosts(false);
+      }
+    } catch (error) {
+      console.error('[App] Failed to load more posts:', error);
+    }
+  }, [oldestTimestamp, hasMorePosts]);
+
+  // Infinite scroll hook
+  const { loaderRef, isLoading: isLoadingMore } = useInfiniteScroll(
+    loadMorePosts,
+    hasMorePosts && viewMode === ViewMode.FEED,
+    { threshold: 300 }
+  );
 
   // Memoize theme colors map
   const themeColors = useMemo(() => {
@@ -560,6 +803,13 @@ export default function App() {
               className={`uppercase hover:underline ${viewMode === ViewMode.CREATE ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
             >
               [ New_Bit ]
+            </button>
+            <button 
+              onClick={() => setViewMode(ViewMode.BOOKMARKS)}
+              className={`uppercase hover:underline flex items-center gap-1 ${viewMode === ViewMode.BOOKMARKS ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+            >
+              <Bookmark size={12} />
+              [ Saved{bookmarkedIds.length > 0 ? ` (${bookmarkedIds.length})` : ''} ]
             </button>
             <button 
               onClick={() => setViewMode(ViewMode.IDENTITY)}
@@ -755,20 +1005,35 @@ export default function App() {
           <main className="md:col-span-3">
             {viewMode === ViewMode.FEED && (
               <div className="space-y-2">
+                {/* Search Bar */}
+                <div className="mb-4">
+                  <SearchBar onSearch={handleSearch} placeholder="Search posts, users, tags..." />
+                </div>
+
                 {/* Feed Header */}
-                <div className="flex justify-between items-end mb-6 pb-2 border-b border-terminal-dim/30">
-                  <div>
-                    <h2 className="text-2xl font-terminal uppercase tracking-widest text-terminal-text flex items-center gap-2">
-                      {activeBoard?.type === BoardType.GEOHASH && <MapPin size={20} />}
-                      {activeBoard ? (activeBoard.type === BoardType.GEOHASH ? `#${activeBoard.geohash}` : `// ${activeBoard.name}`) : 'GLOBAL_FEED'}
-                    </h2>
-                    <p className="text-xs text-terminal-dim mt-1">
-                      {activeBoard ? activeBoard.description : 'AGGREGATING TOP SIGNALS FROM PUBLIC SECTORS'}
-                    </p>
+                <div className="flex flex-col gap-4 mb-6 pb-2 border-b border-terminal-dim/30">
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <h2 className="text-2xl font-terminal uppercase tracking-widest text-terminal-text flex items-center gap-2">
+                        {activeBoard?.type === BoardType.GEOHASH && <MapPin size={20} />}
+                        {searchQuery ? `SEARCH: "${searchQuery}"` : activeBoard ? (activeBoard.type === BoardType.GEOHASH ? `#${activeBoard.geohash}` : `// ${activeBoard.name}`) : 'GLOBAL_FEED'}
+                      </h2>
+                      <p className="text-xs text-terminal-dim mt-1">
+                        {searchQuery 
+                          ? `${sortedPosts.length} results found` 
+                          : activeBoard 
+                            ? activeBoard.description 
+                            : 'AGGREGATING TOP SIGNALS FROM PUBLIC SECTORS'
+                        }
+                      </p>
+                    </div>
+                    <span className="text-xs border border-terminal-dim px-2 py-1">
+                      SIGNAL_COUNT: {sortedPosts.length}
+                    </span>
                   </div>
-                  <span className="text-xs border border-terminal-dim px-2 py-1">
-                    SIGNAL_COUNT: {sortedPosts.length}
-                  </span>
+                  
+                  {/* Sort Selector */}
+                  <SortSelector currentSort={sortMode} onSortChange={setSortMode} />
                 </div>
                 
                 {sortedPosts.length === 0 && (
@@ -793,12 +1058,35 @@ export default function App() {
                     post={post} 
                     boardName={getBoardName(post.id)}
                     userState={userState}
+                    knownUsers={knownUsers}
                     onVote={handleVote}
                     onComment={handleComment}
                     onViewBit={handleViewBit}
+                    onViewProfile={handleViewProfile}
+                    onEditPost={handleEditPost}
+                    onTagClick={handleTagClick}
                     isNostrConnected={isNostrConnected}
                   />
                 ))}
+
+                {/* Infinite scroll loader */}
+                <div 
+                  ref={loaderRef} 
+                  className="py-8 text-center"
+                >
+                  {isLoadingMore && (
+                    <div className="flex items-center justify-center gap-3 text-terminal-dim">
+                      <div className="animate-pulse">▓▓▓</div>
+                      <span className="text-sm uppercase tracking-wider">Loading more signals...</span>
+                      <div className="animate-pulse">▓▓▓</div>
+                    </div>
+                  )}
+                  {!hasMorePosts && sortedPosts.length > 0 && (
+                    <div className="text-xs text-terminal-dim uppercase tracking-wider border border-terminal-dim/30 inline-block px-4 py-2">
+                      END_OF_FEED // All signals loaded
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -817,9 +1105,13 @@ export default function App() {
                     post={selectedPost} 
                     boardName={selectedPost ? getBoardName(selectedPost.id) : undefined}
                     userState={userState}
+                    knownUsers={knownUsers}
                     onVote={handleVote}
                     onComment={handleComment}
                     onViewBit={() => {}}
+                    onViewProfile={handleViewProfile}
+                    onEditPost={handleEditPost}
+                    onTagClick={handleTagClick}
                     isFullPage={true}
                     isNostrConnected={isNostrConnected}
                   />
@@ -856,6 +1148,43 @@ export default function App() {
               <LocationSelector
                 onSelectBoard={handleLocationBoardSelect}
                 onClose={returnToFeed}
+              />
+            )}
+
+            {viewMode === ViewMode.USER_PROFILE && profileUser && (
+              <UserProfile
+                username={profileUser.username}
+                authorPubkey={profileUser.pubkey}
+                posts={posts}
+                userState={userState}
+                onVote={handleVote}
+                onComment={handleComment}
+                onViewBit={handleViewBit}
+                onClose={returnToFeed}
+                isNostrConnected={isNostrConnected}
+              />
+            )}
+
+            {viewMode === ViewMode.BOOKMARKS && (
+              <Bookmarks
+                posts={posts}
+                bookmarkedIds={bookmarkedIds}
+                userState={userState}
+                onVote={handleVote}
+                onComment={handleComment}
+                onViewBit={handleViewBit}
+                onClose={returnToFeed}
+                isNostrConnected={isNostrConnected}
+              />
+            )}
+
+            {viewMode === ViewMode.EDIT_POST && editingPostId && (
+              <EditPost
+                post={postsById.get(editingPostId)!}
+                boards={[...boards, ...locationBoards]}
+                onSave={handleSavePost}
+                onDelete={handleDeletePost}
+                onCancel={returnToFeed}
               />
             )}
           </main>

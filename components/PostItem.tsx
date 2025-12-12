@@ -1,15 +1,26 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Post, UserState, Board } from '../types';
 import { EXPANSION_THRESHOLD } from '../constants';
-import { ArrowBigUp, ArrowBigDown, MessageSquare, Clock, Hash, ExternalLink, CornerDownRight, Maximize2, Minimize2, Image as ImageIcon, Shield, Users, UserX } from 'lucide-react';
+import { ArrowBigUp, ArrowBigDown, MessageSquare, Clock, Hash, ExternalLink, CornerDownRight, Maximize2, Minimize2, Image as ImageIcon, Shield, Users, UserX, Bookmark, Edit3, Flag } from 'lucide-react';
+import { bookmarkService } from '../services/bookmarkService';
+import { reportService } from '../services/reportService';
+import { CommentThread, buildCommentTree } from './CommentThread';
+import { MentionText } from './MentionText';
+import { MentionInput } from './MentionInput';
+import { ShareButton } from './ShareButton';
+import { ReportModal } from './ReportModal';
 
 interface PostItemProps {
   post: Post;
   boardName?: string;
   userState: UserState;
+  knownUsers?: Set<string>;
   onVote: (postId: string, direction: 'up' | 'down') => void;
-  onComment: (postId: string, content: string) => void;
+  onComment: (postId: string, content: string, parentCommentId?: string) => void;
   onViewBit: (postId: string) => void;
+  onViewProfile?: (author: string, authorPubkey?: string) => void;
+  onEditPost?: (postId: string) => void;
+  onTagClick?: (tag: string) => void;
   isFullPage?: boolean;
   isNostrConnected?: boolean;
 }
@@ -18,15 +29,77 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   post,
   boardName,
   userState,
+  knownUsers = new Set(),
   onVote,
   onComment,
   onViewBit,
+  onViewProfile,
+  onEditPost,
+  onTagClick,
   isFullPage = false,
   isNostrConnected = false,
 }) => {
   const [isExpanded, setIsExpanded] = useState(isFullPage);
   const [newComment, setNewComment] = useState('');
   const [isTransmitting, setIsTransmitting] = useState(false);
+  const [isBookmarked, setIsBookmarked] = useState(() => bookmarkService.isBookmarked(post.id));
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [hasReported, setHasReported] = useState(() => reportService.hasReported('post', post.id));
+
+  // Subscribe to bookmark changes
+  useEffect(() => {
+    const unsubscribe = bookmarkService.subscribe(() => {
+      setIsBookmarked(bookmarkService.isBookmarked(post.id));
+    });
+    return unsubscribe;
+  }, [post.id]);
+
+  // Subscribe to report changes
+  useEffect(() => {
+    const unsubscribe = reportService.subscribe(() => {
+      setHasReported(reportService.hasReported('post', post.id));
+    });
+    return unsubscribe;
+  }, [post.id]);
+
+  const handleReportClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!hasReported) {
+      setShowReportModal(true);
+    }
+  }, [hasReported]);
+
+  // Check if this is the user's own post
+  const isOwnPost = useMemo(() => {
+    if (!userState.identity) return false;
+    return post.authorPubkey === userState.identity.pubkey || post.author === userState.username;
+  }, [post.authorPubkey, post.author, userState.identity, userState.username]);
+
+  const handleBookmarkClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    bookmarkService.toggleBookmark(post.id);
+  }, [post.id]);
+
+  const handleAuthorClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onViewProfile) {
+      onViewProfile(post.author, post.authorPubkey);
+    }
+  }, [onViewProfile, post.author, post.authorPubkey]);
+
+  const handleEditClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onEditPost) {
+      onEditPost(post.id);
+    }
+  }, [onEditPost, post.id]);
+
+  const handleTagClick = useCallback((e: React.MouseEvent, tag: string) => {
+    e.stopPropagation();
+    if (onTagClick) {
+      onTagClick(tag);
+    }
+  }, [onTagClick]);
 
   // If in full page mode, always expanded
   useEffect(() => {
@@ -55,11 +128,21 @@ const PostItemComponent: React.FC<PostItemProps> = ({
     
     setIsTransmitting(true);
     setTimeout(() => {
-      onComment(post.id, newComment);
+      onComment(post.id, newComment, undefined); // Top-level comment (no parent)
       setNewComment('');
       setIsTransmitting(false);
     }, 500);
   }, [newComment, onComment, post.id]);
+
+  // Handle threaded reply to a specific comment
+  const handleReplyToComment = useCallback((parentCommentId: string, content: string) => {
+    onComment(post.id, content, parentCommentId);
+  }, [onComment, post.id]);
+
+  // Build comment tree for threaded display
+  const commentTree = useMemo(() => {
+    return buildCommentTree(post.comments);
+  }, [post.comments]);
 
   const handleInteraction = useCallback(() => {
     if (isFullPage) return; // Already expanded in full view
@@ -199,11 +282,25 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 //{boardName}
               </span>
             )}
-            <span className={`font-bold text-terminal-dim`}>
+            <button
+              onClick={handleAuthorClick}
+              className="font-bold text-terminal-dim hover:text-terminal-text hover:underline transition-colors cursor-pointer"
+              title={`View ${post.author}'s profile`}
+            >
               {post.author}
-            </span>
+            </button>
             <span>::</span>
             <span className="flex items-center gap-1"><Clock size={12} /> {formatTime(post.timestamp)}</span>
+            {isOwnPost && onEditPost && (
+              <button
+                onClick={handleEditClick}
+                className="flex items-center gap-1 text-terminal-dim hover:text-terminal-text transition-colors"
+                title="Edit this post"
+              >
+                <Edit3 size={10} />
+                <span className="text-[10px]">EDIT</span>
+              </button>
+            )}
             {post.url && (
                <span className="ml-auto border border-terminal-dim px-1 text-[10px] text-terminal-text flex items-center gap-1">
                  LINK_BIT
@@ -255,39 +352,73 @@ const PostItemComponent: React.FC<PostItemProps> = ({
             onClick={handleInteraction}
             className={`text-sm md:text-base text-terminal-text/80 font-mono leading-relaxed mb-3 cursor-pointer break-words ${!isExpanded ? 'line-clamp-2' : 'opacity-100'}`}
           >
-            {post.content}
+            <MentionText 
+              content={post.content} 
+              onMentionClick={(username) => onViewProfile?.(username, undefined)}
+            />
           </div>
 
           <div className="mt-auto flex items-center justify-between border-t border-terminal-dim pt-2">
             <div className="flex gap-2 flex-wrap">
               {post.tags.map(tag => (
-                <span key={tag} className="text-xs border border-terminal-dim px-1 text-terminal-dim flex items-center hover:text-terminal-text cursor-pointer">
+                <button
+                  key={tag}
+                  onClick={(e) => handleTagClick(e, tag)}
+                  className="text-xs border border-terminal-dim px-1 text-terminal-dim flex items-center hover:text-terminal-text hover:border-terminal-text cursor-pointer transition-colors"
+                  title={`Search for #${tag}`}
+                >
                   <Hash size={10} className="mr-1"/>{tag}
-                </span>
+                </button>
               ))}
             </div>
             
-            <button 
-              onClick={handleCommentClick}
-              className={`flex items-center gap-2 text-sm px-2 py-0.5 transition-colors border border-transparent shrink-0
-                ${isExpanded 
-                  ? 'text-terminal-text border-terminal-dim bg-terminal-bg/30' 
-                  : 'text-terminal-dim hover:text-terminal-text hover:border-terminal-dim'
-                }`}
-            >
-              <MessageSquare size={14} />
-              {post.commentCount} {post.commentCount === 1 ? 'COMMENT' : 'COMMENTS'}
-              {requiresFullPage && !isFullPage && (
-                <span className="flex items-center ml-1 text-[10px] border border-terminal-dim px-1 text-terminal-alert">
-                   FULL_VIEW <Maximize2 size={8} className="ml-1" />
-                </span>
+            <div className="flex items-center gap-2">
+              {/* Bookmark Button */}
+              <button
+                onClick={handleBookmarkClick}
+                className={`p-1 transition-colors ${isBookmarked ? 'text-terminal-text' : 'text-terminal-dim hover:text-terminal-text'}`}
+                title={isBookmarked ? 'Remove bookmark' : 'Save to bookmarks'}
+              >
+                <Bookmark size={16} fill={isBookmarked ? 'currentColor' : 'none'} />
+              </button>
+
+              {/* Share Button */}
+              <ShareButton postId={post.id} postTitle={post.title} />
+
+              {/* Report Button */}
+              {!isOwnPost && (
+                <button
+                  onClick={handleReportClick}
+                  className={`p-1 transition-colors ${hasReported ? 'text-terminal-alert' : 'text-terminal-dim hover:text-terminal-alert'}`}
+                  title={hasReported ? 'Already reported' : 'Report this post'}
+                  disabled={hasReported}
+                >
+                  <Flag size={14} fill={hasReported ? 'currentColor' : 'none'} />
+                </button>
               )}
-              {!requiresFullPage && !isFullPage && (
-                 <span className="ml-1 opacity-50">
-                   {isExpanded ? <Minimize2 size={10} /> : <Maximize2 size={10} />}
-                 </span>
-              )}
-            </button>
+
+              <button 
+                onClick={handleCommentClick}
+                className={`flex items-center gap-2 text-sm px-2 py-0.5 transition-colors border border-transparent shrink-0
+                  ${isExpanded 
+                    ? 'text-terminal-text border-terminal-dim bg-terminal-bg/30' 
+                    : 'text-terminal-dim hover:text-terminal-text hover:border-terminal-dim'
+                  }`}
+              >
+                <MessageSquare size={14} />
+                {post.commentCount} {post.commentCount === 1 ? 'COMMENT' : 'COMMENTS'}
+                {requiresFullPage && !isFullPage && (
+                  <span className="flex items-center ml-1 text-[10px] border border-terminal-dim px-1 text-terminal-alert">
+                     FULL_VIEW <Maximize2 size={8} className="ml-1" />
+                  </span>
+                )}
+                {!requiresFullPage && !isFullPage && (
+                   <span className="ml-1 opacity-50">
+                     {isExpanded ? <Minimize2 size={10} /> : <Maximize2 size={10} />}
+                   </span>
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Expanded Content (Inline or Full Page) */}
@@ -298,17 +429,18 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 DATA_STREAM
               </h4>
 
-              {post.comments.length > 0 ? (
-                <div className="space-y-4 mb-6">
-                  {post.comments.map((comment) => (
-                    <div key={comment.id} className="pl-4 border-l-2 border-terminal-dim hover:border-terminal-text transition-colors">
-                      <div className="flex items-center gap-2 text-terminal-dim text-xs mb-1">
-                         <span className="text-terminal-text font-bold">{comment.author}</span>
-                         <span>::</span>
-                         <span>{formatTime(comment.timestamp)}</span>
-                      </div>
-                      <p className="text-terminal-text/80 text-sm leading-relaxed break-words">{comment.content}</p>
-                    </div>
+              {commentTree.length > 0 ? (
+                <div className="space-y-2 mb-6">
+                  {commentTree.map((comment) => (
+                    <CommentThread
+                      key={comment.id}
+                      comment={comment}
+                      userState={userState}
+                      onReply={handleReplyToComment}
+                      onViewProfile={onViewProfile}
+                      formatTime={formatTime}
+                      knownUsers={knownUsers}
+                    />
                   ))}
                 </div>
               ) : (
@@ -319,12 +451,13 @@ const PostItemComponent: React.FC<PostItemProps> = ({
 
               <form onSubmit={handleCommentSubmit} className="flex gap-3 items-start bg-terminal-bg/40 p-3 border border-terminal-dim/30">
                 <div className="flex-1 flex flex-col gap-2">
-                  <label className="text-[10px] uppercase text-terminal-dim font-bold">Append Data:</label>
-                  <textarea
+                  <label className="text-[10px] uppercase text-terminal-dim font-bold">Append Data (use @ to mention):</label>
+                  <MentionInput
                     value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
+                    onChange={setNewComment}
+                    knownUsers={knownUsers}
                     placeholder="Type response..."
-                    className="bg-terminal-bg border border-terminal-dim p-2 text-sm text-terminal-text focus:border-terminal-text focus:outline-none w-full min-h-[60px] font-mono"
+                    minHeight="60px"
                   />
                 </div>
                 <button 
@@ -339,6 +472,16 @@ const PostItemComponent: React.FC<PostItemProps> = ({
           )}
         </div>
       </div>
+
+      {/* Report Modal */}
+      {showReportModal && (
+        <ReportModal
+          targetType="post"
+          targetId={post.id}
+          targetPreview={post.title}
+          onClose={() => setShowReportModal(false)}
+        />
+      )}
     </div>
   );
 };
@@ -351,9 +494,12 @@ export const PostItem = React.memo(PostItemComponent, (prevProps, nextProps) => 
     prevProps.post.score === nextProps.post.score &&
     prevProps.post.commentCount === nextProps.post.commentCount &&
     prevProps.post.comments.length === nextProps.post.comments.length &&
+    prevProps.post.title === nextProps.post.title &&
+    prevProps.post.content === nextProps.post.content &&
     prevProps.userState.bits === nextProps.userState.bits &&
     prevProps.userState.votedPosts[prevProps.post.id] === nextProps.userState.votedPosts[nextProps.post.id] &&
     prevProps.userState.identity?.pubkey === nextProps.userState.identity?.pubkey &&
+    prevProps.userState.username === nextProps.userState.username &&
     prevProps.boardName === nextProps.boardName &&
     prevProps.isNostrConnected === nextProps.isNostrConnected &&
     prevProps.isFullPage === nextProps.isFullPage
