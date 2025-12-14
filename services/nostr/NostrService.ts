@@ -3,7 +3,7 @@ import {
   type Event as NostrEvent,
   type Filter 
 } from 'nostr-tools';
-import { NOSTR_KINDS, type Post, type Board, type Comment, BoardType, type UnsignedNostrEvent } from '../../types';
+import { NOSTR_KINDS, type Post, type Board, type Comment, BoardType, type UnsignedNostrEvent, ReportType } from '../../types';
 import { NostrConfig } from '../../config';
 import { nostrEventDeduplicator } from '../messageDeduplicator';
 import { inputValidator } from '../inputValidator';
@@ -16,6 +16,7 @@ import {
   buildCommentEvent,
   buildPostEditEvent,
   buildPostEvent,
+  buildReportEvent,
   buildVoteEvent,
 } from './eventBuilders';
 import {
@@ -830,6 +831,58 @@ class NostrService {
     pubkey: string
   ): UnsignedNostrEvent {
     return buildBoardEvent(board, pubkey);
+  }
+
+  /**
+   * Build a NIP-56 report event
+   */
+  buildReportEvent(args: {
+    targetEventId: string;
+    targetPubkey: string;
+    reportType: ReportType;
+    pubkey: string;
+    details?: string;
+  }): UnsignedNostrEvent {
+    return buildReportEvent(args);
+  }
+
+  /**
+   * Fetch NIP-56 reports for a specific event
+   */
+  async fetchReportsForEvent(eventId: string): Promise<NostrEvent[]> {
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.REPORT],
+      '#e': [eventId],
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      // Filter for BitBoard reports
+      return events.filter(event => 
+        event.tags.some(tag => tag[0] === 'client' && tag[1] === 'bitboard')
+      );
+    } catch (error) {
+      console.error('[Nostr] Failed to fetch reports:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch NIP-56 reports by a specific user
+   */
+  async fetchReportsByUser(pubkey: string): Promise<NostrEvent[]> {
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.REPORT],
+      authors: [pubkey],
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      return events;
+    } catch (error) {
+      console.error('[Nostr] Failed to fetch user reports:', error);
+      return [];
+    }
   }
 
   // ----------------------------------------

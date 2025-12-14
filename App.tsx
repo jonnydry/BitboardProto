@@ -1006,6 +1006,8 @@ export default function App() {
               <CreateBoard
                 onSubmit={handleCreateBoard}
                 onCancel={returnToFeed}
+                identity={userState.identity}
+                onConnectIdentity={() => setViewMode(ViewMode.IDENTITY)}
               />
             )}
 

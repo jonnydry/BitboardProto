@@ -1,7 +1,9 @@
-import React from 'react';
-import { HelpCircle, Hash, Lock, Globe, Eye, Key, MapPin, Radio } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { HelpCircle, Hash, Lock, Globe, Eye, Key, MapPin, Radio, Activity } from 'lucide-react';
 import type { Board, UserState } from '../../types';
 import { BoardType, ThemeId, ViewMode } from '../../types';
+import { geonetDiscoveryService, type GeoChannel } from '../../services/geonetDiscoveryService';
+import { geohashService } from '../../services/geohashService';
 
 export function Sidebar(props: {
   userState: UserState;
@@ -35,6 +37,49 @@ export function Sidebar(props: {
     navigateToBoard,
     onSetViewMode,
   } = props;
+
+  // Nearby activity state
+  const [nearbyActivity, setNearbyActivity] = useState<GeoChannel[]>([]);
+  const [isLoadingActivity, setIsLoadingActivity] = useState(false);
+
+  // Load cached discovery result on mount
+  useEffect(() => {
+    const cached = geonetDiscoveryService.getCachedResult();
+    if (cached) {
+      setNearbyActivity(cached.channels);
+    }
+  }, []);
+
+  // Discover nearby activity when user has location boards
+  useEffect(() => {
+    if (geohashBoards.length > 0) {
+      // User has location enabled, try to get activity
+      const cachedPosition = geohashService.getCachedPosition();
+      if (cachedPosition) {
+        setIsLoadingActivity(true);
+        geonetDiscoveryService
+          .discoverNearbyChannels(
+            cachedPosition.coords.latitude,
+            cachedPosition.coords.longitude
+          )
+          .then((result) => {
+            setNearbyActivity(result.channels);
+          })
+          .catch((err) => {
+            console.warn('[Sidebar] Failed to discover activity:', err);
+          })
+          .finally(() => {
+            setIsLoadingActivity(false);
+          });
+      }
+    }
+  }, [geohashBoards.length]);
+
+  // Calculate total nearby posts
+  const totalNearbyPosts = nearbyActivity.reduce((sum, ch) => sum + ch.postCount, 0);
+  const recentlyActiveCount = nearbyActivity.filter((ch) =>
+    geonetDiscoveryService.isRecentlyActive(ch)
+  ).length;
 
   return (
     <aside className="md:col-span-1 md:col-start-4 order-first md:order-none space-y-6">
@@ -157,9 +202,48 @@ export function Sidebar(props: {
 
       {/* Location Channels */}
       <div className="border border-terminal-dim p-4 bg-terminal-bg shadow-hard">
-        <h3 className="font-bold border-b border-terminal-dim mb-3 pb-1 text-sm flex items-center gap-2">
-          <MapPin size={14} /> {">>"} GEO_NET
+        <h3 className="font-bold border-b border-terminal-dim mb-3 pb-1 text-sm flex items-center justify-between">
+          <span className="flex items-center gap-2">
+            <MapPin size={14} /> {">>"} GEO_NET
+          </span>
+          {totalNearbyPosts > 0 && (
+            <span className="flex items-center gap-1 text-[10px] text-terminal-text font-normal">
+              <Activity size={10} className={recentlyActiveCount > 0 ? 'animate-pulse' : ''} />
+              {totalNearbyPosts} nearby
+            </span>
+          )}
         </h3>
+
+        {/* Nearby Activity Summary */}
+        {nearbyActivity.length > 0 && (
+          <div className="mb-3 p-2 bg-terminal-dim/10 border border-terminal-dim/30">
+            <div className="text-[10px] text-terminal-dim uppercase mb-1">Active Channels</div>
+            <div className="flex flex-wrap gap-1">
+              {nearbyActivity.slice(0, 3).map((channel) => (
+                <button
+                  key={channel.geohash}
+                  onClick={() => {
+                    const board = geonetDiscoveryService.channelToBoard(channel);
+                    navigateToBoard(board.id);
+                  }}
+                  className="text-[10px] px-1.5 py-0.5 bg-terminal-dim/20 hover:bg-terminal-text hover:text-terminal-bg transition-colors font-mono"
+                  title={`${channel.postCount} posts, ${channel.uniqueAuthors} users`}
+                >
+                  #{channel.geohash.slice(0, 4)}
+                  {geonetDiscoveryService.isRecentlyActive(channel) && (
+                    <span className="ml-1 text-terminal-text">●</span>
+                  )}
+                </button>
+              ))}
+              {nearbyActivity.length > 3 && (
+                <span className="text-[10px] text-terminal-dim px-1">
+                  +{nearbyActivity.length - 3} more
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col gap-1">
           {geohashBoards.length === 0 ? (
             <p className="text-xs text-terminal-dim py-2 font-mono">
@@ -167,28 +251,42 @@ export function Sidebar(props: {
               Enable location to scan frequencies.
             </p>
           ) : (
-            geohashBoards.map((board) => (
-              <button
-                key={board.id}
-                onClick={() => navigateToBoard(board.id)}
-                className={`text-left text-sm px-2 py-1 transition-all flex items-center gap-2 group w-full
-                  ${activeBoardId === board.id 
-                    ? 'text-terminal-bg bg-terminal-text font-bold' 
-                    : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
-                  }
-                `}
-              >
-                <MapPin size={10} /> 
-                <span className="truncate">#{board.geohash}</span>
-              </button>
-            ))
+            geohashBoards.map((board) => {
+              // Find activity for this board's geohash
+              const activity = nearbyActivity.find((ch) => ch.geohash === board.geohash);
+              
+              return (
+                <button
+                  key={board.id}
+                  onClick={() => navigateToBoard(board.id)}
+                  className={`text-left text-sm px-2 py-1 transition-all flex items-center gap-2 group w-full
+                    ${activeBoardId === board.id 
+                      ? 'text-terminal-bg bg-terminal-text font-bold' 
+                      : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
+                    }
+                  `}
+                >
+                  <MapPin size={10} /> 
+                  <span className="truncate flex-1">#{board.geohash}</span>
+                  {activity && activity.postCount > 0 && (
+                    <span className={`text-[10px] px-1 ${
+                      activeBoardId === board.id 
+                        ? 'bg-terminal-bg/20 text-terminal-bg' 
+                        : 'bg-terminal-dim/30 text-terminal-text'
+                    }`}>
+                      {activity.postCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })
           )}
         </div>
         <button
           onClick={() => onSetViewMode(ViewMode.LOCATION)}
           className="mt-4 w-full text-xs border border-terminal-dim border-dashed text-terminal-dim p-2 hover:text-terminal-bg hover:bg-terminal-text hover:border-solid transition-all flex items-center justify-center gap-2 uppercase"
         >
-          <MapPin size={12} /> Scan_Nearby
+          <MapPin size={12} /> {isLoadingActivity ? 'Scanning...' : 'Scan_Nearby'}
         </button>
       </div>
 

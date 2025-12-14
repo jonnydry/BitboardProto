@@ -62,6 +62,9 @@ export interface Board {
   precision?: GeohashPrecision;
   nostrEventId?: string;      // Reference to Nostr event
   createdBy?: string;         // Creator's pubkey
+  // Encryption (for private boards)
+  isEncrypted?: boolean;      // True if content is encrypted
+  encryptionKeyHash?: string; // Hash of key for verification (not the key itself)
 }
 
 // ============================================
@@ -167,7 +170,21 @@ export const NOSTR_KINDS = {
   POST: 1,                    // Standard text note (we add tags)
   DELETE: 5,                  // NIP-09 deletion event
   REACTION: 7,                // Upvote/downvote
+  REPORT: 1984,               // NIP-56 content reporting
   RELAY_LIST: 10002,          // NIP-65 relay list (kind 10002)
   BOARD_DEFINITION: 30001,    // Parameterized replaceable for boards
   LONG_FORM: 30023,           // Long-form content
 } as const;
+
+// ============================================
+// NIP-56 REPORT TYPES
+// ============================================
+
+export enum ReportType {
+  SPAM = 'spam',
+  NUDITY = 'nudity',
+  ILLEGAL = 'illegal',
+  IMPERSONATION = 'impersonation',
+  PROFANITY = 'profanity',
+  OTHER = 'other',
+}

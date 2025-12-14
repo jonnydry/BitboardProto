@@ -2,6 +2,11 @@
 // REPORT SERVICE
 // ============================================
 // Handles content reporting (posts and comments)
+// Supports both local storage and NIP-56 Nostr reports
+
+import { nostrService } from './nostrService';
+import { identityService } from './identityService';
+import { ReportType, type NostrIdentity, type NostrEvent } from '../types';
 
 export enum ReportReason {
   SPAM = 'spam',
@@ -19,6 +24,15 @@ export const REPORT_REASON_LABELS: Record<ReportReason, string> = {
   [ReportReason.OTHER]: 'Other',
 };
 
+// Map local ReportReason to NIP-56 ReportType
+const REASON_TO_NIP56_TYPE: Record<ReportReason, ReportType> = {
+  [ReportReason.SPAM]: ReportType.SPAM,
+  [ReportReason.HARASSMENT]: ReportType.PROFANITY,  // Closest match
+  [ReportReason.INAPPROPRIATE]: ReportType.NUDITY,  // Could be various things
+  [ReportReason.MISINFORMATION]: ReportType.OTHER,  // No direct NIP-56 type
+  [ReportReason.OTHER]: ReportType.OTHER,
+};
+
 export interface Report {
   id: string;
   targetType: 'post' | 'comment';
@@ -27,6 +41,15 @@ export interface Report {
   details?: string;
   reporterPubkey?: string;
   timestamp: number;
+  nostrEventId?: string;  // If published to Nostr
+}
+
+export interface NostrReportInfo {
+  eventId: string;
+  reporterPubkey: string;
+  reportType: string;
+  timestamp: number;
+  details?: string;
 }
 
 const STORAGE_KEY = 'bitboard_reports';
@@ -171,6 +194,123 @@ class ReportService {
     this.reports.clear();
     this.saveToStorage();
     this.notifyListeners();
+  }
+
+  // ----------------------------------------
+  // NOSTR NIP-56 INTEGRATION
+  // ----------------------------------------
+
+  /**
+   * Publish a report to Nostr relays (NIP-56)
+   */
+  async publishToNostr(
+    targetEventId: string,
+    targetPubkey: string,
+    reason: ReportReason,
+    identity: NostrIdentity,
+    details?: string
+  ): Promise<NostrEvent | null> {
+    try {
+      const reportType = REASON_TO_NIP56_TYPE[reason];
+      
+      const unsigned = nostrService.buildReportEvent({
+        targetEventId,
+        targetPubkey,
+        reportType,
+        pubkey: identity.pubkey,
+        details,
+      });
+
+      const signed = await identityService.signEvent(unsigned);
+      const event = await nostrService.publishSignedEvent(signed);
+
+      console.log(`[Reports] Published NIP-56 report to Nostr: ${event.id}`);
+      return event;
+    } catch (error) {
+      console.error('[Reports] Failed to publish to Nostr:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Submit a report and optionally publish to Nostr
+   */
+  async submitReportWithNostr(
+    targetType: 'post' | 'comment',
+    targetId: string,
+    targetPubkey: string,
+    reason: ReportReason,
+    identity?: NostrIdentity,
+    details?: string
+  ): Promise<{ report: Report; nostrEvent?: NostrEvent }> {
+    // First, save locally
+    const report = this.submitReport(
+      targetType,
+      targetId,
+      reason,
+      details,
+      identity?.pubkey
+    );
+
+    // If identity exists, also publish to Nostr
+    let nostrEvent: NostrEvent | undefined;
+    if (identity) {
+      const event = await this.publishToNostr(
+        targetId,
+        targetPubkey,
+        reason,
+        identity,
+        details
+      );
+
+      if (event) {
+        nostrEvent = event;
+        // Update the local report with Nostr event ID
+        const key = this.getKey(targetType, targetId);
+        const existingReport = this.reports.get(key);
+        if (existingReport) {
+          existingReport.nostrEventId = event.id;
+          this.saveToStorage();
+        }
+      }
+    }
+
+    return { report, nostrEvent };
+  }
+
+  /**
+   * Fetch reports for a target from Nostr
+   */
+  async fetchNostrReports(eventId: string): Promise<NostrReportInfo[]> {
+    try {
+      const events = await nostrService.fetchReportsForEvent(eventId);
+      
+      return events.map(event => {
+        // Extract report type from e tag
+        const eTag = event.tags.find(t => t[0] === 'e' && t[1] === eventId);
+        const reportType = eTag?.[3] || 'other';
+
+        return {
+          eventId: event.id,
+          reporterPubkey: event.pubkey,
+          reportType,
+          timestamp: event.created_at * 1000,
+          details: event.content || undefined,
+        };
+      });
+    } catch (error) {
+      console.error('[Reports] Failed to fetch from Nostr:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get count of unique reporters for an event
+   */
+  async getNostrReportCount(eventId: string): Promise<number> {
+    const reports = await this.fetchNostrReports(eventId);
+    const uniqueReporters = new Set(reports.map(r => r.reporterPubkey));
+    return uniqueReporters.size;
   }
 }
 

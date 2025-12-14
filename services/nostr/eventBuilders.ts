@@ -1,5 +1,5 @@
 import type { Event as NostrEvent } from 'nostr-tools';
-import { NOSTR_KINDS, type Post, type Board, type UnsignedNostrEvent } from '../../types';
+import { NOSTR_KINDS, type Post, type Board, type UnsignedNostrEvent, ReportType } from '../../types';
 import {
   BITBOARD_TYPE_COMMENT,
   BITBOARD_TYPE_COMMENT_DELETE,
@@ -252,6 +252,41 @@ export function buildBoardEvent(
     created_at: Math.floor(Date.now() / 1000),
     tags,
     content: board.description,
+  };
+
+  return event as UnsignedNostrEvent;
+}
+
+/**
+ * Build a NIP-56 report event (kind 1984)
+ */
+export function buildReportEvent(args: {
+  /** The event ID being reported */
+  targetEventId: string;
+  /** The pubkey of the event author being reported */
+  targetPubkey: string;
+  /** The type of report */
+  reportType: ReportType;
+  /** Reporter's pubkey */
+  pubkey: string;
+  /** Optional additional details */
+  details?: string;
+}): UnsignedNostrEvent {
+  const tags: string[][] = [
+    // NIP-56: e tag with report type as 3rd element
+    ['e', args.targetEventId, '', args.reportType],
+    // NIP-56: p tag for the reported user
+    ['p', args.targetPubkey],
+    // BitBoard client identifier
+    ['client', 'bitboard'],
+  ];
+
+  const event: Partial<NostrEvent> = {
+    pubkey: args.pubkey,
+    kind: NOSTR_KINDS.REPORT,
+    created_at: Math.floor(Date.now() / 1000),
+    tags,
+    content: args.details || '',
   };
 
   return event as UnsignedNostrEvent;

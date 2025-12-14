@@ -1,11 +1,14 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { X, Flag, AlertTriangle, Check } from 'lucide-react';
+import { X, Flag, AlertTriangle, Check, Globe } from 'lucide-react';
 import { ReportReason, REPORT_REASON_LABELS, reportService } from '../services/reportService';
+import type { NostrIdentity } from '../types';
 
 interface ReportModalProps {
   targetType: 'post' | 'comment';
   targetId: string;
-  targetPreview?: string; // Optional preview of reported content
+  targetPubkey?: string;           // Author of the reported content
+  targetPreview?: string;          // Optional preview of reported content
+  identity?: NostrIdentity;        // User's identity for Nostr publishing
   onClose: () => void;
   onSubmit?: () => void;
 }
@@ -13,7 +16,9 @@ interface ReportModalProps {
 export const ReportModal: React.FC<ReportModalProps> = ({
   targetType,
   targetId,
+  targetPubkey,
   targetPreview,
+  identity,
   onClose,
   onSubmit,
 }) => {
@@ -25,32 +30,39 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   const [details, setDetails] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [wasPublishedToNostr, setWasPublishedToNostr] = useState(false);
 
-  const handleSubmit = useCallback((e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedReason) return;
 
     setIsSubmitting(true);
 
-    // Simulate slight delay for UX
-    setTimeout(() => {
-      reportService.submitReport(
+    try {
+      // Use the new method that supports Nostr publishing
+      const result = await reportService.submitReportWithNostr(
         targetType,
         targetId,
+        targetPubkey || '',
         selectedReason,
+        identity,
         details || undefined
       );
-      
-      setIsSubmitting(false);
+
+      setWasPublishedToNostr(!!result.nostrEvent);
       setIsSubmitted(true);
       onSubmit?.();
 
       // Close modal after showing success
       setTimeout(() => {
         onClose();
-      }, 1500);
-    }, 300);
-  }, [targetType, targetId, selectedReason, details, onClose, onSubmit]);
+      }, 2000);
+    } catch (error) {
+      console.error('[ReportModal] Failed to submit:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [targetType, targetId, targetPubkey, selectedReason, details, identity, onClose, onSubmit]);
 
   // Handle backdrop click
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {
@@ -94,9 +106,15 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               <Check size={24} className="text-terminal-text" />
             </div>
             <h3 id={dialogTitleId} className="text-lg font-bold text-terminal-text mb-2">REPORT_SUBMITTED</h3>
-            <p id={dialogDescId} className="text-sm text-terminal-dim">
+            <p id={dialogDescId} className="text-sm text-terminal-dim mb-2">
               Thank you for helping keep BitBoard safe. Your report has been recorded.
             </p>
+            {wasPublishedToNostr && (
+              <div className="flex items-center justify-center gap-2 text-xs text-terminal-text mt-3 p-2 bg-terminal-dim/10 border border-terminal-dim/30">
+                <Globe size={12} />
+                <span>Report shared with the network (NIP-56)</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -201,12 +219,21 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             </div>
           </div>
 
-          {/* Warning */}
+          {/* Warning / Info */}
           <div className="mb-4 p-3 border border-terminal-alert/30 bg-terminal-alert/5 flex items-start gap-2">
             <AlertTriangle size={14} className="text-terminal-alert mt-0.5 shrink-0" />
-            <p className="text-xs text-terminal-dim">
-              Reports are stored locally. Abuse of the reporting system may result in your reports being ignored.
-            </p>
+            <div className="text-xs text-terminal-dim">
+              {identity ? (
+                <p>
+                  Your report will be <span className="text-terminal-text">shared with the network</span> via Nostr (NIP-56). 
+                  This helps the community moderate content.
+                </p>
+              ) : (
+                <p>
+                  Reports are stored locally only. Connect your identity to share reports with the network.
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Actions */}

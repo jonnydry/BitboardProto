@@ -9,6 +9,7 @@ import { toastService } from '../../services/toastService';
 import { inputValidator } from '../../services/inputValidator';
 import { UIConfig } from '../../config';
 import { makeUniqueBoardId } from '../../services/boardIdService';
+import { boardRateLimiter } from '../../services/boardRateLimiter';
 
 interface UseAppEventHandlersProps {
   posts: Post[];
@@ -112,6 +113,32 @@ export const useAppEventHandlers = ({
   }, [userState.identity, boardsById, getRelayHint, setPosts, setViewMode]);
 
   const handleCreateBoard = useCallback(async (newBoardData: Omit<Board, 'id' | 'memberCount' | 'nostrEventId'>) => {
+    // Require identity for board creation
+    if (!userState.identity) {
+      toastService.push({
+        type: 'error',
+        message: 'Identity required to create boards',
+        detail: 'Please connect your Nostr identity first',
+        durationMs: UIConfig.TOAST_DURATION_MS,
+        dedupeKey: 'create-board-no-identity',
+      });
+      return;
+    }
+
+    // Check rate limit
+    const rateCheck = boardRateLimiter.canCreateBoard(userState.identity.pubkey);
+    if (!rateCheck.allowed) {
+      const resetIn = rateCheck.resetAt ? boardRateLimiter.formatResetTime(rateCheck.resetAt) : 'later';
+      toastService.push({
+        type: 'error',
+        message: 'Board creation limit reached',
+        detail: `You can create ${boardRateLimiter.getLimit()} boards per day. Try again in ${resetIn}.`,
+        durationMs: UIConfig.TOAST_DURATION_MS,
+        dedupeKey: 'create-board-rate-limit',
+      });
+      return;
+    }
+
     const existingIds = new Set<string>([...boards, ...boards].map(b => b.id)); // Note: should be locationBoards, but using boards for now
     const id = makeUniqueBoardId(newBoardData.name, existingIds);
 
@@ -119,27 +146,28 @@ export const useAppEventHandlers = ({
       ...newBoardData,
       id,
       memberCount: 1,
-      createdBy: userState.identity?.pubkey,
+      createdBy: userState.identity.pubkey,
     };
 
-    // Publish to Nostr if identity exists
-    if (userState.identity) {
-      try {
-        const unsigned = nostrService.buildBoardEvent(newBoard, userState.identity.pubkey);
-        const signed = await identityService.signEvent(unsigned);
-        const event = await nostrService.publishSignedEvent(signed);
-        newBoard.nostrEventId = event.id;
-      } catch (error) {
-        console.error('[App] Failed to publish board to Nostr:', error);
-        const errMsg = error instanceof Error ? error.message : String(error);
-        toastService.push({
-          type: 'error',
-          message: 'Failed to publish board to Nostr (saved locally)',
-          detail: `${errMsg} — ${getRelayHint()}`,
-          durationMs: UIConfig.TOAST_DURATION_MS,
-          dedupeKey: 'publish-board-failed',
-        });
-      }
+    // Publish to Nostr
+    try {
+      const unsigned = nostrService.buildBoardEvent(newBoard, userState.identity.pubkey);
+      const signed = await identityService.signEvent(unsigned);
+      const event = await nostrService.publishSignedEvent(signed);
+      newBoard.nostrEventId = event.id;
+
+      // Record successful creation for rate limiting
+      boardRateLimiter.recordCreation(userState.identity.pubkey, newBoard.id);
+    } catch (error) {
+      console.error('[App] Failed to publish board to Nostr:', error);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      toastService.push({
+        type: 'error',
+        message: 'Failed to publish board to Nostr (saved locally)',
+        detail: `${errMsg} — ${getRelayHint()}`,
+        durationMs: UIConfig.TOAST_DURATION_MS,
+        dedupeKey: 'publish-board-failed',
+      });
     }
 
     setBoards(prev => [...prev, newBoard]);

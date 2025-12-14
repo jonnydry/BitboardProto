@@ -10,6 +10,7 @@ import { reportService } from '../../services/reportService';
 import { makeUniqueBoardId } from '../../services/boardIdService';
 import { toastService } from '../../services/toastService';
 import { inputValidator } from '../../services/inputValidator';
+import { encryptedBoardService } from '../../services/encryptedBoardService';
 import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
 import { FeatureFlags, StorageKeys, UIConfig } from '../../config';
 import { useTheme } from '../../hooks/useTheme';
@@ -410,6 +411,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Handle encrypted board share links (URL fragment contains key)
+  useEffect(() => {
+    const shareData = encryptedBoardService.handleShareLink();
+    if (shareData) {
+      console.log('[App] Received encrypted board share link:', shareData.boardId);
+      
+      // Navigate to the board
+      setActiveBoardId(shareData.boardId);
+      setViewMode(ViewMode.FEED);
+      
+      // Show success toast
+      toastService.push({
+        type: 'success',
+        message: 'Encrypted board access granted',
+        detail: `You now have access to board ${shareData.boardId}`,
+        durationMs: UIConfig.TOAST_DURATION_MS,
+        dedupeKey: 'encrypted-board-access',
+      });
+    }
   }, []);
 
   // Event handlers (imported from separate file)
