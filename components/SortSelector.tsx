@@ -23,7 +23,7 @@ export const SortSelector: React.FC<SortSelectorProps> = ({ currentSort, onSortC
           key={id}
           onClick={() => onSortChange(id)}
           title={SORT_OPTIONS.find(o => o.id === id)?.description}
-          className={`px-2 py-1 border transition-all duration-150 flex items-center gap-1
+          className={`px-3 py-2 md:px-2 md:py-1 border transition-all duration-150 flex items-center gap-1
             ${currentSort === id 
               ? 'border-terminal-text text-terminal-text bg-terminal-dim/20' 
               : 'border-terminal-dim/50 text-terminal-dim hover:border-terminal-dim hover:text-terminal-text'

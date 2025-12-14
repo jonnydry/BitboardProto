@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Post, UserState, Board } from '../types';
+import { Post, UserState } from '../types';
 import { EXPANSION_THRESHOLD } from '../constants';
 import { ArrowBigUp, ArrowBigDown, MessageSquare, Clock, Hash, ExternalLink, CornerDownRight, Maximize2, Minimize2, Image as ImageIcon, Shield, Users, UserX, Bookmark, Edit3, Flag } from 'lucide-react';
 import { CommentThread, buildCommentTree } from './CommentThread';
@@ -15,6 +15,8 @@ interface PostItemProps {
   knownUsers?: Set<string>;
   onVote: (postId: string, direction: 'up' | 'down') => void;
   onComment: (postId: string, content: string, parentCommentId?: string) => void;
+  onEditComment?: (postId: string, commentId: string, content: string) => void;
+  onDeleteComment?: (postId: string, commentId: string) => void;
   onViewBit: (postId: string) => void;
   onViewProfile?: (author: string, authorPubkey?: string) => void;
   onEditPost?: (postId: string) => void;
@@ -33,6 +35,8 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   knownUsers = new Set(),
   onVote,
   onComment,
+  onEditComment,
+  onDeleteComment,
   onViewBit,
   onViewProfile,
   onEditPost,
@@ -125,6 +129,14 @@ const PostItemComponent: React.FC<PostItemProps> = ({
     onComment(post.id, content, parentCommentId);
   }, [onComment, post.id]);
 
+  const handleEditComment = useCallback((commentId: string, content: string) => {
+    onEditComment?.(post.id, commentId, content);
+  }, [onEditComment, post.id]);
+
+  const handleDeleteComment = useCallback((commentId: string) => {
+    onDeleteComment?.(post.id, commentId);
+  }, [onDeleteComment, post.id]);
+
   // Build comment tree for threaded display
   const commentTree = useMemo(() => {
     return buildCommentTree(post.comments);
@@ -155,8 +167,20 @@ const PostItemComponent: React.FC<PostItemProps> = ({
     handleInteraction();
   }, [handleInteraction]);
 
+  const handleInteractionKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleInteraction();
+    }
+  }, [handleInteraction]);
+
   return (
     <div 
+      style={
+        !isExpanded && !isFullPage
+          ? ({ contentVisibility: 'auto', containIntrinsicSize: '420px' } as React.CSSProperties)
+          : undefined
+      }
       className={`w-full border-2 transition-all duration-200 mb-4 relative group font-mono
         ${isExpanded 
           ? 'border-terminal-text bg-terminal-highlight shadow-glow' 
@@ -180,8 +204,10 @@ const PostItemComponent: React.FC<PostItemProps> = ({
           )}
           <button 
             onClick={handleVoteUp}
-            className={`p-1 hover:bg-terminal-dim transition-colors ${isUpvoted ? 'text-terminal-text font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`p-2 md:p-1 hover:bg-terminal-dim transition-colors ${isUpvoted ? 'text-terminal-text font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
             disabled={(!userState.identity) || (userState.bits <= 0 && !hasInvested)}
+            aria-label="Upvote"
+            aria-pressed={isUpvoted}
             title={
               !userState.identity
                 ? "CONNECT IDENTITY TO VOTE"
@@ -201,8 +227,10 @@ const PostItemComponent: React.FC<PostItemProps> = ({
 
           <button 
             onClick={handleVoteDown}
-            className={`p-1 hover:bg-terminal-dim transition-colors ${isDownvoted ? 'text-terminal-alert font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`p-2 md:p-1 hover:bg-terminal-dim transition-colors ${isDownvoted ? 'text-terminal-alert font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
             disabled={(!userState.identity) || (userState.bits <= 0 && !hasInvested)}
+            aria-label="Downvote"
+            aria-pressed={isDownvoted}
             title={
               !userState.identity
                 ? "CONNECT IDENTITY TO VOTE"
@@ -309,6 +337,9 @@ const PostItemComponent: React.FC<PostItemProps> = ({
             ) : (
               <h3 
                 onClick={handleInteraction}
+                onKeyDown={handleInteractionKeyDown}
+                tabIndex={0}
+                role="button"
                 className="text-xl md:text-2xl font-bold text-terminal-text leading-tight mb-2 cursor-pointer hover:underline decoration-2 underline-offset-4 select-none break-words"
               >
                 {post.title}
@@ -336,6 +367,9 @@ const PostItemComponent: React.FC<PostItemProps> = ({
 
           <div 
             onClick={handleInteraction}
+            onKeyDown={handleInteractionKeyDown}
+            tabIndex={0}
+            role="button"
             className={`text-sm md:text-base text-terminal-text/80 font-mono leading-relaxed mb-3 cursor-pointer break-words ${!isExpanded ? 'line-clamp-2' : 'opacity-100'}`}
           >
             <MentionText 
@@ -362,8 +396,10 @@ const PostItemComponent: React.FC<PostItemProps> = ({
               {/* Bookmark Button */}
               <button
                 onClick={handleBookmarkClick}
-                className={`p-1 transition-colors ${isBookmarked ? 'text-terminal-text' : 'text-terminal-dim hover:text-terminal-text'}`}
+                className={`p-2 md:p-1 transition-colors ${isBookmarked ? 'text-terminal-text' : 'text-terminal-dim hover:text-terminal-text'}`}
                 title={isBookmarked ? 'Remove bookmark' : 'Save to bookmarks'}
+                aria-label={isBookmarked ? 'Remove bookmark' : 'Save to bookmarks'}
+                aria-pressed={isBookmarked}
               >
                 <Bookmark size={16} fill={isBookmarked ? 'currentColor' : 'none'} />
               </button>
@@ -375,9 +411,10 @@ const PostItemComponent: React.FC<PostItemProps> = ({
               {!isOwnPost && (
                 <button
                   onClick={handleReportClick}
-                  className={`p-1 transition-colors ${hasReported ? 'text-terminal-alert' : 'text-terminal-dim hover:text-terminal-alert'}`}
+                  className={`p-2 md:p-1 transition-colors ${hasReported ? 'text-terminal-alert' : 'text-terminal-dim hover:text-terminal-alert'}`}
                   title={hasReported ? 'Already reported' : 'Report this post'}
                   disabled={hasReported}
+                  aria-label={hasReported ? 'Already reported' : 'Report this post'}
                 >
                   <Flag size={14} fill={hasReported ? 'currentColor' : 'none'} />
                 </button>
@@ -385,7 +422,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
 
               <button 
                 onClick={handleCommentClick}
-                className={`flex items-center gap-2 text-sm px-2 py-0.5 transition-colors border border-transparent shrink-0
+                className={`flex items-center gap-2 text-sm px-3 py-2 md:px-2 md:py-0.5 transition-colors border border-transparent shrink-0
                   ${isExpanded 
                     ? 'text-terminal-text border-terminal-dim bg-terminal-bg/30' 
                     : 'text-terminal-dim hover:text-terminal-text hover:border-terminal-dim'
@@ -423,6 +460,8 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                       comment={comment}
                       userState={userState}
                       onReply={handleReplyToComment}
+                      onEdit={onEditComment ? handleEditComment : undefined}
+                      onDelete={onDeleteComment ? handleDeleteComment : undefined}
                       onViewProfile={onViewProfile}
                       formatTime={formatTime}
                       knownUsers={knownUsers}

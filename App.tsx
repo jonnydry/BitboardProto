@@ -1,35 +1,74 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { Suspense, lazy, useState, useCallback, useEffect, useMemo } from 'react';
+import type { Event as NostrEvent } from 'nostr-tools';
 import { MAX_DAILY_BITS, INITIAL_POSTS, INITIAL_BOARDS } from './constants';
 import { Post, UserState, ViewMode, Board, ThemeId, BoardType, NostrIdentity, SortMode, NOSTR_KINDS } from './types';
 import { PostItem } from './components/PostItem';
-import { BitStatus } from './components/BitStatus';
-import { CreatePost } from './components/CreatePost';
-import { CreateBoard } from './components/CreateBoard';
-import { IdentityManager } from './components/IdentityManager';
-import { LocationSelector } from './components/LocationSelector';
-import { SearchBar } from './components/SearchBar';
-import { SortSelector } from './components/SortSelector';
-import { UserProfile } from './components/UserProfile';
-import { Bookmarks } from './components/Bookmarks';
-import { EditPost } from './components/EditPost';
-import { Terminal, HelpCircle, ArrowLeft, Hash, Lock, Globe, Eye, Key, MapPin, Wifi, WifiOff, Radio, Bookmark } from 'lucide-react';
+import { ToastHost } from './components/ToastHost';
+import { ArrowLeft } from 'lucide-react';
 import { nostrService } from './services/nostrService';
 import { identityService } from './services/identityService';
-import { geohashService } from './services/geohashService';
 import { votingService } from './services/votingService';
 import { bookmarkService } from './services/bookmarkService';
 import { reportService } from './services/reportService';
+import { makeUniqueBoardId } from './services/boardIdService';
+import { toastService } from './services/toastService';
+import { inputValidator } from './services/inputValidator';
 import { useInfiniteScroll } from './hooks/useInfiniteScroll';
-import { UIConfig } from './config';
+import { FeatureFlags, StorageKeys, UIConfig } from './config';
 import { useTheme } from './hooks/useTheme';
 import { useUrlPostRouting } from './hooks/useUrlPostRouting';
 import { useNostrFeed } from './hooks/useNostrFeed';
 import { useCommentsLoader } from './hooks/useCommentsLoader';
 import { useVoting } from './hooks/useVoting';
+import { AppHeader } from './features/layout/AppHeader';
+import { Sidebar } from './features/layout/Sidebar';
+import { FeedView } from './features/feed/FeedView';
+
+const CreatePost = lazy(() => import('./components/CreatePost').then((m) => ({ default: m.CreatePost })));
+const CreateBoard = lazy(() => import('./components/CreateBoard').then((m) => ({ default: m.CreateBoard })));
+const IdentityManager = lazy(() => import('./components/IdentityManager').then((m) => ({ default: m.IdentityManager })));
+const LocationSelector = lazy(() => import('./components/LocationSelector').then((m) => ({ default: m.LocationSelector })));
+const UserProfile = lazy(() => import('./components/UserProfile').then((m) => ({ default: m.UserProfile })));
+const Bookmarks = lazy(() => import('./components/Bookmarks').then((m) => ({ default: m.Bookmarks })));
+const EditPost = lazy(() => import('./components/EditPost').then((m) => ({ default: m.EditPost })));
+const RelaySettings = lazy(() => import('./components/RelaySettings').then((m) => ({ default: m.RelaySettings })));
+
+const MAX_CACHED_POSTS = 200;
+
+function loadCachedPosts(): Post[] | null {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const raw = localStorage.getItem(StorageKeys.POSTS_CACHE);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { savedAt?: number; posts?: unknown };
+    if (!parsed || !Array.isArray(parsed.posts)) return null;
+
+    // Basic structural validation; discard obviously malformed entries.
+    const posts = (parsed.posts as any[]).filter((p) => p && typeof p.id === 'string' && typeof p.title === 'string');
+    return posts as Post[];
+  } catch {
+    return null;
+  }
+}
+
+function loadCachedBoards(): Board[] | null {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const raw = localStorage.getItem(StorageKeys.BOARDS_CACHE);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { savedAt?: number; boards?: unknown };
+    if (!parsed || !Array.isArray(parsed.boards)) return null;
+
+    const boards = (parsed.boards as any[]).filter((b) => b && typeof b.id === 'string' && typeof b.name === 'string');
+    return boards as Board[];
+  } catch {
+    return null;
+  }
+}
 
 export default function App() {
-  const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
-  const [boards, setBoards] = useState<Board[]>(INITIAL_BOARDS);
+  const [posts, setPosts] = useState<Post[]>(() => loadCachedPosts() ?? INITIAL_POSTS);
+  const [boards, setBoards] = useState<Board[]>(() => loadCachedBoards() ?? INITIAL_BOARDS);
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.FEED);
   const [selectedBitId, setSelectedBitId] = useState<string | null>(null);
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
@@ -47,6 +86,13 @@ export default function App() {
   const [reportedPostIds, setReportedPostIds] = useState<string[]>(() =>
     reportService.getReportsByType('post').map(r => r.targetId)
   );
+
+  const getRelayHint = useCallback(() => {
+    const connected = nostrService.getConnectedCount();
+    const total = nostrService.getRelays().length;
+    const state = connected > 0 ? 'Some relays are reachable.' : 'No relays appear reachable.';
+    return `${state} Relays: ${connected}/${total}. Open RELAYS to adjust/retry.`;
+  }, []);
   
   // Pagination state for infinite scroll
   const [hasMorePosts, setHasMorePosts] = useState(true);
@@ -64,8 +110,72 @@ export default function App() {
     };
   });
 
+  // Ensure identity is loaded deterministically (identityService initializes async)
+  useEffect(() => {
+    let cancelled = false;
+
+    identityService
+      .getIdentityAsync()
+      .then((identity) => {
+        if (cancelled) return;
+        if (!identity) return;
+
+        setUserState((prev) => {
+          // If user already has an identity in state, don't override it.
+          if (prev.hasIdentity || prev.identity) return prev;
+
+          const isGuestHandle = prev.username.startsWith('u/guest_');
+          return {
+            ...prev,
+            identity,
+            hasIdentity: true,
+            username: identity.displayName && isGuestHandle ? identity.displayName : prev.username,
+          };
+        });
+      })
+      .catch((err) => {
+        // Non-fatal: app can run in guest mode
+        console.warn('[App] Failed to load identity:', err);
+        toastService.push({
+          type: 'error',
+          message: 'Failed to load identity (guest mode)',
+          detail: err instanceof Error ? err.message : String(err),
+          durationMs: UIConfig.TOAST_DURATION_MS,
+          dedupeKey: 'identity-load-failed',
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useTheme(theme);
   useUrlPostRouting({ viewMode, selectedBitId, setViewMode, setSelectedBitId });
+
+  // Offline persistence: cache posts/boards to localStorage
+  useEffect(() => {
+    if (!FeatureFlags.ENABLE_OFFLINE_MODE) return;
+    if (typeof localStorage === 'undefined') return;
+
+    const id = window.setTimeout(() => {
+      try {
+        const postsToStore = posts.slice(0, MAX_CACHED_POSTS);
+        localStorage.setItem(
+          StorageKeys.POSTS_CACHE,
+          JSON.stringify({ savedAt: Date.now(), posts: postsToStore })
+        );
+        localStorage.setItem(
+          StorageKeys.BOARDS_CACHE,
+          JSON.stringify({ savedAt: Date.now(), boards })
+        );
+      } catch {
+        // Ignore quota / serialization errors
+      }
+    }, 500);
+
+    return () => window.clearTimeout(id);
+  }, [boards, posts]);
 
   // Subscribe to bookmark changes
   useEffect(() => {
@@ -123,12 +233,26 @@ export default function App() {
     // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
-      result = result.filter(p => 
-        p.title.toLowerCase().includes(query) ||
-        p.content.toLowerCase().includes(query) ||
-        p.author.toLowerCase().includes(query) ||
-        p.tags.some(tag => tag.toLowerCase().includes(query))
-      );
+      result = result.filter((p) => {
+        const board = boardsById.get(p.boardId);
+        const boardName = board?.name?.toLowerCase() ?? '';
+
+        const inPost =
+          p.title.toLowerCase().includes(query) ||
+          p.content.toLowerCase().includes(query) ||
+          p.author.toLowerCase().includes(query) ||
+          boardName.includes(query) ||
+          p.tags.some((tag) => tag.toLowerCase().includes(query));
+
+        if (inPost) return true;
+
+        // Also search comments (author + content)
+        return p.comments.some(
+          (c) =>
+            c.author.toLowerCase().includes(query) ||
+            c.content.toLowerCase().includes(query)
+        );
+      });
     }
     
     return result;
@@ -143,7 +267,7 @@ export default function App() {
         return sorted.sort((a, b) => b.timestamp - a.timestamp);
       case SortMode.OLDEST:
         return sorted.sort((a, b) => a.timestamp - b.timestamp);
-      case SortMode.TRENDING:
+      case SortMode.TRENDING: {
         // Trending = recent posts with high engagement (score + comments weighted by recency)
         const now = Date.now();
         const HOUR = 1000 * 60 * 60;
@@ -154,6 +278,7 @@ export default function App() {
           const trendB = (b.score + b.commentCount * 2) / Math.pow(ageB + 2, 1.5);
           return trendB - trendA;
         });
+      }
       case SortMode.COMMENTS:
         return sorted.sort((a, b) => b.commentCount - a.commentCount);
       case SortMode.TOP:
@@ -246,6 +371,14 @@ export default function App() {
         newPost.id = event.id;
       } catch (error) {
         console.error('[App] Failed to publish post to Nostr:', error);
+        const errMsg = error instanceof Error ? error.message : String(error);
+        toastService.push({
+          type: 'error',
+          message: 'Failed to publish post to Nostr (saved locally)',
+          detail: `${errMsg} — ${getRelayHint()}`,
+          durationMs: UIConfig.TOAST_DURATION_MS,
+          dedupeKey: 'publish-post-failed',
+        });
       }
     }
 
@@ -254,9 +387,12 @@ export default function App() {
   };
 
   const handleCreateBoard = async (newBoardData: Omit<Board, 'id' | 'memberCount' | 'nostrEventId'>) => {
+    const existingIds = new Set<string>([...boards, ...locationBoards].map(b => b.id));
+    const id = makeUniqueBoardId(newBoardData.name, existingIds);
+
     const newBoard: Board = {
       ...newBoardData,
-      id: `b-${newBoardData.name.toLowerCase()}`,
+      id,
       memberCount: 1,
       createdBy: userState.identity?.pubkey,
     };
@@ -264,12 +400,20 @@ export default function App() {
     // Publish to Nostr if identity exists
     if (userState.identity) {
       try {
-        const unsigned = nostrService.buildBoardEvent(newBoardData, userState.identity.pubkey);
+        const unsigned = nostrService.buildBoardEvent(newBoard, userState.identity.pubkey);
         const signed = await identityService.signEvent(unsigned);
         const event = await nostrService.publishSignedEvent(signed);
         newBoard.nostrEventId = event.id;
       } catch (error) {
         console.error('[App] Failed to publish board to Nostr:', error);
+        const errMsg = error instanceof Error ? error.message : String(error);
+        toastService.push({
+          type: 'error',
+          message: 'Failed to publish board to Nostr (saved locally)',
+          detail: `${errMsg} — ${getRelayHint()}`,
+          durationMs: UIConfig.TOAST_DURATION_MS,
+          dedupeKey: 'publish-board-failed',
+        });
       }
     }
 
@@ -322,6 +466,14 @@ export default function App() {
         })
         .catch(error => {
           console.error('[App] Failed to publish comment to Nostr:', error);
+          const errMsg = error instanceof Error ? error.message : String(error);
+          toastService.push({
+            type: 'error',
+            message: 'Failed to publish comment to Nostr (saved locally)',
+            detail: `${errMsg} — ${getRelayHint()}`,
+            durationMs: UIConfig.TOAST_DURATION_MS,
+            dedupeKey: 'publish-comment-failed',
+          });
         });
     }
 
@@ -337,7 +489,103 @@ export default function App() {
         return p;
       })
     );
-  }, [postsById, userState.username, userState.identity]);
+  }, [postsById, userState.username, userState.identity, getRelayHint]);
+
+  const handleEditComment = useCallback(async (postId: string, commentId: string, nextContent: string) => {
+    const validated = inputValidator.validateCommentContent(nextContent);
+    if (!validated) {
+      toastService.push({
+        type: 'error',
+        message: 'Invalid comment content',
+        durationMs: UIConfig.TOAST_DURATION_MS,
+        dedupeKey: 'comment-edit-invalid',
+      });
+      return;
+    }
+
+    const post = postsById.get(postId);
+    const target = post?.comments.find((c) => c.id === commentId);
+    if (!post || !target) return;
+
+    // Update locally immediately
+    setPosts((prev) =>
+      prev.map((p) => {
+        if (p.id !== postId) return p;
+        return {
+          ...p,
+          comments: p.comments.map((c) =>
+            c.id === commentId ? { ...c, content: validated, editedAt: Date.now() } : c
+          ),
+        };
+      })
+    );
+
+    // Publish comment edit companion event if possible
+    if (userState.identity && post.nostrEventId && target.nostrEventId && target.authorPubkey === userState.identity.pubkey) {
+      try {
+        const unsigned = nostrService.buildCommentEditEvent({
+          rootPostEventId: post.nostrEventId,
+          targetCommentEventId: target.nostrEventId,
+          content: validated,
+          pubkey: userState.identity.pubkey,
+        });
+        const signed = await identityService.signEvent(unsigned);
+        await nostrService.publishSignedEvent(signed);
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        toastService.push({
+          type: 'error',
+          message: 'Failed to publish comment edit to Nostr (saved locally)',
+          detail: `${errMsg} — ${getRelayHint()}`,
+          durationMs: UIConfig.TOAST_DURATION_MS,
+          dedupeKey: `comment-edit-failed-${commentId}`,
+        });
+      }
+    }
+  }, [getRelayHint, postsById, userState.identity]);
+
+  const handleDeleteComment = useCallback(async (postId: string, commentId: string) => {
+    const post = postsById.get(postId);
+    const target = post?.comments.find((c) => c.id === commentId);
+    if (!post || !target) return;
+
+    // Mark as deleted locally (preserves thread structure)
+    setPosts((prev) =>
+      prev.map((p) => {
+        if (p.id !== postId) return p;
+        return {
+          ...p,
+          comments: p.comments.map((c) =>
+            c.id === commentId
+              ? { ...c, isDeleted: true, deletedAt: Date.now(), content: '[deleted]', author: '[deleted]', authorPubkey: undefined }
+              : c
+          ),
+        };
+      })
+    );
+
+    // Publish NIP-09 delete event if possible
+    if (userState.identity && post.nostrEventId && target.nostrEventId && target.authorPubkey === userState.identity.pubkey) {
+      try {
+        const unsigned = nostrService.buildCommentDeleteEvent({
+          rootPostEventId: post.nostrEventId,
+          targetCommentEventId: target.nostrEventId,
+          pubkey: userState.identity.pubkey,
+        });
+        const signed = await identityService.signEvent(unsigned);
+        await nostrService.publishSignedEvent(signed);
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        toastService.push({
+          type: 'error',
+          message: 'Failed to publish comment delete to Nostr (deleted locally)',
+          detail: `${errMsg} — ${getRelayHint()}`,
+          durationMs: UIConfig.TOAST_DURATION_MS,
+          dedupeKey: `comment-delete-failed-${commentId}`,
+        });
+      }
+    }
+  }, [getRelayHint, postsById, userState.identity]);
 
   const handleViewBit = useCallback((postId: string) => {
     setSelectedBitId(postId);
@@ -390,15 +638,67 @@ export default function App() {
   }, []);
 
   // Handle saving edited post
-  const handleSavePost = useCallback((postId: string, updates: Partial<Post>) => {
-    setPosts(currentPosts =>
-      currentPosts.map(p =>
-        p.id === postId ? { ...p, ...updates } : p
-      )
-    );
-    setEditingPostId(null);
-    setViewMode(ViewMode.FEED);
-  }, []);
+  const handleSavePost = useCallback(
+    (postId: string, updates: Partial<Post>) => {
+      const existing = postsById.get(postId);
+      if (!existing) return;
+
+      const merged: Post = { ...existing, ...updates };
+
+      // Update local state immediately (works for offline + fast UI)
+      setPosts((currentPosts) =>
+        currentPosts.map((p) => (p.id === postId ? { ...p, ...updates } : p))
+      );
+      setEditingPostId(null);
+      setViewMode(ViewMode.FEED);
+
+      // If this post is on Nostr and we have an identity, publish an edit companion event.
+      if (existing.nostrEventId && userState.identity) {
+        (async () => {
+          try {
+            const unsigned = nostrService.buildPostEditEvent({
+              rootPostEventId: existing.nostrEventId,
+              boardId: existing.boardId,
+              title: merged.title,
+              content: merged.content,
+              tags: merged.tags,
+              url: merged.url,
+              imageUrl: merged.imageUrl,
+              pubkey: userState.identity!.pubkey,
+            });
+
+            const signed = await identityService.signEvent(unsigned);
+            await nostrService.publishSignedEvent(signed);
+
+            toastService.push({
+              type: 'success',
+              message: 'Edit published to Nostr',
+              durationMs: UIConfig.TOAST_DURATION_MS,
+              dedupeKey: `post-edit-published-${existing.nostrEventId}`,
+            });
+          } catch (error) {
+            console.error('[App] Failed to publish post edit to Nostr:', error);
+            const errMsg = error instanceof Error ? error.message : String(error);
+            toastService.push({
+              type: 'error',
+              message: 'Failed to publish edit to Nostr (saved locally)',
+              detail: `${errMsg} — ${getRelayHint()}`,
+              durationMs: UIConfig.TOAST_DURATION_MS,
+              dedupeKey: `post-edit-failed-${existing.nostrEventId}`,
+            });
+          }
+        })();
+      } else if (existing.nostrEventId && !userState.identity) {
+        toastService.push({
+          type: 'info',
+          message: 'Edit saved locally. Connect an identity to publish to Nostr.',
+          durationMs: UIConfig.TOAST_DURATION_MS,
+          dedupeKey: `post-edit-local-only-${existing.nostrEventId}`,
+        });
+      }
+    },
+    [postsById, userState.identity, getRelayHint]
+  );
 
   // Handle deleting a post
   const handleDeletePost = useCallback((postId: string) => {
@@ -459,6 +759,35 @@ export default function App() {
           return post;
         });
 
+        // Fetch and apply latest post edits
+        try {
+          const editEvents = await nostrService.fetchPostEdits(postIds, { limit: 300 });
+          if (editEvents.length > 0) {
+            const latestByRoot = new Map<string, { created_at: number; event: NostrEvent }>();
+            for (const ev of editEvents) {
+              const parsed = nostrService.eventToPostEditUpdate(ev);
+              if (!parsed) continue;
+              const existing = latestByRoot.get(parsed.rootPostEventId);
+              if (!existing || ev.created_at > existing.created_at) {
+                latestByRoot.set(parsed.rootPostEventId, { created_at: ev.created_at, event: ev });
+              }
+            }
+
+            for (let i = 0; i < postsWithVotes.length; i++) {
+              const p = postsWithVotes[i];
+              const rootId = p.nostrEventId;
+              if (!rootId) continue;
+              const latest = latestByRoot.get(rootId);
+              if (!latest) continue;
+              const parsed = nostrService.eventToPostEditUpdate(latest.event);
+              if (!parsed) continue;
+              postsWithVotes[i] = { ...p, ...parsed.updates };
+            }
+          }
+        } catch (err) {
+          console.warn('[App] Failed to fetch post edits for pagination:', err);
+        }
+
         setPosts(prev => {
           const existingIds = new Set(prev.map(p => p.nostrEventId).filter(Boolean));
           const newPosts = postsWithVotes.filter(p => !existingIds.has(p.nostrEventId));
@@ -478,6 +807,13 @@ export default function App() {
       }
     } catch (error) {
       console.error('[App] Failed to load more posts:', error);
+      toastService.push({
+        type: 'error',
+        message: 'Failed to load more posts',
+        detail: error instanceof Error ? error.message : String(error),
+        durationMs: UIConfig.TOAST_DURATION_MS,
+        dedupeKey: 'load-more-failed',
+      });
     }
   }, [oldestTimestamp, hasMorePosts]);
 
@@ -496,6 +832,7 @@ export default function App() {
       [ThemeId.PLASMA, '#00f0ff'],
       [ThemeId.VERMILION, '#ff4646'],
       [ThemeId.SLATE, '#c8c8c8'],
+      [ThemeId.PATRIOT, '#ffffff'],
       [ThemeId.BITBORING, '#ffffff'],
     ]);
   }, []);
@@ -515,336 +852,126 @@ export default function App() {
   const bookmarkedIdSet = useMemo(() => new Set(bookmarkedIds), [bookmarkedIds]);
   const reportedPostIdSet = useMemo(() => new Set(reportedPostIds), [reportedPostIds]);
 
+  const refreshProfileMetadata = useCallback(async (pubkeys: string[]) => {
+    const unique = Array.from(new Set(pubkeys.filter(Boolean)));
+    if (unique.length === 0) return;
+
+    try {
+      await nostrService.fetchProfiles(unique, { force: true });
+
+      // Update display names across posts + comments
+      setPosts((prev) =>
+        prev.map((p) => {
+          const nextAuthor =
+            p.authorPubkey && unique.includes(p.authorPubkey)
+              ? nostrService.getDisplayName(p.authorPubkey)
+              : p.author;
+
+          const nextComments = p.comments.map((c) => {
+            if (!c.authorPubkey) return c;
+            if (!unique.includes(c.authorPubkey)) return c;
+            return { ...c, author: nostrService.getDisplayName(c.authorPubkey) };
+          });
+
+          return {
+            ...p,
+            author: nextAuthor,
+            comments: nextComments,
+          };
+        })
+      );
+
+      toastService.push({
+        type: 'success',
+        message: 'Profile refreshed',
+        durationMs: UIConfig.TOAST_DURATION_MS,
+        dedupeKey: `profile-refresh-${unique.join(',')}`,
+      });
+    } catch (error) {
+      toastService.push({
+        type: 'error',
+        message: 'Failed to refresh profile',
+        detail: error instanceof Error ? error.message : String(error),
+        durationMs: UIConfig.TOAST_DURATION_MS,
+        dedupeKey: `profile-refresh-failed-${unique.join(',')}`,
+      });
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-terminal-bg text-terminal-text font-mono selection:bg-terminal-text selection:text-black relative">
+      <ToastHost />
       {/* Scanline Overlay */}
       <div className="scanlines fixed inset-0 pointer-events-none z-50"></div>
 
       <div className="max-w-[1074px] mx-auto p-4 md:p-6 relative z-10">
-        {/* Header */}
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b-2 border-terminal-dim pb-4 gap-4">
-          <div 
-            className="flex items-center gap-2 cursor-pointer hover:text-white transition-colors"
-            onClick={() => navigateToBoard(null)}
-          >
-            {theme === ThemeId.BITBORING ? (
-              <div className="flex flex-col">
-                <h1 className="text-3xl font-bold tracking-tight leading-none">BitBoring</h1>
-                <span className="text-sm text-terminal-dim">( -_-) zzz</span>
-              </div>
-            ) : (
-              <>
-                <Terminal size={32} />
-                <div className="flex flex-col">
-                  <h1 className="text-4xl font-terminal tracking-wider leading-none">BitBoard</h1>
-                  <span className="text-xs text-terminal-dim tracking-[0.2em]">
-                    NOSTR_PROTOCOL // {isNostrConnected ? 'CONNECTED' : 'OFFLINE'}
-                  </span>
-                </div>
-              </>
-            )}
-          </div>
-          
-          <nav className="flex gap-4 text-sm md:text-base flex-wrap">
-            <button 
-              onClick={() => navigateToBoard(null)}
-              className={`uppercase hover:underline ${viewMode === ViewMode.FEED && activeBoardId === null ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
-            >
-              [ Global_Feed ]
-            </button>
-            <button 
-              onClick={() => setViewMode(ViewMode.CREATE)}
-              className={`uppercase hover:underline ${viewMode === ViewMode.CREATE ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
-            >
-              [ New_Bit ]
-            </button>
-            <button 
-              onClick={() => setViewMode(ViewMode.BOOKMARKS)}
-              className={`uppercase hover:underline flex items-center gap-1 ${viewMode === ViewMode.BOOKMARKS ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
-            >
-              <Bookmark size={12} />
-              [ Saved{bookmarkedIds.length > 0 ? ` (${bookmarkedIds.length})` : ''} ]
-            </button>
-            <button 
-              onClick={() => setViewMode(ViewMode.IDENTITY)}
-              className={`uppercase hover:underline flex items-center gap-1 ${viewMode === ViewMode.IDENTITY ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
-            >
-              {userState.identity ? <Wifi size={12} /> : <WifiOff size={12} />}
-              [ {userState.identity ? 'IDENTITY' : 'CONNECT'} ]
-            </button>
-          </nav>
-        </header>
+        <AppHeader
+          theme={theme}
+          isNostrConnected={isNostrConnected}
+          viewMode={viewMode}
+          activeBoardId={activeBoardId}
+          bookmarkedCount={bookmarkedIds.length}
+          identity={userState.identity || undefined}
+          onNavigateGlobal={() => navigateToBoard(null)}
+          onSetViewMode={setViewMode}
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          {/* Sidebar */}
-          <aside className="md:col-span-1 order-first md:order-last space-y-6">
-            <BitStatus userState={userState} />
-            
-            {/* Connection Status */}
-            <div className="border border-terminal-dim p-3 bg-terminal-bg shadow-hard">
-              <div className="flex items-center gap-2 text-xs">
-                {isNostrConnected ? (
-                  <>
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-terminal-dim">NOSTR_RELAYS: ACTIVE</span>
-                  </>
-                ) : (
-                  <>
-                    <div className="w-2 h-2 rounded-full bg-terminal-alert" />
-                    <span className="text-terminal-dim">OFFLINE_MODE</span>
-                  </>
-                )}
-              </div>
-              {userState.identity && (
-                <div className="mt-2 text-[10px] text-terminal-dim truncate">
-                  npub: {userState.identity.npub.slice(0, 20)}...
-                </div>
-              )}
-            </div>
-
-            {/* Feed Filter (when on global feed) */}
-            {!activeBoardId && viewMode === ViewMode.FEED && (
-              <div className="border border-terminal-dim p-4 bg-terminal-bg shadow-hard">
-                <h3 className="font-bold border-b border-terminal-dim mb-2 pb-1 text-sm flex items-center gap-2">
-                  <Radio size={14} /> FILTER_MODE
-                </h3>
-                <div className="flex flex-col gap-1">
-                  {[
-                    { id: 'all', label: 'ALL_SIGNALS', icon: Globe },
-                    { id: 'topic', label: 'TOPIC_BOARDS', icon: Hash },
-                    { id: 'location', label: 'GEO_CHANNELS', icon: MapPin },
-                  ].map(({ id, label, icon: Icon }) => (
-                    <button
-                      key={id}
-                      onClick={() => setFeedFilter(id as typeof feedFilter)}
-                      className={`text-left text-sm px-2 py-1 hover:bg-terminal-dim/20 transition-colors flex items-center gap-2
-                        ${feedFilter === id ? 'text-terminal-text font-bold bg-terminal-dim/10' : 'text-terminal-dim'}
-                      `}
-                    >
-                      <Icon size={12} /> {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {/* Topic Board Directory */}
-            <div className="border border-terminal-dim p-4 bg-terminal-bg shadow-hard">
-              <h3 className="font-bold border-b border-terminal-dim mb-2 pb-1 text-sm flex items-center gap-2">
-                <Hash size={14} /> TOPIC_BOARDS
-              </h3>
-              <div className="flex flex-col gap-1">
-                <button 
-                  onClick={() => navigateToBoard(null)}
-                  className={`text-left text-sm px-2 py-1 hover:bg-terminal-dim/20 transition-colors flex items-center gap-2
-                    ${activeBoardId === null ? 'text-terminal-text font-bold bg-terminal-dim/10' : 'text-terminal-dim'}
-                  `}
-                >
-                  <Globe size={12} /> GLOBAL_NET
-                </button>
-                {topicBoards.filter(b => b.isPublic).map(board => (
-                   <button 
-                    key={board.id}
-                    onClick={() => navigateToBoard(board.id)}
-                    className={`text-left text-sm px-2 py-1 hover:bg-terminal-dim/20 transition-colors flex items-center gap-2
-                      ${activeBoardId === board.id ? 'text-terminal-text font-bold bg-terminal-dim/10' : 'text-terminal-dim'}
-                    `}
-                  >
-                    <span>//</span> {board.name}
-                  </button>
-                ))}
-                <div className="border-t border-terminal-dim/30 my-2"></div>
-                {topicBoards.filter(b => !b.isPublic).map(board => (
-                   <button 
-                    key={board.id}
-                    disabled
-                    className="text-left text-sm px-2 py-1 text-terminal-dim/50 flex items-center gap-2 cursor-not-allowed"
-                  >
-                    <Lock size={10} /> {board.name}
-                  </button>
-                ))}
-              </div>
-              <button 
-                onClick={() => setViewMode(ViewMode.CREATE_BOARD)}
-                className="mt-4 w-full text-xs border border-terminal-dim border-dashed text-terminal-dim p-2 hover:text-terminal-text hover:border-solid transition-all"
-              >
-                + INIT_NEW_BOARD
-              </button>
-            </div>
-
-            {/* Location Channels */}
-            <div className="border border-terminal-dim p-4 bg-terminal-bg shadow-hard">
-              <h3 className="font-bold border-b border-terminal-dim mb-2 pb-1 text-sm flex items-center gap-2">
-                <MapPin size={14} /> GEO_CHANNELS
-              </h3>
-              <div className="flex flex-col gap-1">
-                {geohashBoards.length === 0 ? (
-                  <p className="text-xs text-terminal-dim py-2">
-                    No location channels active. Enable location to discover nearby boards.
-                  </p>
-                ) : (
-                  geohashBoards.map(board => (
-                    <button 
-                      key={board.id}
-                      onClick={() => navigateToBoard(board.id)}
-                      className={`text-left text-sm px-2 py-1 hover:bg-terminal-dim/20 transition-colors flex items-center gap-2
-                        ${activeBoardId === board.id ? 'text-terminal-text font-bold bg-terminal-dim/10' : 'text-terminal-dim'}
-                      `}
-                    >
-                      <MapPin size={10} /> #{board.geohash}
-                    </button>
-                  ))
-                )}
-              </div>
-              <button 
-                onClick={() => setViewMode(ViewMode.LOCATION)}
-                className="mt-4 w-full text-xs border border-terminal-dim border-dashed text-terminal-dim p-2 hover:text-terminal-text hover:border-solid transition-all flex items-center justify-center gap-2"
-              >
-                <MapPin size={12} /> FIND_NEARBY
-              </button>
-            </div>
-
-            {/* Theme Selector */}
-            <div className="border border-terminal-dim p-4 bg-terminal-bg shadow-hard">
-              <h3 className="font-bold border-b border-terminal-dim mb-2 pb-1 text-sm flex items-center gap-2">
-                <Eye size={14} /> VISUAL_CONFIG
-              </h3>
-              <div className="grid grid-cols-3 gap-2 py-2">
-                {Object.values(ThemeId).map(t => (
-                  <button 
-                    key={t}
-                    onClick={() => setTheme(t)}
-                    className="group flex items-center justify-center gap-0.5 font-mono text-sm transition-colors"
-                    title={t === ThemeId.BITBORING ? "BITBORING (UGLY MODE)" : t.toUpperCase()}
-                  >
-                    <span className={`transition-colors ${theme === t ? 'text-terminal-text font-bold' : 'text-terminal-dim group-hover:text-terminal-text'}`}>[</span>
-                    <span 
-                      className={`w-3 h-3 mx-0.5 transition-transform ${theme === t ? 'scale-125' : 'scale-100 group-hover:scale-110'}`} 
-                      style={{ 
-                        backgroundColor: getThemeColor(t),
-                        border: t === ThemeId.BITBORING ? '1px solid black' : 'none'
-                      }}
-                    />
-                    <span className={`transition-colors ${theme === t ? 'text-terminal-text font-bold' : 'text-terminal-dim group-hover:text-terminal-text'}`}>]</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="border border-terminal-dim p-4 bg-terminal-bg shadow-hard">
-              <h3 className="font-bold border-b border-terminal-dim mb-2 pb-1 text-sm flex items-center gap-2">
-                <HelpCircle size={14} /> USER_ID_CONFIG
-              </h3>
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] text-terminal-dim uppercase">Handle:</label>
-                <input 
-                  type="text"
-                  value={userState.username}
-                  onChange={(e) => setUserState(prev => ({ ...prev, username: e.target.value }))}
-                  className="bg-terminal-bg border border-terminal-dim p-1 text-sm text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
-                />
-                {userState.identity && (
-                  <button
-                    onClick={() => setViewMode(ViewMode.IDENTITY)}
-                    className="text-xs text-terminal-dim hover:text-terminal-text flex items-center gap-1 mt-2"
-                  >
-                    <Key size={10} /> Manage Identity
-                  </button>
-                )}
-              </div>
-            </div>
-          </aside>
+          <Sidebar
+            userState={userState}
+            setUserState={setUserState}
+            theme={theme}
+            setTheme={setTheme}
+            getThemeColor={getThemeColor}
+            isNostrConnected={isNostrConnected}
+            viewMode={viewMode}
+            activeBoardId={activeBoardId}
+            feedFilter={feedFilter}
+            setFeedFilter={setFeedFilter}
+            topicBoards={topicBoards}
+            geohashBoards={geohashBoards}
+            navigateToBoard={navigateToBoard}
+            onSetViewMode={setViewMode}
+          />
 
           {/* Main Content */}
           <main className="md:col-span-3">
+            <Suspense
+              fallback={
+                <div className="border border-terminal-dim p-6 bg-terminal-bg shadow-hard text-terminal-dim uppercase text-sm">
+                  Loading…
+                </div>
+              }
+            >
             {viewMode === ViewMode.FEED && (
-              <div className="space-y-2">
-                {/* Search Bar */}
-                <div className="mb-4">
-                  <SearchBar onSearch={handleSearch} placeholder="Search posts, users, tags..." />
-                </div>
-
-                {/* Feed Header */}
-                <div className="flex flex-col gap-4 mb-6 pb-2 border-b border-terminal-dim/30">
-                  <div className="flex justify-between items-end">
-                    <div>
-                      <h2 className="text-2xl font-terminal uppercase tracking-widest text-terminal-text flex items-center gap-2">
-                        {activeBoard?.type === BoardType.GEOHASH && <MapPin size={20} />}
-                        {searchQuery ? `SEARCH: "${searchQuery}"` : activeBoard ? (activeBoard.type === BoardType.GEOHASH ? `#${activeBoard.geohash}` : `// ${activeBoard.name}`) : 'GLOBAL_FEED'}
-                      </h2>
-                      <p className="text-xs text-terminal-dim mt-1">
-                        {searchQuery 
-                          ? `${sortedPosts.length} results found` 
-                          : activeBoard 
-                            ? activeBoard.description 
-                            : 'AGGREGATING TOP SIGNALS FROM PUBLIC SECTORS'
-                        }
-                      </p>
-                    </div>
-                    <span className="text-xs border border-terminal-dim px-2 py-1">
-                      SIGNAL_COUNT: {sortedPosts.length}
-                    </span>
-                  </div>
-                  
-                  {/* Sort Selector */}
-                  <SortSelector currentSort={sortMode} onSortChange={setSortMode} />
-                </div>
-                
-                {sortedPosts.length === 0 && (
-                   <div className="border border-terminal-dim p-12 text-center text-terminal-dim flex flex-col items-center gap-4">
-                      <div className="text-4xl opacity-20">¯\_(ツ)_/¯</div>
-                      <div>
-                        <p className="font-bold">&gt; NO DATA PACKETS FOUND</p>
-                        <p className="text-xs mt-2">Be the first to transmit on this frequency.</p>
-                      </div>
-                      <button 
-                        onClick={() => setViewMode(ViewMode.CREATE)}
-                        className="mt-4 px-4 py-2 border border-terminal-dim hover:bg-terminal-dim hover:text-white transition-colors uppercase text-sm"
-                      >
-                        [ INIT_BIT ]
-                      </button>
-                   </div>
-                )}
-
-                {sortedPosts.map(post => (
-                  <PostItem 
-                    key={post.id} 
-                    post={post} 
-                    boardName={getBoardName(post.id)}
-                    userState={userState}
-                    knownUsers={knownUsers}
-                    onVote={handleVote}
-                    onComment={handleComment}
-                    onViewBit={handleViewBit}
-                    onViewProfile={handleViewProfile}
-                    onEditPost={handleEditPost}
-                    onTagClick={handleTagClick}
-                    isBookmarked={bookmarkedIdSet.has(post.id)}
-                    onToggleBookmark={(id) => bookmarkService.toggleBookmark(id)}
-                    hasReported={reportedPostIdSet.has(post.id)}
-                    isNostrConnected={isNostrConnected}
-                  />
-                ))}
-
-                {/* Infinite scroll loader */}
-                <div 
-                  ref={loaderRef} 
-                  className="py-8 text-center"
-                >
-                  {isLoadingMore && (
-                    <div className="flex items-center justify-center gap-3 text-terminal-dim">
-                      <div className="animate-pulse">▓▓▓</div>
-                      <span className="text-sm uppercase tracking-wider">Loading more signals...</span>
-                      <div className="animate-pulse">▓▓▓</div>
-                    </div>
-                  )}
-                  {!hasMorePosts && sortedPosts.length > 0 && (
-                    <div className="text-xs text-terminal-dim uppercase tracking-wider border border-terminal-dim/30 inline-block px-4 py-2">
-                      END_OF_FEED // All signals loaded
-                    </div>
-                  )}
-                </div>
-              </div>
+              <FeedView
+                sortedPosts={sortedPosts}
+                searchQuery={searchQuery}
+                sortMode={sortMode}
+                setSortMode={setSortMode}
+                activeBoard={activeBoard}
+                viewMode={viewMode}
+                onSetViewMode={setViewMode}
+                onSearch={handleSearch}
+                getBoardName={getBoardName}
+                userState={userState}
+                knownUsers={knownUsers}
+                onVote={handleVote}
+                onComment={handleComment}
+                onEditComment={handleEditComment}
+                onDeleteComment={handleDeleteComment}
+                onViewBit={handleViewBit}
+                onViewProfile={handleViewProfile}
+                onEditPost={handleEditPost}
+                onTagClick={handleTagClick}
+                bookmarkedIdSet={bookmarkedIdSet}
+                reportedPostIdSet={reportedPostIdSet}
+                onToggleBookmark={(id) => bookmarkService.toggleBookmark(id)}
+                isNostrConnected={isNostrConnected}
+                loaderRef={loaderRef}
+                isLoadingMore={isLoadingMore}
+                hasMorePosts={hasMorePosts}
+              />
             )}
 
             {viewMode === ViewMode.SINGLE_BIT && selectedPost && (
@@ -865,6 +992,8 @@ export default function App() {
                     knownUsers={knownUsers}
                     onVote={handleVote}
                     onComment={handleComment}
+                    onEditComment={handleEditComment}
+                    onDeleteComment={handleDeleteComment}
                     onViewBit={() => {}}
                     onViewProfile={handleViewProfile}
                     onEditPost={handleEditPost}
@@ -904,6 +1033,10 @@ export default function App() {
               />
             )}
 
+            {viewMode === ViewMode.RELAYS && (
+              <RelaySettings onClose={returnToFeed} />
+            )}
+
             {viewMode === ViewMode.LOCATION && (
               <LocationSelector
                 onSelectBoard={handleLocationBoardSelect}
@@ -923,6 +1056,7 @@ export default function App() {
                 onVote={handleVote}
                 onComment={handleComment}
                 onViewBit={handleViewBit}
+                onRefreshProfile={(pubkey) => refreshProfileMetadata([pubkey])}
                 onClose={returnToFeed}
                 isNostrConnected={isNostrConnected}
               />
@@ -951,6 +1085,7 @@ export default function App() {
                 onCancel={returnToFeed}
               />
             )}
+            </Suspense>
           </main>
         </div>
       </div>

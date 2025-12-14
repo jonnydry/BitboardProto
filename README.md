@@ -1,20 +1,53 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+## BitBoardProto
 
-# Run and deploy your AI Studio app
+BitBoard is an experimental, terminal-styled message board built on the **Nostr** protocol.
 
-This contains everything you need to run your app locally.
+- **Posts + boards**: topic boards and geohash-based location channels
+- **Comments**: threaded discussions with edit/delete support
+- **Voting**: Nostr reactions (kind 7) + local score math
+- **Offline-friendly**: local caching and queued publishes
+- **Performance**: feed virtualization for large timelines
+- **Diagnostics**: local-only relay/queue diagnostics panel
 
-View your app in AI Studio: https://ai.studio/apps/drive/1v4NiP2YGimrj1yT0G6xChIgexd3xqi_H
+### Quickstart
 
-## Run Locally
+- **Prereqs**: Node.js
 
-**Prerequisites:**  Node.js
+```bash
+npm install
+npm run dev
+```
 
+### Optional: Gemini link scanning
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+If you want link scanning/preview enrichment, create `.env.local`:
+
+```bash
+VITE_GEMINI_API_KEY=your_key_here
+```
+
+### Useful scripts
+
+```bash
+npm run dev
+npm run build
+npm run preview
+npm run test
+npm run lint
+npm run format
+```
+
+### Project structure
+
+- `App.tsx`: top-level state + routing (split into feature components)
+- `features/`: feature-level UI (layout/feed)
+- `components/`: reusable UI components
+- `hooks/`: React hooks (feed loading, voting, routing)
+- `services/`: Nostr + identity + voting + utilities
+- `docs/`: architecture and service documentation
+
+### Docs
+
+- `docs/architecture.md`
+- `docs/services.md`
+- `CONTRIBUTING.md`

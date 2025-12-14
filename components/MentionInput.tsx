@@ -25,6 +25,35 @@ export const MentionInput: React.FC<MentionInputProps> = ({
   const [mentionStart, setMentionStart] = useState<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Insert selected suggestion
+  const insertSuggestion = useCallback(
+    (username: string) => {
+      if (mentionStart === null || !textareaRef.current) return;
+
+      const cursorPos = textareaRef.current.selectionStart || 0;
+      const { newText, newCursorPosition } = mentionService.insertMention(
+        value,
+        username,
+        mentionStart,
+        cursorPos,
+      );
+
+      onChange(newText);
+      setSuggestions([]);
+      setMentionStart(null);
+
+      // Set cursor position after React updates
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.selectionStart = newCursorPosition;
+          textareaRef.current.selectionEnd = newCursorPosition;
+          textareaRef.current.focus();
+        }
+      }, 0);
+    },
+    [mentionStart, value, onChange],
+  );
+
   // Detect mention in progress and update suggestions
   const handleInput = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
@@ -80,33 +109,7 @@ export const MentionInput: React.FC<MentionInputProps> = ({
         setMentionStart(null);
         break;
     }
-  }, [suggestions, selectedIndex, mentionStart]);
-
-  // Insert selected suggestion
-  const insertSuggestion = useCallback((username: string) => {
-    if (mentionStart === null || !textareaRef.current) return;
-
-    const cursorPos = textareaRef.current.selectionStart || 0;
-    const { newText, newCursorPosition } = mentionService.insertMention(
-      value,
-      username,
-      mentionStart,
-      cursorPos
-    );
-
-    onChange(newText);
-    setSuggestions([]);
-    setMentionStart(null);
-
-    // Set cursor position after React updates
-    setTimeout(() => {
-      if (textareaRef.current) {
-        textareaRef.current.selectionStart = newCursorPosition;
-        textareaRef.current.selectionEnd = newCursorPosition;
-        textareaRef.current.focus();
-      }
-    }, 0);
-  }, [mentionStart, value, onChange]);
+  }, [suggestions, selectedIndex, mentionStart, insertSuggestion]);
 
   // Handle click on suggestion
   const handleSuggestionClick = useCallback((username: string) => {

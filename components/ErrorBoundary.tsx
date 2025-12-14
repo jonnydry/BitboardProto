@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { diagnosticsService } from '../services/diagnosticsService';
 
 interface Props {
   children: ReactNode;
@@ -17,6 +18,8 @@ interface State {
  * Prevents entire app crashes and provides user-friendly error messages
  */
 export class ErrorBoundary extends Component<Props, State> {
+  public state: Readonly<State>;
+
   constructor(props: Props) {
     super(props);
     this.state = {
@@ -36,6 +39,11 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('[ErrorBoundary] Caught error:', error, errorInfo);
+    diagnosticsService.error(
+      'ErrorBoundary',
+      error?.message || 'Unknown error',
+      errorInfo?.componentStack || undefined
+    );
     this.setState({
       error,
       errorInfo,

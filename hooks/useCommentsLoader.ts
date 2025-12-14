@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import type { Post } from '../types';
+import React, { useEffect } from 'react';
+import type { Comment, Post } from '../types';
 import { nostrService } from '../services/nostrService';
 
 export function useCommentsLoader(args: {
@@ -15,37 +15,134 @@ export function useCommentsLoader(args: {
     const post = postsById.get(selectedBitId);
     if (!post?.nostrEventId) return;
 
-    // Only fetch if post has no comments loaded yet
-    if (post.comments.length > 0) return;
-
     let cancelled = false;
+    const rootPostId = post.nostrEventId;
 
-    nostrService
-      .fetchComments(post.nostrEventId)
-      .then((commentEvents) => {
+    const applyCommentUpdates = (targetCommentId: string, updates: Partial<Comment>) => {
+      setPosts((prevPosts) =>
+        prevPosts.map((p) => {
+          if (p.id !== selectedBitId) return p;
+          return {
+            ...p,
+            comments: p.comments.map((c) => (c.id === targetCommentId ? { ...c, ...updates } : c)),
+          };
+        })
+      );
+    };
+
+    const applyBatchEdits = async () => {
+      try {
+        const [editEvents, deleteEvents] = await Promise.all([
+          nostrService.fetchCommentEdits(rootPostId, { limit: 300 }),
+          nostrService.fetchCommentDeletes(rootPostId, { limit: 300 }),
+        ]);
+
         if (cancelled) return;
-        if (commentEvents.length === 0) return;
 
-        const comments = commentEvents.map((event) => nostrService.eventToComment(event));
+        if (editEvents.length > 0) {
+          // Latest edit per comment wins
+          const latestByComment = new Map<string, any>();
+          for (const ev of editEvents) {
+            const parsed = nostrService.eventToCommentEditUpdate(ev);
+            if (!parsed) continue;
+            const existing = latestByComment.get(parsed.targetCommentId);
+            if (!existing || ev.created_at > existing.created_at) {
+              latestByComment.set(parsed.targetCommentId, { created_at: ev.created_at, updates: parsed.updates });
+            }
+          }
+          latestByComment.forEach((v, commentId) => applyCommentUpdates(commentId, v.updates));
+        }
 
-        setPosts((prevPosts) =>
-          prevPosts.map((p) => {
-            if (p.id !== selectedBitId) return p;
-            return {
-              ...p,
-              comments: [...p.comments, ...comments],
-              commentCount: p.comments.length + comments.length,
-            };
-          })
-        );
-      })
-      .catch((error) => {
+        if (deleteEvents.length > 0) {
+          const latestByComment = new Map<string, any>();
+          for (const ev of deleteEvents) {
+            const parsed = nostrService.eventToCommentDeleteUpdate(ev);
+            if (!parsed) continue;
+            const existing = latestByComment.get(parsed.targetCommentId);
+            if (!existing || ev.created_at > existing.created_at) {
+              latestByComment.set(parsed.targetCommentId, { created_at: ev.created_at, updates: parsed.updates });
+            }
+          }
+          latestByComment.forEach((v, commentId) => applyCommentUpdates(commentId, v.updates));
+        }
+      } catch (e) {
+        console.warn('[CommentsLoader] Failed to fetch comment edits/deletes:', e);
+      }
+    };
+
+    // Only fetch if post has no comments loaded yet
+    const shouldFetchComments = post.comments.length === 0;
+
+    const fetchComments = async () => {
+      if (!shouldFetchComments) return;
+      const commentEvents = await nostrService.fetchComments(rootPostId);
+      if (cancelled) return;
+      if (commentEvents.length === 0) return;
+
+      const comments = commentEvents.map((event) => nostrService.eventToComment(event));
+
+      setPosts((prevPosts) =>
+        prevPosts.map((p) => {
+          if (p.id !== selectedBitId) return p;
+          // Deduplicate by id
+          const existing = new Set(p.comments.map((c) => c.id));
+          const newOnes = comments.filter((c) => !existing.has(c.id));
+          if (newOnes.length === 0) return p;
+          return {
+            ...p,
+            comments: [...p.comments, ...newOnes],
+            commentCount: p.comments.length + newOnes.length,
+          };
+        })
+      );
+
+      // Best-effort profile enrichment (kind 0) for comment authors
+      const pubkeys = Array.from(new Set(comments.map((c) => c.authorPubkey).filter(Boolean) as string[]));
+      if (pubkeys.length > 0) {
+        nostrService.fetchProfiles(pubkeys).then(() => {
+          setPosts((prevPosts) =>
+            prevPosts.map((p) => {
+              if (p.id !== selectedBitId) return p;
+              return {
+                ...p,
+                comments: p.comments.map((c) =>
+                  c.authorPubkey ? { ...c, author: nostrService.getDisplayName(c.authorPubkey) } : c
+                ),
+              };
+            })
+          );
+        });
+      }
+    };
+
+    (async () => {
+      try {
+        await fetchComments();
+        if (cancelled) return;
+        await applyBatchEdits();
+      } catch (error) {
         if (cancelled) return;
         console.error('[App] Failed to fetch comments:', error);
-      });
+      }
+    })();
+
+    // Subscribe to comment edits/deletes while this post is open
+    const subEdits = nostrService.subscribeToCommentEdits(rootPostId, (ev) => {
+      const parsed = nostrService.eventToCommentEditUpdate(ev);
+      if (!parsed) return;
+      applyCommentUpdates(parsed.targetCommentId, parsed.updates);
+    });
+
+    const subDeletes = nostrService.subscribeToCommentDeletes(rootPostId, (ev) => {
+      const parsed = nostrService.eventToCommentDeleteUpdate(ev);
+      if (!parsed) return;
+      applyCommentUpdates(parsed.targetCommentId, parsed.updates);
+    });
 
     return () => {
       cancelled = true;
+      nostrService.unsubscribe(subEdits);
+      nostrService.unsubscribe(subDeletes);
     };
   }, [postsById, selectedBitId, setPosts]);
 }

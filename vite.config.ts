@@ -1,8 +1,8 @@
 import path from 'path';
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode: _mode }) => {
     return {
       server: {
         port: 3000,
@@ -13,6 +13,12 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
-      }
+      },
+      test: {
+        environment: 'node',
+        include: ['**/*.test.ts'],
+        globals: true,
+        passWithNoTests: false,
+      },
     };
 });

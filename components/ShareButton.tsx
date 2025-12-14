@@ -34,7 +34,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({ postId, postTitle }) =
     try {
       await navigator.clipboard.writeText(shareUrl);
       showNotification('Link copied to clipboard');
-    } catch (error) {
+    } catch (_error) {
       // Fallback for older browsers
       const textArea = document.createElement('textarea');
       textArea.value = shareUrl;
@@ -46,7 +46,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({ postId, postTitle }) =
       try {
         document.execCommand('copy');
         showNotification('Link copied to clipboard');
-      } catch (err) {
+      } catch (_err) {
         showNotification('Failed to copy link', 'error');
       }
       
@@ -69,9 +69,10 @@ export const ShareButton: React.FC<ShareButtonProps> = ({ postId, postTitle }) =
     if (navigator.share && navigator.canShare?.(shareData)) {
       try {
         await navigator.share(shareData);
-      } catch (error: any) {
+      } catch (error: unknown) {
         // User cancelled or error
-        if (error.name !== 'AbortError') {
+        const e2 = error as { name?: string };
+        if (e2.name !== 'AbortError') {
           console.error('[Share] Native share failed:', error);
           // Fall back to copy
           handleCopyLink(e);
@@ -95,6 +96,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({ postId, postTitle }) =
         onClick={hasNativeShare ? handleNativeShare : handleCopyLink}
         className="p-1 text-terminal-dim hover:text-terminal-text transition-colors"
         title={hasNativeShare ? 'Share post' : 'Copy link'}
+        aria-label={hasNativeShare ? 'Share post' : 'Copy link to post'}
       >
         {hasNativeShare ? (
           <Share2 size={16} />

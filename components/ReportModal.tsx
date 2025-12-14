@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { X, Flag, AlertTriangle, Check } from 'lucide-react';
 import { ReportReason, REPORT_REASON_LABELS, reportService } from '../services/reportService';
 
@@ -17,6 +17,10 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   onClose,
   onSubmit,
 }) => {
+  const dialogTitleId = `report-modal-title-${targetType}-${targetId}`;
+  const dialogDescId = `report-modal-desc-${targetType}-${targetId}`;
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+
   const [selectedReason, setSelectedReason] = useState<ReportReason | null>(null);
   const [details, setDetails] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,8 +59,13 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     }
   }, [onClose]);
 
+  // Focus first interactive element on open
+  useEffect(() => {
+    closeButtonRef.current?.focus();
+  }, []);
+
   // Handle escape key
-  React.useEffect(() => {
+  useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
@@ -71,14 +80,21 @@ export const ReportModal: React.FC<ReportModalProps> = ({
       <div 
         className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
         onClick={handleBackdropClick}
+        role="presentation"
       >
-        <div className="bg-terminal-bg border-2 border-terminal-text p-6 max-w-md w-full shadow-hard-lg animate-fade-in">
+        <div
+          className="bg-terminal-bg border-2 border-terminal-text p-6 max-w-md w-full shadow-hard-lg animate-fade-in"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={dialogTitleId}
+          aria-describedby={dialogDescId}
+        >
           <div className="text-center">
             <div className="w-12 h-12 border-2 border-terminal-text rounded-full flex items-center justify-center mx-auto mb-4">
               <Check size={24} className="text-terminal-text" />
             </div>
-            <h3 className="text-lg font-bold text-terminal-text mb-2">REPORT_SUBMITTED</h3>
-            <p className="text-sm text-terminal-dim">
+            <h3 id={dialogTitleId} className="text-lg font-bold text-terminal-text mb-2">REPORT_SUBMITTED</h3>
+            <p id={dialogDescId} className="text-sm text-terminal-dim">
               Thank you for helping keep BitBoard safe. Your report has been recorded.
             </p>
           </div>
@@ -91,19 +107,28 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     <div 
       className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
       onClick={handleBackdropClick}
+      role="presentation"
     >
-      <div className="bg-terminal-bg border-2 border-terminal-alert p-6 max-w-md w-full shadow-hard-lg animate-fade-in">
+      <div
+        className="bg-terminal-bg border-2 border-terminal-alert p-6 max-w-md w-full shadow-hard-lg animate-fade-in"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={dialogTitleId}
+        aria-describedby={dialogDescId}
+      >
         {/* Header */}
         <div className="flex items-center justify-between mb-4 pb-3 border-b border-terminal-dim">
           <div className="flex items-center gap-2 text-terminal-alert">
             <Flag size={20} />
-            <h2 className="text-lg font-bold uppercase">
+            <h2 id={dialogTitleId} className="text-lg font-bold uppercase">
               Report {targetType === 'post' ? 'Post' : 'Comment'}
             </h2>
           </div>
           <button
             onClick={onClose}
             className="text-terminal-dim hover:text-terminal-text transition-colors p-1"
+            aria-label="Close report dialog"
+            ref={closeButtonRef}
           >
             <X size={20} />
           </button>
@@ -112,8 +137,13 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         {/* Content Preview */}
         {targetPreview && (
           <div className="mb-4 p-3 bg-terminal-dim/10 border border-terminal-dim/30 text-sm text-terminal-dim">
-            <p className="line-clamp-2 italic">"{targetPreview}"</p>
+            <p id={dialogDescId} className="line-clamp-2 italic">"{targetPreview}"</p>
           </div>
+        )}
+        {!targetPreview && (
+          <p id={dialogDescId} className="sr-only">
+            Report dialog.
+          </p>
         )}
 
         <form onSubmit={handleSubmit}>

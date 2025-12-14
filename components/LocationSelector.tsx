@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { MapPin, Navigation, RefreshCw, AlertTriangle, Check, Radio } from 'lucide-react';
 import { geohashService, PRECISION_LABELS, PRECISION_DESCRIPTIONS } from '../services/geohashService';
 import { GeohashPrecision, type Board } from '../types';
@@ -33,12 +33,13 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
       
       const boards = geohashService.generateLocationBoards(lat, lon);
       setLocationBoards(boards);
-    } catch (err: any) {
-      if (err.code === 1) {
+    } catch (err: unknown) {
+      const e = err as { code?: number };
+      if (e.code === 1) {
         setError('Location access denied. Please enable location permissions.');
-      } else if (err.code === 2) {
+      } else if (e.code === 2) {
         setError('Location unavailable. Please try again.');
-      } else if (err.code === 3) {
+      } else if (e.code === 3) {
         setError('Location request timed out. Please try again.');
       } else {
         setError('Failed to get location. Please try again.');

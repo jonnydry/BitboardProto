@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { ViewMode } from '../types';
+import { ViewMode } from '../types';
 
 export function useUrlPostRouting(args: {
   viewMode: ViewMode;
@@ -44,3 +44,5 @@ export function useUrlPostRouting(args: {
     }
   }, [viewMode, selectedBitId]);
 }
+
+

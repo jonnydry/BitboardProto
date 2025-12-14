@@ -3,9 +3,29 @@ import {
   type Event as NostrEvent,
   type Filter 
 } from 'nostr-tools';
-import { NOSTR_KINDS, type Post, type Board, type Comment, BoardType, type UnsignedNostrEvent } from '../types';
-import { NostrConfig } from '../config';
-import { nostrEventDeduplicator } from './messageDeduplicator';
+import { NOSTR_KINDS, type Post, type Board, type Comment, BoardType, type UnsignedNostrEvent } from '../../types';
+import { NostrConfig } from '../../config';
+import { nostrEventDeduplicator } from '../messageDeduplicator';
+import { inputValidator } from '../inputValidator';
+import { diagnosticsService } from '../diagnosticsService';
+import { NostrProfileCache, type NostrProfileMetadata } from './profileCache';
+import {
+  buildBoardEvent,
+  buildCommentDeleteEvent,
+  buildCommentEditEvent,
+  buildCommentEvent,
+  buildPostEditEvent,
+  buildPostEvent,
+  buildVoteEvent,
+} from './eventBuilders';
+import {
+  BITBOARD_TYPE_COMMENT,
+  BITBOARD_TYPE_COMMENT_DELETE,
+  BITBOARD_TYPE_COMMENT_EDIT,
+  BITBOARD_TYPE_POST,
+  BITBOARD_TYPE_POST_EDIT,
+  BITBOARD_TYPE_TAG,
+} from './bitboardEventTypes';
 
 // ============================================
 // RELAY CONFIGURATION
@@ -44,6 +64,7 @@ class NostrService {
   private relays: string[];
   private subscriptions: Map<string, { unsub: () => void }>;
   private userRelays: string[] = [];
+  private profiles: NostrProfileCache;
   
   // Relay status tracking
   private relayStatuses: Map<string, RelayStatus> = new Map();
@@ -69,6 +90,11 @@ class NostrService {
     this.userRelays = this.loadUserRelaysFromStorage();
     this.relays = this.mergeRelays(this.userRelays, [...DEFAULT_RELAYS]);
     this.subscriptions = new Map();
+
+    this.profiles = new NostrProfileCache({
+      pool: this.pool,
+      getReadRelays: () => this.getReadRelays(),
+    });
     
     // Initialize relay statuses
     this.relays.forEach(url => {
@@ -159,14 +185,16 @@ class NostrService {
    * Prefer user relays for publishing, then fall back to defaults.
    */
   private getPublishRelays(): string[] {
-    return this.mergeRelays(this.userRelays, [...DEFAULT_RELAYS]);
+    // this.relays is always maintained as: user relays first, then defaults
+    return [...this.relays];
   }
 
   /**
    * Prefer user relays for reads/subscriptions, then fall back to defaults.
    */
   private getReadRelays(): string[] {
-    return this.mergeRelays(this.userRelays, [...DEFAULT_RELAYS]);
+    // Keep read relays aligned with effective relays list
+    return [...this.relays];
   }
 
   // ----------------------------------------
@@ -217,6 +245,10 @@ class NostrService {
     return Array.from(this.relayStatuses.values()).filter(s => s.isConnected).length;
   }
 
+  getQueuedMessageCount(): number {
+    return this.messageQueue.length;
+  }
+
   // ----------------------------------------
   // RELAY STATUS MANAGEMENT
   // ----------------------------------------
@@ -248,6 +280,7 @@ class NostrService {
     if (!status) return;
 
     this.updateRelayStatus(url, false, error);
+    diagnosticsService.warn('nostr', `Relay disconnected: ${url}`, error?.message || String(error));
 
     // Check for permanent failure (DNS errors, etc.)
     const errorMessage = error.message.toLowerCase();
@@ -255,6 +288,7 @@ class NostrService {
         errorMessage.includes('hostname') ||
         errorMessage.includes('not found')) {
       console.warn(`[Nostr] Permanent failure for ${url} - not retrying`);
+      diagnosticsService.error('nostr', `Relay permanent failure: ${url}`, error.message);
       status.reconnectAttempts = this.MAX_RECONNECT_ATTEMPTS;
       return;
     }
@@ -350,13 +384,17 @@ class NostrService {
   // ----------------------------------------
 
   private queueMessage(event: NostrEvent, targetRelays: string[]) {
-    // Find relays that aren't connected
-    const disconnectedRelays = targetRelays.filter(url => {
-      const status = this.relayStatuses.get(url);
-      return !status?.isConnected;
-    });
+    const uniqueRelays = Array.from(new Set(targetRelays.map((r) => r.trim()).filter(Boolean)));
+    if (uniqueRelays.length === 0) return;
 
-    if (disconnectedRelays.length === 0) return;
+    // Merge with existing queued item for this event (avoid duplicates)
+    const existing = this.messageQueue.find((m) => m.event.id === event.id);
+    if (existing) {
+      uniqueRelays.forEach((r) => existing.pendingRelays.add(r));
+      existing.timestamp = Date.now();
+      this.cleanupMessageQueue();
+      return;
+    }
 
     // Enforce queue size limit - drop oldest messages if queue is full
     if (this.messageQueue.length >= this.MESSAGE_QUEUE_MAX_SIZE) {
@@ -367,7 +405,7 @@ class NostrService {
 
     this.messageQueue.push({
       event,
-      pendingRelays: new Set(disconnectedRelays),
+      pendingRelays: new Set(uniqueRelays),
       timestamp: Date.now(),
     });
 
@@ -427,25 +465,52 @@ class NostrService {
   async publishSignedEvent(signedEvent: NostrEvent): Promise<NostrEvent> {
     try {
       const publishRelays = this.getPublishRelays();
-      // Get connected relays
-      const connectedRelays = publishRelays.filter(url => {
-        const status = this.relayStatuses.get(url);
-        return status?.isConnected !== false; // Include unknown status
-      });
-
-      if (connectedRelays.length === 0) {
-        // Queue for later if no relays connected
-        this.queueMessage(signedEvent, publishRelays);
-        throw new Error('No relays connected');
+      if (publishRelays.length === 0) {
+        throw new Error('No relays configured');
       }
 
-      await Promise.any(this.pool.publish(connectedRelays, signedEvent));
+      // Prefer relays known to be connected; otherwise, still attempt all relays.
+      // (Important: statuses start as false until we successfully query/publish.)
+      const knownConnected = publishRelays.filter((url) => this.relayStatuses.get(url)?.isConnected);
+      const relaysToPublish = knownConnected.length > 0 ? knownConnected : publishRelays;
+
+      const results = await Promise.allSettled(
+        relaysToPublish.map(async (url) => {
+          await this.pool.publish([url], signedEvent);
+          return url;
+        })
+      );
+
+      const succeeded: string[] = [];
+      const failed: Array<{ url: string; error: unknown }> = [];
+      results.forEach((r, i) => {
+        const url = relaysToPublish[i];
+        if (r.status === 'fulfilled') succeeded.push(r.value);
+        else failed.push({ url, error: r.reason });
+      });
+
+      if (succeeded.length === 0) {
+        // Queue for later + surface error
+        this.queueMessage(signedEvent, publishRelays);
+        const first = failed[0]?.error;
+        throw first instanceof Error ? first : new Error('Failed to publish to any relay');
+      }
+
+      // Update relay statuses
+      succeeded.forEach((url) => this.updateRelayStatus(url, true));
+      failed.forEach(({ url, error }) => {
+        const err = error instanceof Error ? error : new Error(String(error));
+        this.handleRelayDisconnection(url, err);
+      });
       
       // Mark event as processed to prevent duplicates
       nostrEventDeduplicator.markProcessed(signedEvent.id);
       
-      // Queue for disconnected relays
-      this.queueMessage(signedEvent, publishRelays);
+      // Queue for relays that did not confirm publication (plus any not attempted)
+      const remaining = publishRelays.filter((r) => !succeeded.includes(r));
+      if (remaining.length > 0) {
+        this.queueMessage(signedEvent, remaining);
+      }
       
       return signedEvent;
     } catch (error) {
@@ -453,6 +518,109 @@ class NostrService {
       this.queueMessage(signedEvent, this.getPublishRelays());
       throw error;
     }
+  }
+
+  // ----------------------------------------
+  // EVENT SHAPE HELPERS (Post vs Comment)
+  // ----------------------------------------
+
+  private getTagValue(event: NostrEvent, name: string): string | undefined {
+    const tag = event.tags.find(t => t[0] === name);
+    return tag ? tag[1] : undefined;
+  }
+
+  private hasTag(event: NostrEvent, name: string): boolean {
+    return event.tags.some(t => t[0] === name);
+  }
+
+  private getARef(event: NostrEvent): string | undefined {
+    return this.getTagValue(event, 'a');
+  }
+
+  private getBitboardType(event: NostrEvent): string | undefined {
+    return this.getTagValue(event, BITBOARD_TYPE_TAG);
+  }
+
+  /**
+   * Determine if an event should be treated as a BitBoard "post".
+   * Supports both:
+   * - New format: ['bb','post']
+   * - Legacy format: presence of 'title' + ('board' or NIP-33 'a' ref to a board)
+   */
+  isBitboardPostEvent(event: NostrEvent): boolean {
+    const explicit = this.getBitboardType(event);
+    if (explicit === BITBOARD_TYPE_POST) return true;
+    if (explicit === BITBOARD_TYPE_COMMENT) return false;
+    if (explicit === BITBOARD_TYPE_POST_EDIT) return false;
+    if (explicit === BITBOARD_TYPE_COMMENT_EDIT) return false;
+    if (explicit === BITBOARD_TYPE_COMMENT_DELETE) return false;
+
+    // Legacy heuristic: posts have a title and a board reference; comments have e-tags
+    const hasTitle = this.hasTag(event, 'title');
+    const hasBoard = this.hasTag(event, 'board');
+
+    const aRef = this.getARef(event);
+    const hasBoardARef =
+      !!aRef && aRef.startsWith(`${NOSTR_KINDS.BOARD_DEFINITION}:`);
+
+    // Comments use NIP-10 'e' tags (root/reply). Posts generally shouldn't.
+    const hasThreadRefs = event.tags.some(t => t[0] === 'e');
+
+    return hasTitle && (hasBoard || hasBoardARef) && !hasThreadRefs;
+  }
+
+  /**
+   * Determine if an event should be treated as a BitBoard "comment".
+   * Supports both:
+   * - New format: ['bb','comment']
+   * - Legacy format: kind=1 event with NIP-10 e-tags referencing a root post
+   */
+  isBitboardCommentEvent(event: NostrEvent, rootPostEventId?: string): boolean {
+    const explicit = this.getBitboardType(event);
+    if (explicit === BITBOARD_TYPE_COMMENT) return true;
+    if (explicit === BITBOARD_TYPE_POST) return false;
+    if (explicit === BITBOARD_TYPE_POST_EDIT) return false;
+    if (explicit === BITBOARD_TYPE_COMMENT_EDIT) return false;
+    if (explicit === BITBOARD_TYPE_COMMENT_DELETE) return false;
+
+    // Legacy heuristic: comments are kind-1 events with e-tags.
+    const eTags = event.tags.filter(t => t[0] === 'e' && !!t[1]);
+    if (eTags.length === 0) return false;
+
+    if (rootPostEventId) {
+      return eTags.some(t => t[1] === rootPostEventId);
+    }
+
+    // If no root provided, require at least one 'e' tag marked 'root' or 'reply'
+    return eTags.some(t => t[3] === 'root' || t[3] === 'reply');
+  }
+
+  // ----------------------------------------
+  // PROFILE METADATA (kind 0)
+  // ----------------------------------------
+
+  /**
+   * Clear cached profile metadata (local cache only).
+   * - If pubkey is omitted, clears the entire profile cache.
+   */
+  clearProfileCache(pubkey?: string): void {
+    this.profiles.clear(pubkey);
+  }
+
+  /**
+   * Best-effort display name for a pubkey.
+   * Falls back to pubkey prefix when metadata isn't available.
+   */
+  getDisplayName(pubkey: string): string {
+    return this.profiles.getDisplayName(pubkey);
+  }
+
+  /**
+   * Fetch and cache profiles (kind 0) for a set of pubkeys.
+   * Safe to call frequently; results are cached with TTL and in-flight deduping.
+   */
+  async fetchProfiles(pubkeys: string[], opts: { force?: boolean } = {}): Promise<Map<string, NostrProfileMetadata>> {
+    return this.profiles.fetchProfiles(pubkeys, opts);
   }
 
   buildPostEvent(
@@ -466,52 +634,83 @@ class NostrService {
       boardName?: string;
     }
   ): UnsignedNostrEvent {
-    const tags: string[][] = [
-      ['client', 'bitboard'],
-      ['title', post.title],
-      ['board', post.boardId],
-    ];
+    return buildPostEvent(post, pubkey, geohash, opts);
+  }
 
-    // Add topic tags
-    post.tags.forEach(tag => tags.push(['t', tag]));
+  /**
+   * Publish a BitBoard "edit" event for an existing post event ID.
+   *
+   * Design note:
+   * - Nostr events are immutable; editing the original event isn't possible.
+   * - We publish an "edit companion" event that references the original post via an 'e' tag.
+   * - The UI should treat the latest edit event as the current content, while votes remain
+   *   tied to the original post event ID.
+   */
+  buildPostEditEvent(args: {
+    /** The original post's event id (canonical post id for voting) */
+    rootPostEventId: string;
+    /** The post's board id (kept for filtering / UX) */
+    boardId: string;
+    /** New title */
+    title: string;
+    /** New content */
+    content: string;
+    /** New tag list */
+    tags: string[];
+    /** Optional URL */
+    url?: string;
+    /** Optional image URL */
+    imageUrl?: string;
+    /** Editor pubkey (must match signing key) */
+    pubkey: string;
+  }): UnsignedNostrEvent {
+    return buildPostEditEvent(args);
+  }
 
-    // NIP-33: addressable reference to board (preferred), keep legacy 'board' tag too
-    if (opts?.boardAddress) {
-      tags.push(['a', opts.boardAddress]);
-    }
+  /**
+   * Type guard for BitBoard post edit events.
+   */
+  isBitboardPostEditEvent(event: NostrEvent): boolean {
+    return this.getBitboardType(event) === BITBOARD_TYPE_POST_EDIT;
+  }
 
-    // Discoverability hashtag for board name
-    if (opts?.boardName) {
-      const boardTag = opts.boardName.toLowerCase();
-      if (boardTag && !post.tags.some(t => t.toLowerCase() === boardTag)) {
-        tags.push(['t', boardTag]);
-      }
-    }
+  private getRootPostIdFromEditEvent(event: NostrEvent): string | null {
+    const eTag = event.tags.find((t) => t[0] === 'e' && !!t[1]);
+    return eTag?.[1] || null;
+  }
 
-    // Add URL if present
-    if (post.url) {
-      tags.push(['r', post.url]);
-    }
+  /**
+   * Convert a post edit event into a partial Post update.
+   * Does NOT change post id / nostrEventId (those stay the original post's event id).
+   */
+  eventToPostEditUpdate(event: NostrEvent): { rootPostEventId: string; updates: Partial<Post> } | null {
+    if (!this.isBitboardPostEditEvent(event)) return null;
+    const rootPostEventId = this.getRootPostIdFromEditEvent(event);
+    if (!rootPostEventId) return null;
 
-    // Add image if present
-    if (post.imageUrl) {
-      tags.push(['image', post.imageUrl]);
-    }
-
-    // Add geohash for location-based posts (BitChat compatible)
-    if (geohash) {
-      tags.push(['g', geohash]);
-    }
-
-    const event: Partial<NostrEvent> = {
-      pubkey,
-      kind: NOSTR_KINDS.POST,
-      created_at: Math.floor(Date.now() / 1000),
-      tags,
-      content: post.content,
+    const getTag = (name: string): string | undefined => {
+      const tag = event.tags.find((t) => t[0] === name);
+      return tag ? tag[1] : undefined;
+    };
+    const getAllTags = (name: string): string[] => {
+      return event.tags.filter((t) => t[0] === name).map((t) => t[1]);
     };
 
-    return event as UnsignedNostrEvent;
+    const titleRaw = getTag('title');
+    const contentRaw = event.content ?? '';
+    const tagsRaw = getAllTags('t');
+    const urlRaw = getTag('r');
+    const imageRaw = getTag('image');
+
+    const updates: Partial<Post> = {
+      title: titleRaw ? inputValidator.validateTitle(titleRaw) ?? undefined : undefined,
+      content: inputValidator.validatePostContent(contentRaw) ?? '',
+      tags: inputValidator.validateTags(tagsRaw),
+      url: urlRaw ? inputValidator.validateUrl(urlRaw) ?? undefined : undefined,
+      imageUrl: imageRaw ? inputValidator.validateUrl(imageRaw) ?? undefined : undefined,
+    };
+
+    return { rootPostEventId, updates };
   }
 
   buildCommentEvent(
@@ -526,33 +725,92 @@ class NostrService {
       parentCommentAuthorPubkey?: string;
     }
   ): UnsignedNostrEvent {
-    const tags: string[][] = [
-      ['e', postEventId, '', 'root'],  // Reference to the original post
-      ['client', 'bitboard'],
-    ];
+    return buildCommentEvent(postEventId, content, pubkey, parentCommentId, opts);
+  }
 
-    // NIP-10: include pubkeys referenced by the thread
-    if (opts?.postAuthorPubkey) {
-      tags.push(['p', opts.postAuthorPubkey]);
-    }
+  /**
+   * Publish a BitBoard "edit" event for an existing comment event ID.
+   * - Nostr events are immutable; this is an edit companion event.
+   * - We reference both the root post (for query scoping) and the target comment.
+   */
+  buildCommentEditEvent(args: {
+    rootPostEventId: string;
+    targetCommentEventId: string;
+    content: string;
+    pubkey: string;
+  }): UnsignedNostrEvent {
+    return buildCommentEditEvent(args);
+  }
 
-    // If this is a reply to another comment, add parent reference
-    if (parentCommentId) {
-      tags.push(['e', parentCommentId, '', 'reply']);
-      if (opts?.parentCommentAuthorPubkey) {
-        tags.push(['p', opts.parentCommentAuthorPubkey]);
-      }
-    }
+  isBitboardCommentEditEvent(event: NostrEvent): boolean {
+    return this.getBitboardType(event) === BITBOARD_TYPE_COMMENT_EDIT;
+  }
 
-    const event: Partial<NostrEvent> = {
-      pubkey,
-      kind: NOSTR_KINDS.POST,
-      created_at: Math.floor(Date.now() / 1000),
-      tags,
-      content,
+  private getTargetCommentIdFromEditEvent(event: NostrEvent): string | null {
+    const editTag = event.tags.find((t) => t[0] === 'e' && t[3] === 'edit' && !!t[1]);
+    if (editTag?.[1]) return editTag[1];
+    // Fallback: second e tag
+    const eTags = event.tags.filter((t) => t[0] === 'e' && !!t[1]);
+    return eTags.length >= 2 ? eTags[1][1] : null;
+  }
+
+  private getRootPostIdFromCommentScopedEvent(event: NostrEvent): string | null {
+    const rootTag = event.tags.find((t) => t[0] === 'e' && t[3] === 'root' && !!t[1]);
+    return rootTag?.[1] || null;
+  }
+
+  eventToCommentEditUpdate(event: NostrEvent): { rootPostEventId: string; targetCommentId: string; updates: Partial<Comment> } | null {
+    if (!this.isBitboardCommentEditEvent(event)) return null;
+    const rootPostEventId = this.getRootPostIdFromCommentScopedEvent(event);
+    const targetCommentId = this.getTargetCommentIdFromEditEvent(event);
+    if (!rootPostEventId || !targetCommentId) return null;
+
+    const updates: Partial<Comment> = {
+      content: inputValidator.validateCommentContent(event.content ?? '') ?? '',
+      editedAt: event.created_at * 1000,
     };
 
-    return event as UnsignedNostrEvent;
+    return { rootPostEventId, targetCommentId, updates };
+  }
+
+  /**
+   * Build a NIP-09 deletion event for a comment.
+   * Many clients respect kind=5 with an 'e' tag referencing the deleted event id.
+   */
+  buildCommentDeleteEvent(args: {
+    rootPostEventId: string;
+    targetCommentEventId: string;
+    pubkey: string;
+  }): UnsignedNostrEvent {
+    return buildCommentDeleteEvent(args);
+  }
+
+  isBitboardCommentDeleteEvent(event: NostrEvent): boolean {
+    return event.kind === NOSTR_KINDS.DELETE && this.getBitboardType(event) === BITBOARD_TYPE_COMMENT_DELETE;
+  }
+
+  private getTargetCommentIdFromDeleteEvent(event: NostrEvent): string | null {
+    const delTag = event.tags.find((t) => t[0] === 'e' && t[3] === 'delete' && !!t[1]);
+    if (delTag?.[1]) return delTag[1];
+    const eTags = event.tags.filter((t) => t[0] === 'e' && !!t[1]);
+    return eTags.length >= 2 ? eTags[1][1] : null;
+  }
+
+  eventToCommentDeleteUpdate(event: NostrEvent): { rootPostEventId: string; targetCommentId: string; updates: Partial<Comment> } | null {
+    if (!this.isBitboardCommentDeleteEvent(event)) return null;
+    const rootPostEventId = this.getRootPostIdFromCommentScopedEvent(event);
+    const targetCommentId = this.getTargetCommentIdFromDeleteEvent(event);
+    if (!rootPostEventId || !targetCommentId) return null;
+
+    const updates: Partial<Comment> = {
+      isDeleted: true,
+      deletedAt: event.created_at * 1000,
+      content: '[deleted]',
+      author: '[deleted]',
+      authorPubkey: undefined,
+    };
+
+    return { rootPostEventId, targetCommentId, updates };
   }
 
   buildVoteEvent(
@@ -564,51 +822,14 @@ class NostrService {
       postAuthorPubkey?: string;
     }
   ): UnsignedNostrEvent {
-    const tags: string[][] = [['e', postEventId]];
-
-    // NIP-25: include 'p' tag for the author of the reacted-to event
-    if (opts?.postAuthorPubkey) {
-      tags.push(['p', opts.postAuthorPubkey]);
-    }
-
-    const event: Partial<NostrEvent> = {
-      pubkey,
-      kind: NOSTR_KINDS.REACTION,
-      created_at: Math.floor(Date.now() / 1000),
-      tags,
-      content: direction === 'up' ? '+' : '-',
-    };
-
-    return event as UnsignedNostrEvent;
+    return buildVoteEvent(postEventId, direction, pubkey, opts);
   }
 
   buildBoardEvent(
-    board: Omit<Board, 'id' | 'memberCount' | 'nostrEventId'>,
+    board: Omit<Board, 'memberCount' | 'nostrEventId'>,
     pubkey: string
   ): UnsignedNostrEvent {
-    const boardId = `b-${board.name.toLowerCase()}`;
-    
-    const tags: string[][] = [
-      ['d', boardId],
-      ['name', board.name],
-      ['type', board.type],
-      ['public', board.isPublic ? 'true' : 'false'],
-      ['client', 'bitboard'],
-    ];
-
-    if (board.geohash) {
-      tags.push(['g', board.geohash]);
-    }
-
-    const event: Partial<NostrEvent> = {
-      pubkey,
-      kind: NOSTR_KINDS.BOARD_DEFINITION,
-      created_at: Math.floor(Date.now() / 1000),
-      tags,
-      content: board.description,
-    };
-
-    return event as UnsignedNostrEvent;
+    return buildBoardEvent(board, pubkey);
   }
 
   // ----------------------------------------
@@ -677,8 +898,10 @@ class NostrService {
       // Update relay statuses on success
       relaysToQuery.forEach(url => this.updateRelayStatus(url, true));
       
-      // Filter out duplicates
-      return events.filter(event => !nostrEventDeduplicator.isEventDuplicate(event.id));
+      // Filter out duplicates and non-post events (prevents comment events leaking into feed)
+      return events.filter(event =>
+        !nostrEventDeduplicator.isEventDuplicate(event.id) && this.isBitboardPostEvent(event)
+      );
     } catch (error) {
       console.error('[Nostr] Failed to fetch posts:', error);
       // Don't throw - return empty array for graceful degradation
@@ -759,7 +982,54 @@ class NostrService {
     };
 
     const events = await this.pool.querySync(this.getReadRelays(), filter);
-    return events.filter(event => !nostrEventDeduplicator.isEventDuplicate(event.id));
+    return events.filter(event =>
+      !nostrEventDeduplicator.isEventDuplicate(event.id) && this.isBitboardCommentEvent(event, postEventId)
+    );
+  }
+
+  async fetchCommentEdits(postEventId: string, opts: { limit?: number } = {}): Promise<NostrEvent[]> {
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.POST],
+      '#client': ['bitboard'],
+      '#bb': [BITBOARD_TYPE_COMMENT_EDIT],
+      '#e': [postEventId],
+      limit: opts.limit ?? 200,
+    };
+
+    const events = await this.pool.querySync(this.getReadRelays(), filter);
+    return events.filter((event) => !nostrEventDeduplicator.isEventDuplicate(event.id) && this.isBitboardCommentEditEvent(event));
+  }
+
+  async fetchCommentDeletes(postEventId: string, opts: { limit?: number } = {}): Promise<NostrEvent[]> {
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.DELETE],
+      '#client': ['bitboard'],
+      '#bb': [BITBOARD_TYPE_COMMENT_DELETE],
+      '#e': [postEventId],
+      limit: opts.limit ?? 200,
+    };
+
+    const events = await this.pool.querySync(this.getReadRelays(), filter);
+    return events.filter((event) => !nostrEventDeduplicator.isEventDuplicate(event.id) && this.isBitboardCommentDeleteEvent(event));
+  }
+
+  /**
+   * Fetch BitBoard post edit events for a set of root post event IDs.
+   */
+  async fetchPostEdits(postEventIds: string[], opts: { limit?: number } = {}): Promise<NostrEvent[]> {
+    const unique = Array.from(new Set(postEventIds.filter(Boolean)));
+    if (unique.length === 0) return [];
+
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.POST],
+      '#client': ['bitboard'],
+      '#bb': [BITBOARD_TYPE_POST_EDIT],
+      '#e': unique,
+      limit: opts.limit ?? 200,
+    };
+
+    const events = await this.pool.querySync(this.getReadRelays(), filter);
+    return events.filter((event) => !nostrEventDeduplicator.isEventDuplicate(event.id) && this.isBitboardPostEditEvent(event));
   }
 
   // ----------------------------------------
@@ -801,6 +1071,11 @@ class NostrService {
         return;
       }
 
+      // Only allow post-shaped events through this subscription
+      if (!this.isBitboardPostEvent(event)) {
+        return;
+      }
+
       pendingEvents.push(event);
 
       // Clear existing timer
@@ -822,7 +1097,7 @@ class NostrService {
 
     const sub = this.pool.subscribeMany(
       this.getReadRelays(),
-      [filter],
+      [filter] as any,
       {
         onevent: debouncedHandler,
         oneose: () => {
@@ -849,6 +1124,86 @@ class NostrService {
         sub.close();
       }
     });
+    return subscriptionId;
+  }
+
+  /**
+   * Subscribe to BitBoard post edit events.
+   * Callers should merge edits into existing post state by root post id.
+   */
+  subscribeToPostEdits(onEvent: (event: NostrEvent) => void): string {
+    const subscriptionId = `post-edits-${Date.now()}`;
+
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.POST],
+      '#client': ['bitboard'],
+      '#bb': [BITBOARD_TYPE_POST_EDIT],
+      since: Math.floor(Date.now() / 1000) - NostrConfig.SUBSCRIPTION_SINCE_SECONDS,
+    };
+
+    const sub = this.pool.subscribeMany(this.getReadRelays(), [filter] as any, {
+      onevent: (event) => {
+        if (nostrEventDeduplicator.isEventDuplicate(event.id)) return;
+        if (!this.isBitboardPostEditEvent(event)) return;
+        onEvent(event);
+      },
+      oneose: () => {
+        console.log('[Nostr] End of stored events for subscription:', subscriptionId);
+      },
+    });
+
+    this.subscriptions.set(subscriptionId, {
+      unsub: () => {
+        sub.close();
+      },
+    });
+
+    return subscriptionId;
+  }
+
+  subscribeToCommentEdits(postEventId: string, onEvent: (event: NostrEvent) => void): string {
+    const subscriptionId = `comment-edits-${postEventId}-${Date.now()}`;
+
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.POST],
+      '#client': ['bitboard'],
+      '#bb': [BITBOARD_TYPE_COMMENT_EDIT],
+      '#e': [postEventId],
+      since: Math.floor(Date.now() / 1000) - NostrConfig.SUBSCRIPTION_SINCE_SECONDS,
+    };
+
+    const sub = this.pool.subscribeMany(this.getReadRelays(), [filter] as any, {
+      onevent: (event) => {
+        if (nostrEventDeduplicator.isEventDuplicate(event.id)) return;
+        if (!this.isBitboardCommentEditEvent(event)) return;
+        onEvent(event);
+      },
+    });
+
+    this.subscriptions.set(subscriptionId, { unsub: () => sub.close() });
+    return subscriptionId;
+  }
+
+  subscribeToCommentDeletes(postEventId: string, onEvent: (event: NostrEvent) => void): string {
+    const subscriptionId = `comment-deletes-${postEventId}-${Date.now()}`;
+
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.DELETE],
+      '#client': ['bitboard'],
+      '#bb': [BITBOARD_TYPE_COMMENT_DELETE],
+      '#e': [postEventId],
+      since: Math.floor(Date.now() / 1000) - NostrConfig.SUBSCRIPTION_SINCE_SECONDS,
+    };
+
+    const sub = this.pool.subscribeMany(this.getReadRelays(), [filter] as any, {
+      onevent: (event) => {
+        if (nostrEventDeduplicator.isEventDuplicate(event.id)) return;
+        if (!this.isBitboardCommentDeleteEvent(event)) return;
+        onEvent(event);
+      },
+    });
+
+    this.subscriptions.set(subscriptionId, { unsub: () => sub.close() });
     return subscriptionId;
   }
 
@@ -913,22 +1268,28 @@ class NostrService {
         ? aRef.split(':').slice(2).join(':') || undefined
         : undefined;
 
+    const titleRaw = getTag('title') || 'Untitled';
+    const contentRaw = event.content ?? '';
+    const tagsRaw = getAllTags('t');
+    const urlRaw = getTag('r');
+    const imageRaw = getTag('image');
+
     return {
       id: event.id,
       nostrEventId: event.id,
       boardId: getTag('board') || boardIdFromA || 'b-random',
-      title: getTag('title') || 'Untitled',
-      author: event.pubkey.slice(0, 8) + '...',
+      title: inputValidator.validateTitle(titleRaw) ?? 'Untitled',
+      author: this.getDisplayName(event.pubkey),
       authorPubkey: event.pubkey,
-      content: event.content,
+      content: inputValidator.validatePostContent(contentRaw) ?? '',
       timestamp: event.created_at * 1000,
       score: 0, // Will be calculated from votes
       upvotes: 0,
       downvotes: 0,
       commentCount: 0,
-      tags: getAllTags('t'),
-      url: getTag('r'),
-      imageUrl: getTag('image'),
+      tags: inputValidator.validateTags(tagsRaw),
+      url: urlRaw ? inputValidator.validateUrl(urlRaw) ?? undefined : undefined,
+      imageUrl: imageRaw ? inputValidator.validateUrl(imageRaw) ?? undefined : undefined,
       comments: [],
     };
   }
@@ -962,9 +1323,9 @@ class NostrService {
     return {
       id: event.id,
       nostrEventId: event.id,
-      author: event.pubkey.slice(0, 8) + '...',
+      author: this.getDisplayName(event.pubkey),
       authorPubkey: event.pubkey,
-      content: event.content,
+      content: inputValidator.validateCommentContent(event.content ?? '') ?? '',
       timestamp: event.created_at * 1000,
       parentId,
     };

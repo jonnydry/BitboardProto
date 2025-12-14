@@ -268,8 +268,9 @@ export const EditPost: React.FC<EditPostProps> = ({
           <div className="mt-4 p-3 border border-terminal-alert/30 bg-terminal-alert/5 flex items-start gap-2">
             <AlertTriangle size={14} className="text-terminal-alert mt-0.5 shrink-0" />
             <p className="text-xs text-terminal-dim">
-              <span className="text-terminal-alert font-bold">Note:</span> This post is published on Nostr. 
-              Edits will only apply locally. Nostr events are immutable by design.
+              <span className="text-terminal-alert font-bold">Note:</span> This post is published on Nostr.
+              Saving will publish a companion <span className="text-terminal-text">edit event</span> that updates how BitBoard renders this post.
+              Votes remain tied to the original post event (some other clients may still show the original).
             </p>
           </div>
         )}

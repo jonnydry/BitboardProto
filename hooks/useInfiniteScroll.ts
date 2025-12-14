@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect, useState } from 'react';
+import React, { useRef, useCallback, useEffect, useState } from 'react';
 
 interface UseInfiniteScrollOptions {
   threshold?: number;      // How many pixels before bottom to trigger (default: 200)

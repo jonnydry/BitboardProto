@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Comment, UserState } from '../types';
-import { ChevronDown, ChevronRight, CornerDownRight, MessageSquare, Clock, Flag } from 'lucide-react';
+import { ChevronDown, ChevronRight, CornerDownRight, Clock, Flag, Edit3, Trash2 } from 'lucide-react';
 import { MentionText } from './MentionText';
 import { MentionInput } from './MentionInput';
 import { ReportModal } from './ReportModal';
@@ -10,6 +10,8 @@ interface CommentThreadProps {
   comment: Comment;
   userState: UserState;
   onReply: (parentId: string, content: string) => void;
+  onEdit?: (commentId: string, content: string) => void;
+  onDelete?: (commentId: string) => void;
   onViewProfile?: (author: string, authorPubkey?: string) => void;
   formatTime: (timestamp: number) => string;
   knownUsers?: Set<string>;
@@ -18,11 +20,15 @@ interface CommentThreadProps {
 }
 
 const MAX_VISUAL_DEPTH = 5; // Max indentation level for visual clarity
+const REPLIES_PAGE_SIZE = 3;
+const COLLAPSE_STORAGE_PREFIX = 'bitboard_comment_collapsed_v1:';
 
 const CommentThreadComponent: React.FC<CommentThreadProps> = ({
   comment,
   userState,
   onReply,
+  onEdit,
+  onDelete,
   onViewProfile,
   formatTime,
   knownUsers = new Set(),
@@ -35,12 +41,30 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [hasReported, setHasReported] = useState(() => reportService.hasReported('comment', comment.id));
+  const [visibleReplies, setVisibleReplies] = useState(REPLIES_PAGE_SIZE);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Load persisted collapse state (local only)
+  useEffect(() => {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      const raw = localStorage.getItem(`${COLLAPSE_STORAGE_PREFIX}${comment.id}`);
+      if (!raw) return;
+      setIsCollapsed(raw === '1');
+    } catch {
+      // ignore
+    }
+  }, [comment.id]);
 
   // Check if this is the user's own comment
   const isOwnComment = useMemo(() => {
-    if (!userState.identity) return false;
+    if (!userState.identity) return comment.author === userState.username;
     return comment.authorPubkey === userState.identity.pubkey || comment.author === userState.username;
   }, [comment.authorPubkey, comment.author, userState.identity, userState.username]);
+
+  const isDeleted = !!comment.isDeleted || comment.author === '[deleted]';
 
   // Subscribe to report changes
   useEffect(() => {
@@ -65,18 +89,57 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
     return countReplies(comment);
   }, [comment]);
 
+  // Reset replies pagination when comment changes
+  useEffect(() => {
+    setVisibleReplies(REPLIES_PAGE_SIZE);
+  }, [comment.id]);
+
   // Visual indentation caps at maxVisualDepth
   const visualDepth = Math.min(depth, maxVisualDepth);
   const indentPx = visualDepth * 16; // 16px per level
 
   const handleToggleCollapse = useCallback(() => {
-    setIsCollapsed(prev => !prev);
-  }, []);
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(`${COLLAPSE_STORAGE_PREFIX}${comment.id}`, next ? '1' : '0');
+        }
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, [comment.id]);
 
   const handleReplyClick = useCallback(() => {
     setIsReplying(prev => !prev);
     setReplyContent('');
   }, []);
+
+  const handleEditClick = useCallback(() => {
+    if (isDeleted) return;
+    setIsEditing((prev) => {
+      const next = !prev;
+      if (next) {
+        setEditContent(comment.content);
+        setShowDeleteConfirm(false);
+      }
+      return next;
+    });
+  }, [comment.content, isDeleted]);
+
+  const handleSaveEdit = () => {
+    if (!editContent.trim()) return;
+    onEdit?.(comment.id, editContent.trim());
+    setIsEditing(false);
+  };
+
+  const handleDelete = () => {
+    onDelete?.(comment.id);
+    setShowDeleteConfirm(false);
+    setIsEditing(false);
+  };
 
   const handleSubmitReply = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -124,6 +187,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
               onClick={handleToggleCollapse}
               className="text-terminal-dim hover:text-terminal-text transition-colors p-0.5"
               title={isCollapsed ? `Expand ${replyCount} replies` : 'Collapse thread'}
+              aria-label={isCollapsed ? `Expand ${replyCount} replies` : 'Collapse thread'}
             >
               {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
             </button>
@@ -156,12 +220,49 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
         {/* Comment content (hidden when collapsed) */}
         {!isCollapsed && (
           <>
-            <p className="text-terminal-text/80 text-sm leading-relaxed break-words mb-2">
-              <MentionText 
-                content={comment.content} 
-                onMentionClick={(username) => onViewProfile?.(username, undefined)}
-              />
-            </p>
+            {!isEditing ? (
+              <p className="text-terminal-text/80 text-sm leading-relaxed break-words mb-2">
+                {isDeleted ? (
+                  <span className="italic text-terminal-dim">[deleted]</span>
+                ) : (
+                  <MentionText
+                    content={comment.content}
+                    onMentionClick={(username) => onViewProfile?.(username, undefined)}
+                  />
+                )}
+                {!isDeleted && comment.editedAt && (
+                  <span className="ml-2 text-[10px] text-terminal-dim uppercase">(edited)</span>
+                )}
+              </p>
+            ) : (
+              <div className="mb-2 border border-terminal-dim/30 bg-terminal-bg/40 p-2">
+                <MentionInput
+                  value={editContent}
+                  onChange={setEditContent}
+                  knownUsers={knownUsers}
+                  placeholder="Edit comment..."
+                  autoFocus
+                  minHeight="60px"
+                />
+                <div className="mt-2 flex items-center gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(false)}
+                    className="px-3 py-1 border border-terminal-dim text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors text-xs uppercase"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveEdit}
+                    disabled={!editContent.trim()}
+                    className="px-3 py-1 border border-terminal-text text-terminal-text hover:bg-terminal-text hover:text-black transition-colors text-xs uppercase disabled:opacity-50"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex items-center gap-3">
@@ -172,10 +273,61 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
                     ? 'text-terminal-text' 
                     : 'text-terminal-dim hover:text-terminal-text'
                   }`}
+                disabled={isDeleted}
               >
                 <CornerDownRight size={10} />
                 {isReplying ? 'CANCEL' : 'REPLY'}
               </button>
+
+              {/* Edit / Delete for own comment */}
+              {isOwnComment && !isDeleted && (onEdit || onDelete) && (
+                <>
+                  {onEdit && (
+                    <button
+                      type="button"
+                      onClick={handleEditClick}
+                      className="text-xs flex items-center gap-1 text-terminal-dim hover:text-terminal-text transition-colors"
+                      title="Edit comment"
+                    >
+                      <Edit3 size={10} />
+                      EDIT
+                    </button>
+                  )}
+                  {onDelete && (
+                    <>
+                      {!showDeleteConfirm ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowDeleteConfirm(true)}
+                          className="text-xs flex items-center gap-1 text-terminal-dim hover:text-terminal-alert transition-colors"
+                          title="Delete comment"
+                        >
+                          <Trash2 size={10} />
+                          DELETE
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-terminal-alert">Delete?</span>
+                          <button
+                            type="button"
+                            onClick={handleDelete}
+                            className="text-xs border border-terminal-alert px-2 py-0.5 text-terminal-alert hover:bg-terminal-alert hover:text-black transition-colors"
+                          >
+                            YES
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowDeleteConfirm(false)}
+                            className="text-xs border border-terminal-dim px-2 py-0.5 text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors"
+                          >
+                            NO
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
 
               {/* Report button */}
               {!isOwnComment && (
@@ -227,12 +379,14 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
       {/* Nested replies */}
       {!isCollapsed && hasReplies && (
         <div className="mt-1">
-          {comment.replies!.map(reply => (
+          {comment.replies!.slice(0, visibleReplies).map(reply => (
             <CommentThreadComponent
               key={reply.id}
               comment={reply}
               userState={userState}
               onReply={onReply}
+              onEdit={onEdit}
+              onDelete={onDelete}
               onViewProfile={onViewProfile}
               formatTime={formatTime}
               knownUsers={knownUsers}
@@ -240,6 +394,19 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
               maxVisualDepth={maxVisualDepth}
             />
           ))}
+
+          {comment.replies!.length > visibleReplies && (
+            <button
+              type="button"
+              onClick={() =>
+                setVisibleReplies((n) => Math.min(n + REPLIES_PAGE_SIZE, comment.replies!.length))
+              }
+              className="mt-1 ml-3 text-xs text-terminal-dim hover:text-terminal-text transition-colors border border-terminal-dim/30 px-2 py-1"
+              title="Show more replies"
+            >
+              + SHOW {Math.min(REPLIES_PAGE_SIZE, comment.replies!.length - visibleReplies)} MORE
+            </button>
+          )}
         </div>
       )}
 
@@ -298,4 +465,29 @@ export function buildCommentTree(comments: Comment[]): Comment[] {
   return rootComments;
 }
 
-export const CommentThread = React.memo(CommentThreadComponent);
+export const CommentThread = React.memo(CommentThreadComponent, (prev, next) => {
+  if (prev.comment.id !== next.comment.id) return false;
+  if (prev.comment.content !== next.comment.content) return false;
+  if (prev.comment.author !== next.comment.author) return false;
+  if (prev.comment.timestamp !== next.comment.timestamp) return false;
+
+  const prevReplies = prev.comment.replies?.length ?? 0;
+  const nextReplies = next.comment.replies?.length ?? 0;
+  if (prevReplies !== nextReplies) return false;
+
+  if (prev.userState.username !== next.userState.username) return false;
+  if (prev.userState.identity?.pubkey !== next.userState.identity?.pubkey) return false;
+
+  if (prev.depth !== next.depth) return false;
+  if (prev.maxVisualDepth !== next.maxVisualDepth) return false;
+
+  if (prev.onReply !== next.onReply) return false;
+  if (prev.onEdit !== next.onEdit) return false;
+  if (prev.onDelete !== next.onDelete) return false;
+  if (prev.onViewProfile !== next.onViewProfile) return false;
+  if (prev.formatTime !== next.formatTime) return false;
+
+  if (prev.knownUsers !== next.knownUsers) return false;
+
+  return true;
+});

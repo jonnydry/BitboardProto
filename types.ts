@@ -75,6 +75,9 @@ export interface Comment {
   content: string;
   timestamp: number;
   nostrEventId?: string;
+  editedAt?: number;        // ms (client-derived; for Nostr edits we use edit event timestamp)
+  isDeleted?: boolean;      // local UI state (and can be mirrored from Nostr delete events)
+  deletedAt?: number;       // ms
   // Threading fields
   parentId?: string;        // null/undefined = top-level, otherwise references parent comment
   replies?: Comment[];      // Populated client-side for tree rendering
@@ -131,6 +134,7 @@ export enum ViewMode {
   SINGLE_BIT = 'SINGLE_BIT',
   CREATE_BOARD = 'CREATE_BOARD',
   IDENTITY = 'IDENTITY',
+  RELAYS = 'RELAYS',
   LOCATION = 'LOCATION',
   USER_PROFILE = 'USER_PROFILE',
   BOOKMARKS = 'BOOKMARKS',
@@ -151,6 +155,7 @@ export enum ThemeId {
   PLASMA = 'plasma',
   VERMILION = 'vermilion',
   SLATE = 'slate',
+  PATRIOT = 'patriot',
   BITBORING = 'bitboring'
 }
 
@@ -160,6 +165,7 @@ export enum ThemeId {
 
 export const NOSTR_KINDS = {
   POST: 1,                    // Standard text note (we add tags)
+  DELETE: 5,                  // NIP-09 deletion event
   REACTION: 7,                // Upvote/downvote
   RELAY_LIST: 10002,          // NIP-65 relay list (kind 10002)
   BOARD_DEFINITION: 30001,    // Parameterized replaceable for boards

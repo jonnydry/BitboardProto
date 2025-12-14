@@ -96,7 +96,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChan
         identityService.setSessionIdentity(extensionIdentity);
         onIdentityChange(extensionIdentity);
       }
-    } catch (err) {
+    } catch (_err) {
       setError('Failed to connect to browser extension');
     }
   };
@@ -106,7 +106,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChan
       await navigator.clipboard.writeText(text);
       setCopied(label);
       setTimeout(() => setCopied(null), 2000);
-    } catch (err) {
+    } catch (_err) {
       setError('Failed to copy to clipboard');
     }
   };

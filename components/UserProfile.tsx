@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Post, UserState } from '../types';
 import { PostItem } from './PostItem';
-import { ArrowLeft, User, FileText, MessageSquare, TrendingUp } from 'lucide-react';
+import { ArrowLeft, User, FileText, MessageSquare, TrendingUp, RefreshCw } from 'lucide-react';
 
 interface UserProfileProps {
   username: string;
@@ -14,6 +14,7 @@ interface UserProfileProps {
   onVote: (postId: string, direction: 'up' | 'down') => void;
   onComment: (postId: string, content: string) => void;
   onViewBit: (postId: string) => void;
+  onRefreshProfile?: (pubkey: string) => void;
   onClose: () => void;
   isNostrConnected: boolean;
 }
@@ -29,6 +30,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
   onVote,
   onComment,
   onViewBit,
+  onRefreshProfile,
   onClose,
   isNostrConnected,
 }) => {
@@ -79,6 +81,18 @@ export const UserProfile: React.FC<UserProfileProps> = ({
                 <span className="text-xs border border-terminal-text px-2 py-0.5 text-terminal-text">
                   YOU
                 </span>
+              )}
+              {authorPubkey && onRefreshProfile && (
+                <button
+                  type="button"
+                  onClick={() => onRefreshProfile(authorPubkey)}
+                  disabled={!isNostrConnected}
+                  className="ml-auto flex items-center gap-2 px-3 py-2 md:py-1 border border-terminal-dim text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors uppercase text-xs disabled:opacity-50"
+                  title={isNostrConnected ? 'Refresh profile metadata' : 'Offline: cannot refresh profile'}
+                >
+                  <RefreshCw size={12} />
+                  REFRESH
+                </button>
               )}
             </div>
             

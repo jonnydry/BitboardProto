@@ -1,36 +1,30 @@
 import { Post, Board, BoardType, GeohashPrecision } from './types';
+import { GeohashConfig, NostrConfig, UIConfig, UserConfig } from './config';
 
 // ============================================
 // USER ECONOMY
 // ============================================
 
-export const MAX_DAILY_BITS = 100;
+export const MAX_DAILY_BITS = UserConfig.MAX_DAILY_BITS;
 
 // ============================================
 // NOSTR RELAY CONFIGURATION
 // ============================================
 
-export const DEFAULT_RELAYS = [
-  'wss://relay.damus.io',
-  'wss://relay.nostr.band',
-  'wss://nos.lol',
-  'wss://relay.snort.social',
-  'wss://nostr.wine',
-  'wss://relay.nostr.info',
-];
+export const DEFAULT_RELAYS = [...NostrConfig.DEFAULT_RELAYS];
 
 // ============================================
 // GEOHASH DEFAULTS
 // ============================================
 
-export const DEFAULT_GEOHASH_PRECISION = GeohashPrecision.NEIGHBORHOOD;
+export const DEFAULT_GEOHASH_PRECISION = GeohashConfig.DEFAULT_PRECISION as GeohashPrecision;
 
 // ============================================
 // UI CONSTANTS
 // ============================================
 
 /** Maximum comments before requiring full page view */
-export const EXPANSION_THRESHOLD = 5;
+export const EXPANSION_THRESHOLD = UIConfig.COMMENT_EXPANSION_THRESHOLD;
 
 // ============================================
 // INITIAL DATA (Fallback when offline)

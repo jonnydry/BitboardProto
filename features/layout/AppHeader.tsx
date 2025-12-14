@@ -1,0 +1,94 @@
+import React from 'react';
+import { Bookmark, Wifi, WifiOff } from 'lucide-react';
+import type { NostrIdentity } from '../../types';
+import { ThemeId, ViewMode } from '../../types';
+
+export function AppHeader(props: {
+  theme: ThemeId;
+  isNostrConnected: boolean;
+  viewMode: ViewMode;
+  activeBoardId: string | null;
+  bookmarkedCount: number;
+  identity?: NostrIdentity;
+  onNavigateGlobal: () => void;
+  onSetViewMode: (mode: ViewMode) => void;
+}) {
+  const {
+    theme,
+    isNostrConnected,
+    viewMode,
+    activeBoardId,
+    bookmarkedCount,
+    identity,
+    onNavigateGlobal,
+    onSetViewMode,
+  } = props;
+
+  return (
+    <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b-2 border-terminal-dim pb-4 gap-4">
+      <button
+        type="button"
+        className="flex items-center gap-2 cursor-pointer hover:text-white transition-colors text-left"
+        onClick={onNavigateGlobal}
+        aria-label="Go to global feed"
+      >
+        {theme === ThemeId.BITBORING ? (
+          <div className="flex flex-col">
+            <h1 className="text-3xl font-bold tracking-tight leading-none">BitBoring</h1>
+            <span className="text-sm text-terminal-dim">( -_-) zzz</span>
+          </div>
+        ) : (
+          <>
+            <img
+              src={'/assets/logo-eagle.png'}
+              alt="BitBoard Logo"
+              className="w-12 h-12 object-contain"
+            />
+            <div className="flex flex-col">
+              <h1 className="text-4xl font-terminal tracking-wider leading-none">BitBoard</h1>
+              <span className="text-xs text-terminal-dim tracking-[0.2em]">
+                NOSTR_PROTOCOL // {isNostrConnected ? 'CONNECTED' : 'OFFLINE'}
+              </span>
+            </div>
+          </>
+        )}
+      </button>
+
+      <nav className="flex gap-4 text-sm md:text-base flex-wrap">
+        <button
+          onClick={onNavigateGlobal}
+          className={`uppercase hover:underline ${viewMode === ViewMode.FEED && activeBoardId === null ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+        >
+          [ Global_Feed ]
+        </button>
+        <button
+          onClick={() => onSetViewMode(ViewMode.CREATE)}
+          className={`uppercase hover:underline ${viewMode === ViewMode.CREATE ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+        >
+          [ New_Bit ]
+        </button>
+        <button
+          onClick={() => onSetViewMode(ViewMode.BOOKMARKS)}
+          className={`uppercase hover:underline flex items-center gap-1 ${viewMode === ViewMode.BOOKMARKS ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+        >
+          <Bookmark size={12} />
+          [ Saved{bookmarkedCount > 0 ? ` (${bookmarkedCount})` : ''} ]
+        </button>
+        <button
+          onClick={() => onSetViewMode(ViewMode.IDENTITY)}
+          className={`uppercase hover:underline flex items-center gap-1 ${viewMode === ViewMode.IDENTITY ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+        >
+          {identity ? <Wifi size={12} /> : <WifiOff size={12} />}
+          [ {identity ? 'IDENTITY' : 'CONNECT'} ]
+        </button>
+        <button
+          onClick={() => onSetViewMode(ViewMode.RELAYS)}
+          className={`uppercase hover:underline ${viewMode === ViewMode.RELAYS ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+        >
+          [ RELAYS ]
+        </button>
+      </nav>
+    </header>
+  );
+}
+

@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Search, X } from 'lucide-react';
+import { UIConfig } from '../config';
 
 interface SearchBarProps {
   onSearch: (query: string) => void;
@@ -23,7 +24,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     
     debounceRef.current = setTimeout(() => {
       onSearch(query);
-    }, 300);
+    }, UIConfig.SEARCH_DEBOUNCE_MS);
 
     return () => {
       if (debounceRef.current) {
@@ -72,9 +73,11 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       />
       {query && (
         <button
+          type="button"
           onClick={handleClear}
           className="absolute right-2 p-1 text-terminal-dim hover:text-terminal-text transition-colors"
           title="Clear search"
+          aria-label="Clear search"
         >
           <X size={14} />
         </button>

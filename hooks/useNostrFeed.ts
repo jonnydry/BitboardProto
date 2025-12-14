@@ -1,8 +1,10 @@
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
+import type { Event as NostrEvent } from 'nostr-tools';
 import type { Board, Post } from '../types';
 import { UIConfig } from '../config';
 import { nostrService } from '../services/nostrService';
 import { votingService } from '../services/votingService';
+import { toastService } from '../services/toastService';
 
 export function useNostrFeed(args: {
   setPosts: React.Dispatch<React.SetStateAction<Post[]>>;
@@ -21,7 +23,9 @@ export function useNostrFeed(args: {
         const nostrPosts = await nostrService.fetchPosts({ limit: initialLimit });
 
         if (nostrPosts.length > 0) {
-          const convertedPosts = nostrPosts.map((event) => nostrService.eventToPost(event));
+          const convertedPosts = nostrPosts
+            .filter((event) => nostrService.isBitboardPostEvent(event))
+            .map((event) => nostrService.eventToPost(event));
 
           // Batch fetch cryptographically verified votes for all posts
           const postsWithNostrIds = convertedPosts.filter((p) => p.nostrEventId);
@@ -45,11 +49,58 @@ export function useNostrFeed(args: {
             return post;
           });
 
+          // Fetch and apply latest post edits (BitBoard edit companion events)
+          let postsWithEdits = postsWithVotes;
+          try {
+            const editEvents = await nostrService.fetchPostEdits(postIds, { limit: 300 });
+            if (editEvents.length > 0) {
+              const latestByRoot = new Map<string, { created_at: number; event: NostrEvent }>();
+              for (const ev of editEvents) {
+                const parsed = nostrService.eventToPostEditUpdate(ev);
+                if (!parsed) continue;
+                const existing = latestByRoot.get(parsed.rootPostEventId);
+                if (!existing || ev.created_at > existing.created_at) {
+                  latestByRoot.set(parsed.rootPostEventId, { created_at: ev.created_at, event: ev });
+                }
+              }
+
+              postsWithEdits = postsWithVotes.map((p) => {
+                const rootId = p.nostrEventId;
+                if (!rootId) return p;
+                const latest = latestByRoot.get(rootId);
+                if (!latest) return p;
+                const parsed = nostrService.eventToPostEditUpdate(latest.event);
+                if (!parsed) return p;
+                return {
+                  ...p,
+                  ...parsed.updates,
+                };
+              });
+            }
+          } catch (err) {
+            // Non-fatal: show original posts if edit fetch fails
+            console.warn('[NostrFeed] Failed to fetch post edits:', err);
+          }
+
           setPosts((prev) => {
             const existingIds = new Set(prev.map((p) => p.nostrEventId).filter(Boolean));
-            const newPosts = postsWithVotes.filter((p) => !existingIds.has(p.nostrEventId));
+            const newPosts = postsWithEdits.filter((p) => !existingIds.has(p.nostrEventId));
             return [...prev, ...newPosts];
           });
+
+          // Best-effort profile enrichment (kind 0): update author display names after caching
+          const pubkeys = Array.from(
+            new Set(postsWithVotes.map((p) => p.authorPubkey).filter(Boolean) as string[])
+          );
+          if (pubkeys.length > 0) {
+            nostrService.fetchProfiles(pubkeys).then(() => {
+              setPosts((prev) =>
+                prev.map((p) =>
+                  p.authorPubkey ? { ...p, author: nostrService.getDisplayName(p.authorPubkey) } : p
+                )
+              );
+            });
+          }
 
           const timestamps = postsWithVotes.map((p) => p.timestamp);
           if (timestamps.length > 0) {
@@ -75,6 +126,15 @@ export function useNostrFeed(args: {
       } catch (error) {
         console.error('[App] Failed to initialize Nostr:', error);
         setIsNostrConnected(false);
+        const connected = nostrService.getConnectedCount();
+        const total = nostrService.getRelays().length;
+        toastService.push({
+          type: 'error',
+          message: 'Nostr connection failed (offline mode)',
+          detail: `${error instanceof Error ? error.message : String(error)} — Relays: ${connected}/${total}. Check RELAYS settings.`,
+          durationMs: UIConfig.TOAST_DURATION_MS,
+          dedupeKey: 'nostr-init-failed',
+        });
       }
     };
 
@@ -82,15 +142,41 @@ export function useNostrFeed(args: {
 
     // Subscribe to real-time updates
     const subId = nostrService.subscribeToFeed((event) => {
+      if (!nostrService.isBitboardPostEvent(event)) return;
       const post = nostrService.eventToPost(event);
       setPosts((prev) => {
         if (prev.some((p) => p.nostrEventId === post.nostrEventId)) return prev;
         return [post, ...prev];
       });
+
+      if (post.authorPubkey) {
+        nostrService.fetchProfiles([post.authorPubkey]).then(() => {
+          setPosts((prev) =>
+            prev.map((p) =>
+              p.authorPubkey === post.authorPubkey
+                ? { ...p, author: nostrService.getDisplayName(post.authorPubkey!) }
+                : p
+            )
+          );
+        });
+      }
+    });
+
+    // Subscribe to post edit events and merge into local state
+    const subIdEdits = nostrService.subscribeToPostEdits((event) => {
+      const parsed = nostrService.eventToPostEditUpdate(event);
+      if (!parsed) return;
+      setPosts((prev) =>
+        prev.map((p) => {
+          if (p.nostrEventId !== parsed.rootPostEventId && p.id !== parsed.rootPostEventId) return p;
+          return { ...p, ...parsed.updates };
+        })
+      );
     });
 
     return () => {
       nostrService.unsubscribe(subId);
+      nostrService.unsubscribe(subIdEdits);
     };
   }, [setBoards, setHasMorePosts, setIsNostrConnected, setOldestTimestamp, setPosts]);
 

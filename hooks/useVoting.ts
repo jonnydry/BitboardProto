@@ -1,6 +1,5 @@
-import { useCallback } from 'react';
+import React, { useCallback } from 'react';
 import type { Post, UserState } from '../types';
-import { identityService } from '../services/identityService';
 import { votingService, computeOptimisticUpdate, computeRollback } from '../services/votingService';
 
 export function useVoting(args: {
@@ -103,3 +102,5 @@ export function useVoting(args: {
 
   return { handleVote };
 }
+
+
