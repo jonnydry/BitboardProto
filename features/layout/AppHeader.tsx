@@ -1,6 +1,6 @@
 import React from 'react';
-import { Bookmark, Wifi, WifiOff } from 'lucide-react';
-import type { NostrIdentity } from '../../types';
+import { Bookmark, Wifi, WifiOff, Zap } from 'lucide-react';
+import type { NostrIdentity, UserState } from '../../types';
 import { ThemeId, ViewMode } from '../../types';
 
 export function AppHeader(props: {
@@ -10,6 +10,7 @@ export function AppHeader(props: {
   activeBoardId: string | null;
   bookmarkedCount: number;
   identity?: NostrIdentity;
+  userState: UserState;
   onNavigateGlobal: () => void;
   onSetViewMode: (mode: ViewMode) => void;
 }) {
@@ -20,6 +21,7 @@ export function AppHeader(props: {
     activeBoardId,
     bookmarkedCount,
     identity,
+    userState,
     onNavigateGlobal,
     onSetViewMode,
   } = props;
@@ -54,7 +56,18 @@ export function AppHeader(props: {
         )}
       </button>
 
-      <nav className="flex gap-4 text-sm md:text-base flex-wrap">
+      <nav className="flex gap-4 text-sm md:text-base flex-wrap items-center">
+        {/* User Bit Balance Display */}
+        <div 
+          className="flex items-center gap-2 px-2 py-1 border border-terminal-dim/50 bg-terminal-dim/5"
+          title="Your Bit Balance (Influence)"
+        >
+          <Zap size={14} className={userState.bits === 0 ? "text-terminal-alert" : "text-terminal-text"} />
+          <span className="font-mono font-bold">
+            {userState.bits}/{userState.maxBits}
+          </span>
+        </div>
+
         <button
           onClick={onNavigateGlobal}
           className={`uppercase hover:underline ${viewMode === ViewMode.FEED && activeBoardId === null ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}

@@ -25,6 +25,7 @@ const AppContent: React.FC = () => {
           activeBoardId={app.activeBoardId}
           bookmarkedCount={app.bookmarkedIds.length}
           identity={app.userState.identity || undefined}
+          userState={app.userState}
           onNavigateGlobal={() => app.navigateToBoard(null)}
           onSetViewMode={app.setViewMode}
         />

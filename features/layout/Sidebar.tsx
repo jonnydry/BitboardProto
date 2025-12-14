@@ -2,7 +2,6 @@ import React from 'react';
 import { HelpCircle, Hash, Lock, Globe, Eye, Key, MapPin, Radio } from 'lucide-react';
 import type { Board, UserState } from '../../types';
 import { BoardType, ThemeId, ViewMode } from '../../types';
-import { BitStatus } from '../../components/BitStatus';
 
 export function Sidebar(props: {
   userState: UserState;
@@ -39,8 +38,7 @@ export function Sidebar(props: {
 
   return (
     <aside className="md:col-span-1 md:col-start-4 order-first md:order-none space-y-6">
-      <BitStatus userState={userState} />
-
+      
       {/* Connection Status */}
       <div className="border border-terminal-dim p-3 bg-terminal-bg shadow-hard relative overflow-hidden group">
         <div className="absolute inset-0 bg-terminal-dim/5 translate-x-[-100%] group-hover:translate-x-full transition-transform duration-1000 pointer-events-none" />
