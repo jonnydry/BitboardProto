@@ -47,7 +47,7 @@ export function AppHeader(props: {
             <div className="flex flex-col">
               <h1 className="text-4xl font-terminal tracking-wider leading-none">BitBoard</h1>
               <span className="text-xs text-terminal-dim tracking-[0.2em]">
-                NOSTR_PROTOCOL // {isNostrConnected ? 'CONNECTED' : 'OFFLINE'}
+                DECENTRALIZED SOCIAL NEWS
               </span>
             </div>
           </>
