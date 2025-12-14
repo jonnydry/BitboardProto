@@ -1,6 +1,5 @@
 import React from 'react';
 import { UserState } from '../types';
-import { Zap } from 'lucide-react';
 
 interface BitStatusProps {
   userState: UserState;
@@ -31,7 +30,22 @@ export const BitStatus: React.FC<BitStatusProps> = ({ userState }) => {
   return (
     <div className="border-2 border-terminal-text bg-terminal-bg p-4 sticky top-4 w-full mb-6 shadow-hard">
       <div className="flex justify-center items-center mb-4 gap-3">
-        <Zap size={24} className={userState.bits === 0 ? "text-terminal-alert" : "text-terminal-text"} />
+        {/* Coin Icon */}
+        <svg 
+          width="24" 
+          height="24" 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="2" 
+          strokeLinecap="round" 
+          strokeLinejoin="round" 
+          className={userState.bits === 0 ? "text-terminal-alert" : "text-terminal-text"}
+        >
+          <circle cx="12" cy="12" r="10" />
+          <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" />
+          <path d="M12 18V6" />
+        </svg>
         <h2 className="text-xl font-bold tracking-wide">USER_BITS</h2>
         <span className="text-xl font-terminal">{String(userState.bits).padStart(3, '0')}/{userState.maxBits}</span>
       </div>

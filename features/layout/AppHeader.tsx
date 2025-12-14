@@ -25,7 +25,7 @@ export function AppHeader(props: {
   } = props;
 
   return (
-    <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b-2 border-terminal-dim pb-4 gap-4">
+    <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b-2 border-terminal-dim py-[5px] gap-4">
       <button
         type="button"
         className="flex items-center gap-2 cursor-pointer hover:text-white transition-colors text-left"
@@ -40,9 +40,9 @@ export function AppHeader(props: {
         ) : (
           <>
             <img
-              src={'/assets/logo-eagle.png'}
+              src={'/assets/bitboard-logo.png?v=3'}
               alt="BitBoard Logo"
-              className="w-12 h-12 object-contain"
+              className="h-16 w-auto object-contain transition-transform duration-200 origin-left hover:scale-[3] hover:z-50 relative"
             />
             <div className="flex flex-col">
               <h1 className="text-4xl font-terminal tracking-wider leading-none">BitBoard</h1>

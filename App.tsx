@@ -916,24 +916,7 @@ export default function App() {
           onSetViewMode={setViewMode}
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          <Sidebar
-            userState={userState}
-            setUserState={setUserState}
-            theme={theme}
-            setTheme={setTheme}
-            getThemeColor={getThemeColor}
-            isNostrConnected={isNostrConnected}
-            viewMode={viewMode}
-            activeBoardId={activeBoardId}
-            feedFilter={feedFilter}
-            setFeedFilter={setFeedFilter}
-            topicBoards={topicBoards}
-            geohashBoards={geohashBoards}
-            navigateToBoard={navigateToBoard}
-            onSetViewMode={setViewMode}
-          />
-
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 py-[5px]">
           {/* Main Content */}
           <main className="md:col-span-3">
             <Suspense
@@ -1087,6 +1070,23 @@ export default function App() {
             )}
             </Suspense>
           </main>
+
+          <Sidebar
+            userState={userState}
+            setUserState={setUserState}
+            theme={theme}
+            setTheme={setTheme}
+            getThemeColor={getThemeColor}
+            isNostrConnected={isNostrConnected}
+            viewMode={viewMode}
+            activeBoardId={activeBoardId}
+            feedFilter={feedFilter}
+            setFeedFilter={setFeedFilter}
+            topicBoards={topicBoards}
+            geohashBoards={geohashBoards}
+            navigateToBoard={navigateToBoard}
+            onSetViewMode={setViewMode}
+          />
         </div>
       </div>
       
