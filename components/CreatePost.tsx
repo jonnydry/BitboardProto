@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { Post, Board, BoardType } from '../types';
 import { scanLink } from '../services/geminiService';
-import { inputValidator } from '../services/inputValidator';
-import { InputLimits } from '../config';
+import { inputValidator, InputLimits } from '../services/inputValidator';
 import { rateLimiter } from '../services/rateLimiter';
 import { Loader, ImageIcon, AlertTriangle } from 'lucide-react';
 
@@ -19,7 +18,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ availableBoards, current
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [imageUrl, setImageUrl] = useState('');
-  const [linkDescription, _setLinkDescription] = useState('');
+  const [linkDescription, setLinkDescription] = useState('');
   const [content, setContent] = useState('');
   const [tagsStr, setTagsStr] = useState('');
   const [selectedBoardId, setSelectedBoardId] = useState(currentBoardId || availableBoards[0]?.id || '');

@@ -129,6 +129,7 @@ interface AppContextType {
   handleDeletePost: (postId: string) => void;
   handleTagClick: (tag: string) => void;
   handleVote: (postId: string, direction: 'up' | 'down') => void;
+  handleToggleBookmark: (postId: string) => void;
   handleSearch: (query: string) => void;
   loadMorePosts: () => Promise<void>;
   getThemeColor: (id: ThemeId) => string;
@@ -531,6 +532,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     handleDeletePost: eventHandlers.handleDeletePost,
     handleTagClick: eventHandlers.handleTagClick,
     handleVote,
+    handleToggleBookmark: (postId: string) => bookmarkService.toggleBookmark(postId),
     handleSearch: eventHandlers.handleSearch,
     loadMorePosts: eventHandlers.loadMorePosts,
     getThemeColor: (id: ThemeId) => themeColors.get(id) || '#fff',

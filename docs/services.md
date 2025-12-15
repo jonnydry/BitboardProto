@@ -48,3 +48,4 @@ Implementation lives in `services/nostr/`:
 - Validation + sanitization for user-generated content and incoming Nostr content
 - Central defense against malformed events and XSS-style payloads
 
+

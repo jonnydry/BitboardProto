@@ -335,6 +335,9 @@ class InputValidator {
 // Export singleton instance
 export const inputValidator = new InputValidator();
 
+// Re-export InputLimits for convenience
+export { InputLimits } from '../config';
+
 
 
 

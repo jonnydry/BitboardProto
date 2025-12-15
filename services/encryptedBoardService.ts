@@ -336,3 +336,4 @@ class EncryptedBoardService {
 
 // Export singleton
 export const encryptedBoardService = new EncryptedBoardService();
+

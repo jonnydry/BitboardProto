@@ -46,3 +46,4 @@ The UI treats the **latest** edit companion event as the current content, while 
 - Input hardening: `services/inputValidator.ts`
 - Local diagnostics: `services/diagnosticsService.ts`
 
+
