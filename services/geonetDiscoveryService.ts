@@ -289,3 +289,5 @@ class GeonetDiscoveryService {
 // Export singleton instance
 export const geonetDiscoveryService = new GeonetDiscoveryService();
 
+
+
