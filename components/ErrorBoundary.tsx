@@ -44,6 +44,18 @@ export class ErrorBoundary extends Component<Props, State> {
       error?.message || 'Unknown error',
       errorInfo?.componentStack || undefined
     );
+    
+    // Report to error tracking service if enabled
+    try {
+      const { errorTrackingService } = require('../services/errorTracking');
+      errorTrackingService.captureException(error, {
+        componentStack: errorInfo?.componentStack,
+        source: 'ErrorBoundary',
+      });
+    } catch {
+      // Error tracking not available or not initialized
+    }
+    
     this.setState({
       error,
       errorInfo,

@@ -413,7 +413,7 @@ export const useAppEventHandlers = ({
         });
       }
     }
-  }, [getRelayHint, postsById, userState.identity, setPosts]);
+  }, [getRelayHint, postsById, boardsById, userState.identity, setPosts]);
 
   const handleDeleteComment = useCallback(async (postId: string, commentId: string) => {
     const post = postsById.get(postId);

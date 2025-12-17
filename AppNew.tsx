@@ -102,7 +102,7 @@ const AppContent: React.FC = () => {
                     onEditPost={app.handleEditPost}
                     onTagClick={app.handleTagClick}
                     isBookmarked={app.bookmarkedIdSet.has(app.selectedPost.id)}
-                    onToggleBookmark={(id) => bookmarkService.toggleBookmark(id)}
+                    onToggleBookmark={app.handleToggleBookmark}
                     hasReported={app.reportedPostIdSet.has(app.selectedPost.id)}
                     isFullPage={true}
                     isNostrConnected={app.isNostrConnected}
