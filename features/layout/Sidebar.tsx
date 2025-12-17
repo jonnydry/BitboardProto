@@ -130,18 +130,29 @@ export function Sidebar(props: {
               <button
                 key={id}
                 onClick={() => setFeedFilter(id as typeof feedFilter)}
+                style={feedFilter === id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
                 className={`text-left text-sm px-2 py-1.5 transition-all flex items-center gap-2 group cursor-pointer
                   ${feedFilter === id 
-                    ? 'bg-terminal-text !text-terminal-bg font-bold border border-terminal-text' 
+                    ? 'bg-terminal-text font-bold border border-terminal-text' 
                     : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
                   }
                 `}
               >
-                <span className={`opacity-0 group-hover:opacity-100 transition-opacity ${feedFilter === id ? 'opacity-100 !text-terminal-bg' : 'text-terminal-text'}`}>
+                <span 
+                  style={feedFilter === id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                  className={`opacity-0 group-hover:opacity-100 transition-opacity ${feedFilter === id ? 'opacity-100' : 'text-terminal-text'}`}
+                >
                   {'>'}
                 </span>
-                <Icon size={12} className={feedFilter === id ? '!text-terminal-bg' : ''} /> 
-                <span className={feedFilter === id ? '!text-terminal-bg' : ''}>{label}</span>
+                <Icon 
+                  size={12} 
+                  style={feedFilter === id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                /> 
+                <span 
+                  style={feedFilter === id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                >
+                  {label}
+                </span>
               </button>
             ))}
           </div>
@@ -156,29 +167,49 @@ export function Sidebar(props: {
         <div className="flex flex-col gap-1 max-h-[300px] overflow-y-auto pr-1">
           <button
             onClick={() => navigateToBoard(null)}
+            style={activeBoardId === null ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
             className={`text-left text-sm px-2 py-1.5 transition-all flex items-center gap-2 group
               ${activeBoardId === null 
-                ? 'bg-terminal-text !text-terminal-bg font-bold' 
+                ? 'bg-terminal-text font-bold' 
                 : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
               }
             `}
           >
-            <Globe size={12} className={activeBoardId === null ? '!text-terminal-bg' : ''} /> 
-            <span className={`truncate ${activeBoardId === null ? '!text-terminal-bg' : ''}`}>GLOBAL_NET</span>
+            <Globe 
+              size={12} 
+              style={activeBoardId === null ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+            /> 
+            <span 
+              style={activeBoardId === null ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+              className="truncate"
+            >
+              GLOBAL_NET
+            </span>
           </button>
           {topicBoards.filter((b) => b.type === BoardType.TOPIC && b.isPublic).map((board) => (
             <button
               key={board.id}
               onClick={() => navigateToBoard(board.id)}
+              style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
               className={`text-left text-sm px-2 py-1 transition-all flex items-center gap-2 group w-full
                 ${activeBoardId === board.id 
-                  ? 'bg-terminal-text !text-terminal-bg font-bold' 
+                  ? 'bg-terminal-text font-bold' 
                   : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
                 }
               `}
             >
-              <span className={`shrink-0 text-[10px] opacity-50 group-hover:opacity-100 ${activeBoardId === board.id ? 'opacity-100 !text-terminal-bg' : ''}`}>//</span> 
-              <span className={`truncate ${activeBoardId === board.id ? '!text-terminal-bg' : ''}`}>{board.name}</span>
+              <span 
+                style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                className={`shrink-0 text-[10px] opacity-50 group-hover:opacity-100 ${activeBoardId === board.id ? 'opacity-100' : ''}`}
+              >
+                //
+              </span> 
+              <span 
+                style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                className="truncate"
+              >
+                {board.name}
+              </span>
             </button>
           ))}
           <div className="border-t border-terminal-dim/30 my-2"></div>
@@ -259,15 +290,24 @@ export function Sidebar(props: {
                 <button
                   key={board.id}
                   onClick={() => navigateToBoard(board.id)}
+                  style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
                   className={`text-left text-sm px-2 py-1 transition-all flex items-center gap-2 group w-full
                     ${activeBoardId === board.id 
-                      ? 'bg-terminal-text !text-terminal-bg font-bold' 
+                      ? 'bg-terminal-text font-bold' 
                       : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
                     }
                   `}
                 >
-                  <MapPin size={10} className={activeBoardId === board.id ? '!text-terminal-bg' : ''} /> 
-                  <span className={`truncate flex-1 ${activeBoardId === board.id ? '!text-terminal-bg' : ''}`}>#{board.geohash}</span>
+                  <MapPin 
+                    size={10} 
+                    style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                  /> 
+                  <span 
+                    style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                    className="truncate flex-1"
+                  >
+                    #{board.geohash}
+                  </span>
                   {activity && activity.postCount > 0 && (
                     <span className={`text-[10px] px-1 ${
                       activeBoardId === board.id 
