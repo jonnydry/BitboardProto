@@ -1,15 +1,11 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
-import type { Event as NostrEvent } from 'nostr-tools';
 import { MAX_DAILY_BITS, INITIAL_POSTS, INITIAL_BOARDS } from '../../constants';
 import { Post, UserState, ViewMode, Board, ThemeId, BoardType, NostrIdentity, SortMode } from '../../types';
 import { nostrService } from '../../services/nostrService';
 import { identityService } from '../../services/identityService';
-import { votingService } from '../../services/votingService';
 import { bookmarkService } from '../../services/bookmarkService';
 import { reportService } from '../../services/reportService';
-import { makeUniqueBoardId } from '../../services/boardIdService';
 import { toastService } from '../../services/toastService';
-import { inputValidator } from '../../services/inputValidator';
 import { encryptedBoardService } from '../../services/encryptedBoardService';
 import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
 import { FeatureFlags, StorageKeys, UIConfig } from '../../config';
@@ -18,13 +14,22 @@ import { useUrlPostRouting } from '../../hooks/useUrlPostRouting';
 import { useNostrFeed } from '../../hooks/useNostrFeed';
 import { useCommentsLoader } from '../../hooks/useCommentsLoader';
 import { useVoting } from '../../hooks/useVoting';
+import { usePostDecryption } from '../../hooks/usePostDecryption';
 import { useAppEventHandlers } from './useAppEventHandlers';
 
 const MAX_CACHED_POSTS = 200;
 
-// ============================================
-// DATA LOADING FUNCTIONS
-// ============================================
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object';
+}
+
+function isCachedPost(value: unknown): value is Post {
+  return isRecord(value) && typeof value.id === 'string' && typeof value.title === 'string';
+}
+
+function isCachedBoard(value: unknown): value is Board {
+  return isRecord(value) && typeof value.id === 'string' && typeof value.name === 'string';
+}
 
 function loadCachedPosts(): Post[] | null {
   try {
@@ -34,9 +39,7 @@ function loadCachedPosts(): Post[] | null {
     const parsed = JSON.parse(raw) as { savedAt?: number; posts?: unknown };
     if (!parsed || !Array.isArray(parsed.posts)) return null;
 
-    // Basic structural validation; discard obviously malformed entries.
-    const posts = (parsed.posts as any[]).filter((p) => p && typeof p.id === 'string' && typeof p.title === 'string');
-    return posts as Post[];
+    return parsed.posts.filter(isCachedPost);
   } catch {
     return null;
   }
@@ -50,16 +53,11 @@ function loadCachedBoards(): Board[] | null {
     const parsed = JSON.parse(raw) as { savedAt?: number; boards?: unknown };
     if (!parsed || !Array.isArray(parsed.boards)) return null;
 
-    const boards = (parsed.boards as any[]).filter((b) => b && typeof b.id === 'string' && typeof b.name === 'string');
-    return boards as Board[];
+    return parsed.boards.filter(isCachedBoard);
   } catch {
     return null;
   }
 }
-
-// ============================================
-// APP CONTEXT TYPE
-// ============================================
 
 interface AppContextType {
   // State
@@ -140,10 +138,6 @@ interface AppContextType {
   loaderRef: React.RefObject<HTMLDivElement>;
   isLoadingMore: boolean;
 }
-
-// ============================================
-// CONTEXT PROVIDER
-// ============================================
 
 const AppContext = createContext<AppContextType | null>(null);
 
@@ -248,8 +242,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return result;
   }, [posts, activeBoardId, boardsById, feedFilter, searchQuery]);
 
+  // Decrypt encrypted posts if keys are available
+  const decryptedPosts = usePostDecryption(filteredPosts, boardsById);
+
   const sortedPosts = useMemo(() => {
-    const sorted = [...filteredPosts];
+    const sorted = [...decryptedPosts];
 
     switch (sortMode) {
       case SortMode.NEWEST:
@@ -274,7 +271,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       default:
         return sorted.sort((a, b) => b.score - a.score);
     }
-  }, [filteredPosts, sortMode]);
+  }, [decryptedPosts, sortMode]);
 
   const knownUsers = useMemo(() => {
     const users = new Set<string>();
@@ -457,6 +454,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSearchQuery,
     oldestTimestamp,
     hasMorePosts,
+    setOldestTimestamp,
+    setHasMorePosts,
+    locationBoards,
   });
 
   // Infinite scroll hook
@@ -552,10 +552,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     </AppContext.Provider>
   );
 };
-
-// ============================================
-// HOOK TO USE CONTEXT
-// ============================================
 
 export const useApp = () => {
   const context = useContext(AppContext);

@@ -37,6 +37,18 @@ const RelaySettings = lazy(() => import('./components/RelaySettings').then((m) =
 
 const MAX_CACHED_POSTS = 200;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object';
+}
+
+function isCachedPost(value: unknown): value is Post {
+  return isRecord(value) && typeof value.id === 'string' && typeof value.title === 'string';
+}
+
+function isCachedBoard(value: unknown): value is Board {
+  return isRecord(value) && typeof value.id === 'string' && typeof value.name === 'string';
+}
+
 function loadCachedPosts(): Post[] | null {
   try {
     if (typeof localStorage === 'undefined') return null;
@@ -45,9 +57,7 @@ function loadCachedPosts(): Post[] | null {
     const parsed = JSON.parse(raw) as { savedAt?: number; posts?: unknown };
     if (!parsed || !Array.isArray(parsed.posts)) return null;
 
-    // Basic structural validation; discard obviously malformed entries.
-    const posts = (parsed.posts as any[]).filter((p) => p && typeof p.id === 'string' && typeof p.title === 'string');
-    return posts as Post[];
+    return parsed.posts.filter(isCachedPost);
   } catch {
     return null;
   }
@@ -61,8 +71,7 @@ function loadCachedBoards(): Board[] | null {
     const parsed = JSON.parse(raw) as { savedAt?: number; boards?: unknown };
     if (!parsed || !Array.isArray(parsed.boards)) return null;
 
-    const boards = (parsed.boards as any[]).filter((b) => b && typeof b.id === 'string' && typeof b.name === 'string');
-    return boards as Board[];
+    return parsed.boards.filter(isCachedBoard);
   } catch {
     return null;
   }
@@ -79,7 +88,6 @@ export default function App() {
   const [locationBoards, setLocationBoards] = useState<Board[]>([]);
   const [feedFilter, setFeedFilter] = useState<'all' | 'topic' | 'location'>('all');
   
-  // New features state
   const [searchQuery, setSearchQuery] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>(SortMode.TOP);
   const [profileUser, setProfileUser] = useState<{ username: string; pubkey?: string } | null>(null);
@@ -96,7 +104,6 @@ export default function App() {
     return `${state} Relays: ${connected}/${total}. Open RELAYS to adjust/retry.`;
   }, []);
   
-  // Pagination state for infinite scroll
   const [hasMorePosts, setHasMorePosts] = useState(true);
   const [oldestTimestamp, setOldestTimestamp] = useState<number | null>(null);
   
@@ -155,7 +162,6 @@ export default function App() {
   useTheme(theme);
   useUrlPostRouting({ viewMode, selectedBitId, setViewMode, setSelectedBitId });
 
-  // Offline persistence: cache posts/boards to localStorage
   useEffect(() => {
     if (!FeatureFlags.ENABLE_OFFLINE_MODE) return;
     if (typeof localStorage === 'undefined') return;
@@ -197,7 +203,6 @@ export default function App() {
 
   useNostrFeed({ setPosts, setBoards, setIsNostrConnected, setOldestTimestamp, setHasMorePosts });
 
-  // Create boardsById Map for O(1) lookups
   const boardsById = useMemo(() => {
     const map = new Map<string, Board>();
     boards.forEach(b => map.set(b.id, b));
@@ -205,7 +210,6 @@ export default function App() {
     return map;
   }, [boards, locationBoards]);
 
-  // Create postsById Map for O(1) lookups
   const postsById = useMemo(() => {
     const map = new Map<string, Post>();
     posts.forEach(p => map.set(p.id, p));
@@ -214,7 +218,6 @@ export default function App() {
 
   useCommentsLoader({ selectedBitId, postsById, setPosts });
 
-  // Filter posts based on view (Global vs Specific Board), feed filter, and search
   const filteredPosts = useMemo(() => {
     let result = posts;
     
@@ -263,7 +266,6 @@ export default function App() {
   // Decrypt encrypted posts if keys are available
   const decryptedPosts = usePostDecryption(filteredPosts, boardsById);
 
-  // Sort posts based on selected sort mode
   const sortedPosts = useMemo(() => {
     const sorted = [...decryptedPosts];
     
@@ -292,7 +294,6 @@ export default function App() {
     }
   }, [decryptedPosts, sortMode]);
 
-  // Collect known usernames for @mention autocomplete
   const knownUsers = useMemo(() => {
     const users = new Set<string>();
     posts.forEach(post => {
@@ -304,28 +305,22 @@ export default function App() {
     return users;
   }, [posts]);
 
-  // Find selected post for single view
   const selectedPost = useMemo(() => {
     return selectedBitId ? postsById.get(selectedBitId) || null : null;
   }, [selectedBitId, postsById]);
   
-  // Find active board object
   const activeBoard = useMemo(() => {
     return activeBoardId ? boardsById.get(activeBoardId) : null;
   }, [activeBoardId, boardsById]);
 
-  // Split boards by type
   const topicBoards = useMemo(() => {
     return boards.filter(b => b.type === BoardType.TOPIC);
   }, [boards]);
 
-  // Deduplicate geohash boards: combine boards from state and locationBoards, removing duplicates by id
   const geohashBoards = useMemo(() => {
     const geohashBoardsFromState = boards.filter(b => b.type === BoardType.GEOHASH);
     const geohashBoardsMap = new Map<string, Board>();
-    // Add boards from state first
     geohashBoardsFromState.forEach(b => geohashBoardsMap.set(b.id, b));
-    // Add location boards, which will overwrite duplicates (locationBoards take precedence)
     locationBoards.forEach(b => geohashBoardsMap.set(b.id, b));
     return Array.from(geohashBoardsMap.values());
   }, [boards, locationBoards]);
@@ -571,7 +566,7 @@ export default function App() {
         return p;
       })
     );
-  }, [postsById, userState.username, userState.identity, getRelayHint]);
+  }, [postsById, boardsById, userState.username, userState.identity, getRelayHint]);
 
   const handleEditComment = useCallback(async (postId: string, commentId: string, nextContent: string) => {
     const validated = inputValidator.validateCommentContent(nextContent);
@@ -700,7 +695,7 @@ export default function App() {
         });
       }
     }
-  }, [getRelayHint, postsById, boardsById, userState.identity]);
+  }, [getRelayHint, postsById, userState.identity]);
 
   const handleViewBit = useCallback((postId: string) => {
     setSelectedBitId(postId);
@@ -997,7 +992,6 @@ export default function App() {
     return themeColors.get(id) || '#fff';
   }, [themeColors]);
 
-  // Helper function to get board name
   const getBoardName = useCallback((postId: string) => {
     const post = postsById.get(postId);
     if (!post) return undefined;

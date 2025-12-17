@@ -76,15 +76,17 @@ export class NostrProfileCache {
 
   private parseProfileEvent(event: NostrEvent): NostrProfileMetadata | null {
     try {
-      const raw = JSON.parse(event.content || '{}');
+      const raw = JSON.parse(event.content || '{}') as unknown;
       if (!raw || typeof raw !== 'object') return null;
 
-      const name = typeof (raw as any).name === 'string' ? (raw as any).name.trim() : undefined;
-      const displayNameRaw =
-        typeof (raw as any).display_name === 'string' ? (raw as any).display_name.trim() : undefined;
-      const nip05 = typeof (raw as any).nip05 === 'string' ? (raw as any).nip05.trim() : undefined;
-      const about = typeof (raw as any).about === 'string' ? (raw as any).about.trim() : undefined;
-      const picture = typeof (raw as any).picture === 'string' ? (raw as any).picture.trim() : undefined;
+      const obj = raw as Record<string, unknown>;
+      const getTrimmedString = (key: string) => (typeof obj[key] === 'string' ? obj[key].trim() : undefined);
+
+      const name = getTrimmedString('name');
+      const displayNameRaw = getTrimmedString('display_name');
+      const nip05 = getTrimmedString('nip05');
+      const about = getTrimmedString('about');
+      const picture = getTrimmedString('picture');
 
       const displayName =
         displayNameRaw || name || (nip05 ? nip05.split('@')[0] : '') || `${event.pubkey.slice(0, 8)}...`;
@@ -180,6 +182,7 @@ export class NostrProfileCache {
     return p;
   }
 }
+
 
 
 

@@ -1,11 +1,7 @@
-import { finalizeEvent, generateSecretKey, getPublicKey, nip19, type Event as NostrEvent } from 'nostr-tools';
+import { finalizeEvent, generateSecretKey, getPublicKey, nip19, type Event as NostrEvent, type EventTemplate } from 'nostr-tools';
 import { bytesToHex, hexToBytes } from 'nostr-tools/utils';
 import type { NostrIdentity, UnsignedNostrEvent } from '../types';
 import { cryptoService } from './cryptoService';
-
-// ============================================
-// STORAGE KEYS
-// ============================================
 
 const STORAGE_KEYS = {
   // Legacy key (unencrypted) - for migration
@@ -14,10 +10,6 @@ const STORAGE_KEYS = {
   IDENTITY_ENCRYPTED: 'bitboard_identity_v2',
   DISPLAY_NAME: 'bitboard_display_name',
 } as const;
-
-// ============================================
-// IDENTITY SERVICE
-// ============================================
 
 class IdentityService {
   private identity: NostrIdentity | null = null;
@@ -318,7 +310,7 @@ class IdentityService {
    * Check if NIP-07 extension (Alby, nos2x) is available
    */
   hasNip07Extension(): boolean {
-    return typeof window !== 'undefined' && 'nostr' in window;
+    return typeof window !== 'undefined' && !!window.nostr;
   }
 
   /**
@@ -328,8 +320,7 @@ class IdentityService {
     if (!this.hasNip07Extension()) return null;
     
     try {
-      const pubkey = await (window as any).nostr.getPublicKey();
-      return pubkey;
+      return await window.nostr!.getPublicKey();
     } catch (error) {
       console.error('[Identity] NIP-07 getPublicKey failed:', error);
       return null;
@@ -339,12 +330,11 @@ class IdentityService {
   /**
    * Sign event using NIP-07 extension
    */
-  async signEventWithExtension(event: any): Promise<any | null> {
+  async signEventWithExtension(event: UnsignedNostrEvent): Promise<NostrEvent | null> {
     if (!this.hasNip07Extension()) return null;
     
     try {
-      const signedEvent = await (window as any).nostr.signEvent(event);
-      return signedEvent;
+      return await window.nostr!.signEvent(event);
     } catch (error) {
       console.error('[Identity] NIP-07 signEvent failed:', error);
       return null;
@@ -368,8 +358,13 @@ class IdentityService {
 
     if (this.identity.kind === 'local') {
       const privateKeyBytes = hexToBytes(this.identity.privkey);
-      const eventWithPubkey = { ...unsigned, pubkey: this.identity.pubkey };
-      const signed = finalizeEvent(eventWithPubkey as any, privateKeyBytes);
+      const template: EventTemplate = {
+        kind: unsigned.kind,
+        created_at: unsigned.created_at,
+        tags: unsigned.tags,
+        content: unsigned.content,
+      };
+      const signed = finalizeEvent(template, privateKeyBytes);
       // Best-effort clear
       cryptoService.secureClearBytes(privateKeyBytes);
       return signed;
@@ -379,7 +374,7 @@ class IdentityService {
     if (!signed) {
       throw new Error('Failed to sign with NIP-07 extension');
     }
-    return signed as NostrEvent;
+    return signed;
   }
 
   // ----------------------------------------

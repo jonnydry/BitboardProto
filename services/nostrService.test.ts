@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { NostrEvent } from '../types';
 
 // Mock nostr-tools to avoid real websocket/pool behavior in unit tests.
 let failingRelays = new Set<string>();
@@ -29,7 +30,7 @@ vi.mock('nostr-tools', () => {
 
 import { nostrService } from './nostrService';
 
-function makeEvent(partial: Partial<any>): any {
+function makeEvent(partial: Partial<NostrEvent>): NostrEvent {
   return {
     id: partial.id ?? 'evt1',
     pubkey: partial.pubkey ?? 'pubkey1',
@@ -101,7 +102,7 @@ describe('nostrService publishSignedEvent', () => {
 
     await expect(nostrService.publishSignedEvent(evt)).resolves.toBe(evt);
 
-    const statuses: any[] = nostrService.getRelayStatuses();
+    const statuses = nostrService.getRelayStatuses();
     const a = statuses.find((s) => s.url === 'wss://relay-a.test');
     const b = statuses.find((s) => s.url === 'wss://relay-b.test');
 
@@ -121,7 +122,7 @@ describe('nostrService publishSignedEvent', () => {
 
     await expect(nostrService.publishSignedEvent(evt)).resolves.toBe(evt);
 
-    const statuses: any[] = nostrService.getRelayStatuses();
+    const statuses = nostrService.getRelayStatuses();
     const a = statuses.find((s) => s.url === 'wss://relay-a.test');
     const b = statuses.find((s) => s.url === 'wss://relay-b.test');
 

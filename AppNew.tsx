@@ -12,8 +12,11 @@ import { LocationSelector } from './components/LocationSelector';
 import { UserProfile } from './components/UserProfile';
 import { Bookmarks } from './components/Bookmarks';
 import { EditPost } from './components/EditPost';
+import { PostItem } from './components/PostItem';
 import { ArrowLeft } from 'lucide-react';
 import { ViewMode, BoardType } from './types';
+import { bookmarkService } from './services/bookmarkService';
+import { nostrService } from './services/nostrService';
 
 // Main App component that uses context
 const AppContent: React.FC = () => {
@@ -85,8 +88,25 @@ const AppContent: React.FC = () => {
                 </button>
 
                 <div className="border-t border-terminal-dim/30 pt-2">
-                  {/* PostItem component would go here */}
-                  <div>Single post view - PostItem component needed</div>
+                  <PostItem 
+                    post={app.selectedPost} 
+                    boardName={app.selectedPost ? app.getBoardName(app.selectedPost.id) : undefined}
+                    userState={app.userState}
+                    knownUsers={app.knownUsers}
+                    onVote={app.handleVote}
+                    onComment={app.handleComment}
+                    onEditComment={app.handleEditComment}
+                    onDeleteComment={app.handleDeleteComment}
+                    onViewBit={() => {}}
+                    onViewProfile={app.handleViewProfile}
+                    onEditPost={app.handleEditPost}
+                    onTagClick={app.handleTagClick}
+                    isBookmarked={app.bookmarkedIdSet.has(app.selectedPost.id)}
+                    onToggleBookmark={(id) => bookmarkService.toggleBookmark(id)}
+                    hasReported={app.reportedPostIdSet.has(app.selectedPost.id)}
+                    isFullPage={true}
+                    isNostrConnected={app.isNostrConnected}
+                  />
                 </div>
               </div>
             )}
@@ -94,11 +114,11 @@ const AppContent: React.FC = () => {
             {/* Other views would be implemented here */}
             {app.viewMode === ViewMode.CREATE && (
               <CreatePost
-                availableBoards={[...app.boards]}
+                availableBoards={[...app.boards.filter(b => b.isPublic), ...app.locationBoards]}
                 currentBoardId={app.activeBoardId}
                 onSubmit={app.handleCreatePost}
                 onCancel={() => app.setViewMode(ViewMode.FEED)}
-                activeUser={app.userState.identity?.npub || 'Anonymous'}
+                activeUser={app.userState.username}
                 userPubkey={app.userState.identity?.pubkey}
               />
             )}
@@ -148,6 +168,7 @@ const AppContent: React.FC = () => {
                 onVote={app.handleVote}
                 onComment={app.handleComment}
                 onViewBit={app.handleViewBit}
+                onRefreshProfile={(pubkey) => app.refreshProfileMetadata([pubkey])}
                 onClose={() => app.setViewMode(ViewMode.FEED)}
                 isNostrConnected={app.isNostrConnected}
               />
@@ -168,7 +189,7 @@ const AppContent: React.FC = () => {
             {app.viewMode === ViewMode.EDIT_POST && app.editingPostId && app.postsById.get(app.editingPostId) && (
               <EditPost
                 post={app.postsById.get(app.editingPostId)!}
-                boards={app.boards}
+                boards={[...app.boards, ...app.locationBoards]}
                 onSave={app.handleSavePost}
                 onDelete={app.handleDeletePost}
                 onCancel={() => app.setViewMode(ViewMode.FEED)}
@@ -197,7 +218,7 @@ const AppContent: React.FC = () => {
 
       {/* Footer */}
       <footer className="text-center text-terminal-dim text-xs py-8 opacity-50">
-        BitBoard NOSTR PROTOCOL V3.0 // RELAYS: {0} // NODES ACTIVE: {app.boards.length + app.locationBoards.length}
+        BitBoard NOSTR PROTOCOL V3.0 // RELAYS: {nostrService.getRelays().length} // NODES ACTIVE: {app.boards.length + app.locationBoards.length}
       </footer>
     </div>
   );

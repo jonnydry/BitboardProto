@@ -28,17 +28,11 @@ import {
   BITBOARD_TYPE_TAG,
 } from './bitboardEventTypes';
 
-// ============================================
-// RELAY CONFIGURATION
-// ============================================
+type FilterWithTags = Filter & { [K in `#${string}`]?: string[] };
 
 export const DEFAULT_RELAYS = NostrConfig.DEFAULT_RELAYS;
 
 const USER_RELAYS_STORAGE_KEY = 'bitboard_user_relays_v1';
-
-// ============================================
-// RELAY STATUS TYPES
-// ============================================
 
 interface RelayStatus {
   url: string;
@@ -55,10 +49,6 @@ interface PendingMessage {
   pendingRelays: Set<string>;
   timestamp: number;
 }
-
-// ============================================
-// NOSTR SERVICE CLASS
-// ============================================
 
 class NostrService {
   private pool: SimplePool;
@@ -1105,7 +1095,7 @@ class NostrService {
     const unique = Array.from(new Set(postEventIds.filter(Boolean)));
     if (unique.length === 0) return [];
 
-    const filter: Filter = {
+    const filter: FilterWithTags = {
       kinds: [NOSTR_KINDS.POST],
       '#client': ['bitboard'],
       '#bb': [BITBOARD_TYPE_POST_EDIT],
@@ -1127,7 +1117,7 @@ class NostrService {
   ): string {
     const subscriptionId = `feed-${Date.now()}`;
     
-    const filter: Filter = {
+    const filter: FilterWithTags = {
       kinds: [NOSTR_KINDS.POST],
       '#client': ['bitboard'],
       since: Math.floor(Date.now() / 1000) - NostrConfig.SUBSCRIPTION_SINCE_SECONDS,
@@ -1182,7 +1172,7 @@ class NostrService {
 
     const sub = this.pool.subscribeMany(
       this.getReadRelays(),
-      [filter] as any,
+      [filter],
       {
         onevent: debouncedHandler,
         oneose: () => {
@@ -1219,14 +1209,14 @@ class NostrService {
   subscribeToPostEdits(onEvent: (event: NostrEvent) => void): string {
     const subscriptionId = `post-edits-${Date.now()}`;
 
-    const filter: Filter = {
+    const filter: FilterWithTags = {
       kinds: [NOSTR_KINDS.POST],
       '#client': ['bitboard'],
       '#bb': [BITBOARD_TYPE_POST_EDIT],
       since: Math.floor(Date.now() / 1000) - NostrConfig.SUBSCRIPTION_SINCE_SECONDS,
     };
 
-    const sub = this.pool.subscribeMany(this.getReadRelays(), [filter] as any, {
+    const sub = this.pool.subscribeMany(this.getReadRelays(), [filter], {
       onevent: (event) => {
         if (nostrEventDeduplicator.isEventDuplicate(event.id)) return;
         if (!this.isBitboardPostEditEvent(event)) return;
@@ -1249,7 +1239,7 @@ class NostrService {
   subscribeToCommentEdits(postEventId: string, onEvent: (event: NostrEvent) => void): string {
     const subscriptionId = `comment-edits-${postEventId}-${Date.now()}`;
 
-    const filter: Filter = {
+    const filter: FilterWithTags = {
       kinds: [NOSTR_KINDS.POST],
       '#client': ['bitboard'],
       '#bb': [BITBOARD_TYPE_COMMENT_EDIT],
@@ -1257,7 +1247,7 @@ class NostrService {
       since: Math.floor(Date.now() / 1000) - NostrConfig.SUBSCRIPTION_SINCE_SECONDS,
     };
 
-    const sub = this.pool.subscribeMany(this.getReadRelays(), [filter] as any, {
+    const sub = this.pool.subscribeMany(this.getReadRelays(), [filter], {
       onevent: (event) => {
         if (nostrEventDeduplicator.isEventDuplicate(event.id)) return;
         if (!this.isBitboardCommentEditEvent(event)) return;
@@ -1272,7 +1262,7 @@ class NostrService {
   subscribeToCommentDeletes(postEventId: string, onEvent: (event: NostrEvent) => void): string {
     const subscriptionId = `comment-deletes-${postEventId}-${Date.now()}`;
 
-    const filter: Filter = {
+    const filter: FilterWithTags = {
       kinds: [NOSTR_KINDS.DELETE],
       '#client': ['bitboard'],
       '#bb': [BITBOARD_TYPE_COMMENT_DELETE],
@@ -1280,7 +1270,7 @@ class NostrService {
       since: Math.floor(Date.now() / 1000) - NostrConfig.SUBSCRIPTION_SINCE_SECONDS,
     };
 
-    const sub = this.pool.subscribeMany(this.getReadRelays(), [filter] as any, {
+    const sub = this.pool.subscribeMany(this.getReadRelays(), [filter], {
       onevent: (event) => {
         if (nostrEventDeduplicator.isEventDuplicate(event.id)) return;
         if (!this.isBitboardCommentDeleteEvent(event)) return;

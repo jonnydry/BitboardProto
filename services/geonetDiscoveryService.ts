@@ -6,7 +6,7 @@
 
 import { geohashService, PRECISION_LABELS, PRECISION_DESCRIPTIONS } from './geohashService';
 import { nostrService } from './nostrService';
-import { GeohashPrecision, BoardType, type Board } from '../types';
+import { GeohashPrecision, type Board } from '../types';
 
 // ============================================
 // TYPES
@@ -288,6 +288,7 @@ class GeonetDiscoveryService {
 
 // Export singleton instance
 export const geonetDiscoveryService = new GeonetDiscoveryService();
+
 
 
 

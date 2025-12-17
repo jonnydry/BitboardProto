@@ -10,6 +10,8 @@ import { inputValidator } from '../../services/inputValidator';
 import { UIConfig } from '../../config';
 import { makeUniqueBoardId } from '../../services/boardIdService';
 import { boardRateLimiter } from '../../services/boardRateLimiter';
+import { encryptedBoardService } from '../../services/encryptedBoardService';
+import { bookmarkService } from '../../services/bookmarkService';
 
 interface UseAppEventHandlersProps {
   posts: Post[];
@@ -30,10 +32,13 @@ interface UseAppEventHandlersProps {
   setSearchQuery: (query: string) => void;
   oldestTimestamp: number | null;
   hasMorePosts: boolean;
+  setOldestTimestamp: (timestamp: number | null) => void;
+  setHasMorePosts: (hasMore: boolean) => void;
+  locationBoards: Board[];
 }
 
 export const useAppEventHandlers = ({
-  posts,
+  posts: _posts,
   setPosts,
   boards,
   setBoards,
@@ -51,6 +56,9 @@ export const useAppEventHandlers = ({
   setSearchQuery,
   oldestTimestamp,
   hasMorePosts,
+  setOldestTimestamp,
+  setHasMorePosts,
+  locationBoards,
 }: UseAppEventHandlersProps) => {
 
   const handleCreatePost = useCallback(async (
@@ -87,9 +95,51 @@ export const useAppEventHandlers = ({
           downvotes: 0,
         };
 
+        // Check if board is encrypted and encrypt content if needed
+        let encryptedTitle: string | undefined;
+        let encryptedContent: string | undefined;
+        
+        if (targetBoard?.isEncrypted) {
+          const boardKey = encryptedBoardService.getBoardKey(targetBoard.id);
+          if (!boardKey) {
+            toastService.push({
+              type: 'error',
+              message: 'Encryption key not found',
+              detail: 'You need the board share link to post in this encrypted board.',
+              durationMs: UIConfig.TOAST_DURATION_MS,
+              dedupeKey: 'encryption-key-missing',
+            });
+            return; // Abort post creation
+          }
+          
+          try {
+            const encrypted = await encryptedBoardService.encryptPost(
+              { title: newPostData.title, content: newPostData.content },
+              boardKey
+            );
+            encryptedTitle = encrypted.encryptedTitle;
+            encryptedContent = encrypted.encryptedContent;
+            newPost.isEncrypted = true;
+            newPost.encryptedTitle = encryptedTitle;
+            newPost.encryptedContent = encryptedContent;
+          } catch (error) {
+            console.error('[App] Failed to encrypt post:', error);
+            toastService.push({
+              type: 'error',
+              message: 'Failed to encrypt post',
+              detail: error instanceof Error ? error.message : String(error),
+              durationMs: UIConfig.TOAST_DURATION_MS,
+              dedupeKey: 'encryption-failed',
+            });
+            return; // Abort post creation
+          }
+        }
+        
         const unsigned = nostrService.buildPostEvent(eventPayload, userState.identity.pubkey, geohash, {
           boardAddress,
           boardName: targetBoard?.name,
+          encryptedTitle,
+          encryptedContent,
         });
         const signed = await identityService.signEvent(unsigned);
         const event = await nostrService.publishSignedEvent(signed);
@@ -139,7 +189,7 @@ export const useAppEventHandlers = ({
       return;
     }
 
-    const existingIds = new Set<string>([...boards, ...boards].map(b => b.id)); // Note: should be locationBoards, but using boards for now
+    const existingIds = new Set<string>([...boards, ...locationBoards].map(b => b.id));
     const id = makeUniqueBoardId(newBoardData.name, existingIds);
 
     const newBoard: Board = {
@@ -173,12 +223,44 @@ export const useAppEventHandlers = ({
     setBoards(prev => [...prev, newBoard]);
     setActiveBoardId(newBoard.id);
     setViewMode(ViewMode.FEED);
-  }, [boards, userState.identity, getRelayHint, setBoards, setActiveBoardId, setViewMode]);
+  }, [boards, locationBoards, userState.identity, getRelayHint, setBoards, setActiveBoardId, setViewMode]);
 
   const handleComment = useCallback(async (postId: string, content: string, parentCommentId?: string) => {
     const post = postsById.get(postId);
     if (!post) return;
-
+    
+    // Check if post's board is encrypted
+    const board = boardsById.get(post.boardId);
+    let encryptedContent: string | undefined;
+    
+    if (board?.isEncrypted) {
+      const boardKey = encryptedBoardService.getBoardKey(board.id);
+      if (!boardKey) {
+        toastService.push({
+          type: 'error',
+          message: 'Encryption key not found',
+          detail: 'You need the board share link to comment in this encrypted board.',
+          durationMs: UIConfig.TOAST_DURATION_MS,
+          dedupeKey: 'encryption-key-missing-comment',
+        });
+        return; // Abort comment creation
+      }
+      
+      try {
+        encryptedContent = await encryptedBoardService.encryptContent(content, boardKey);
+      } catch (error) {
+        console.error('[App] Failed to encrypt comment:', error);
+        toastService.push({
+          type: 'error',
+          message: 'Failed to encrypt comment',
+          detail: error instanceof Error ? error.message : String(error),
+          durationMs: UIConfig.TOAST_DURATION_MS,
+          dedupeKey: 'encryption-failed-comment',
+        });
+        return; // Abort comment creation
+      }
+    }
+    
     const newComment = {
       id: `c-${Date.now()}`,
       author: userState.username,
@@ -186,6 +268,8 @@ export const useAppEventHandlers = ({
       content: content,
       timestamp: Date.now(),
       parentId: parentCommentId, // For threaded comments
+      isEncrypted: !!encryptedContent,
+      encryptedContent,
     };
 
     // Publish to Nostr if connected
@@ -199,6 +283,7 @@ export const useAppEventHandlers = ({
         {
           postAuthorPubkey: post.authorPubkey,
           parentCommentAuthorPubkey: parentComment?.authorPubkey,
+          encryptedContent,
         }
       );
       identityService.signEvent(unsigned)
@@ -242,7 +327,7 @@ export const useAppEventHandlers = ({
         return p;
       })
     );
-  }, [postsById, userState.username, userState.identity, getRelayHint, setPosts]);
+  }, [postsById, boardsById, userState.username, userState.identity, getRelayHint, setPosts]);
 
   const handleEditComment = useCallback(async (postId: string, commentId: string, nextContent: string) => {
     const validated = inputValidator.validateCommentContent(nextContent);
@@ -276,11 +361,44 @@ export const useAppEventHandlers = ({
     // Publish comment edit companion event if possible
     if (userState.identity && post.nostrEventId && target.nostrEventId && target.authorPubkey === userState.identity.pubkey) {
       try {
+        // Check if board is encrypted and encrypt content if needed
+        const board = boardsById.get(post.boardId);
+        let encryptedContent: string | undefined;
+        
+        if (board?.isEncrypted) {
+          const boardKey = encryptedBoardService.getBoardKey(board.id);
+          if (!boardKey) {
+            toastService.push({
+              type: 'error',
+              message: 'Encryption key not found',
+              detail: 'You need the board share link to edit comments in this encrypted board.',
+              durationMs: UIConfig.TOAST_DURATION_MS,
+              dedupeKey: 'encryption-key-missing-comment-edit',
+            });
+            return;
+          }
+          
+          try {
+            encryptedContent = await encryptedBoardService.encryptContent(validated, boardKey);
+          } catch (error) {
+            console.error('[App] Failed to encrypt comment edit:', error);
+            toastService.push({
+              type: 'error',
+              message: 'Failed to encrypt comment edit',
+              detail: error instanceof Error ? error.message : String(error),
+              durationMs: UIConfig.TOAST_DURATION_MS,
+              dedupeKey: 'encryption-failed-comment-edit',
+            });
+            return;
+          }
+        }
+        
         const unsigned = nostrService.buildCommentEditEvent({
           rootPostEventId: post.nostrEventId,
           targetCommentEventId: target.nostrEventId,
           content: validated,
           pubkey: userState.identity.pubkey,
+          encryptedContent,
         });
         const signed = await identityService.signEvent(unsigned);
         await nostrService.publishSignedEvent(signed);
@@ -406,6 +524,44 @@ export const useAppEventHandlers = ({
       if (existing.nostrEventId && userState.identity) {
         (async () => {
           try {
+            // Check if board is encrypted and encrypt content if needed
+            const board = boardsById.get(existing.boardId);
+            let encryptedTitle: string | undefined;
+            let encryptedContent: string | undefined;
+            
+            if (board?.isEncrypted) {
+              const boardKey = encryptedBoardService.getBoardKey(board.id);
+              if (!boardKey) {
+                toastService.push({
+                  type: 'error',
+                  message: 'Encryption key not found',
+                  detail: 'You need the board share link to edit posts in this encrypted board.',
+                  durationMs: UIConfig.TOAST_DURATION_MS,
+                  dedupeKey: 'encryption-key-missing-edit',
+                });
+                return;
+              }
+              
+              try {
+                const encrypted = await encryptedBoardService.encryptPost(
+                  { title: merged.title, content: merged.content },
+                  boardKey
+                );
+                encryptedTitle = encrypted.encryptedTitle;
+                encryptedContent = encrypted.encryptedContent;
+              } catch (error) {
+                console.error('[App] Failed to encrypt post edit:', error);
+                toastService.push({
+                  type: 'error',
+                  message: 'Failed to encrypt post edit',
+                  detail: error instanceof Error ? error.message : String(error),
+                  durationMs: UIConfig.TOAST_DURATION_MS,
+                  dedupeKey: 'encryption-failed-edit',
+                });
+                return;
+              }
+            }
+            
             const unsigned = nostrService.buildPostEditEvent({
               rootPostEventId: existing.nostrEventId,
               boardId: existing.boardId,
@@ -415,6 +571,8 @@ export const useAppEventHandlers = ({
               url: merged.url,
               imageUrl: merged.imageUrl,
               pubkey: userState.identity!.pubkey,
+              encryptedTitle,
+              encryptedContent,
             });
 
             const signed = await identityService.signEvent(unsigned);
@@ -447,13 +605,13 @@ export const useAppEventHandlers = ({
         });
       }
     },
-    [postsById, userState.identity, getRelayHint, setPosts, setEditingPostId, setViewMode]
+    [postsById, boardsById, userState.identity, getRelayHint, setPosts, setEditingPostId, setViewMode]
   );
 
   const handleDeletePost = useCallback((postId: string) => {
     setPosts(currentPosts => currentPosts.filter(p => p.id !== postId));
     // Also remove from bookmarks if bookmarked
-    // bookmarkService.removeBookmark(postId); // Would need to import bookmarkService
+    bookmarkService.removeBookmark(postId);
     setEditingPostId(null);
     setViewMode(ViewMode.FEED);
   }, [setPosts, setEditingPostId, setViewMode]);
@@ -470,10 +628,98 @@ export const useAppEventHandlers = ({
   }, [setSearchQuery]);
 
   const loadMorePosts = useCallback(async () => {
-    // This would need oldestTimestamp and hasMorePosts from context
-    // For now, return a placeholder implementation
-    console.log('loadMorePosts called');
-  }, []);
+    if (!oldestTimestamp || !hasMorePosts) return;
+
+    try {
+      // Fetch posts older than the current oldest
+      const loadMoreLimit = UIConfig.POSTS_LOAD_MORE_COUNT;
+      const olderPosts = await nostrService.fetchPosts({
+        limit: loadMoreLimit,
+        until: Math.floor(oldestTimestamp / 1000) - 1, // Convert to seconds, get older posts
+      });
+
+      if (olderPosts.length > 0) {
+        const convertedPosts = olderPosts.map(event => nostrService.eventToPost(event));
+        
+        // Fetch votes for new posts
+        const postsWithNostrIds = convertedPosts.filter(p => p.nostrEventId);
+        const postIds = postsWithNostrIds.map(p => p.nostrEventId!);
+        const voteTallies = await votingService.fetchVotesForPosts(postIds);
+        
+        const postsWithVotes = convertedPosts.map((post) => {
+          if (post.nostrEventId) {
+            const tally = voteTallies.get(post.nostrEventId);
+            if (tally) {
+              return {
+                ...post,
+                upvotes: tally.upvotes,
+                downvotes: tally.downvotes,
+                score: tally.score,
+                uniqueVoters: tally.uniqueVoters,
+                votesVerified: true,
+              };
+            }
+          }
+          return post;
+        });
+
+        // Fetch and apply latest post edits
+        try {
+          const editEvents = await nostrService.fetchPostEdits(postIds, { limit: 300 });
+          if (editEvents.length > 0) {
+            const latestByRoot = new Map<string, { created_at: number; event: NostrEvent }>();
+            for (const ev of editEvents) {
+              const parsed = nostrService.eventToPostEditUpdate(ev);
+              if (!parsed) continue;
+              const existing = latestByRoot.get(parsed.rootPostEventId);
+              if (!existing || ev.created_at > existing.created_at) {
+                latestByRoot.set(parsed.rootPostEventId, { created_at: ev.created_at, event: ev });
+              }
+            }
+
+            for (let i = 0; i < postsWithVotes.length; i++) {
+              const p = postsWithVotes[i];
+              const rootId = p.nostrEventId;
+              if (!rootId) continue;
+              const latest = latestByRoot.get(rootId);
+              if (!latest) continue;
+              const parsed = nostrService.eventToPostEditUpdate(latest.event);
+              if (!parsed) continue;
+              postsWithVotes[i] = { ...p, ...parsed.updates };
+            }
+          }
+        } catch (err) {
+          console.warn('[App] Failed to fetch post edits for pagination:', err);
+        }
+
+        setPosts(prev => {
+          const existingIds = new Set(prev.map(p => p.nostrEventId).filter(Boolean));
+          const newPosts = postsWithVotes.filter(p => !existingIds.has(p.nostrEventId));
+          return [...prev, ...newPosts];
+        });
+
+        // Update oldest timestamp
+        const timestamps = postsWithVotes.map(p => p.timestamp);
+        if (timestamps.length > 0) {
+          setOldestTimestamp(Math.min(...timestamps));
+        }
+
+        // Check if there might be more
+        setHasMorePosts(olderPosts.length >= loadMoreLimit);
+      } else {
+        setHasMorePosts(false);
+      }
+    } catch (error) {
+      console.error('[App] Failed to load more posts:', error);
+      toastService.push({
+        type: 'error',
+        message: 'Failed to load more posts',
+        detail: error instanceof Error ? error.message : String(error),
+        durationMs: UIConfig.TOAST_DURATION_MS,
+        dedupeKey: 'load-more-failed',
+      });
+    }
+  }, [oldestTimestamp, hasMorePosts, setPosts, setOldestTimestamp, setHasMorePosts]);
 
   const getBoardName = useCallback((postId: string) => {
     const post = postsById.get(postId);
@@ -526,7 +772,7 @@ export const useAppEventHandlers = ({
         dedupeKey: `profile-refresh-failed-${unique.join(',')}`,
       });
     }
-  }, []);
+  }, [setPosts]);
 
   return {
     handleCreatePost,

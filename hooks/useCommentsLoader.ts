@@ -2,6 +2,11 @@ import React, { useEffect } from 'react';
 import type { Comment, Post } from '../types';
 import { nostrService } from '../services/nostrService';
 
+type LatestCommentUpdate = {
+  created_at: number;
+  updates: Partial<Comment>;
+};
+
 export function useCommentsLoader(args: {
   selectedBitId: string | null;
   postsById: Map<string, Post>;
@@ -41,7 +46,7 @@ export function useCommentsLoader(args: {
 
         if (editEvents.length > 0) {
           // Latest edit per comment wins
-          const latestByComment = new Map<string, any>();
+          const latestByComment = new Map<string, LatestCommentUpdate>();
           for (const ev of editEvents) {
             const parsed = nostrService.eventToCommentEditUpdate(ev);
             if (!parsed) continue;
@@ -54,7 +59,7 @@ export function useCommentsLoader(args: {
         }
 
         if (deleteEvents.length > 0) {
-          const latestByComment = new Map<string, any>();
+          const latestByComment = new Map<string, LatestCommentUpdate>();
           for (const ev of deleteEvents) {
             const parsed = nostrService.eventToCommentDeleteUpdate(ev);
             if (!parsed) continue;

@@ -109,7 +109,7 @@ export function FeedView(props: {
             <h2 className="text-2xl font-terminal uppercase tracking-widest text-terminal-text flex items-center gap-2">
               {activeBoard?.type === BoardType.GEOHASH && <MapPin size={20} />}
               {searchQuery
-                ? `SEARCH: \"${searchQuery}\"`
+                ? `SEARCH: "${searchQuery}"`
                 : activeBoard
                   ? activeBoard.type === BoardType.GEOHASH
                     ? `#${activeBoard.geohash}`
@@ -248,6 +248,7 @@ export function FeedView(props: {
     </div>
   );
 }
+
 
 
 

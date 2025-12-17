@@ -16,7 +16,6 @@ export function AppHeader(props: {
 }) {
   const {
     theme,
-    isNostrConnected,
     viewMode,
     activeBoardId,
     bookmarkedCount,

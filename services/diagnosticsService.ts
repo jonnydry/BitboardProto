@@ -1,9 +1,3 @@
-// ============================================
-// DIAGNOSTICS SERVICE (Local-only monitoring)
-// ============================================
-// Stores recent errors/warnings/info for debugging.
-// No external telemetry is sent.
-
 export type DiagnosticLevel = 'info' | 'warn' | 'error';
 
 export type DiagnosticEvent = {
@@ -17,6 +11,26 @@ export type DiagnosticEvent = {
 
 const STORAGE_KEY = 'bitboard_diagnostics_v1';
 const MAX_EVENTS = 250;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object';
+}
+
+function isDiagnosticLevel(value: unknown): value is DiagnosticLevel {
+  return value === 'info' || value === 'warn' || value === 'error';
+}
+
+function isDiagnosticEvent(value: unknown): value is DiagnosticEvent {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === 'string' &&
+    typeof value.at === 'number' &&
+    isDiagnosticLevel(value.level) &&
+    typeof value.source === 'string' &&
+    typeof value.message === 'string' &&
+    (value.detail === undefined || typeof value.detail === 'string')
+  );
+}
 
 class DiagnosticsService {
   private events: DiagnosticEvent[] = [];
@@ -80,7 +94,7 @@ class DiagnosticsService {
       if (!raw) return [];
       const parsed = JSON.parse(raw) as unknown;
       if (!Array.isArray(parsed)) return [];
-      return parsed.filter((e: any) => e && typeof e.id === 'string' && typeof e.at === 'number');
+      return parsed.filter(isDiagnosticEvent);
     } catch {
       return [];
     }
@@ -97,9 +111,6 @@ class DiagnosticsService {
 }
 
 export const diagnosticsService = new DiagnosticsService();
-
-
-
 
 
 

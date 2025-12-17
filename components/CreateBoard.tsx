@@ -25,7 +25,6 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({ onSubmit, onCancel, id
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
 
   // Encryption result state
-  const [createdBoardId, setCreatedBoardId] = useState<string | null>(null);
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -107,7 +106,6 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({ onSubmit, onCancel, id
         // Generate share link
         const link = encryptedBoardService.generateShareLink(boardId, encryptionKey);
         
-        setCreatedBoardId(boardId);
         setGeneratedKey(encryptionKey);
         setShareLink(link);
       }
