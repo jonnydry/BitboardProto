@@ -18,14 +18,37 @@ export function buildPostEvent(
     boardAddress?: string;
     /** Used as a discoverability hashtag */
     boardName?: string;
+    /** Encrypted title (base64) */
+    encryptedTitle?: string;
+    /** Encrypted content (base64) */
+    encryptedContent?: string;
   }
 ): UnsignedNostrEvent {
+  const isEncrypted = !!(opts?.encryptedTitle || opts?.encryptedContent);
+  
   const tags: string[][] = [
     ['client', 'bitboard'],
     [BITBOARD_TYPE_TAG, BITBOARD_TYPE_POST],
-    ['title', post.title],
     ['board', post.boardId],
   ];
+
+  // Handle encryption
+  if (isEncrypted) {
+    tags.push(['encrypted', 'true']);
+    // Store encrypted title in tag if provided
+    if (opts?.encryptedTitle) {
+      tags.push(['encrypted_title', opts.encryptedTitle]);
+      // Use placeholder title for discoverability
+      tags.push(['title', '[Encrypted]']);
+    } else {
+      // Title not encrypted, use original
+      tags.push(['title', post.title]);
+    }
+    // Encrypted content goes in event.content (if provided)
+  } else {
+    // Normal unencrypted post
+    tags.push(['title', post.title]);
+  }
 
   // Add topic tags
   post.tags.forEach((tag) => tags.push(['t', tag]));
@@ -63,7 +86,7 @@ export function buildPostEvent(
     kind: NOSTR_KINDS.POST,
     created_at: Math.floor(Date.now() / 1000),
     tags,
-    content: post.content,
+    content: isEncrypted && opts?.encryptedContent ? opts.encryptedContent : post.content,
   };
 
   return event as UnsignedNostrEvent;
@@ -86,15 +109,33 @@ export function buildPostEditEvent(args: {
   imageUrl?: string;
   /** Editor pubkey (must match signing key) */
   pubkey: string;
+  /** Encrypted title (base64) */
+  encryptedTitle?: string;
+  /** Encrypted content (base64) */
+  encryptedContent?: string;
 }): UnsignedNostrEvent {
+  const isEncrypted = !!(args.encryptedTitle || args.encryptedContent);
+  
   const tags: string[][] = [
     ['client', 'bitboard'],
     [BITBOARD_TYPE_TAG, BITBOARD_TYPE_POST_EDIT],
     // Reference the original post. Marker is non-standard but harmless.
     ['e', args.rootPostEventId, '', 'edit'],
-    ['title', args.title],
     ['board', args.boardId],
   ];
+
+  // Handle encryption
+  if (isEncrypted) {
+    tags.push(['encrypted', 'true']);
+    if (args.encryptedTitle) {
+      tags.push(['encrypted_title', args.encryptedTitle]);
+      tags.push(['title', '[Encrypted]']);
+    } else {
+      tags.push(['title', args.title]);
+    }
+  } else {
+    tags.push(['title', args.title]);
+  }
 
   for (const t of args.tags) {
     tags.push(['t', t]);
@@ -108,7 +149,7 @@ export function buildPostEditEvent(args: {
     kind: NOSTR_KINDS.POST,
     created_at: Math.floor(Date.now() / 1000),
     tags,
-    content: args.content,
+    content: isEncrypted && args.encryptedContent ? args.encryptedContent : args.content,
   };
 
   return event as UnsignedNostrEvent;
@@ -124,13 +165,22 @@ export function buildCommentEvent(
     postAuthorPubkey?: string;
     /** Parent comment author's pubkey (for NIP-10 p tags) */
     parentCommentAuthorPubkey?: string;
+    /** Encrypted content (base64) */
+    encryptedContent?: string;
   }
 ): UnsignedNostrEvent {
+  const isEncrypted = !!opts?.encryptedContent;
+  
   const tags: string[][] = [
     ['e', postEventId, '', 'root'], // Reference to the original post
     ['client', 'bitboard'],
     [BITBOARD_TYPE_TAG, BITBOARD_TYPE_COMMENT],
   ];
+
+  // Handle encryption
+  if (isEncrypted) {
+    tags.push(['encrypted', 'true']);
+  }
 
   // NIP-10: include pubkeys referenced by the thread
   if (opts?.postAuthorPubkey) {
@@ -150,7 +200,7 @@ export function buildCommentEvent(
     kind: NOSTR_KINDS.POST,
     created_at: Math.floor(Date.now() / 1000),
     tags,
-    content,
+    content: isEncrypted && opts?.encryptedContent ? opts.encryptedContent : content,
   };
 
   return event as UnsignedNostrEvent;
@@ -161,7 +211,11 @@ export function buildCommentEditEvent(args: {
   targetCommentEventId: string;
   content: string;
   pubkey: string;
+  /** Encrypted content (base64) */
+  encryptedContent?: string;
 }): UnsignedNostrEvent {
+  const isEncrypted = !!args.encryptedContent;
+  
   const tags: string[][] = [
     ['client', 'bitboard'],
     [BITBOARD_TYPE_TAG, BITBOARD_TYPE_COMMENT_EDIT],
@@ -169,12 +223,17 @@ export function buildCommentEditEvent(args: {
     ['e', args.targetCommentEventId, '', 'edit'],
   ];
 
+  // Handle encryption
+  if (isEncrypted) {
+    tags.push(['encrypted', 'true']);
+  }
+
   const event: Partial<NostrEvent> = {
     pubkey: args.pubkey,
     kind: NOSTR_KINDS.POST,
     created_at: Math.floor(Date.now() / 1000),
     tags,
-    content: args.content,
+    content: isEncrypted && args.encryptedContent ? args.encryptedContent : args.content,
   };
 
   return event as UnsignedNostrEvent;
@@ -242,6 +301,11 @@ export function buildBoardEvent(
     ['client', 'bitboard'],
   ];
 
+  // Add encryption flag if board is encrypted
+  if (board.isEncrypted) {
+    tags.push(['encrypted', 'true']);
+  }
+
   if (board.geohash) {
     tags.push(['g', board.geohash]);
   }
@@ -291,6 +355,7 @@ export function buildReportEvent(args: {
 
   return event as UnsignedNostrEvent;
 }
+
 
 
 

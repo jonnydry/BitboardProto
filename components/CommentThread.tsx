@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Comment, UserState } from '../types';
-import { ChevronDown, ChevronRight, CornerDownRight, Clock, Flag, Edit3, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, CornerDownRight, Clock, Flag, Edit3, Trash2, Lock } from 'lucide-react';
 import { MentionText } from './MentionText';
 import { MentionInput } from './MentionInput';
 import { ReportModal } from './ReportModal';
@@ -224,6 +224,11 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
               <p className="text-terminal-text/80 text-sm leading-relaxed break-words mb-2">
                 {isDeleted ? (
                   <span className="italic text-terminal-dim">[deleted]</span>
+                ) : comment.isEncrypted && comment.encryptedContent ? (
+                  <div className="flex items-center gap-2 text-terminal-dim p-2 border border-terminal-dim/50 bg-terminal-dim/10">
+                    <Lock size={14} />
+                    <span className="text-xs">[Encrypted - Access Required]</span>
+                  </div>
                 ) : (
                   <MentionText
                     content={comment.content}

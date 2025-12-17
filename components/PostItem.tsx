@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Post, UserState } from '../types';
 import { EXPANSION_THRESHOLD } from '../constants';
-import { ArrowBigUp, ArrowBigDown, MessageSquare, Clock, Hash, ExternalLink, CornerDownRight, Maximize2, Minimize2, Image as ImageIcon, Shield, Users, UserX, Bookmark, Edit3, Flag } from 'lucide-react';
+import { ArrowBigUp, ArrowBigDown, MessageSquare, Clock, Hash, ExternalLink, CornerDownRight, Maximize2, Minimize2, Image as ImageIcon, Shield, Users, UserX, Bookmark, Edit3, Flag, Lock } from 'lucide-react';
 import { CommentThread, buildCommentTree } from './CommentThread';
 import { MentionText } from './MentionText';
 import { MentionInput } from './MentionInput';
@@ -111,6 +111,25 @@ const PostItemComponent: React.FC<PostItemProps> = ({
     if (hours > 24) return `${Math.floor(hours / 24)}d`;
     return `${hours}h`;
   }, []);
+
+  // Check if post is encrypted but not decrypted
+  // A post is "encrypted without key" if:
+  // 1. It's marked as encrypted AND
+  // 2. The content is still the placeholder (meaning decryption hasn't happened) OR
+  // 3. We have encrypted fields but content/title haven't been replaced with decrypted values
+  const isEncryptedWithoutKey = useMemo(() => {
+    if (!post.isEncrypted) return false;
+    // If content is still the placeholder, we don't have the key
+    if (post.content === '[Encrypted - Access Required]' || post.title === '[Encrypted]') {
+      return true;
+    }
+    // If we have encrypted fields but content looks like ciphertext (base64-like), not decrypted
+    if (post.encryptedContent && post.content === post.encryptedContent) {
+      return true;
+    }
+    // Otherwise, assume it's been decrypted (content was replaced)
+    return false;
+  }, [post]);
 
   const handleCommentSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -324,7 +343,14 @@ const PostItemComponent: React.FC<PostItemProps> = ({
           </div>
           
           <div className="flex justify-between items-start gap-4">
-            {post.url ? (
+            {isEncryptedWithoutKey ? (
+              <div className="flex items-center gap-2 text-terminal-dim mb-2">
+                <Lock size={18} />
+                <h3 className="text-xl md:text-2xl font-bold">
+                  [Encrypted - Access Required]
+                </h3>
+              </div>
+            ) : post.url ? (
               <a 
                 href={post.url} 
                 target="_blank" 
@@ -332,6 +358,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 className="text-xl md:text-2xl font-bold text-terminal-text leading-tight mb-2 cursor-pointer hover:bg-terminal-text hover:text-black decoration-2 underline-offset-4 flex items-start gap-2 transition-colors inline-block break-words"
               >
                 {post.title}
+                {post.isEncrypted && <Lock size={16} className="text-terminal-dim" title="Encrypted post" />}
                 <ExternalLink size={20} className="inline-block mt-1 opacity-70 min-w-[20px]" />
               </a>
             ) : (
@@ -340,9 +367,10 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 onKeyDown={handleInteractionKeyDown}
                 tabIndex={0}
                 role="button"
-                className="text-xl md:text-2xl font-bold text-terminal-text leading-tight mb-2 cursor-pointer hover:underline decoration-2 underline-offset-4 select-none break-words"
+                className="text-xl md:text-2xl font-bold text-terminal-text leading-tight mb-2 cursor-pointer hover:underline decoration-2 underline-offset-4 select-none break-words flex items-center gap-2"
               >
                 {post.title}
+                {post.isEncrypted && <Lock size={16} className="text-terminal-dim" title="Encrypted post" />}
               </h3>
             )}
           </div>
@@ -365,18 +393,27 @@ const PostItemComponent: React.FC<PostItemProps> = ({
              </div>
           )}
 
-          <div 
-            onClick={handleInteraction}
-            onKeyDown={handleInteractionKeyDown}
-            tabIndex={0}
-            role="button"
-            className={`text-sm md:text-base text-terminal-text/80 font-mono leading-relaxed mb-3 cursor-pointer break-words ${!isExpanded ? 'line-clamp-2' : 'opacity-100'}`}
-          >
-            <MentionText 
-              content={post.content} 
-              onMentionClick={(username) => onViewProfile?.(username, undefined)}
-            />
-          </div>
+          {isEncryptedWithoutKey ? (
+            <div className="text-sm md:text-base text-terminal-dim font-mono leading-relaxed mb-3 p-4 border border-terminal-dim/50 bg-terminal-dim/10">
+              <p className="mb-2">This post is encrypted. You need the board share link to view it.</p>
+              <p className="text-xs text-terminal-dim/70">
+                The encryption key is embedded in the share link URL fragment and never sent to servers.
+              </p>
+            </div>
+          ) : (
+            <div 
+              onClick={handleInteraction}
+              onKeyDown={handleInteractionKeyDown}
+              tabIndex={0}
+              role="button"
+              className={`text-sm md:text-base text-terminal-text/80 font-mono leading-relaxed mb-3 cursor-pointer break-words ${!isExpanded ? 'line-clamp-2' : 'opacity-100'}`}
+            >
+              <MentionText 
+                content={post.content} 
+                onMentionClick={(username) => onViewProfile?.(username, undefined)}
+              />
+            </div>
+          )}
 
           <div className="mt-auto flex items-center justify-between border-t border-terminal-dim pt-2">
             <div className="flex gap-2 flex-wrap">

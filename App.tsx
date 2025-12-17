@@ -12,6 +12,7 @@ import { bookmarkService } from './services/bookmarkService';
 import { reportService } from './services/reportService';
 import { makeUniqueBoardId } from './services/boardIdService';
 import { toastService } from './services/toastService';
+import { encryptedBoardService } from './services/encryptedBoardService';
 import { inputValidator } from './services/inputValidator';
 import { useInfiniteScroll } from './hooks/useInfiniteScroll';
 import { FeatureFlags, StorageKeys, UIConfig } from './config';
@@ -20,6 +21,7 @@ import { useUrlPostRouting } from './hooks/useUrlPostRouting';
 import { useNostrFeed } from './hooks/useNostrFeed';
 import { useCommentsLoader } from './hooks/useCommentsLoader';
 import { useVoting } from './hooks/useVoting';
+import { usePostDecryption } from './hooks/usePostDecryption';
 import { AppHeader } from './features/layout/AppHeader';
 import { Sidebar } from './features/layout/Sidebar';
 import { FeedView } from './features/feed/FeedView';
@@ -258,9 +260,12 @@ export default function App() {
     return result;
   }, [posts, activeBoardId, boardsById, feedFilter, searchQuery]);
 
+  // Decrypt encrypted posts if keys are available
+  const decryptedPosts = usePostDecryption(filteredPosts, boardsById);
+
   // Sort posts based on selected sort mode
   const sortedPosts = useMemo(() => {
-    const sorted = [...filteredPosts];
+    const sorted = [...decryptedPosts];
     
     switch (sortMode) {
       case SortMode.NEWEST:
@@ -285,7 +290,7 @@ export default function App() {
       default:
         return sorted.sort((a, b) => b.score - a.score);
     }
-  }, [filteredPosts, sortMode]);
+  }, [decryptedPosts, sortMode]);
 
   // Collect known usernames for @mention autocomplete
   const knownUsers = useMemo(() => {
@@ -354,6 +359,46 @@ export default function App() {
             ? `${NOSTR_KINDS.BOARD_DEFINITION}:${targetBoard.createdBy}:${targetBoard.id}`
             : undefined;
         
+        // Check if board is encrypted and encrypt content if needed
+        let encryptedTitle: string | undefined;
+        let encryptedContent: string | undefined;
+        
+        if (targetBoard?.isEncrypted) {
+          const boardKey = encryptedBoardService.getBoardKey(targetBoard.id);
+          if (!boardKey) {
+            toastService.push({
+              type: 'error',
+              message: 'Encryption key not found',
+              detail: 'You need the board share link to post in this encrypted board.',
+              durationMs: UIConfig.TOAST_DURATION_MS,
+              dedupeKey: 'encryption-key-missing',
+            });
+            return; // Abort post creation
+          }
+          
+          try {
+            const encrypted = await encryptedBoardService.encryptPost(
+              { title: newPostData.title, content: newPostData.content },
+              boardKey
+            );
+            encryptedTitle = encrypted.encryptedTitle;
+            encryptedContent = encrypted.encryptedContent;
+            newPost.isEncrypted = true;
+            newPost.encryptedTitle = encryptedTitle;
+            newPost.encryptedContent = encryptedContent;
+          } catch (error) {
+            console.error('[App] Failed to encrypt post:', error);
+            toastService.push({
+              type: 'error',
+              message: 'Failed to encrypt post',
+              detail: error instanceof Error ? error.message : String(error),
+              durationMs: UIConfig.TOAST_DURATION_MS,
+              dedupeKey: 'encryption-failed',
+            });
+            return; // Abort post creation
+          }
+        }
+        
         const eventPayload = {
           ...newPostData,
           timestamp,
@@ -364,6 +409,8 @@ export default function App() {
         const unsigned = nostrService.buildPostEvent(eventPayload, userState.identity.pubkey, geohash, {
           boardAddress,
           boardName: targetBoard?.name,
+          encryptedTitle,
+          encryptedContent,
         });
         const signed = await identityService.signEvent(unsigned);
         const event = await nostrService.publishSignedEvent(signed);
@@ -426,6 +473,38 @@ export default function App() {
     const post = postsById.get(postId);
     if (!post) return;
     
+    // Check if post's board is encrypted
+    const board = boardsById.get(post.boardId);
+    let encryptedContent: string | undefined;
+    
+    if (board?.isEncrypted) {
+      const boardKey = encryptedBoardService.getBoardKey(board.id);
+      if (!boardKey) {
+        toastService.push({
+          type: 'error',
+          message: 'Encryption key not found',
+          detail: 'You need the board share link to comment in this encrypted board.',
+          durationMs: UIConfig.TOAST_DURATION_MS,
+          dedupeKey: 'encryption-key-missing-comment',
+        });
+        return; // Abort comment creation
+      }
+      
+      try {
+        encryptedContent = await encryptedBoardService.encryptContent(content, boardKey);
+      } catch (error) {
+        console.error('[App] Failed to encrypt comment:', error);
+        toastService.push({
+          type: 'error',
+          message: 'Failed to encrypt comment',
+          detail: error instanceof Error ? error.message : String(error),
+          durationMs: UIConfig.TOAST_DURATION_MS,
+          dedupeKey: 'encryption-failed-comment',
+        });
+        return; // Abort comment creation
+      }
+    }
+    
     const newComment = {
       id: `c-${Date.now()}`,
       author: userState.username,
@@ -433,6 +512,8 @@ export default function App() {
       content: content,
       timestamp: Date.now(),
       parentId: parentCommentId, // For threaded comments
+      isEncrypted: !!encryptedContent,
+      encryptedContent,
     };
 
     // Publish to Nostr if connected
@@ -446,6 +527,7 @@ export default function App() {
         {
           postAuthorPubkey: post.authorPubkey,
           parentCommentAuthorPubkey: parentComment?.authorPubkey,
+          encryptedContent,
         }
       );
       identityService.signEvent(unsigned)
@@ -523,11 +605,44 @@ export default function App() {
     // Publish comment edit companion event if possible
     if (userState.identity && post.nostrEventId && target.nostrEventId && target.authorPubkey === userState.identity.pubkey) {
       try {
+        // Check if board is encrypted and encrypt content if needed
+        const board = boardsById.get(post.boardId);
+        let encryptedContent: string | undefined;
+        
+        if (board?.isEncrypted) {
+          const boardKey = encryptedBoardService.getBoardKey(board.id);
+          if (!boardKey) {
+            toastService.push({
+              type: 'error',
+              message: 'Encryption key not found',
+              detail: 'You need the board share link to edit comments in this encrypted board.',
+              durationMs: UIConfig.TOAST_DURATION_MS,
+              dedupeKey: 'encryption-key-missing-comment-edit',
+            });
+            return;
+          }
+          
+          try {
+            encryptedContent = await encryptedBoardService.encryptContent(validated, boardKey);
+          } catch (error) {
+            console.error('[App] Failed to encrypt comment edit:', error);
+            toastService.push({
+              type: 'error',
+              message: 'Failed to encrypt comment edit',
+              detail: error instanceof Error ? error.message : String(error),
+              durationMs: UIConfig.TOAST_DURATION_MS,
+              dedupeKey: 'encryption-failed-comment-edit',
+            });
+            return;
+          }
+        }
+        
         const unsigned = nostrService.buildCommentEditEvent({
           rootPostEventId: post.nostrEventId,
           targetCommentEventId: target.nostrEventId,
           content: validated,
           pubkey: userState.identity.pubkey,
+          encryptedContent,
         });
         const signed = await identityService.signEvent(unsigned);
         await nostrService.publishSignedEvent(signed);
@@ -542,7 +657,7 @@ export default function App() {
         });
       }
     }
-  }, [getRelayHint, postsById, userState.identity]);
+  }, [getRelayHint, postsById, boardsById, userState.identity]);
 
   const handleDeleteComment = useCallback(async (postId: string, commentId: string) => {
     const post = postsById.get(postId);
@@ -585,7 +700,7 @@ export default function App() {
         });
       }
     }
-  }, [getRelayHint, postsById, userState.identity]);
+  }, [getRelayHint, postsById, boardsById, userState.identity]);
 
   const handleViewBit = useCallback((postId: string) => {
     setSelectedBitId(postId);
@@ -656,6 +771,44 @@ export default function App() {
       if (existing.nostrEventId && userState.identity) {
         (async () => {
           try {
+            // Check if board is encrypted and encrypt content if needed
+            const board = boardsById.get(existing.boardId);
+            let encryptedTitle: string | undefined;
+            let encryptedContent: string | undefined;
+            
+            if (board?.isEncrypted) {
+              const boardKey = encryptedBoardService.getBoardKey(board.id);
+              if (!boardKey) {
+                toastService.push({
+                  type: 'error',
+                  message: 'Encryption key not found',
+                  detail: 'You need the board share link to edit posts in this encrypted board.',
+                  durationMs: UIConfig.TOAST_DURATION_MS,
+                  dedupeKey: 'encryption-key-missing-edit',
+                });
+                return;
+              }
+              
+              try {
+                const encrypted = await encryptedBoardService.encryptPost(
+                  { title: merged.title, content: merged.content },
+                  boardKey
+                );
+                encryptedTitle = encrypted.encryptedTitle;
+                encryptedContent = encrypted.encryptedContent;
+              } catch (error) {
+                console.error('[App] Failed to encrypt post edit:', error);
+                toastService.push({
+                  type: 'error',
+                  message: 'Failed to encrypt post edit',
+                  detail: error instanceof Error ? error.message : String(error),
+                  durationMs: UIConfig.TOAST_DURATION_MS,
+                  dedupeKey: 'encryption-failed-edit',
+                });
+                return;
+              }
+            }
+            
             const unsigned = nostrService.buildPostEditEvent({
               rootPostEventId: existing.nostrEventId,
               boardId: existing.boardId,
@@ -665,6 +818,8 @@ export default function App() {
               url: merged.url,
               imageUrl: merged.imageUrl,
               pubkey: userState.identity!.pubkey,
+              encryptedTitle,
+              encryptedContent,
             });
 
             const signed = await identityService.signEvent(unsigned);
@@ -697,7 +852,7 @@ export default function App() {
         });
       }
     },
-    [postsById, userState.identity, getRelayHint]
+    [postsById, boardsById, userState.identity, getRelayHint]
   );
 
   // Handle deleting a post

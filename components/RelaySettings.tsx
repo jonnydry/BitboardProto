@@ -134,12 +134,15 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
             <input
               value={newRelay}
               onChange={(e) => setNewRelay(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleAddRelay();
+              }}
               placeholder="wss://relay.example.com"
-              className="flex-1 bg-terminal-bg border border-terminal-dim p-2 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
+              className="flex-1 min-w-0 bg-terminal-bg border border-terminal-dim p-2 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
             />
             <button
               onClick={handleAddRelay}
-              className="px-3 border border-terminal-dim text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors flex items-center gap-2"
+              className="px-4 border border-terminal-dim text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors flex items-center gap-2 whitespace-nowrap font-bold"
               title="Add relay"
             >
               <Plus size={14} />
@@ -314,6 +317,9 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     </div>
   );
 };
+
+
+
 
 
 

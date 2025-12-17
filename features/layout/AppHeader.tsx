@@ -41,11 +41,41 @@ export function AppHeader(props: {
           </div>
         ) : (
           <>
-            <img
-              src={'/assets/bitboard-logo.png?v=3'}
-              alt="BitBoard Logo"
-              className="h-16 w-auto object-contain transition-transform duration-200 origin-left hover:scale-[3] hover:z-50 relative"
-            />
+            {theme === ThemeId.PATRIOT ? (
+              <img
+                src="/assets/BitBoardTESTFINAL.png"
+                alt="BitBoard Logo"
+                className="h-16 w-auto object-contain transition-transform duration-200 origin-left hover:scale-[3] hover:z-50 relative"
+              />
+            ) : theme === ThemeId.AMBER ? (
+              <img
+                src="/assets/bitboard-logo.png?v=3"
+                alt="BitBoard Logo"
+                className="h-16 w-auto object-contain transition-transform duration-200 origin-left hover:scale-[3] hover:z-50 relative"
+              />
+            ) : (
+              <div className="relative">
+                <img
+                  src="/assets/bitboard-logo.png?v=3"
+                  alt="BitBoard Logo"
+                  className="h-16 w-auto object-contain opacity-0 pointer-events-none"
+                  aria-hidden="true"
+                />
+                <div
+                  className="absolute inset-0 bg-terminal-text transition-transform duration-200 origin-left hover:scale-[3] hover:z-50"
+                  style={{
+                    maskImage: "url('/assets/bitboard-logo.png?v=3')",
+                    WebkitMaskImage: "url('/assets/bitboard-logo.png?v=3')",
+                    maskSize: "contain",
+                    WebkitMaskSize: "contain",
+                    maskRepeat: "no-repeat",
+                    WebkitMaskRepeat: "no-repeat",
+                    maskPosition: "left center",
+                    WebkitMaskPosition: "left center"
+                  }}
+                />
+              </div>
+            )}
             <div className="flex flex-col">
               <h1 className="text-4xl font-terminal tracking-wider leading-none">BitBoard</h1>
               <span className="text-xs text-terminal-dim tracking-[0.2em]">

@@ -3,7 +3,7 @@ import { Post, Board, BoardType } from '../types';
 import { scanLink } from '../services/geminiService';
 import { inputValidator, InputLimits } from '../services/inputValidator';
 import { rateLimiter } from '../services/rateLimiter';
-import { Loader, ImageIcon, AlertTriangle } from 'lucide-react';
+import { Loader, ImageIcon, AlertTriangle, Lock } from 'lucide-react';
 
 interface CreatePostProps {
   availableBoards: Board[];
@@ -161,6 +161,10 @@ export const CreatePost: React.FC<CreatePostProps> = ({ availableBoards, current
   const titleOverLimit = titleCharCount > InputLimits.MAX_TITLE_LENGTH;
   const contentOverLimit = contentCharCount > InputLimits.MAX_POST_CONTENT_LENGTH;
 
+  // Check if selected board is encrypted
+  const selectedBoard = availableBoards.find(b => b.id === selectedBoardId);
+  const isEncryptedBoard = selectedBoard?.isEncrypted ?? false;
+
   return (
     <div className="border-2 border-terminal-text bg-terminal-bg p-6 max-w-2xl mx-auto w-full shadow-hard-lg animate-fade-in">
       <h2 className="text-2xl font-bold mb-6 border-b border-terminal-dim pb-2 flex justify-between items-end">
@@ -190,10 +194,16 @@ export const CreatePost: React.FC<CreatePostProps> = ({ availableBoards, current
           >
             {availableBoards.map(board => (
               <option key={board.id} value={board.id}>
-                {board.type === BoardType.GEOHASH ? '📍' : '//'}{board.name} {board.isPublic ? '' : '[LOCKED]'}
+                {board.type === BoardType.GEOHASH ? '📍' : '//'}{board.name} {board.isPublic ? '' : '[LOCKED]'} {board.isEncrypted ? '🔒' : ''}
               </option>
             ))}
           </select>
+          {isEncryptedBoard && (
+            <div className="mt-2 p-2 border border-terminal-dim/50 bg-terminal-dim/10 flex items-center gap-2 text-xs text-terminal-dim">
+              <Lock size={14} />
+              <span>This board is encrypted. Your post will be encrypted.</span>
+            </div>
+          )}
         </div>
 
         {/* URL Input with Scanner */}

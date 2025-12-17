@@ -697,6 +697,8 @@ class NostrService {
       return event.tags.filter((t) => t[0] === name).map((t) => t[1]);
     };
 
+    const isEncrypted = getTag('encrypted') === 'true';
+    const encryptedTitle = getTag('encrypted_title');
     const titleRaw = getTag('title');
     const contentRaw = event.content ?? '';
     const tagsRaw = getAllTags('t');
@@ -704,12 +706,30 @@ class NostrService {
     const imageRaw = getTag('image');
 
     const updates: Partial<Post> = {
-      title: titleRaw ? inputValidator.validateTitle(titleRaw) ?? undefined : undefined,
-      content: inputValidator.validatePostContent(contentRaw) ?? '',
       tags: inputValidator.validateTags(tagsRaw),
       url: urlRaw ? inputValidator.validateUrl(urlRaw) ?? undefined : undefined,
       imageUrl: imageRaw ? inputValidator.validateUrl(imageRaw) ?? undefined : undefined,
     };
+
+    // Handle encryption
+    if (isEncrypted) {
+      updates.isEncrypted = true;
+      if (encryptedTitle) {
+        updates.encryptedTitle = encryptedTitle;
+        updates.title = '[Encrypted]'; // Placeholder
+      } else if (titleRaw) {
+        updates.title = inputValidator.validateTitle(titleRaw) ?? undefined;
+      }
+      // Content is encrypted - store as-is (don't validate as plaintext)
+      updates.encryptedContent = contentRaw;
+      updates.content = '[Encrypted - Access Required]'; // Placeholder until decrypted
+    } else {
+      // Not encrypted - validate and set content normally
+      if (titleRaw) {
+        updates.title = inputValidator.validateTitle(titleRaw) ?? undefined;
+      }
+      updates.content = inputValidator.validatePostContent(contentRaw) ?? '';
+    }
 
     return { rootPostEventId, updates };
   }
@@ -766,10 +786,22 @@ class NostrService {
     const targetCommentId = this.getTargetCommentIdFromEditEvent(event);
     if (!rootPostEventId || !targetCommentId) return null;
 
+    const isEncrypted = event.tags.find(t => t[0] === 'encrypted')?.[1] === 'true';
+    const contentRaw = event.content ?? '';
+
     const updates: Partial<Comment> = {
-      content: inputValidator.validateCommentContent(event.content ?? '') ?? '',
       editedAt: event.created_at * 1000,
     };
+
+    // Handle encryption
+    if (isEncrypted) {
+      updates.isEncrypted = true;
+      updates.encryptedContent = contentRaw; // Encrypted content is in event.content
+      updates.content = '[Encrypted - Access Required]'; // Placeholder until decrypted
+    } else {
+      // Not encrypted - validate and set content normally
+      updates.content = inputValidator.validateCommentContent(contentRaw) ?? '';
+    }
 
     return { rootPostEventId, targetCommentId, updates };
   }
@@ -1321,20 +1353,22 @@ class NostrService {
         ? aRef.split(':').slice(2).join(':') || undefined
         : undefined;
 
+    const isEncrypted = getTag('encrypted') === 'true';
+    const encryptedTitle = getTag('encrypted_title');
     const titleRaw = getTag('title') || 'Untitled';
     const contentRaw = event.content ?? '';
     const tagsRaw = getAllTags('t');
     const urlRaw = getTag('r');
     const imageRaw = getTag('image');
 
-    return {
+    const post: Post = {
       id: event.id,
       nostrEventId: event.id,
       boardId: getTag('board') || boardIdFromA || 'b-random',
       title: inputValidator.validateTitle(titleRaw) ?? 'Untitled',
       author: this.getDisplayName(event.pubkey),
       authorPubkey: event.pubkey,
-      content: inputValidator.validatePostContent(contentRaw) ?? '',
+      content: '', // Will be set based on encryption status
       timestamp: event.created_at * 1000,
       score: 0, // Will be calculated from votes
       upvotes: 0,
@@ -1345,6 +1379,24 @@ class NostrService {
       imageUrl: imageRaw ? inputValidator.validateUrl(imageRaw) ?? undefined : undefined,
       comments: [],
     };
+
+    // Handle encryption
+    if (isEncrypted) {
+      post.isEncrypted = true;
+      if (encryptedTitle) {
+        post.encryptedTitle = encryptedTitle;
+        // Title is encrypted, use placeholder
+        post.title = '[Encrypted]';
+      }
+      // Content is encrypted - store as-is (don't validate as plaintext)
+      post.encryptedContent = contentRaw;
+      post.content = '[Encrypted - Access Required]'; // Placeholder until decrypted
+    } else {
+      // Not encrypted - validate and set content normally
+      post.content = inputValidator.validatePostContent(contentRaw) ?? '';
+    }
+
+    return post;
   }
 
   eventToBoard(event: NostrEvent): Board {
@@ -1354,17 +1406,20 @@ class NostrService {
     };
 
     const boardType = getTag('type') as BoardType || BoardType.TOPIC;
+    const isPublic = getTag('public') !== 'false';
+    const isEncrypted = getTag('encrypted') === 'true' || (!isPublic && getTag('encrypted') !== 'false');
 
     return {
       id: getTag('d') || event.id,
       nostrEventId: event.id,
       name: getTag('name') || 'Unknown',
       description: event.content,
-      isPublic: getTag('public') !== 'false',
+      isPublic,
       memberCount: 0,
       type: boardType,
       geohash: getTag('g'),
       createdBy: event.pubkey,
+      isEncrypted,
     };
   }
 
@@ -1372,16 +1427,30 @@ class NostrService {
     // NIP-10: extract parent comment ID from 'e' tag with marker 'reply'
     const replyTag = event.tags.find(t => t[0] === 'e' && t[3] === 'reply');
     const parentId = replyTag?.[1];
+    const isEncrypted = event.tags.find(t => t[0] === 'encrypted')?.[1] === 'true';
+    const contentRaw = event.content ?? '';
 
-    return {
+    const comment: Comment = {
       id: event.id,
       nostrEventId: event.id,
       author: this.getDisplayName(event.pubkey),
       authorPubkey: event.pubkey,
-      content: inputValidator.validateCommentContent(event.content ?? '') ?? '',
+      content: '', // Will be set based on encryption status
       timestamp: event.created_at * 1000,
       parentId,
     };
+
+    // Handle encryption
+    if (isEncrypted) {
+      comment.isEncrypted = true;
+      comment.encryptedContent = contentRaw; // Encrypted content is in event.content
+      comment.content = '[Encrypted - Access Required]'; // Placeholder until decrypted
+    } else {
+      // Not encrypted - validate and set content normally
+      comment.content = inputValidator.validateCommentContent(contentRaw) ?? '';
+    }
+
+    return comment;
   }
 
   // ----------------------------------------

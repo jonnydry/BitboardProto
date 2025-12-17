@@ -86,6 +86,9 @@ export interface Comment {
   replies?: Comment[];      // Populated client-side for tree rendering
   depth?: number;           // Calculated depth for indentation
   isCollapsed?: boolean;    // UI state for collapsing threads
+  // Encryption fields
+  encryptedContent?: string;
+  isEncrypted?: boolean;
 }
 
 export interface Post {
@@ -110,6 +113,10 @@ export interface Post {
   // Voting metadata (optional, derived from Nostr)
   uniqueVoters?: number;
   votesVerified?: boolean;
+  // Encryption fields
+  encryptedTitle?: string;
+  encryptedContent?: string;
+  isEncrypted?: boolean;
 }
 
 // ============================================
