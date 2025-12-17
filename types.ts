@@ -166,6 +166,7 @@ export enum ThemeId {
   VERMILION = 'vermilion',
   SLATE = 'slate',
   PATRIOT = 'patriot',
+  SAKURA = 'sakura',
   BITBORING = 'bitboring'
 }
 

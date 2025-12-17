@@ -320,7 +320,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       [ThemeId.PLASMA, '#00f0ff'],
       [ThemeId.VERMILION, '#ff4646'],
       [ThemeId.SLATE, '#c8c8c8'],
+      // Note: PATRIOT's theme bubble uses custom stripes in Sidebar; this is used as a fallback.
       [ThemeId.PATRIOT, '#ffffff'],
+      [ThemeId.SAKURA, '#ffb4dc'],
       [ThemeId.BITBORING, '#ffffff'],
     ]);
   }, []);

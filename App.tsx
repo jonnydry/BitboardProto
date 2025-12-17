@@ -988,6 +988,7 @@ export default function App() {
       [ThemeId.VERMILION, '#ff4646'],
       [ThemeId.SLATE, '#c8c8c8'],
       [ThemeId.PATRIOT, '#ffffff'],
+      [ThemeId.SAKURA, '#ffb4dc'],
       [ThemeId.BITBORING, '#ffffff'],
     ]);
   }, []);

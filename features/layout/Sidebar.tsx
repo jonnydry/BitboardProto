@@ -351,9 +351,15 @@ export function Sidebar(props: {
               <span
                 className={`w-2 h-2 rounded-full transition-transform ${theme === t ? 'scale-125' : 'scale-100 group-hover:scale-110'}`}
                 style={{
-                  backgroundColor: getThemeColor(t),
-                  border: t === ThemeId.BITBORING ? '1px solid black' : 'none',
-                  boxShadow: theme === t ? `0 0 5px ${getThemeColor(t)}` : 'none'
+                  // PATRIOT: show a red/white/blue striped bubble (works on light and dark themes)
+                  background: t === ThemeId.PATRIOT
+                    ? 'linear-gradient(90deg, #ff1428 0 33%, #ffffff 33% 66%, #0a4bff 66% 100%)'
+                    : undefined,
+                  backgroundColor: t === ThemeId.PATRIOT ? undefined : getThemeColor(t),
+                  border: (t === ThemeId.BITBORING || t === ThemeId.PATRIOT || t === ThemeId.SAKURA) ? '1px solid #888' : 'none',
+                  boxShadow: theme === t
+                    ? `0 0 5px ${t === ThemeId.PATRIOT ? '#ffffff' : getThemeColor(t)}`
+                    : 'none'
                 }}
               />
               <span className="uppercase whitespace-nowrap overflow-hidden text-ellipsis">
