@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Post, UserState } from '../types';
 import { PostItem } from './PostItem';
-import { ArrowLeft, User, FileText, MessageSquare, TrendingUp, RefreshCw } from 'lucide-react';
+import { ArrowLeft, User, FileText, MessageSquare, TrendingUp, RefreshCw, VolumeX } from 'lucide-react';
 
 interface UserProfileProps {
   username: string;
@@ -18,6 +18,8 @@ interface UserProfileProps {
   onRefreshProfile?: (pubkey: string) => void;
   onClose: () => void;
   isNostrConnected: boolean;
+  onToggleMute?: (pubkey: string) => void;
+  isMuted?: (pubkey: string) => boolean;
 }
 
 export const UserProfile: React.FC<UserProfileProps> = ({
@@ -35,6 +37,8 @@ export const UserProfile: React.FC<UserProfileProps> = ({
   onRefreshProfile,
   onClose,
   isNostrConnected,
+  onToggleMute,
+  isMuted,
 }) => {
   // Filter posts by this user
   const userPosts = useMemo(() => {
@@ -84,6 +88,21 @@ export const UserProfile: React.FC<UserProfileProps> = ({
                   YOU
                 </span>
               )}
+              
+              {!isOwnProfile && authorPubkey && onToggleMute && (
+                <button
+                  onClick={() => onToggleMute(authorPubkey)}
+                  className={`flex items-center gap-1 text-xs border px-2 py-0.5 transition-colors uppercase
+                    ${isMuted?.(authorPubkey)
+                      ? 'border-terminal-alert text-terminal-alert hover:bg-terminal-alert hover:text-black'
+                      : 'border-terminal-dim text-terminal-dim hover:text-terminal-alert hover:border-terminal-alert'
+                    }`}
+                >
+                  <VolumeX size={12} />
+                  {isMuted?.(authorPubkey) ? 'UNMUTE' : 'MUTE'}
+                </button>
+              )}
+
               {authorPubkey && onRefreshProfile && (
                 <button
                   type="button"
@@ -159,6 +178,8 @@ export const UserProfile: React.FC<UserProfileProps> = ({
               onToggleBookmark={onToggleBookmark}
               hasReported={reportedPostIdSet.has(post.id)}
               isNostrConnected={isNostrConnected}
+              onToggleMute={onToggleMute}
+              isMuted={isMuted}
             />
           ))}
         </div>

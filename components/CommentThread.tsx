@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Comment, UserState } from '../types';
-import { ChevronDown, ChevronRight, CornerDownRight, Clock, Flag, Edit3, Trash2, Lock, ArrowBigUp, ArrowBigDown, UserX } from 'lucide-react';
+import { ChevronDown, ChevronRight, CornerDownRight, Clock, Flag, Edit3, Trash2, Lock, ArrowBigUp, ArrowBigDown, UserX, VolumeX } from 'lucide-react';
 import { MentionText } from './MentionText';
 import { MentionInput } from './MentionInput';
 import { ReportModal } from './ReportModal';
@@ -19,6 +19,8 @@ interface CommentThreadProps {
   knownUsers?: Set<string>;
   depth?: number;
   maxVisualDepth?: number;
+  onToggleMute?: (pubkey: string) => void;
+  isMuted?: (pubkey: string) => boolean;
 }
 
 const MAX_VISUAL_DEPTH = 5; // Max indentation level for visual clarity
@@ -38,6 +40,8 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
   knownUsers = new Set(),
   depth = 0,
   maxVisualDepth = MAX_VISUAL_DEPTH,
+  onToggleMute,
+  isMuted,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
@@ -435,6 +439,22 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
                   {hasReported ? 'REPORTED' : 'REPORT'}
                 </button>
               )}
+
+              {/* Mute button */}
+              {!isOwnComment && comment.authorPubkey && onToggleMute && (
+                <button
+                  onClick={() => onToggleMute(comment.authorPubkey!)}
+                  className={`text-xs flex items-center gap-1 transition-colors
+                    ${isMuted?.(comment.authorPubkey!) 
+                      ? 'text-terminal-alert' 
+                      : 'text-terminal-dim hover:text-terminal-alert'
+                    }`}
+                  title={isMuted?.(comment.authorPubkey!) ? 'Unmute user' : 'Mute user'}
+                >
+                  <VolumeX size={10} />
+                  {isMuted?.(comment.authorPubkey!) ? 'UNMUTE' : 'MUTE'}
+                </button>
+              )}
             </div>
 
             {/* Reply form */}
@@ -486,6 +506,8 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
               knownUsers={knownUsers}
               depth={depth + 1}
               maxVisualDepth={maxVisualDepth}
+              onToggleMute={onToggleMute}
+              isMuted={isMuted}
             />
           ))}
 

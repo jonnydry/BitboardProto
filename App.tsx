@@ -2,8 +2,10 @@ import React, { Suspense, lazy, useState, useCallback, useEffect, useMemo } from
 import type { Event as NostrEvent } from 'nostr-tools';
 import { MAX_DAILY_BITS, INITIAL_POSTS, INITIAL_BOARDS } from './constants';
 import { Post, UserState, ViewMode, Board, ThemeId, BoardType, NostrIdentity, SortMode, NOSTR_KINDS } from './types';
+import { PostItem } from './components/PostItem';
 import { PostDetailPage } from './components/PostDetailPage';
 import { ToastHost } from './components/ToastHost';
+import { ArrowLeft } from 'lucide-react';
 import { nostrService } from './services/nostrService';
 import { identityService } from './services/identityService';
 import { votingService } from './services/votingService';
@@ -20,7 +22,6 @@ import { useUrlPostRouting } from './hooks/useUrlPostRouting';
 import { useNostrFeed } from './hooks/useNostrFeed';
 import { useCommentsLoader } from './hooks/useCommentsLoader';
 import { useVoting } from './hooks/useVoting';
-import { useCommentVoting } from './hooks/useCommentVoting';
 import { usePostDecryption } from './hooks/usePostDecryption';
 import { AppHeader } from './features/layout/AppHeader';
 import { Sidebar } from './features/layout/Sidebar';
@@ -114,7 +115,6 @@ export default function App() {
       bits: MAX_DAILY_BITS,
       maxBits: MAX_DAILY_BITS,
       votedPosts: {},
-      votedComments: {},
       identity: existingIdentity || undefined,
       hasIdentity: !!existingIdentity,
     };
@@ -327,7 +327,6 @@ export default function App() {
   }, [boards, locationBoards]);
 
   const { handleVote } = useVoting({ postsById, userState, setUserState, setPosts });
-  const { handleCommentVote } = useCommentVoting({ postsById, userState, setUserState, setPosts });
 
   const handleCreatePost = async (
     newPostData: Omit<Post, 'id' | 'timestamp' | 'score' | 'commentCount' | 'comments' | 'nostrEventId' | 'upvotes' | 'downvotes'>
@@ -511,10 +510,6 @@ export default function App() {
       parentId: parentCommentId, // For threaded comments
       isEncrypted: !!encryptedContent,
       encryptedContent,
-      // Voting fields
-      score: 0,
-      upvotes: 0,
-      downvotes: 0,
     };
 
     // Publish to Nostr if connected
@@ -1060,7 +1055,7 @@ export default function App() {
       {/* Scanline Overlay */}
       <div className="scanlines fixed inset-0 pointer-events-none z-50"></div>
 
-      <div className="w-full max-w-[95%] 2xl:max-w-[1800px] mx-auto p-4 md:p-6 relative z-10">
+      <div className="max-w-[1074px] mx-auto p-4 md:p-6 relative z-10">
         <AppHeader
           theme={theme}
           isNostrConnected={isNostrConnected}
@@ -1068,14 +1063,13 @@ export default function App() {
           activeBoardId={activeBoardId}
           bookmarkedCount={bookmarkedIds.length}
           identity={userState.identity || undefined}
-          userState={userState}
           onNavigateGlobal={() => navigateToBoard(null)}
           onSetViewMode={setViewMode}
         />
 
-        <div className="flex flex-col md:flex-row gap-6 py-[5px]">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 py-[5px]">
           {/* Main Content */}
-          <main className="flex-1 min-w-0">
+          <main className="md:col-span-3">
             <Suspense
               fallback={
                 <div className="border border-terminal-dim p-6 bg-terminal-bg shadow-hard text-terminal-dim uppercase text-sm">
@@ -1100,7 +1094,6 @@ export default function App() {
                 onComment={handleComment}
                 onEditComment={handleEditComment}
                 onDeleteComment={handleDeleteComment}
-                onCommentVote={handleCommentVote}
                 onViewBit={handleViewBit}
                 onViewProfile={handleViewProfile}
                 onEditPost={handleEditPost}
@@ -1125,7 +1118,6 @@ export default function App() {
                 onComment={handleComment}
                 onEditComment={handleEditComment}
                 onDeleteComment={handleDeleteComment}
-                onCommentVote={handleCommentVote}
                 onViewProfile={handleViewProfile}
                 onEditPost={handleEditPost}
                 onTagClick={handleTagClick}
@@ -1186,7 +1178,6 @@ export default function App() {
                 userState={userState}
                 onVote={handleVote}
                 onComment={handleComment}
-                onCommentVote={handleCommentVote}
                 onViewBit={handleViewBit}
                 onRefreshProfile={(pubkey) => refreshProfileMetadata([pubkey])}
                 onClose={returnToFeed}
@@ -1202,7 +1193,6 @@ export default function App() {
                 userState={userState}
                 onVote={handleVote}
                 onComment={handleComment}
-                onCommentVote={handleCommentVote}
                 onViewBit={handleViewBit}
                 onClose={returnToFeed}
                 isNostrConnected={isNostrConnected}
@@ -1221,24 +1211,22 @@ export default function App() {
             </Suspense>
           </main>
 
-          <div className="w-full md:w-80 lg:w-96 flex-shrink-0">
-            <Sidebar
-              userState={userState}
-              setUserState={setUserState}
-              theme={theme}
-              setTheme={setTheme}
-              getThemeColor={getThemeColor}
-              isNostrConnected={isNostrConnected}
-              viewMode={viewMode}
-              activeBoardId={activeBoardId}
-              feedFilter={feedFilter}
-              setFeedFilter={setFeedFilter}
-              topicBoards={topicBoards}
-              geohashBoards={geohashBoards}
-              navigateToBoard={navigateToBoard}
-              onSetViewMode={setViewMode}
-            />
-          </div>
+          <Sidebar
+            userState={userState}
+            setUserState={setUserState}
+            theme={theme}
+            setTheme={setTheme}
+            getThemeColor={getThemeColor}
+            isNostrConnected={isNostrConnected}
+            viewMode={viewMode}
+            activeBoardId={activeBoardId}
+            feedFilter={feedFilter}
+            setFeedFilter={setFeedFilter}
+            topicBoards={topicBoards}
+            geohashBoards={geohashBoards}
+            navigateToBoard={navigateToBoard}
+            onSetViewMode={setViewMode}
+          />
         </div>
       </div>
       

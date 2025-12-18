@@ -73,6 +73,8 @@ const AppContent: React.FC = () => {
                 loaderRef={app.loaderRef}
                 isLoadingMore={app.isLoadingMore}
                 hasMorePosts={app.hasMorePosts}
+                onToggleMute={app.toggleMute}
+                isMuted={app.isMuted}
               />
             )}
 
@@ -107,6 +109,8 @@ const AppContent: React.FC = () => {
                     hasReported={app.reportedPostIdSet.has(app.selectedPost.id)}
                     isFullPage={true}
                     isNostrConnected={app.isNostrConnected}
+                    onToggleMute={app.toggleMute}
+                    isMuted={app.isMuted}
                   />
                 </div>
               </div>
@@ -173,6 +177,8 @@ const AppContent: React.FC = () => {
                 onRefreshProfile={(pubkey) => app.refreshProfileMetadata([pubkey])}
                 onClose={() => app.setViewMode(ViewMode.FEED)}
                 isNostrConnected={app.isNostrConnected}
+                onToggleMute={app.toggleMute}
+                isMuted={app.isMuted}
               />
             )}
             {app.viewMode === ViewMode.BOOKMARKS && (

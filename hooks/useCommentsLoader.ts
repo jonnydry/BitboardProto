@@ -89,13 +89,17 @@ export function useCommentsLoader(args: {
 
       const comments = commentEvents.map((event) => nostrService.eventToComment(event));
 
+      // Filter muted users
+      const mutedSet = new Set(userState?.mutedPubkeys || []);
+      const filteredComments = comments.filter(c => !c.authorPubkey || !mutedSet.has(c.authorPubkey));
+
       // Fetch votes for all comments
-      const commentNostrIds = comments.filter(c => c.nostrEventId).map(c => c.nostrEventId!);
+      const commentNostrIds = filteredComments.filter(c => c.nostrEventId).map(c => c.nostrEventId!);
       const commentVoteTallies = commentNostrIds.length > 0 
         ? await votingService.fetchVotesForComments(commentNostrIds)
         : new Map();
 
-      const commentsWithVotes = comments.map(comment => {
+      const commentsWithVotes = filteredComments.map(comment => {
         if (comment.nostrEventId) {
           const tally = commentVoteTallies.get(comment.nostrEventId);
           if (tally) {
@@ -184,5 +188,5 @@ export function useCommentsLoader(args: {
       nostrService.unsubscribe(subEdits);
       nostrService.unsubscribe(subDeletes);
     };
-  }, [postsById, selectedBitId, setPosts, userState?.identity, setUserState]);
+  }, [postsById, selectedBitId, setPosts, userState?.identity, setUserState, userState?.mutedPubkeys]);
 }

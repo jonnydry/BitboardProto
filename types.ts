@@ -138,6 +138,7 @@ export interface UserState {
   // Nostr identity
   identity?: NostrIdentity;
   hasIdentity: boolean; // Whether user has a Nostr identity (separate from relay connection)
+  mutedPubkeys?: string[]; // List of muted public keys
 }
 
 // ============================================

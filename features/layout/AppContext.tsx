@@ -14,8 +14,6 @@ import { useUrlPostRouting } from '../../hooks/useUrlPostRouting';
 import { useNostrFeed } from '../../hooks/useNostrFeed';
 import { useCommentsLoader } from '../../hooks/useCommentsLoader';
 import { useVoting } from '../../hooks/useVoting';
-import { useCommentVoting } from '../../hooks/useCommentVoting';
-import { usePostDecryption } from '../../hooks/usePostDecryption';
 import { useAppEventHandlers } from './useAppEventHandlers';
 
 const MAX_CACHED_POSTS = 200;
@@ -128,13 +126,14 @@ interface AppContextType {
   handleDeletePost: (postId: string) => void;
   handleTagClick: (tag: string) => void;
   handleVote: (postId: string, direction: 'up' | 'down') => void;
-  handleCommentVote: (postId: string, commentId: string, direction: 'up' | 'down') => void;
   handleToggleBookmark: (postId: string) => void;
   handleSearch: (query: string) => void;
   loadMorePosts: () => Promise<void>;
   getThemeColor: (id: ThemeId) => string;
   getBoardName: (postId: string) => string | undefined;
   refreshProfileMetadata: (pubkeys: string[]) => Promise<void>;
+  toggleMute: (pubkey: string) => void;
+  isMuted: (pubkey: string) => boolean;
 
   // Hooks
   loaderRef: React.RefObject<HTMLDivElement>;
@@ -167,6 +166,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [userState, setUserState] = useState<UserState>(() => {
     const existingIdentity = identityService.getIdentity();
+    let mutedPubkeys: string[] = [];
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const rawMuted = localStorage.getItem('bitboard_muted_users');
+        if (rawMuted) mutedPubkeys = JSON.parse(rawMuted);
+      }
+    } catch {}
+
     return {
       username: existingIdentity?.displayName || 'u/guest_' + Math.floor(Math.random() * 10000).toString(16),
       bits: MAX_DAILY_BITS,
@@ -175,6 +182,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       votedComments: {},
       identity: existingIdentity || undefined,
       hasIdentity: !!existingIdentity,
+      mutedPubkeys,
     };
   });
 
@@ -185,6 +193,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const state = connected > 0 ? 'Some relays are reachable.' : 'No relays appear reachable.';
     return `${state} Relays: ${connected}/${total}. Open RELAYS to adjust/retry.`;
   }, []);
+
+  const toggleMute = useCallback((pubkey: string) => {
+    setUserState((prev) => {
+      const currentMuted = prev.mutedPubkeys || [];
+      const isMuted = currentMuted.includes(pubkey);
+      const newMuted = isMuted
+        ? currentMuted.filter((p) => p !== pubkey)
+        : [...currentMuted, pubkey];
+
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('bitboard_muted_users', JSON.stringify(newMuted));
+        }
+      } catch {
+        // ignore
+      }
+
+      return { ...prev, mutedPubkeys: newMuted };
+    });
+  }, []);
+
+  const isMuted = useCallback((pubkey: string) => {
+    return (userState.mutedPubkeys || []).includes(pubkey);
+  }, [userState.mutedPubkeys]);
 
   // Computed values
   const boardsById = useMemo(() => {
@@ -217,6 +249,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     }
 
+    // Filter muted users
+    if (userState.mutedPubkeys && userState.mutedPubkeys.length > 0) {
+      const mutedSet = new Set(userState.mutedPubkeys);
+      result = result.filter(p => !p.authorPubkey || !mutedSet.has(p.authorPubkey));
+    }
+
     // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
@@ -245,11 +283,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return result;
   }, [posts, activeBoardId, boardsById, feedFilter, searchQuery]);
 
-  // Decrypt encrypted posts if keys are available
-  const decryptedPosts = usePostDecryption(filteredPosts, boardsById);
-
   const sortedPosts = useMemo(() => {
-    const sorted = [...decryptedPosts];
+    const sorted = [...filteredPosts];
 
     switch (sortMode) {
       case SortMode.NEWEST:
@@ -274,7 +309,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       default:
         return sorted.sort((a, b) => b.score - a.score);
     }
-  }, [decryptedPosts, sortMode]);
+  }, [filteredPosts, sortMode]);
 
   const knownUsers = useMemo(() => {
     const users = new Set<string>();
@@ -372,10 +407,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   useNostrFeed({ setPosts, setBoards, setIsNostrConnected, setOldestTimestamp, setHasMorePosts });
-  useCommentsLoader({ selectedBitId, postsById, setPosts, userState, setUserState });
+  useCommentsLoader({ selectedBitId, postsById, setPosts });
 
   const { handleVote } = useVoting({ postsById, userState, setUserState, setPosts });
-  const { handleCommentVote } = useCommentVoting({ postsById, userState, setUserState, setPosts });
 
   // Ensure identity is loaded
   useEffect(() => {
@@ -421,6 +455,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const shareData = encryptedBoardService.handleShareLink();
     if (shareData) {
+      console.log('[App] Received encrypted board share link:', shareData.boardId);
       
       // Navigate to the board
       setActiveBoardId(shareData.boardId);
@@ -457,9 +492,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSearchQuery,
     oldestTimestamp,
     hasMorePosts,
-    setOldestTimestamp,
-    setHasMorePosts,
-    locationBoards,
   });
 
   // Infinite scroll hook
@@ -537,13 +569,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     handleDeletePost: eventHandlers.handleDeletePost,
     handleTagClick: eventHandlers.handleTagClick,
     handleVote,
-    handleCommentVote,
     handleToggleBookmark: (postId: string) => bookmarkService.toggleBookmark(postId),
     handleSearch: eventHandlers.handleSearch,
     loadMorePosts: eventHandlers.loadMorePosts,
     getThemeColor: (id: ThemeId) => themeColors.get(id) || '#fff',
     getBoardName: eventHandlers.getBoardName,
     refreshProfileMetadata: eventHandlers.refreshProfileMetadata,
+    toggleMute,
+    isMuted,
 
     // Hooks
     loaderRef,

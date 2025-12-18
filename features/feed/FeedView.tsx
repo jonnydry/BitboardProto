@@ -42,6 +42,8 @@ export function FeedView(props: {
   loaderRef: React.RefObject<HTMLDivElement>;
   isLoadingMore: boolean;
   hasMorePosts: boolean;
+  onToggleMute?: (pubkey: string) => void;
+  isMuted?: (pubkey: string) => boolean;
 }) {
   const {
     sortedPosts,
@@ -71,6 +73,8 @@ export function FeedView(props: {
     loaderRef,
     isLoadingMore,
     hasMorePosts,
+    onToggleMute,
+    isMuted,
   } = props;
 
   const shouldVirtualizeFeed = viewMode === ViewMode.FEED && sortedPosts.length > FEED_VIRTUALIZE_THRESHOLD;
@@ -156,6 +160,8 @@ export function FeedView(props: {
               onToggleBookmark={onToggleBookmark}
               hasReported={reportedPostIdSet.has(post.id)}
               isNostrConnected={isNostrConnected}
+              onToggleMute={onToggleMute}
+              isMuted={isMuted}
             />
           ))}
 
@@ -243,6 +249,8 @@ export function FeedView(props: {
                   onToggleBookmark={onToggleBookmark}
                   hasReported={reportedPostIdSet.has(post.id)}
                   isNostrConnected={isNostrConnected}
+                  onToggleMute={onToggleMute}
+                  isMuted={isMuted}
                 />
               </div>
             );

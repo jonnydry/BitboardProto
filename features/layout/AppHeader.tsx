@@ -26,7 +26,7 @@ export function AppHeader(props: {
   } = props;
 
   return (
-    <header className="w-full flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b-2 border-terminal-dim pb-4 gap-4 md:gap-6">
+    <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b-2 border-terminal-dim py-[5px] gap-4">
       <button
         type="button"
         className="flex items-center gap-2 cursor-pointer hover:text-white transition-colors text-left"
@@ -85,49 +85,55 @@ export function AppHeader(props: {
         )}
       </button>
 
-      <nav className="flex gap-2 md:gap-3 lg:gap-4 text-xs md:text-sm lg:text-base flex-nowrap items-center overflow-x-auto">
+      <nav className="flex gap-4 text-sm md:text-base flex-wrap items-center">
         {/* User Bit Balance Display */}
         <div 
-          className="flex items-center gap-1.5 md:gap-2 px-1.5 md:px-2 py-1 border border-terminal-dim/50 bg-terminal-dim/5 whitespace-nowrap shrink-0"
+          className="flex items-center gap-2 px-2 py-1 border border-terminal-dim/50 bg-terminal-dim/5"
           title="Your Bit Balance (Influence)"
         >
-          <Zap size={12} className={`shrink-0 ${userState.bits === 0 ? "text-terminal-alert" : "text-terminal-text"}`} />
-          <span className="font-mono font-bold text-xs md:text-sm">
+          <Zap size={14} className={userState.bits === 0 ? "text-terminal-alert" : "text-terminal-text"} />
+          <span className="font-mono font-bold">
             {userState.bits}/{userState.maxBits}
           </span>
         </div>
 
         <button
           onClick={onNavigateGlobal}
-          className={`uppercase hover:underline whitespace-nowrap ${viewMode === ViewMode.FEED && activeBoardId === null ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+          className={`uppercase hover:underline ${viewMode === ViewMode.FEED && activeBoardId === null ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
         >
           [ Global_Feed ]
         </button>
         <button
           onClick={() => onSetViewMode(ViewMode.CREATE)}
-          className={`uppercase hover:underline whitespace-nowrap ${viewMode === ViewMode.CREATE ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+          className={`uppercase hover:underline ${viewMode === ViewMode.CREATE ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
         >
           [ New_Bit ]
         </button>
         <button
           onClick={() => onSetViewMode(ViewMode.BOOKMARKS)}
-          className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${viewMode === ViewMode.BOOKMARKS ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+          className={`uppercase hover:underline flex items-center gap-1 ${viewMode === ViewMode.BOOKMARKS ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
         >
-          <Bookmark size={12} className="shrink-0" />
+          <Bookmark size={12} />
           [ Saved{bookmarkedCount > 0 ? ` (${bookmarkedCount})` : ''} ]
         </button>
         <button
           onClick={() => onSetViewMode(ViewMode.IDENTITY)}
-          className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${viewMode === ViewMode.IDENTITY ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+          className={`uppercase hover:underline flex items-center gap-1 ${viewMode === ViewMode.IDENTITY ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
         >
-          {identity ? <Wifi size={12} className="shrink-0" /> : <WifiOff size={12} className="shrink-0" />}
+          {identity ? <Wifi size={12} /> : <WifiOff size={12} />}
           [ {identity ? 'IDENTITY' : 'CONNECT'} ]
         </button>
         <button
           onClick={() => onSetViewMode(ViewMode.RELAYS)}
-          className={`uppercase hover:underline whitespace-nowrap ${viewMode === ViewMode.RELAYS ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+          className={`uppercase hover:underline flex items-center gap-1 ${viewMode === ViewMode.RELAYS ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+          title={props.isNostrConnected ? "Relays Connected" : "Relays Disconnected"}
         >
-          [ RELAYS ]
+          {props.isNostrConnected ? (
+            <span className="font-bold text-terminal-text">[||||]</span>
+          ) : (
+            <span className="text-terminal-alert animate-pulse">[....]</span>
+          )}
+          <span className="hidden md:inline">RELAYS</span>
         </button>
       </nav>
     </header>

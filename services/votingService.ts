@@ -91,17 +91,13 @@ export { computeBitCost, computeOptimisticUpdate, computeRollback, computeVoteSc
 class VotingService {
   // Cache of vote tallies per post (LRU cache with max 1000 entries)
   private voteTallies: Map<string, VoteTally> = new Map();
-  // Cache of vote tallies per comment (LRU cache with max 1000 entries)
-  private commentVoteTallies: Map<string, VoteTally> = new Map();
   private readonly MAX_CACHE_SIZE = 1000;
   
   // Track user's own votes (for UI state)
   private userVotes: Map<string, Map<string, 'up' | 'down'>> = new Map(); // pubkey -> (postId -> direction)
-  private userCommentVotes: Map<string, Map<string, 'up' | 'down'>> = new Map(); // pubkey -> (commentId -> direction)
 
   // Track in-flight requests to prevent duplicates
   private inFlightRequests: Map<string, Promise<VoteTally>> = new Map();
-  private inFlightCommentRequests: Map<string, Promise<VoteTally>> = new Map();
 
   // Cleanup interval for stale cache
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
@@ -375,349 +371,9 @@ class VotingService {
     // Enforce cache limit (LRU eviction)
     this.enforceCacheLimit();
 
-    return tally;
-  }
-
-  /**
-   * Cast a vote on a comment
-   * Returns the vote result with verification status
-   */
-  async castCommentVote(
-    commentId: string,
-    direction: 'up' | 'down',
-    identity: NostrIdentity,
-    commentAuthorPubkey?: string
-  ): Promise<VoteResult> {
-    const userPubkey = identity.pubkey;
-    // Rate limit check
-    if (!rateLimiter.allowVote(userPubkey)) {
-      return {
-        success: false,
-        error: 'Rate limit exceeded. Please wait before voting again.',
-      };
-    }
-
-    // Check for duplicate vote attempt (local check)
-    // Note: voteDeduplicator.isVoteDuplicate() handles deduplication
-
-    try {
-      // Build + sign + publish vote to Nostr
-      const unsigned = nostrService.buildCommentVoteEvent(commentId, direction, userPubkey, { commentAuthorPubkey });
-      const signed = await identityService.signEvent(unsigned);
-      const event = await nostrService.publishSignedEvent(signed);
-      
-      // Mark as processed
-      voteDeduplicator.markVoteProcessed(userPubkey, commentId);
-
-      // Create vote object (reusing Vote type but commentId is stored in postId field)
-      const vote: Vote = {
-        eventId: event.id,
-        postId: commentId, // Reusing postId field for commentId
-        voterPubkey: userPubkey,
-        direction,
-        timestamp: Date.now(),
-        isVerified: true, // We just created it
-      };
-
-      // Update local tally
-      let tally = this.commentVoteTallies.get(commentId);
-      if (!tally) {
-        tally = {
-          postId: commentId, // Reusing postId field
-          upvotes: 0,
-          downvotes: 0,
-          score: 0,
-          uniqueVoters: 0,
-          votes: new Map(),
-          lastUpdated: Date.now(),
-        };
-        this.commentVoteTallies.set(commentId, tally);
-      }
-
-      // Handle existing vote from this user
-      const existingVote = tally.votes.get(userPubkey);
-      if (existingVote) {
-        if (existingVote.direction === 'up') {
-          tally.upvotes--;
-        } else {
-          tally.downvotes--;
-        }
-      } else {
-        tally.uniqueVoters++;
-      }
-
-      // Add new vote
-      if (direction === 'up') {
-        tally.upvotes++;
-      } else {
-        tally.downvotes++;
-      }
-      
-      tally.votes.set(userPubkey, vote);
-      tally.score = tally.upvotes - tally.downvotes;
-      tally.lastUpdated = Date.now();
-
-      // Track user's vote
-      let userVoteMap = this.userCommentVotes.get(userPubkey);
-      if (!userVoteMap) {
-        userVoteMap = new Map();
-        this.userCommentVotes.set(userPubkey, userVoteMap);
-      }
-      userVoteMap.set(commentId, direction);
-
-      return {
-        success: true,
-        vote,
-        newTally: tally,
-      };
-    } catch (error) {
-      console.error('[Voting] Failed to cast comment vote:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to publish vote',
-      };
-    }
-  }
-
-  /**
-   * Fetch and process all votes for a comment
-   * Returns deduplicated tally with one vote per pubkey
-   */
-  async fetchVotesForComment(commentId: string): Promise<VoteTally> {
-    // Check cache first
-    const cached = this.commentVoteTallies.get(commentId);
-    if (cached && Date.now() - cached.lastUpdated < 30000) { // 30 second cache
-      return cached;
-    }
-
-    // Check if request is already in-flight
-    const inFlight = this.inFlightCommentRequests.get(commentId);
-    if (inFlight) {
-      return inFlight;
-    }
-
-    // Create new request promise
-    const requestPromise = this._fetchVotesForCommentInternal(commentId);
-    this.inFlightCommentRequests.set(commentId, requestPromise);
-
-    // Clean up when done
-    requestPromise.finally(() => {
-      this.inFlightCommentRequests.delete(commentId);
-    });
-
-    return requestPromise;
-  }
-
-  /**
-   * Internal method to fetch comment votes
-   */
-  private async _fetchVotesForCommentInternal(commentId: string): Promise<VoteTally> {
-    // Fetch raw vote events from Nostr
-    const voteEvents = await nostrService.fetchCommentVoteEvents(commentId);
-    
-    // Create fresh tally
-    const tally: VoteTally = {
-      postId: commentId, // Reusing postId field
-      upvotes: 0,
-      downvotes: 0,
-      score: 0,
-      uniqueVoters: 0,
-      votes: new Map(),
-      lastUpdated: Date.now(),
-    };
-
-    // Process each vote event
-    // Sort by timestamp to ensure latest vote per user wins
-    const sortedEvents = [...voteEvents].sort(
-      (a, b) => a.created_at - b.created_at
-    );
-
-    for (const event of sortedEvents) {
-      // Cryptographically verify each vote
-      const isVerified = this.verifyVoteEvent(event);
-      if (!isVerified) {
-        console.warn('[Voting] Rejected unverified comment vote from:', event.pubkey.slice(0, 8));
-        continue;
-      }
-
-      const vote = this.eventToVote(event, isVerified);
-      if (!vote) continue;
-
-      // Check for existing vote from this pubkey (one vote per user)
-      const existingVote = tally.votes.get(vote.voterPubkey);
-      
-      if (existingVote) {
-        // User changed their vote - remove old count
-        if (existingVote.direction === 'up') {
-          tally.upvotes--;
-        } else {
-          tally.downvotes--;
-        }
-      } else {
-        // New unique voter
-        tally.uniqueVoters++;
-      }
-
-      // Add new/updated vote
-      if (vote.direction === 'up') {
-        tally.upvotes++;
-      } else {
-        tally.downvotes++;
-      }
-      
-      tally.votes.set(vote.voterPubkey, vote);
-    }
-
-    tally.score = tally.upvotes - tally.downvotes;
-    this.commentVoteTallies.set(commentId, tally);
-    
-    // Enforce cache limit (LRU eviction)
-    this.enforceCommentCacheLimit();
+    console.log(`[Voting] Post ${postId.slice(0, 8)}: ${tally.uniqueVoters} unique voters, score ${tally.score}`);
 
     return tally;
-  }
-
-  /**
-   * Batch fetch votes for multiple comments
-   */
-  async fetchVotesForComments(commentIds: string[]): Promise<Map<string, VoteTally>> {
-    const results = new Map<string, VoteTally>();
-    
-    // Filter out cached comments
-    const uncachedCommentIds: string[] = [];
-    const now = Date.now();
-    
-    for (const commentId of commentIds) {
-      const cached = this.commentVoteTallies.get(commentId);
-      if (cached && now - cached.lastUpdated < 30000) {
-        results.set(commentId, cached);
-      } else {
-        uncachedCommentIds.push(commentId);
-      }
-    }
-
-    if (uncachedCommentIds.length === 0) {
-      return results;
-    }
-
-    // Batch fetch vote events for all uncached comments
-    const voteEventPromises = uncachedCommentIds.map(commentId => 
-      nostrService.fetchCommentVoteEvents(commentId).catch(error => {
-        console.error(`[Voting] Failed to fetch votes for comment ${commentId.slice(0, 8)}:`, error);
-        return [];
-      })
-    );
-
-    const voteEventArrays = await Promise.all(voteEventPromises);
-
-    // Process each comment's votes
-    for (let i = 0; i < uncachedCommentIds.length; i++) {
-      const commentId = uncachedCommentIds[i];
-      const voteEvents = voteEventArrays[i];
-
-      const tally: VoteTally = {
-        postId: commentId, // Reusing postId field
-        upvotes: 0,
-        downvotes: 0,
-        score: 0,
-        uniqueVoters: 0,
-        votes: new Map(),
-        lastUpdated: Date.now(),
-      };
-
-      // Sort by timestamp to ensure latest vote per user wins
-      const sortedEvents = [...voteEvents].sort(
-        (a, b) => a.created_at - b.created_at
-      );
-
-      for (const event of sortedEvents) {
-        const isVerified = this.verifyVoteEvent(event);
-        if (!isVerified) {
-          console.warn('[Voting] Rejected unverified comment vote from:', event.pubkey.slice(0, 8));
-          continue;
-        }
-
-        const vote = this.eventToVote(event, isVerified);
-        if (!vote) continue;
-
-        const existingVote = tally.votes.get(vote.voterPubkey);
-        
-        if (existingVote) {
-          if (existingVote.direction === 'up') {
-            tally.upvotes--;
-          } else {
-            tally.downvotes--;
-          }
-        } else {
-          tally.uniqueVoters++;
-        }
-
-        if (vote.direction === 'up') {
-          tally.upvotes++;
-        } else {
-          tally.downvotes++;
-        }
-        
-        tally.votes.set(vote.voterPubkey, vote);
-      }
-
-      tally.score = tally.upvotes - tally.downvotes;
-      this.commentVoteTallies.set(commentId, tally);
-      results.set(commentId, tally);
-    }
-
-    // Enforce cache limit after batch update
-    this.enforceCommentCacheLimit();
-
-    return results;
-  }
-
-  /**
-   * Ensure comment cache doesn't exceed max size (LRU eviction)
-   */
-  private enforceCommentCacheLimit(): void {
-    if (this.commentVoteTallies.size <= this.MAX_CACHE_SIZE) {
-      return;
-    }
-
-    // Sort by lastUpdated and remove oldest entries
-    const entries = Array.from(this.commentVoteTallies.entries());
-    entries.sort((a, b) => a[1].lastUpdated - b[1].lastUpdated);
-    
-    // Remove oldest 10% of entries
-    const removeCount = Math.floor(this.MAX_CACHE_SIZE * 0.1);
-    for (let i = 0; i < removeCount; i++) {
-      this.commentVoteTallies.delete(entries[i][0]);
-    }
-  }
-
-  /**
-   * Get user's vote on a specific comment
-   */
-  getUserCommentVote(userPubkey: string, commentId: string): 'up' | 'down' | null {
-    // Check local cache first
-    const userVoteMap = this.userCommentVotes.get(userPubkey);
-    if (userVoteMap?.has(commentId)) {
-      return userVoteMap.get(commentId) || null;
-    }
-
-    // Check tally
-    const tally = this.commentVoteTallies.get(commentId);
-    if (tally) {
-      const vote = tally.votes.get(userPubkey);
-      if (vote) {
-        return vote.direction;
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Get cached tally for a comment (doesn't fetch)
-   */
-  getCachedCommentTally(commentId: string): VoteTally | null {
-    return this.commentVoteTallies.get(commentId) || null;
   }
 
   /**
@@ -842,7 +498,10 @@ class VotingService {
     }
 
     // Check for duplicate vote attempt (local check)
-    // Note: voteDeduplicator.isVoteDuplicate() handles deduplication
+    if (voteDeduplicator.isVoteDuplicate(userPubkey, postId)) {
+      // User already voted - this is a vote change
+      console.log('[Voting] Vote change detected for post:', postId);
+    }
 
     try {
       // Build + sign + publish vote to Nostr
@@ -999,11 +658,8 @@ class VotingService {
    */
   clearCache(): void {
     this.voteTallies.clear();
-    this.commentVoteTallies.clear();
     this.userVotes.clear();
-    this.userCommentVotes.clear();
     this.inFlightRequests.clear();
-    this.inFlightCommentRequests.clear();
   }
 
   /**
@@ -1022,13 +678,6 @@ class VotingService {
   }
 
   /**
-   * Clear cache for a specific comment
-   */
-  clearCommentCache(commentId: string): void {
-    this.commentVoteTallies.delete(commentId);
-  }
-
-  /**
    * Invalidate stale caches (older than maxAge)
    */
   invalidateStaleCache(maxAgeMs: number = 60000): void {
@@ -1036,11 +685,6 @@ class VotingService {
     for (const [postId, tally] of this.voteTallies.entries()) {
       if (now - tally.lastUpdated > maxAgeMs) {
         this.voteTallies.delete(postId);
-      }
-    }
-    for (const [commentId, tally] of this.commentVoteTallies.entries()) {
-      if (now - tally.lastUpdated > maxAgeMs) {
-        this.commentVoteTallies.delete(commentId);
       }
     }
   }

@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Post, UserState, Comment } from '../types';
 import { EXPANSION_THRESHOLD, INLINE_PREVIEW_COMMENT_COUNT } from '../constants';
-import { ArrowBigUp, ArrowBigDown, MessageSquare, Clock, Hash, ExternalLink, CornerDownRight, Maximize2, Image as ImageIcon, Shield, Users, UserX, Bookmark, Edit3, Flag, Lock } from 'lucide-react';
+import { ArrowBigUp, ArrowBigDown, MessageSquare, Clock, Hash, ExternalLink, CornerDownRight, Maximize2, Image as ImageIcon, Shield, Users, UserX, Bookmark, Edit3, Flag, Lock, VolumeX } from 'lucide-react';
 import { CommentThread, buildCommentTree } from './CommentThread';
 import { MentionText } from './MentionText';
 import { MentionInput } from './MentionInput';
 import { ShareButton } from './ShareButton';
 import { ReportModal } from './ReportModal';
+import { ImagePreview } from './ImagePreview';
 
 interface PostItemProps {
   post: Post;
@@ -27,6 +28,8 @@ interface PostItemProps {
   hasReported?: boolean;
   isFullPage?: boolean;
   isNostrConnected?: boolean;
+  onToggleMute?: (pubkey: string) => void;
+  isMuted?: (pubkey: string) => boolean;
 }
 
 const PostItemComponent: React.FC<PostItemProps> = ({
@@ -48,6 +51,8 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   hasReported = false,
   isFullPage = false,
   isNostrConnected = false,
+  onToggleMute,
+  isMuted,
 }) => {
   const [isExpanded, setIsExpanded] = useState(isFullPage);
   const [newComment, setNewComment] = useState('');
@@ -276,6 +281,16 @@ const PostItemComponent: React.FC<PostItemProps> = ({
     }
   }, [handleInteraction]);
 
+  // Extract inline images
+  const inlineImages = useMemo(() => {
+    if (!post.content || isEncryptedWithoutKey) return [];
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const matches = post.content.match(urlRegex) || [];
+    return matches.filter(url => 
+      /\.(jpeg|jpg|gif|png|webp|bmp)$/i.test(url) && url !== post.imageUrl
+    );
+  }, [post.content, post.imageUrl, isEncryptedWithoutKey]);
+
   return (
     <div 
       style={
@@ -460,20 +475,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
           
           {/* Media Preview */}
           {post.imageUrl && (
-             <div className="mb-4 mt-2 border border-terminal-dim/50 relative group/image overflow-hidden bg-black max-w-lg">
-               <a href={post.url || '#'} target="_blank" rel="noopener noreferrer" className="block">
-                <div className="absolute inset-0 bg-terminal-text/10 pointer-events-none group-hover/image:opacity-0 transition-opacity z-10 mix-blend-overlay"></div>
-                <img 
-                  src={post.imageUrl} 
-                  alt="Content Preview" 
-                  loading="lazy"
-                  className="w-full h-auto max-h-[300px] object-cover grayscale sepia contrast-125 brightness-75 group-hover/image:filter-none group-hover/image:brightness-100 transition-all duration-300"
-                />
-                <div className="absolute bottom-0 left-0 bg-terminal-bg/80 px-2 py-1 text-[10px] text-terminal-text border-t border-r border-terminal-dim">
-                  IMG_PREVIEW_ASSET
-                </div>
-               </a>
-             </div>
+             <ImagePreview src={post.imageUrl} className="mb-4 mt-2 max-w-lg" />
           )}
 
           {isEncryptedWithoutKey ? (
@@ -540,6 +542,20 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 </button>
               )}
 
+              {/* Mute Button */}
+              {!isOwnPost && post.authorPubkey && onToggleMute && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleMute(post.authorPubkey!);
+                  }}
+                  className={`p-2 md:p-1 transition-colors ${isMuted?.(post.authorPubkey) ? 'text-terminal-alert' : 'text-terminal-dim hover:text-terminal-alert'}`}
+                  title={isMuted?.(post.authorPubkey) ? 'Unmute user' : 'Mute user'}
+                >
+                  <VolumeX size={14} />
+                </button>
+              )}
+
               <button 
                 onClick={handleCommentClick}
                 className="flex items-center gap-2 text-sm px-3 py-2 md:px-2 md:py-0.5 transition-colors border border-transparent shrink-0 text-terminal-dim hover:text-terminal-text hover:border-terminal-dim"
@@ -555,6 +571,15 @@ const PostItemComponent: React.FC<PostItemProps> = ({
           {/* Expanded Content (Inline or Full Page) */}
           {isExpanded && (
             <div className="mt-6 border-t-2 border-dashed border-terminal-dim/50 pt-4 animate-pulse-fast" style={{animationDuration: '0.2s', animationIterationCount: 1}}>
+              {/* Inline Images */}
+              {inlineImages.length > 0 && (
+                <div className="mb-6 grid grid-cols-1 gap-4">
+                  {inlineImages.map((url, i) => (
+                    <ImagePreview key={i} src={url} className="max-w-md" />
+                  ))}
+                </div>
+              )}
+
               <h4 className="text-xs text-terminal-dim mb-4 font-bold uppercase tracking-widest flex items-center gap-2">
                 <CornerDownRight size={14} />
                 DATA_STREAM
@@ -587,6 +612,8 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                           onViewProfile={onViewProfile}
                           formatTime={formatTime}
                           knownUsers={knownUsers}
+                          onToggleMute={onToggleMute}
+                          isMuted={isMuted}
                         />
                       ))}
                     </div>
