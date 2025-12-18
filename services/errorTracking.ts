@@ -29,7 +29,13 @@ class ErrorTrackingService {
 
     try {
       // Dynamically import Sentry to avoid bundling it if not used
-      const Sentry = await import('@sentry/react');
+      // Only import if package is actually installed
+      const Sentry = await import('@sentry/react').catch(() => null);
+      
+      if (!Sentry) {
+        console.log('[ErrorTracking] @sentry/react not installed, skipping initialization');
+        return;
+      }
       
       Sentry.init({
         dsn: config.dsn,

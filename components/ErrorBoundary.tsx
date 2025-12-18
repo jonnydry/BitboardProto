@@ -47,10 +47,13 @@ export class ErrorBoundary extends Component<Props, State> {
     
     // Report to error tracking service if enabled
     try {
-      const { errorTrackingService } = require('../services/errorTracking');
-      errorTrackingService.captureException(error, {
-        componentStack: errorInfo?.componentStack,
-        source: 'ErrorBoundary',
+      import('../services/errorTracking').then(({ errorTrackingService }) => {
+        errorTrackingService.captureException(error, {
+          componentStack: errorInfo?.componentStack,
+          source: 'ErrorBoundary',
+        });
+      }).catch(() => {
+        // Error tracking not available or not initialized
       });
     } catch {
       // Error tracking not available or not initialized
