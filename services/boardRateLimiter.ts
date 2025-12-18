@@ -95,7 +95,6 @@ class BoardRateLimiter {
     });
     
     this.saveToStorage();
-    console.log(`[BoardRateLimiter] Recorded board creation for ${pubkey.slice(0, 8)}... (${this.getRecentCreations(pubkey).length}/${MAX_BOARDS_PER_DAY})`);
   }
 
   /**
@@ -131,6 +130,8 @@ class BoardRateLimiter {
 }
 
 export const boardRateLimiter = new BoardRateLimiter();
+
+
 
 
 

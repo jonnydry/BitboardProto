@@ -248,8 +248,6 @@ class IdentityService {
       
       // Remove legacy unencrypted data if it exists
       localStorage.removeItem(STORAGE_KEYS.IDENTITY_LEGACY);
-      
-      console.log('[Identity] Identity saved with encryption');
     } catch (error) {
       console.error('[Identity] Failed to save identity:', error);
       throw error;
@@ -271,7 +269,6 @@ class IdentityService {
           const parsed = JSON.parse(decrypted);
           // Backward-compat: older identities won't have kind
           this.identity = parsed?.kind ? parsed : { ...parsed, kind: 'local' };
-          console.log('[Identity] Loaded encrypted identity');
           return;
         } else {
           console.warn('[Identity] Cannot decrypt - Web Crypto not available');
@@ -282,14 +279,12 @@ class IdentityService {
       const legacyData = localStorage.getItem(STORAGE_KEYS.IDENTITY_LEGACY);
       
       if (legacyData) {
-        console.log('[Identity] Found legacy unencrypted identity, migrating...');
         const parsed = JSON.parse(legacyData);
         this.identity = parsed?.kind ? parsed : { ...parsed, kind: 'local' };
         
         // Migrate to encrypted storage
         if (cryptoService.isAvailable()) {
           await this.saveIdentity();
-          console.log('[Identity] Migration complete - identity now encrypted');
         }
         return;
       }

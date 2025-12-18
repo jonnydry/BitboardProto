@@ -201,6 +201,9 @@ export const UIConfig = {
   
   /** Comment expansion threshold (show inline vs full page) */
   COMMENT_EXPANSION_THRESHOLD: 5,
+  
+  /** Number of comments to show in inline preview */
+  INLINE_PREVIEW_COMMENT_COUNT: 5,
 
   // Animation durations (in ms)
   /** Short animation duration */

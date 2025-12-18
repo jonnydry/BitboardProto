@@ -14,6 +14,7 @@ import { useUrlPostRouting } from '../../hooks/useUrlPostRouting';
 import { useNostrFeed } from '../../hooks/useNostrFeed';
 import { useCommentsLoader } from '../../hooks/useCommentsLoader';
 import { useVoting } from '../../hooks/useVoting';
+import { useCommentVoting } from '../../hooks/useCommentVoting';
 import { usePostDecryption } from '../../hooks/usePostDecryption';
 import { useAppEventHandlers } from './useAppEventHandlers';
 
@@ -127,6 +128,7 @@ interface AppContextType {
   handleDeletePost: (postId: string) => void;
   handleTagClick: (tag: string) => void;
   handleVote: (postId: string, direction: 'up' | 'down') => void;
+  handleCommentVote: (postId: string, commentId: string, direction: 'up' | 'down') => void;
   handleToggleBookmark: (postId: string) => void;
   handleSearch: (query: string) => void;
   loadMorePosts: () => Promise<void>;
@@ -170,6 +172,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       bits: MAX_DAILY_BITS,
       maxBits: MAX_DAILY_BITS,
       votedPosts: {},
+      votedComments: {},
       identity: existingIdentity || undefined,
       hasIdentity: !!existingIdentity,
     };
@@ -369,9 +372,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   useNostrFeed({ setPosts, setBoards, setIsNostrConnected, setOldestTimestamp, setHasMorePosts });
-  useCommentsLoader({ selectedBitId, postsById, setPosts });
+  useCommentsLoader({ selectedBitId, postsById, setPosts, userState, setUserState });
 
   const { handleVote } = useVoting({ postsById, userState, setUserState, setPosts });
+  const { handleCommentVote } = useCommentVoting({ postsById, userState, setUserState, setPosts });
 
   // Ensure identity is loaded
   useEffect(() => {
@@ -417,7 +421,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const shareData = encryptedBoardService.handleShareLink();
     if (shareData) {
-      console.log('[App] Received encrypted board share link:', shareData.boardId);
       
       // Navigate to the board
       setActiveBoardId(shareData.boardId);
@@ -534,6 +537,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     handleDeletePost: eventHandlers.handleDeletePost,
     handleTagClick: eventHandlers.handleTagClick,
     handleVote,
+    handleCommentVote,
     handleToggleBookmark: (postId: string) => bookmarkService.toggleBookmark(postId),
     handleSearch: eventHandlers.handleSearch,
     loadMorePosts: eventHandlers.loadMorePosts,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Post, UserState } from '../types';
-import { EXPANSION_THRESHOLD } from '../constants';
-import { ArrowBigUp, ArrowBigDown, MessageSquare, Clock, Hash, ExternalLink, CornerDownRight, Maximize2, Minimize2, Image as ImageIcon, Shield, Users, UserX, Bookmark, Edit3, Flag, Lock } from 'lucide-react';
+import { Post, UserState, Comment } from '../types';
+import { EXPANSION_THRESHOLD, INLINE_PREVIEW_COMMENT_COUNT } from '../constants';
+import { ArrowBigUp, ArrowBigDown, MessageSquare, Clock, Hash, ExternalLink, CornerDownRight, Maximize2, Image as ImageIcon, Shield, Users, UserX, Bookmark, Edit3, Flag, Lock } from 'lucide-react';
 import { CommentThread, buildCommentTree } from './CommentThread';
 import { MentionText } from './MentionText';
 import { MentionInput } from './MentionInput';
@@ -17,6 +17,7 @@ interface PostItemProps {
   onComment: (postId: string, content: string, parentCommentId?: string) => void;
   onEditComment?: (postId: string, commentId: string, content: string) => void;
   onDeleteComment?: (postId: string, commentId: string) => void;
+  onCommentVote?: (postId: string, commentId: string, direction: 'up' | 'down') => void;
   onViewBit: (postId: string) => void;
   onViewProfile?: (author: string, authorPubkey?: string) => void;
   onEditPost?: (postId: string) => void;
@@ -37,6 +38,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   onComment,
   onEditComment,
   onDeleteComment,
+  onCommentVote,
   onViewBit,
   onViewProfile,
   onEditPost,
@@ -161,6 +163,86 @@ const PostItemComponent: React.FC<PostItemProps> = ({
     return buildCommentTree(post.comments);
   }, [post.comments]);
 
+  // Build preview comment tree for inline preview (not full page)
+  const previewCommentTree = useMemo(() => {
+    if (isFullPage) {
+      return commentTree;
+    }
+
+    // Get most recent comments (flattened, sorted by timestamp)
+    const allComments = post.comments;
+    const sortedByTime = [...allComments].sort((a, b) => b.timestamp - a.timestamp);
+    
+    // Find user's own reply if they have one
+    const userReply = userState.identity?.pubkey 
+      ? allComments.find(c => c.authorPubkey === userState.identity?.pubkey)
+      : null;
+    
+    // Collect comment IDs to include in preview
+    const previewIds = new Set<string>();
+    
+    // Add user's reply first if it exists
+    if (userReply) {
+      previewIds.add(userReply.id);
+      // Also include parent chain if it's a nested reply
+      let current: Comment | undefined = userReply;
+      while (current?.parentId) {
+        const parent = allComments.find(c => c.id === current!.parentId);
+        if (parent) {
+          previewIds.add(parent.id);
+          current = parent;
+        } else {
+          break;
+        }
+      }
+    }
+    
+    // Add most recent comments (up to limit, excluding user reply if already added)
+    let added = previewIds.size;
+    for (const comment of sortedByTime) {
+      if (!previewIds.has(comment.id) && added < INLINE_PREVIEW_COMMENT_COUNT) {
+        previewIds.add(comment.id);
+        // Include parent chain for nested comments
+        let current: Comment | undefined = comment;
+        while (current?.parentId) {
+          const parent = allComments.find(c => c.id === current!.parentId);
+          if (parent) {
+            previewIds.add(parent.id);
+            current = parent;
+          } else {
+            break;
+          }
+        }
+        added++;
+      }
+    }
+    
+    // Filter the comment tree to include only preview comments and their ancestors
+    const filterTree = (comments: typeof commentTree): typeof commentTree => {
+      return comments
+        .map(comment => {
+          const hasPreviewDescendant = (c: typeof commentTree[0]): boolean => {
+            if (previewIds.has(c.id)) return true;
+            if (c.replies) {
+              return c.replies.some(reply => hasPreviewDescendant(reply));
+            }
+            return false;
+          };
+          
+          if (hasPreviewDescendant(comment)) {
+            return {
+              ...comment,
+              replies: comment.replies ? filterTree(comment.replies) : []
+            };
+          }
+          return null;
+        })
+        .filter((c): c is typeof commentTree[0] => c !== null);
+    };
+    
+    return filterTree(commentTree);
+  }, [post.comments, userState.identity, isFullPage, commentTree]);
+
   const handleInteraction = useCallback(() => {
     if (isFullPage) return; // Already expanded in full view
 
@@ -183,8 +265,9 @@ const PostItemComponent: React.FC<PostItemProps> = ({
 
   const handleCommentClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    handleInteraction();
-  }, [handleInteraction]);
+    // Always navigate to detail page when clicking comment count
+    onViewBit(post.id);
+  }, [onViewBit, post.id]);
 
   const handleInteractionKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -211,9 +294,9 @@ const PostItemComponent: React.FC<PostItemProps> = ({
       <div className="absolute -top-1 -left-1 w-2 h-2 border-t-2 border-l-2 border-terminal-text opacity-0 group-hover:opacity-100 transition-opacity"></div>
       <div className="absolute -bottom-1 -right-1 w-2 h-2 border-b-2 border-r-2 border-terminal-text opacity-0 group-hover:opacity-100 transition-opacity"></div>
 
-      <div className={`flex flex-row gap-4 p-3 ${isExpanded ? 'p-5' : ''}`}>
+      <div className={`flex flex-row gap-3 p-2 ${isExpanded ? 'p-4' : ''}`}>
         {/* Voting Column - Cryptographically Verified */}
-        <div className="flex flex-col items-center min-w-[3.5rem] border-r border-terminal-dim pr-3 justify-start pt-1 gap-1">
+        <div className="flex flex-col items-center w-12 border-r border-terminal-dim pr-2 justify-start pt-1 gap-1 flex-shrink-0">
           {/* Guest User Indicator */}
           {!userState.identity && (
             <div className="mb-1 flex items-center gap-1 px-1.5 py-0.5 border border-terminal-dim/50 bg-terminal-dim/10 rounded" title="Guest mode: Connect identity to cast verified votes">
@@ -237,10 +320,10 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                     : "INVEST 1 BIT (-1)"
             }
           >
-            <ArrowBigUp size={24} fill={isUpvoted ? "currentColor" : "none"} />
+            <ArrowBigUp size={20} fill={isUpvoted ? "currentColor" : "none"} />
           </button>
           
-          <span className={`text-lg font-bold ${post.score > 0 ? 'text-terminal-text' : post.score < 0 ? 'text-terminal-alert' : 'text-terminal-dim/50'}`}>
+          <span className={`text-base font-bold ${post.score > 0 ? 'text-terminal-text' : post.score < 0 ? 'text-terminal-alert' : 'text-terminal-dim/50'}`}>
             {post.score > 0 ? '+' : ''}{post.score}
           </span>
 
@@ -260,7 +343,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                     : "INVEST 1 BIT (-1)"
             }
           >
-            <ArrowBigDown size={24} fill={isDownvoted ? "currentColor" : "none"} />
+            <ArrowBigDown size={20} fill={isDownvoted ? "currentColor" : "none"} />
           </button>
 
           {/* Nostr Verification Badge + Voter Count */}
@@ -308,8 +391,8 @@ const PostItemComponent: React.FC<PostItemProps> = ({
         </div>
 
         {/* Content Column */}
-        <div className="flex-1 flex flex-col">
-          <div className="text-xs text-terminal-dim mb-2 flex flex-wrap items-center gap-2 uppercase tracking-wider">
+        <div className="flex-1 flex flex-col min-w-0">
+          <div className="text-[10px] text-terminal-dim mb-1 flex flex-wrap items-center gap-2 uppercase tracking-wider">
             {boardName && (
               <span className="bg-terminal-dim/20 px-1 text-terminal-text font-bold mr-2">
                 //{boardName}
@@ -355,7 +438,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 href={post.url} 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="text-xl md:text-2xl font-bold text-terminal-text leading-tight mb-2 cursor-pointer hover:bg-terminal-text hover:text-black decoration-2 underline-offset-4 flex items-start gap-2 transition-colors inline-block break-words"
+                className="text-lg md:text-xl font-bold text-terminal-text leading-tight mb-1 cursor-pointer hover:bg-terminal-text hover:text-black decoration-2 underline-offset-4 flex items-start gap-2 transition-colors inline-block break-words"
               >
                 {post.title}
                 {post.isEncrypted && <Lock size={16} className="text-terminal-dim" title="Encrypted post" />}
@@ -367,7 +450,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 onKeyDown={handleInteractionKeyDown}
                 tabIndex={0}
                 role="button"
-                className="text-xl md:text-2xl font-bold text-terminal-text leading-tight mb-2 cursor-pointer hover:underline decoration-2 underline-offset-4 select-none break-words flex items-center gap-2"
+                className="text-lg md:text-xl font-bold text-terminal-text leading-tight mb-1 cursor-pointer hover:underline decoration-2 underline-offset-4 select-none break-words flex items-center gap-2"
               >
                 {post.title}
                 {post.isEncrypted && <Lock size={16} className="text-terminal-dim" title="Encrypted post" />}
@@ -406,7 +489,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
               onKeyDown={handleInteractionKeyDown}
               tabIndex={0}
               role="button"
-              className={`text-sm md:text-base text-terminal-text/80 font-mono leading-relaxed mb-3 cursor-pointer break-words ${!isExpanded ? 'line-clamp-2' : 'opacity-100'}`}
+              className={`text-sm text-terminal-text/80 font-mono leading-relaxed mb-2 cursor-pointer break-words ${!isExpanded ? 'line-clamp-2' : 'opacity-100'}`}
             >
               <MentionText 
                 content={post.content} 
@@ -415,7 +498,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
             </div>
           )}
 
-          <div className="mt-auto flex items-center justify-between border-t border-terminal-dim pt-2">
+          <div className="mt-2 flex items-center justify-between border-t border-terminal-dim pt-1">
             <div className="flex gap-2 flex-wrap">
               {post.tags.map(tag => (
                 <button
@@ -459,24 +542,12 @@ const PostItemComponent: React.FC<PostItemProps> = ({
 
               <button 
                 onClick={handleCommentClick}
-                className={`flex items-center gap-2 text-sm px-3 py-2 md:px-2 md:py-0.5 transition-colors border border-transparent shrink-0
-                  ${isExpanded 
-                    ? 'text-terminal-text border-terminal-dim bg-terminal-bg/30' 
-                    : 'text-terminal-dim hover:text-terminal-text hover:border-terminal-dim'
-                  }`}
+                className="flex items-center gap-2 text-sm px-3 py-2 md:px-2 md:py-0.5 transition-colors border border-transparent shrink-0 text-terminal-dim hover:text-terminal-text hover:border-terminal-dim"
+                title="View full thread"
               >
                 <MessageSquare size={14} />
                 {post.commentCount} {post.commentCount === 1 ? 'COMMENT' : 'COMMENTS'}
-                {requiresFullPage && !isFullPage && (
-                  <span className="flex items-center ml-1 text-[10px] border border-terminal-dim px-1 text-terminal-alert">
-                     FULL_VIEW <Maximize2 size={8} className="ml-1" />
-                  </span>
-                )}
-                {!requiresFullPage && !isFullPage && (
-                   <span className="ml-1 opacity-50">
-                     {isExpanded ? <Minimize2 size={10} /> : <Maximize2 size={10} />}
-                   </span>
-                )}
+                <Maximize2 size={10} className="opacity-50" />
               </button>
             </div>
           </div>
@@ -489,27 +560,56 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 DATA_STREAM
               </h4>
 
-              {commentTree.length > 0 ? (
-                <div className="space-y-2 mb-6">
-                  {commentTree.map((comment) => (
-                    <CommentThread
-                      key={comment.id}
-                      comment={comment}
-                      userState={userState}
-                      onReply={handleReplyToComment}
-                      onEdit={onEditComment ? handleEditComment : undefined}
-                      onDelete={onDeleteComment ? handleDeleteComment : undefined}
-                      onViewProfile={onViewProfile}
-                      formatTime={formatTime}
-                      knownUsers={knownUsers}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <p className="text-terminal-dim italic text-sm mb-6 border border-terminal-dim p-2 inline-block">
-                  &gt; Null signal. Awaiting input...
-                </p>
-              )}
+              {(() => {
+                const displayTree = isFullPage ? commentTree : previewCommentTree;
+                // Count total comments in preview tree (including nested)
+                const countCommentsInTree = (tree: typeof commentTree): number => {
+                  return tree.reduce((count, comment) => {
+                    return count + 1 + (comment.replies ? countCommentsInTree(comment.replies) : 0);
+                  }, 0);
+                };
+                const previewCount = isFullPage ? post.commentCount : countCommentsInTree(previewCommentTree);
+                const hasMoreComments = !isFullPage && post.commentCount > previewCount;
+
+                return displayTree.length > 0 ? (
+                  <>
+                    <div className="space-y-2 mb-6">
+                      {displayTree.map((comment) => (
+                        <CommentThread
+                          key={comment.id}
+                          comment={comment}
+                          userState={userState}
+                          onReply={handleReplyToComment}
+                          onEdit={onEditComment ? handleEditComment : undefined}
+                          onDelete={onDeleteComment ? handleDeleteComment : undefined}
+                          onVote={onCommentVote}
+                          postId={post.id}
+                          onViewProfile={onViewProfile}
+                          formatTime={formatTime}
+                          knownUsers={knownUsers}
+                        />
+                      ))}
+                    </div>
+                    {!isFullPage && (
+                      <div className="mb-4 text-center">
+                        <button
+                          onClick={() => onViewBit(post.id)}
+                          className="text-sm text-terminal-dim hover:text-terminal-text border border-terminal-dim px-4 py-2 hover:border-terminal-text transition-colors uppercase font-bold tracking-wider"
+                        >
+                          {hasMoreComments 
+                            ? `VIEW ALL ${post.commentCount} ${post.commentCount === 1 ? 'COMMENT' : 'COMMENTS'}`
+                            : `VIEW FULL THREAD (${post.commentCount} ${post.commentCount === 1 ? 'COMMENT' : 'COMMENTS'})`
+                          }
+                        </button>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-terminal-dim italic text-sm mb-6 border border-terminal-dim p-2 inline-block">
+                    &gt; Null signal. Awaiting input...
+                  </p>
+                );
+              })()}
 
               <form onSubmit={handleCommentSubmit} className="flex gap-3 items-start bg-terminal-bg/40 p-3 border border-terminal-dim/30">
                 <div className="flex-1 flex flex-col gap-2">

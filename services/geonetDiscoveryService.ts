@@ -189,7 +189,6 @@ class GeonetDiscoveryService {
     };
 
     this.saveCache(result);
-    console.log('[GeonetDiscovery] Found', channels.length, 'active channels');
 
     return result;
   }

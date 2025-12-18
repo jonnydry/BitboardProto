@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
-import type { Comment, Post } from '../types';
+import type { Comment, Post, UserState } from '../types';
 import { nostrService } from '../services/nostrService';
+import { votingService } from '../services/votingService';
 
 type LatestCommentUpdate = {
   created_at: number;
@@ -11,8 +12,10 @@ export function useCommentsLoader(args: {
   selectedBitId: string | null;
   postsById: Map<string, Post>;
   setPosts: React.Dispatch<React.SetStateAction<Post[]>>;
+  userState?: UserState;
+  setUserState?: React.Dispatch<React.SetStateAction<UserState>>;
 }) {
-  const { selectedBitId, postsById, setPosts } = args;
+  const { selectedBitId, postsById, setPosts, userState, setUserState } = args;
 
   useEffect(() => {
     if (!selectedBitId) return;
@@ -86,12 +89,35 @@ export function useCommentsLoader(args: {
 
       const comments = commentEvents.map((event) => nostrService.eventToComment(event));
 
+      // Fetch votes for all comments
+      const commentNostrIds = comments.filter(c => c.nostrEventId).map(c => c.nostrEventId!);
+      const commentVoteTallies = commentNostrIds.length > 0 
+        ? await votingService.fetchVotesForComments(commentNostrIds)
+        : new Map();
+
+      const commentsWithVotes = comments.map(comment => {
+        if (comment.nostrEventId) {
+          const tally = commentVoteTallies.get(comment.nostrEventId);
+          if (tally) {
+            return {
+              ...comment,
+              upvotes: tally.upvotes,
+              downvotes: tally.downvotes,
+              score: tally.score,
+              uniqueVoters: tally.uniqueVoters,
+              votesVerified: true,
+            };
+          }
+        }
+        return { ...comment, score: comment.score ?? 0, upvotes: comment.upvotes ?? 0, downvotes: comment.downvotes ?? 0 };
+      });
+
       setPosts((prevPosts) =>
         prevPosts.map((p) => {
           if (p.id !== selectedBitId) return p;
           // Deduplicate by id
           const existing = new Set(p.comments.map((c) => c.id));
-          const newOnes = comments.filter((c) => !existing.has(c.id));
+          const newOnes = commentsWithVotes.filter((c) => !existing.has(c.id));
           if (newOnes.length === 0) return p;
           return {
             ...p,
@@ -100,6 +126,15 @@ export function useCommentsLoader(args: {
           };
         })
       );
+
+      // Restore user's comment votes from local storage if available
+      if (userState?.identity && setUserState) {
+        const userCommentVotes = votingService.getUserCommentVotes(userState.identity.pubkey);
+        setUserState(prev => ({
+          ...prev,
+          votedComments: { ...prev.votedComments, ...Object.fromEntries(userCommentVotes) },
+        }));
+      }
 
       // Best-effort profile enrichment (kind 0) for comment authors
       const pubkeys = Array.from(new Set(comments.map((c) => c.authorPubkey).filter(Boolean) as string[]));
@@ -149,5 +184,5 @@ export function useCommentsLoader(args: {
       nostrService.unsubscribe(subEdits);
       nostrService.unsubscribe(subDeletes);
     };
-  }, [postsById, selectedBitId, setPosts]);
+  }, [postsById, selectedBitId, setPosts, userState?.identity, setUserState]);
 }

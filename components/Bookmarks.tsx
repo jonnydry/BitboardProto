@@ -11,6 +11,7 @@ interface BookmarksProps {
   userState: UserState;
   onVote: (postId: string, direction: 'up' | 'down') => void;
   onComment: (postId: string, content: string) => void;
+  onCommentVote?: (postId: string, commentId: string, direction: 'up' | 'down') => void;
   onViewBit: (postId: string) => void;
   onClose: () => void;
   isNostrConnected: boolean;
@@ -23,6 +24,7 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
   userState,
   onVote,
   onComment,
+  onCommentVote,
   onViewBit,
   onClose,
   isNostrConnected,
@@ -96,6 +98,7 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
               userState={userState}
               onVote={onVote}
               onComment={onComment}
+              onCommentVote={onCommentVote}
               onViewBit={onViewBit}
               isBookmarked={true}
               onToggleBookmark={(id) => bookmarkService.toggleBookmark(id)}

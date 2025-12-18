@@ -26,6 +26,9 @@ export const DEFAULT_GEOHASH_PRECISION = GeohashConfig.DEFAULT_PRECISION as Geoh
 /** Maximum comments before requiring full page view */
 export const EXPANSION_THRESHOLD = UIConfig.COMMENT_EXPANSION_THRESHOLD;
 
+/** Number of comments to show in inline preview */
+export const INLINE_PREVIEW_COMMENT_COUNT = UIConfig.INLINE_PREVIEW_COMMENT_COUNT;
+
 // ============================================
 // INITIAL DATA (Fallback when offline)
 // ============================================

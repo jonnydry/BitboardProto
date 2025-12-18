@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Comment, UserState } from '../types';
-import { ChevronDown, ChevronRight, CornerDownRight, Clock, Flag, Edit3, Trash2, Lock } from 'lucide-react';
+import { ChevronDown, ChevronRight, CornerDownRight, Clock, Flag, Edit3, Trash2, Lock, ArrowBigUp, ArrowBigDown, UserX } from 'lucide-react';
 import { MentionText } from './MentionText';
 import { MentionInput } from './MentionInput';
 import { ReportModal } from './ReportModal';
@@ -13,6 +13,8 @@ interface CommentThreadProps {
   onEdit?: (commentId: string, content: string) => void;
   onDelete?: (commentId: string) => void;
   onViewProfile?: (author: string, authorPubkey?: string) => void;
+  onVote?: (postId: string, commentId: string, direction: 'up' | 'down') => void;
+  postId?: string; // Post ID for voting
   formatTime: (timestamp: number) => string;
   knownUsers?: Set<string>;
   depth?: number;
@@ -30,6 +32,8 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
   onEdit,
   onDelete,
   onViewProfile,
+  onVote,
+  postId,
   formatTime,
   knownUsers = new Set(),
   depth = 0,
@@ -65,6 +69,32 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
   }, [comment.authorPubkey, comment.author, userState.identity, userState.username]);
 
   const isDeleted = !!comment.isDeleted || comment.author === '[deleted]';
+
+  // Voting state
+  const voteDirection = useMemo(() => {
+    if (!userState.identity || !postId) return null;
+    return userState.votedComments?.[comment.id] || null;
+  }, [userState.votedComments, comment.id, userState.identity, postId]);
+  
+  const isUpvoted = useMemo(() => voteDirection === 'up', [voteDirection]);
+  const isDownvoted = useMemo(() => voteDirection === 'down', [voteDirection]);
+  const hasInvested = useMemo(() => isUpvoted || isDownvoted, [isUpvoted, isDownvoted]);
+  
+  const commentScore = comment.score ?? 0;
+
+  const handleVoteUp = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onVote && postId) {
+      onVote(postId, comment.id, 'up');
+    }
+  }, [onVote, postId, comment.id]);
+
+  const handleVoteDown = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onVote && postId) {
+      onVote(postId, comment.id, 'down');
+    }
+  }, [onVote, postId, comment.id]);
 
   // Subscribe to report changes
   useEffect(() => {
@@ -179,8 +209,63 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
         border-l-2 pl-3 py-2 mb-2 transition-colors
         ${isCollapsed ? 'border-terminal-dim/30' : 'border-terminal-dim hover:border-terminal-text'}
       `}>
-        {/* Comment header */}
-        <div className="flex items-center gap-2 text-xs mb-1">
+        <div className="flex gap-2">
+          {/* Voting Column (compact) */}
+          {onVote && postId && (
+            <div className="flex flex-col items-center min-w-[2rem] gap-0.5 pt-0.5">
+              {!userState.identity && (
+                <div className="mb-0.5 flex items-center gap-0.5 px-1 py-0.5 border border-terminal-dim/50 bg-terminal-dim/10 rounded" title="Guest mode: Connect identity to cast verified votes">
+                  <UserX size={8} className="text-terminal-dim" />
+                  <span className="text-[7px] text-terminal-dim uppercase">G</span>
+                </div>
+              )}
+              <button 
+                onClick={handleVoteUp}
+                className={`p-1 hover:bg-terminal-dim transition-colors ${isUpvoted ? 'text-terminal-text font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
+                disabled={(!userState.identity) || (userState.bits <= 0 && !hasInvested)}
+                aria-label="Upvote comment"
+                aria-pressed={isUpvoted}
+                title={
+                  !userState.identity
+                    ? "CONNECT IDENTITY TO VOTE"
+                    : isUpvoted
+                      ? "RETRACT BIT (+1 REFUND)"
+                      : hasInvested
+                        ? "SWITCH VOTE (0 COST)"
+                        : "INVEST 1 BIT (-1)"
+                }
+              >
+                <ArrowBigUp size={14} fill={isUpvoted ? "currentColor" : "none"} />
+              </button>
+              
+              <span className={`text-xs font-bold ${commentScore > 0 ? 'text-terminal-text' : commentScore < 0 ? 'text-terminal-alert' : 'text-terminal-dim/50'}`}>
+                {commentScore > 0 ? '+' : ''}{commentScore}
+              </span>
+
+              <button 
+                onClick={handleVoteDown}
+                className={`p-1 hover:bg-terminal-dim transition-colors ${isDownvoted ? 'text-terminal-alert font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
+                disabled={(!userState.identity) || (userState.bits <= 0 && !hasInvested)}
+                aria-label="Downvote comment"
+                aria-pressed={isDownvoted}
+                title={
+                  !userState.identity
+                    ? "CONNECT IDENTITY TO VOTE"
+                    : isDownvoted
+                      ? "RETRACT BIT (+1 REFUND)"
+                      : hasInvested
+                        ? "SWITCH VOTE (0 COST)"
+                        : "INVEST 1 BIT (-1)"
+                }
+              >
+                <ArrowBigDown size={14} fill={isDownvoted ? "currentColor" : "none"} />
+              </button>
+            </div>
+          )}
+
+          <div className="flex-1">
+            {/* Comment header */}
+            <div className="flex items-center gap-2 text-xs mb-1">
           {/* Collapse toggle */}
           {hasReplies && (
             <button
@@ -379,6 +464,8 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
             )}
           </>
         )}
+          </div>
+        </div>
       </div>
 
       {/* Nested replies */}
@@ -393,6 +480,8 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
               onEdit={onEdit}
               onDelete={onDelete}
               onViewProfile={onViewProfile}
+              onVote={onVote}
+              postId={postId}
               formatTime={formatTime}
               knownUsers={knownUsers}
               depth={depth + 1}
@@ -470,29 +559,4 @@ export function buildCommentTree(comments: Comment[]): Comment[] {
   return rootComments;
 }
 
-export const CommentThread = React.memo(CommentThreadComponent, (prev, next) => {
-  if (prev.comment.id !== next.comment.id) return false;
-  if (prev.comment.content !== next.comment.content) return false;
-  if (prev.comment.author !== next.comment.author) return false;
-  if (prev.comment.timestamp !== next.comment.timestamp) return false;
-
-  const prevReplies = prev.comment.replies?.length ?? 0;
-  const nextReplies = next.comment.replies?.length ?? 0;
-  if (prevReplies !== nextReplies) return false;
-
-  if (prev.userState.username !== next.userState.username) return false;
-  if (prev.userState.identity?.pubkey !== next.userState.identity?.pubkey) return false;
-
-  if (prev.depth !== next.depth) return false;
-  if (prev.maxVisualDepth !== next.maxVisualDepth) return false;
-
-  if (prev.onReply !== next.onReply) return false;
-  if (prev.onEdit !== next.onEdit) return false;
-  if (prev.onDelete !== next.onDelete) return false;
-  if (prev.onViewProfile !== next.onViewProfile) return false;
-  if (prev.formatTime !== next.formatTime) return false;
-
-  if (prev.knownUsers !== next.knownUsers) return false;
-
-  return true;
-});
+export const CommentThread = React.memo(CommentThreadComponent);

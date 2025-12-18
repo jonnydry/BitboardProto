@@ -223,11 +223,9 @@ class ReportService {
 
       const signed = await identityService.signEvent(unsigned);
       const event = await nostrService.publishSignedEvent(signed);
-
-      console.log(`[Reports] Published NIP-56 report to Nostr: ${event.id}`);
       return event;
     } catch (error) {
-      console.error('[Reports] Failed to publish to Nostr:', error);
+      // Error already logged by diagnosticsService in NostrService
       return null;
     }
   }

@@ -82,7 +82,7 @@ export function Sidebar(props: {
   ).length;
 
   return (
-    <aside className="md:col-span-1 md:col-start-4 order-first md:order-none space-y-6">
+    <aside className="order-first md:order-none space-y-4">
       
       {/* Connection Status */}
       <div className="border border-terminal-dim p-3 bg-terminal-bg shadow-hard relative overflow-hidden group">
@@ -117,8 +117,8 @@ export function Sidebar(props: {
 
       {/* Feed Filter (when on global feed) */}
       {!activeBoardId && viewMode === ViewMode.FEED && (
-        <div className="border border-terminal-dim p-4 bg-terminal-bg shadow-hard">
-          <h3 className="font-bold border-b border-terminal-dim mb-3 pb-1 text-sm flex items-center gap-2">
+        <div className="border border-terminal-dim p-3 bg-terminal-bg shadow-hard">
+          <h3 className="font-bold border-b border-terminal-dim mb-2 pb-1 text-sm flex items-center gap-2">
             <Radio size={14} /> {">>"} FILTER_MODE
           </h3>
           <div className="flex flex-col gap-1">
@@ -160,8 +160,8 @@ export function Sidebar(props: {
       )}
 
       {/* Topic Board Directory */}
-      <div className="border border-terminal-dim p-4 bg-terminal-bg shadow-hard">
-        <h3 className="font-bold border-b border-terminal-dim mb-3 pb-1 text-sm flex items-center gap-2">
+      <div className="border border-terminal-dim p-3 bg-terminal-bg shadow-hard">
+        <h3 className="font-bold border-b border-terminal-dim mb-2 pb-1 text-sm flex items-center gap-2">
           <Hash size={14} /> {">>"} TOPIC_NET
         </h3>
         <div className="flex flex-col gap-1 max-h-[300px] overflow-y-auto pr-1">
@@ -232,8 +232,8 @@ export function Sidebar(props: {
       </div>
 
       {/* Location Channels */}
-      <div className="border border-terminal-dim p-4 bg-terminal-bg shadow-hard">
-        <h3 className="font-bold border-b border-terminal-dim mb-3 pb-1 text-sm flex items-center justify-between">
+      <div className="border border-terminal-dim p-3 bg-terminal-bg shadow-hard">
+        <h3 className="font-bold border-b border-terminal-dim mb-2 pb-1 text-sm flex items-center justify-between">
           <span className="flex items-center gap-2">
             <MapPin size={14} /> {">>"} GEO_NET
           </span>
@@ -331,8 +331,8 @@ export function Sidebar(props: {
       </div>
 
       {/* Theme Selector */}
-      <div className="border border-terminal-dim p-4 bg-terminal-bg shadow-hard">
-        <h3 className="font-bold border-b border-terminal-dim mb-3 pb-1 text-sm flex items-center gap-2">
+      <div className="border border-terminal-dim p-3 bg-terminal-bg shadow-hard">
+        <h3 className="font-bold border-b border-terminal-dim mb-2 pb-1 text-sm flex items-center gap-2">
           <Eye size={14} /> {">>"} VISUAL_CORE
         </h3>
         <div className="grid grid-cols-2 gap-2 py-2">
@@ -370,8 +370,8 @@ export function Sidebar(props: {
         </div>
       </div>
 
-      <div className="border border-terminal-dim p-4 bg-terminal-bg shadow-hard">
-        <h3 className="font-bold border-b border-terminal-dim mb-3 pb-1 text-sm flex items-center gap-2">
+      <div className="border border-terminal-dim p-3 bg-terminal-bg shadow-hard">
+        <h3 className="font-bold border-b border-terminal-dim mb-2 pb-1 text-sm flex items-center gap-2">
           <HelpCircle size={14} /> {">>"} ID_CONFIG
         </h3>
         <div className="flex flex-col gap-2">

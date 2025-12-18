@@ -13,6 +13,7 @@ interface UserProfileProps {
   userState: UserState;
   onVote: (postId: string, direction: 'up' | 'down') => void;
   onComment: (postId: string, content: string) => void;
+  onCommentVote?: (postId: string, commentId: string, direction: 'up' | 'down') => void;
   onViewBit: (postId: string) => void;
   onRefreshProfile?: (pubkey: string) => void;
   onClose: () => void;
@@ -29,6 +30,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
   userState,
   onVote,
   onComment,
+  onCommentVote,
   onViewBit,
   onRefreshProfile,
   onClose,
@@ -151,6 +153,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
               userState={userState}
               onVote={onVote}
               onComment={onComment}
+              onCommentVote={onCommentVote}
               onViewBit={onViewBit}
               isBookmarked={bookmarkedIdSet.has(post.id)}
               onToggleBookmark={onToggleBookmark}

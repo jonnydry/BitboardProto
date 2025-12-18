@@ -170,7 +170,7 @@ export function buildCommentEvent(
   }
 ): UnsignedNostrEvent {
   const isEncrypted = !!opts?.encryptedContent;
-  
+
   const tags: string[][] = [
     ['e', postEventId, '', 'root'], // Reference to the original post
     ['client', 'bitboard'],
@@ -289,6 +289,33 @@ export function buildVoteEvent(
   return event as UnsignedNostrEvent;
 }
 
+export function buildCommentVoteEvent(
+  commentEventId: string,
+  direction: 'up' | 'down',
+  pubkey: string,
+  opts?: {
+    /** Comment author's pubkey (NIP-25 p tag) */
+    commentAuthorPubkey?: string;
+  }
+): UnsignedNostrEvent {
+  const tags: string[][] = [['e', commentEventId]];
+
+  // NIP-25: include 'p' tag for the author of the reacted-to event
+  if (opts?.commentAuthorPubkey) {
+    tags.push(['p', opts.commentAuthorPubkey]);
+  }
+
+  const event: Partial<NostrEvent> = {
+    pubkey,
+    kind: NOSTR_KINDS.REACTION,
+    created_at: Math.floor(Date.now() / 1000),
+    tags,
+    content: direction === 'up' ? '+' : '-',
+  };
+
+  return event as UnsignedNostrEvent;
+}
+
 export function buildBoardEvent(
   board: Omit<Board, 'memberCount' | 'nostrEventId'>,
   pubkey: string
@@ -355,8 +382,3 @@ export function buildReportEvent(args: {
 
   return event as UnsignedNostrEvent;
 }
-
-
-
-
-

@@ -27,6 +27,7 @@ export function FeedView(props: {
   onComment: (postId: string, content: string, parentCommentId?: string) => void;
   onEditComment: (postId: string, commentId: string, content: string) => void;
   onDeleteComment: (postId: string, commentId: string) => void;
+  onCommentVote?: (postId: string, commentId: string, direction: 'up' | 'down') => void;
   onViewBit: (postId: string) => void;
   onViewProfile: (username: string, pubkey?: string) => void;
   onEditPost: (postId: string) => void;
@@ -58,6 +59,7 @@ export function FeedView(props: {
     onComment,
     onEditComment,
     onDeleteComment,
+    onCommentVote,
     onViewBit,
     onViewProfile,
     onEditPost,
@@ -145,6 +147,7 @@ export function FeedView(props: {
               onComment={onComment}
               onEditComment={onEditComment}
               onDeleteComment={onDeleteComment}
+              onCommentVote={onCommentVote}
               onViewBit={onViewBit}
               onViewProfile={onViewProfile}
               onEditPost={onEditPost}
@@ -231,6 +234,7 @@ export function FeedView(props: {
                   onComment={onComment}
                   onEditComment={onEditComment}
                   onDeleteComment={onDeleteComment}
+                  onCommentVote={onCommentVote}
                   onViewBit={onViewBit}
                   onViewProfile={onViewProfile}
                   onEditPost={onEditPost}

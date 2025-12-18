@@ -15,7 +15,6 @@ import { EditPost } from './components/EditPost';
 import { PostItem } from './components/PostItem';
 import { ArrowLeft } from 'lucide-react';
 import { ViewMode, BoardType } from './types';
-import { bookmarkService } from './services/bookmarkService';
 import { nostrService } from './services/nostrService';
 
 // Main App component that uses context
@@ -62,6 +61,7 @@ const AppContent: React.FC = () => {
                 onComment={app.handleComment}
                 onEditComment={app.handleEditComment}
                 onDeleteComment={app.handleDeleteComment}
+                onCommentVote={app.handleCommentVote}
                 onViewBit={app.handleViewBit}
                 onViewProfile={app.handleViewProfile}
                 onEditPost={app.handleEditPost}
@@ -97,6 +97,7 @@ const AppContent: React.FC = () => {
                     onComment={app.handleComment}
                     onEditComment={app.handleEditComment}
                     onDeleteComment={app.handleDeleteComment}
+                    onCommentVote={app.handleCommentVote}
                     onViewBit={() => {}}
                     onViewProfile={app.handleViewProfile}
                     onEditPost={app.handleEditPost}
@@ -167,6 +168,7 @@ const AppContent: React.FC = () => {
                 userState={app.userState}
                 onVote={app.handleVote}
                 onComment={app.handleComment}
+                onCommentVote={app.handleCommentVote}
                 onViewBit={app.handleViewBit}
                 onRefreshProfile={(pubkey) => app.refreshProfileMetadata([pubkey])}
                 onClose={() => app.setViewMode(ViewMode.FEED)}
@@ -181,6 +183,7 @@ const AppContent: React.FC = () => {
                 userState={app.userState}
                 onVote={app.handleVote}
                 onComment={app.handleComment}
+                onCommentVote={app.handleCommentVote}
                 onViewBit={app.handleViewBit}
                 onClose={() => app.setViewMode(ViewMode.FEED)}
                 isNostrConnected={app.isNostrConnected}

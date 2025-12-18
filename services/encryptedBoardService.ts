@@ -96,7 +96,6 @@ class EncryptedBoardService {
     };
     this.boardKeys.set(boardId, entry);
     this.saveToStorage();
-    console.log(`[EncryptedBoard] Saved key for board: ${boardId}`);
   }
 
   /**
@@ -292,7 +291,6 @@ class EncryptedBoardService {
       window.history.replaceState(null, '', url.toString());
     }
 
-    console.log(`[EncryptedBoard] Received share link for board: ${parsed.boardId}`);
     return parsed;
   }
 
@@ -336,6 +334,8 @@ class EncryptedBoardService {
 
 // Export singleton
 export const encryptedBoardService = new EncryptedBoardService();
+
+
 
 
 

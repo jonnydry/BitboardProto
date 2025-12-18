@@ -18,6 +18,7 @@ import {
   buildPostEvent,
   buildReportEvent,
   buildVoteEvent,
+  buildCommentVoteEvent,
 } from './eventBuilders';
 import {
   BITBOARD_TYPE_COMMENT,
@@ -273,34 +274,31 @@ class NostrService {
     this.updateRelayStatus(url, false, error);
     diagnosticsService.warn('nostr', `Relay disconnected: ${url}`, error?.message || String(error));
 
-    // Check for permanent failure (DNS errors, etc.)
-    const errorMessage = error.message.toLowerCase();
-    if (errorMessage.includes('dns') || 
-        errorMessage.includes('hostname') ||
-        errorMessage.includes('not found')) {
-      console.warn(`[Nostr] Permanent failure for ${url} - not retrying`);
-      diagnosticsService.error('nostr', `Relay permanent failure: ${url}`, error.message);
-      status.reconnectAttempts = this.MAX_RECONNECT_ATTEMPTS;
-      return;
-    }
+      // Check for permanent failure (DNS errors, etc.)
+      const errorMessage = error.message.toLowerCase();
+      if (errorMessage.includes('dns') || 
+          errorMessage.includes('hostname') ||
+          errorMessage.includes('not found')) {
+        diagnosticsService.error('nostr', `Relay permanent failure: ${url}`, error.message);
+        status.reconnectAttempts = this.MAX_RECONNECT_ATTEMPTS;
+        return;
+      }
 
-    // Implement exponential backoff
-    status.reconnectAttempts++;
-    
-    if (status.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
-      console.warn(`[Nostr] Max reconnection attempts (${this.MAX_RECONNECT_ATTEMPTS}) reached for ${url}`);
-      return;
-    }
+      // Implement exponential backoff
+      status.reconnectAttempts++;
+      
+      if (status.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
+        diagnosticsService.warn('nostr', `Max reconnection attempts reached for ${url}`);
+        return;
+      }
 
-    // Calculate backoff interval
-    const backoffInterval = Math.min(
-      this.INITIAL_BACKOFF_MS * Math.pow(this.BACKOFF_MULTIPLIER, status.reconnectAttempts - 1),
-      this.MAX_BACKOFF_MS
-    );
+      // Calculate backoff interval
+      const backoffInterval = Math.min(
+        this.INITIAL_BACKOFF_MS * Math.pow(this.BACKOFF_MULTIPLIER, status.reconnectAttempts - 1),
+        this.MAX_BACKOFF_MS
+      );
 
-    status.nextReconnectTime = Date.now() + backoffInterval;
-
-    console.log(`[Nostr] Scheduling reconnection to ${url} in ${backoffInterval}ms (attempt ${status.reconnectAttempts})`);
+      status.nextReconnectTime = Date.now() + backoffInterval;
 
     // Clear any existing timer
     const existingTimer = this.reconnectTimers.get(url);
@@ -318,13 +316,11 @@ class NostrService {
   }
 
   private attemptReconnection(url: string) {
-    console.log(`[Nostr] Attempting reconnection to ${url}`);
     // The SimplePool handles reconnection internally
     // We just need to try a query to trigger it
     this.pool.querySync([url], { kinds: [0], limit: 1 })
       .then(() => {
         this.updateRelayStatus(url, true);
-        console.log(`[Nostr] Reconnected to ${url}`);
       })
       .catch((error) => {
         this.handleRelayDisconnection(url, error);
@@ -429,7 +425,9 @@ class NostrService {
               }
             }
           })
-          .catch(console.error);
+          .catch((error) => {
+            diagnosticsService.error('nostr', 'Failed to flush queued message', String(error));
+          });
       }
     }
   }
@@ -623,6 +621,10 @@ class NostrService {
       boardAddress?: string;
       /** Used as a discoverability hashtag */
       boardName?: string;
+      /** Encrypted title (base64) */
+      encryptedTitle?: string;
+      /** Encrypted content (base64) */
+      encryptedContent?: string;
     }
   ): UnsignedNostrEvent {
     return buildPostEvent(post, pubkey, geohash, opts);
@@ -654,6 +656,10 @@ class NostrService {
     imageUrl?: string;
     /** Editor pubkey (must match signing key) */
     pubkey: string;
+    /** Encrypted title (base64) */
+    encryptedTitle?: string;
+    /** Encrypted content (base64) */
+    encryptedContent?: string;
   }): UnsignedNostrEvent {
     return buildPostEditEvent(args);
   }
@@ -734,6 +740,8 @@ class NostrService {
       postAuthorPubkey?: string;
       /** Parent comment author's pubkey (for NIP-10 p tags) */
       parentCommentAuthorPubkey?: string;
+      /** Encrypted content (base64) */
+      encryptedContent?: string;
     }
   ): UnsignedNostrEvent {
     return buildCommentEvent(postEventId, content, pubkey, parentCommentId, opts);
@@ -749,6 +757,8 @@ class NostrService {
     targetCommentEventId: string;
     content: string;
     pubkey: string;
+    /** Encrypted content (base64) */
+    encryptedContent?: string;
   }): UnsignedNostrEvent {
     return buildCommentEditEvent(args);
   }
@@ -848,6 +858,18 @@ class NostrService {
     return buildVoteEvent(postEventId, direction, pubkey, opts);
   }
 
+  buildCommentVoteEvent(
+    commentEventId: string,
+    direction: 'up' | 'down',
+    pubkey: string,
+    opts?: {
+      /** Comment author's pubkey (NIP-25 p tag) */
+      commentAuthorPubkey?: string;
+    }
+  ): UnsignedNostrEvent {
+    return buildCommentVoteEvent(commentEventId, direction, pubkey, opts);
+  }
+
   buildBoardEvent(
     board: Omit<Board, 'memberCount' | 'nostrEventId'>,
     pubkey: string
@@ -884,7 +906,7 @@ class NostrService {
         event.tags.some(tag => tag[0] === 'client' && tag[1] === 'bitboard')
       );
     } catch (error) {
-      console.error('[Nostr] Failed to fetch reports:', error);
+      diagnosticsService.error('nostr', 'Failed to fetch reports', String(error));
       return [];
     }
   }
@@ -902,7 +924,7 @@ class NostrService {
       const events = await this.pool.querySync(this.getReadRelays(), filter);
       return events;
     } catch (error) {
-      console.error('[Nostr] Failed to fetch user reports:', error);
+      diagnosticsService.error('nostr', 'Failed to fetch user reports', String(error));
       return [];
     }
   }
@@ -978,7 +1000,7 @@ class NostrService {
         !nostrEventDeduplicator.isEventDuplicate(event.id) && this.isBitboardPostEvent(event)
       );
     } catch (error) {
-      console.error('[Nostr] Failed to fetch posts:', error);
+      diagnosticsService.error('nostr', 'Failed to fetch posts', String(error));
       // Don't throw - return empty array for graceful degradation
       return [];
     }
@@ -999,7 +1021,7 @@ class NostrService {
       const events = await this.pool.querySync(this.getReadRelays(), filter);
       return events.filter(event => !nostrEventDeduplicator.isEventDuplicate(event.id));
     } catch (error) {
-      console.error('[Nostr] Failed to fetch boards:', error);
+      diagnosticsService.error('nostr', 'Failed to fetch boards', String(error));
       throw error;
     }
   }
@@ -1012,6 +1034,20 @@ class NostrService {
     const filter: Filter = {
       kinds: [NOSTR_KINDS.REACTION],
       '#e': [postEventId],
+    };
+
+    const events = await this.pool.querySync(this.getReadRelays(), filter);
+    return events;
+  }
+
+  /**
+   * Fetch vote events for a comment
+   * Returns raw events for cryptographic verification
+   */
+  async fetchCommentVoteEvents(commentEventId: string): Promise<NostrEvent[]> {
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.REACTION],
+      '#e': [commentEventId],
     };
 
     const events = await this.pool.querySync(this.getReadRelays(), filter);
@@ -1103,7 +1139,7 @@ class NostrService {
       limit: opts.limit ?? 200,
     };
 
-    const events = await this.pool.querySync(this.getReadRelays(), filter);
+    const events = await this.pool.querySync(this.getReadRelays(), filter as Filter);
     return events.filter((event) => !nostrEventDeduplicator.isEventDuplicate(event.id) && this.isBitboardPostEditEvent(event));
   }
 
@@ -1172,6 +1208,7 @@ class NostrService {
 
     const sub = this.pool.subscribeMany(
       this.getReadRelays(),
+      // @ts-expect-error - FilterWithTags extends Filter but TypeScript doesn't recognize the index signature compatibility
       [filter],
       {
         onevent: debouncedHandler,
@@ -1185,7 +1222,6 @@ class NostrService {
             pendingEvents.forEach(e => onEvent(e));
             pendingEvents.length = 0;
           }
-          console.log('[Nostr] End of stored events for subscription:', subscriptionId);
         }
       }
     );
@@ -1216,14 +1252,15 @@ class NostrService {
       since: Math.floor(Date.now() / 1000) - NostrConfig.SUBSCRIPTION_SINCE_SECONDS,
     };
 
-    const sub = this.pool.subscribeMany(this.getReadRelays(), [filter], {
+    const sub = this.pool.subscribeMany(
+      this.getReadRelays(),
+      // @ts-expect-error - FilterWithTags extends Filter but TypeScript doesn't recognize the index signature compatibility
+      [filter],
+      {
       onevent: (event) => {
         if (nostrEventDeduplicator.isEventDuplicate(event.id)) return;
         if (!this.isBitboardPostEditEvent(event)) return;
         onEvent(event);
-      },
-      oneose: () => {
-        console.log('[Nostr] End of stored events for subscription:', subscriptionId);
       },
     });
 
@@ -1247,7 +1284,11 @@ class NostrService {
       since: Math.floor(Date.now() / 1000) - NostrConfig.SUBSCRIPTION_SINCE_SECONDS,
     };
 
-    const sub = this.pool.subscribeMany(this.getReadRelays(), [filter], {
+    const sub = this.pool.subscribeMany(
+      this.getReadRelays(),
+      // @ts-expect-error - FilterWithTags extends Filter but TypeScript doesn't recognize the index signature compatibility
+      [filter],
+      {
       onevent: (event) => {
         if (nostrEventDeduplicator.isEventDuplicate(event.id)) return;
         if (!this.isBitboardCommentEditEvent(event)) return;
@@ -1270,7 +1311,11 @@ class NostrService {
       since: Math.floor(Date.now() / 1000) - NostrConfig.SUBSCRIPTION_SINCE_SECONDS,
     };
 
-    const sub = this.pool.subscribeMany(this.getReadRelays(), [filter], {
+    const sub = this.pool.subscribeMany(
+      this.getReadRelays(),
+      // @ts-expect-error - FilterWithTags extends Filter but TypeScript doesn't recognize the index signature compatibility
+      [filter],
+      {
       onevent: (event) => {
         if (nostrEventDeduplicator.isEventDuplicate(event.id)) return;
         if (!this.isBitboardCommentDeleteEvent(event)) return;
@@ -1428,6 +1473,10 @@ class NostrService {
       content: '', // Will be set based on encryption status
       timestamp: event.created_at * 1000,
       parentId,
+      // Voting fields - initialized to defaults, will be updated when votes are fetched
+      score: 0,
+      upvotes: 0,
+      downvotes: 0,
     };
 
     // Handle encryption

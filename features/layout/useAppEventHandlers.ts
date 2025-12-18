@@ -270,6 +270,10 @@ export const useAppEventHandlers = ({
       parentId: parentCommentId, // For threaded comments
       isEncrypted: !!encryptedContent,
       encryptedContent,
+      // Voting fields
+      score: 0,
+      upvotes: 0,
+      downvotes: 0,
     };
 
     // Publish to Nostr if connected

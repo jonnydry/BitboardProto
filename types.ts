@@ -89,6 +89,12 @@ export interface Comment {
   // Encryption fields
   encryptedContent?: string;
   isEncrypted?: boolean;
+  // Voting fields
+  score?: number;
+  upvotes?: number;
+  downvotes?: number;
+  uniqueVoters?: number;
+  votesVerified?: boolean;
 }
 
 export interface Post {
@@ -128,6 +134,7 @@ export interface UserState {
   bits: number;
   maxBits: number;
   votedPosts: Record<string, 'up' | 'down'>;
+  votedComments: Record<string, 'up' | 'down'>;
   // Nostr identity
   identity?: NostrIdentity;
   hasIdentity: boolean; // Whether user has a Nostr identity (separate from relay connection)
