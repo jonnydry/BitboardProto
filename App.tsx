@@ -110,11 +110,15 @@ export default function App() {
   
   const [userState, setUserState] = useState<UserState>(() => {
     const existingIdentity = identityService.getIdentity();
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/ff94bf1c-806f-4431-afc5-ee25db8c5162',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:userState-init',message:'UserState initialization - FIX APPLIED: added votedComments',data:{hasExistingIdentity:!!existingIdentity,runId:'post-fix'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A-missing-votedComments'})}).catch(()=>{});
+    // #endregion
     return {
       username: existingIdentity?.displayName || 'u/guest_' + Math.floor(Math.random() * 10000).toString(16),
       bits: MAX_DAILY_BITS,
       maxBits: MAX_DAILY_BITS,
       votedPosts: {},
+      votedComments: {},
       identity: existingIdentity || undefined,
       hasIdentity: !!existingIdentity,
     };

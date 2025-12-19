@@ -14,6 +14,7 @@ import { useUrlPostRouting } from '../../hooks/useUrlPostRouting';
 import { useNostrFeed } from '../../hooks/useNostrFeed';
 import { useCommentsLoader } from '../../hooks/useCommentsLoader';
 import { useVoting } from '../../hooks/useVoting';
+import { useCommentVoting } from '../../hooks/useCommentVoting';
 import { useAppEventHandlers } from './useAppEventHandlers';
 
 const MAX_CACHED_POSTS = 200;
@@ -126,6 +127,7 @@ interface AppContextType {
   handleDeletePost: (postId: string) => void;
   handleTagClick: (tag: string) => void;
   handleVote: (postId: string, direction: 'up' | 'down') => void;
+  handleCommentVote: (postId: string, commentId: string, direction: 'up' | 'down') => void;
   handleToggleBookmark: (postId: string) => void;
   handleSearch: (query: string) => void;
   loadMorePosts: () => Promise<void>;
@@ -410,6 +412,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useCommentsLoader({ selectedBitId, postsById, setPosts });
 
   const { handleVote } = useVoting({ postsById, userState, setUserState, setPosts });
+  const { handleCommentVote } = useCommentVoting({ postsById, userState, setUserState, setPosts });
+  // #region agent log
+  console.log('[DEBUG] AppContext: handleCommentVote type:', typeof handleCommentVote);
+  if (typeof window !== 'undefined') {
+    fetch('http://127.0.0.1:7242/ingest/ff94bf1c-806f-4431-afc5-ee25db8c5162',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AppContext.tsx:useCommentVoting',message:'FIX APPLIED: useCommentVoting hook integrated',data:{handleCommentVoteType:typeof handleCommentVote,runId:'post-fix'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C-missing-handleCommentVote'})}).catch(()=>{});
+  }
+  // #endregion
 
   // Ensure identity is loaded
   useEffect(() => {
@@ -569,6 +578,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     handleDeletePost: eventHandlers.handleDeletePost,
     handleTagClick: eventHandlers.handleTagClick,
     handleVote,
+    handleCommentVote,
     handleToggleBookmark: (postId: string) => bookmarkService.toggleBookmark(postId),
     handleSearch: eventHandlers.handleSearch,
     loadMorePosts: eventHandlers.loadMorePosts,

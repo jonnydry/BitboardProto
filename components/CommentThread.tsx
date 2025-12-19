@@ -76,6 +76,9 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
 
   // Voting state
   const voteDirection = useMemo(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/ff94bf1c-806f-4431-afc5-ee25db8c5162',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CommentThread.tsx:voteDirection',message:'Checking votedComments state',data:{hasVotedComments:!!userState.votedComments,votedCommentsType:typeof userState.votedComments,votedCommentsKeys:userState.votedComments?Object.keys(userState.votedComments).length:0,commentId:comment.id,hasIdentity:!!userState.identity,postId:postId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A-missing-votedComments'})}).catch(()=>{});
+    // #endregion
     if (!userState.identity || !postId) return null;
     return userState.votedComments?.[comment.id] || null;
   }, [userState.votedComments, comment.id, userState.identity, postId]);
@@ -88,6 +91,9 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
 
   const handleVoteUp = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
+    // #region agent log
+    console.log('[DEBUG] CommentThread handleVoteUp clicked:', { postId, commentId: comment.id, hasOnVote: !!onVote });
+    // #endregion
     if (onVote && postId) {
       onVote(postId, comment.id, 'up');
     }
