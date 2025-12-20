@@ -65,6 +65,16 @@
   --scanline-color: rgba(255, 255, 255, 0.05);
 }
 
+[data-theme="sakura"] {
+  /* SAKURA (Cherry Blossom Pink) */
+  --color-terminal-bg: 20 10 15; /* Dark Pinkish/Purple */
+  --color-terminal-text: 255 180 220; /* Light Pink */
+  --color-terminal-dim: 140 80 110; /* Muted Rose */
+  --color-terminal-alert: 255 120 150; /* Bright Pink/Coral */
+  --color-terminal-highlight: 50 25 40; /* Darker Pink Highlight */
+  --scanline-color: rgba(255, 180, 220, 0.03);
+}
+
 [data-theme="bitboring"] {
   /* BITBORING (The "Bad" Theme) */
   --color-terminal-bg: 255 255 255; /* #ffffff */

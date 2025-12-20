@@ -170,10 +170,16 @@ const AppContent: React.FC = () => {
                 reportedPostIdSet={app.reportedPostIdSet}
                 onToggleBookmark={app.handleToggleBookmark}
                 userState={app.userState}
+                knownUsers={app.knownUsers}
                 onVote={app.handleVote}
                 onComment={app.handleComment}
+                onEditComment={app.handleEditComment}
+                onDeleteComment={app.handleDeleteComment}
                 onCommentVote={app.handleCommentVote}
                 onViewBit={app.handleViewBit}
+                onViewProfile={app.handleViewProfile}
+                onEditPost={app.handleEditPost}
+                onTagClick={app.handleTagClick}
                 onRefreshProfile={(pubkey) => app.refreshProfileMetadata([pubkey])}
                 onClose={() => app.setViewMode(ViewMode.FEED)}
                 isNostrConnected={app.isNostrConnected}
@@ -187,12 +193,20 @@ const AppContent: React.FC = () => {
                 bookmarkedIds={app.bookmarkedIds}
                 reportedPostIdSet={app.reportedPostIdSet}
                 userState={app.userState}
+                knownUsers={app.knownUsers}
                 onVote={app.handleVote}
                 onComment={app.handleComment}
+                onEditComment={app.handleEditComment}
+                onDeleteComment={app.handleDeleteComment}
                 onCommentVote={app.handleCommentVote}
                 onViewBit={app.handleViewBit}
+                onViewProfile={app.handleViewProfile}
+                onEditPost={app.handleEditPost}
+                onTagClick={app.handleTagClick}
                 onClose={() => app.setViewMode(ViewMode.FEED)}
                 isNostrConnected={app.isNostrConnected}
+                onToggleMute={app.toggleMute}
+                isMuted={app.isMuted}
               />
             )}
             {app.viewMode === ViewMode.EDIT_POST && app.editingPostId && app.postsById.get(app.editingPostId) && (

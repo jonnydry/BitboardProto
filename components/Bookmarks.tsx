@@ -9,12 +9,20 @@ interface BookmarksProps {
   bookmarkedIds: string[];
   reportedPostIdSet: Set<string>;
   userState: UserState;
+  knownUsers?: Set<string>;
   onVote: (postId: string, direction: 'up' | 'down') => void;
-  onComment: (postId: string, content: string) => void;
+  onComment: (postId: string, content: string, parentCommentId?: string) => void;
+  onEditComment?: (postId: string, commentId: string, content: string) => void;
+  onDeleteComment?: (postId: string, commentId: string) => void;
   onCommentVote?: (postId: string, commentId: string, direction: 'up' | 'down') => void;
   onViewBit: (postId: string) => void;
+  onViewProfile?: (username: string, pubkey?: string) => void;
+  onEditPost?: (postId: string) => void;
+  onTagClick?: (tag: string) => void;
   onClose: () => void;
   isNostrConnected: boolean;
+  onToggleMute?: (pubkey: string) => void;
+  isMuted?: (pubkey: string) => boolean;
 }
 
 export const Bookmarks: React.FC<BookmarksProps> = ({
@@ -22,12 +30,20 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
   bookmarkedIds,
   reportedPostIdSet,
   userState,
+  knownUsers,
   onVote,
   onComment,
+  onEditComment,
+  onDeleteComment,
   onCommentVote,
   onViewBit,
+  onViewProfile,
+  onEditPost,
+  onTagClick,
   onClose,
   isNostrConnected,
+  onToggleMute,
+  isMuted,
 }) => {
   // Get bookmarked posts in order
   const bookmarkedPosts = useMemo(() => {
@@ -96,14 +112,22 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
               key={post.id}
               post={post}
               userState={userState}
+              knownUsers={knownUsers}
               onVote={onVote}
               onComment={onComment}
+              onEditComment={onEditComment}
+              onDeleteComment={onDeleteComment}
               onCommentVote={onCommentVote}
               onViewBit={onViewBit}
+              onViewProfile={onViewProfile}
+              onTagClick={onTagClick}
+              onEditPost={onEditPost}
               isBookmarked={true}
               onToggleBookmark={(id) => bookmarkService.toggleBookmark(id)}
               hasReported={reportedPostIdSet.has(post.id)}
               isNostrConnected={isNostrConnected}
+              onToggleMute={onToggleMute}
+              isMuted={isMuted}
             />
           ))}
         </div>

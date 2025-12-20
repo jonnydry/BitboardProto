@@ -61,8 +61,9 @@ export function AppHeader(props: {
                   aria-hidden="true"
                 />
                 <div
-                  className="absolute inset-0 bg-terminal-text transition-transform duration-200 origin-left hover:scale-[3] hover:z-50"
+                  className="absolute inset-0 transition-transform duration-200 origin-left hover:scale-[3] hover:z-50"
                   style={{
+                    background: "linear-gradient(135deg, rgb(var(--color-terminal-text)) 40%, rgb(var(--color-terminal-dim)) 60%)",
                     maskImage: "url('/assets/bitboard-logo.png?v=3')",
                     WebkitMaskImage: "url('/assets/bitboard-logo.png?v=3')",
                     maskSize: "contain",

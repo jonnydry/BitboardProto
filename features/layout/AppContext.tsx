@@ -413,12 +413,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const { handleVote } = useVoting({ postsById, userState, setUserState, setPosts });
   const { handleCommentVote } = useCommentVoting({ postsById, userState, setUserState, setPosts });
-  // #region agent log
-  console.log('[DEBUG] AppContext: handleCommentVote type:', typeof handleCommentVote);
-  if (typeof window !== 'undefined') {
-    fetch('http://127.0.0.1:7242/ingest/ff94bf1c-806f-4431-afc5-ee25db8c5162',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AppContext.tsx:useCommentVoting',message:'FIX APPLIED: useCommentVoting hook integrated',data:{handleCommentVoteType:typeof handleCommentVote,runId:'post-fix'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C-missing-handleCommentVote'})}).catch(()=>{});
-  }
-  // #endregion
 
   // Ensure identity is loaded
   useEffect(() => {

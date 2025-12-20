@@ -12,15 +12,8 @@ export function useCommentVoting(args: {
 
   const handleCommentVote = useCallback(
     async (postId: string, commentId: string, direction: 'up' | 'down') => {
-      // #region agent log
-      console.log('[DEBUG] handleCommentVote called:', { postId, commentId, direction });
-      fetch('http://127.0.0.1:7242/ingest/ff94bf1c-806f-4431-afc5-ee25db8c5162',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCommentVoting.ts:handleCommentVote',message:'Comment vote attempt',data:{postId,commentId,direction,hasVotedComments:!!userState.votedComments,votedCommentsType:typeof userState.votedComments,currentVote:userState.votedComments?.[commentId]},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A-missing-votedComments'})}).catch(()=>{});
-      // #endregion
       const post = postsById.get(postId);
-      if (!post) {
-        console.warn('[DEBUG] handleCommentVote: Post not found:', postId);
-        return;
-      }
+      if (!post) return;
 
       // Find the comment in the post's comment tree
       const findComment = (comments: Comment[], targetId: string): Comment | null => {
@@ -35,15 +28,10 @@ export function useCommentVoting(args: {
       };
 
       const comment = findComment(post.comments, commentId);
-      if (!comment) {
-        console.warn('[DEBUG] handleCommentVote: Comment not found:', commentId);
-        return;
-      }
-      console.log('[DEBUG] handleCommentVote: Found comment:', { id: comment.id, nostrEventId: comment.nostrEventId });
+      if (!comment) return;
 
       const currentUserState = userState;
       const currentVote = currentUserState.votedComments?.[commentId];
-      console.log('[DEBUG] handleCommentVote: Current state:', { hasIdentity: !!currentUserState.identity, bits: currentUserState.bits, currentVote });
 
       if (!currentUserState.identity) {
         console.warn('[CommentVote] No identity - connect an identity to vote.');
@@ -51,10 +39,8 @@ export function useCommentVoting(args: {
       }
 
       if (!currentVote && currentUserState.bits <= 0) {
-        console.warn('[CommentVote] Insufficient bits');
         return;
       }
-      console.log('[DEBUG] handleCommentVote: Proceeding with optimistic update');
 
       const optimisticUpdate = computeOptimisticUpdate(
         currentVote ?? null,
@@ -102,9 +88,6 @@ export function useCommentVoting(args: {
 
       if (currentUserState.identity && comment.nostrEventId) {
         try {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/ff94bf1c-806f-4431-afc5-ee25db8c5162',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCommentVoting.ts:castVote',message:'FIX APPLIED: Changed castCommentVote to castVote',data:{commentNostrEventId:comment.nostrEventId,direction,runId:'post-fix'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B-missing-castCommentVote'})}).catch(()=>{});
-          // #endregion
           const result = await votingService.castVote(
             comment.nostrEventId,
             direction,

@@ -11,10 +11,16 @@ interface UserProfileProps {
   reportedPostIdSet: Set<string>;
   onToggleBookmark: (postId: string) => void;
   userState: UserState;
+  knownUsers?: Set<string>;
   onVote: (postId: string, direction: 'up' | 'down') => void;
-  onComment: (postId: string, content: string) => void;
+  onComment: (postId: string, content: string, parentCommentId?: string) => void;
+  onEditComment?: (postId: string, commentId: string, content: string) => void;
+  onDeleteComment?: (postId: string, commentId: string) => void;
   onCommentVote?: (postId: string, commentId: string, direction: 'up' | 'down') => void;
   onViewBit: (postId: string) => void;
+  onViewProfile?: (username: string, pubkey?: string) => void;
+  onEditPost?: (postId: string) => void;
+  onTagClick?: (tag: string) => void;
   onRefreshProfile?: (pubkey: string) => void;
   onClose: () => void;
   isNostrConnected: boolean;
@@ -30,10 +36,16 @@ export const UserProfile: React.FC<UserProfileProps> = ({
   reportedPostIdSet,
   onToggleBookmark,
   userState,
+  knownUsers,
   onVote,
   onComment,
+  onEditComment,
+  onDeleteComment,
   onCommentVote,
   onViewBit,
+  onViewProfile,
+  onEditPost,
+  onTagClick,
   onRefreshProfile,
   onClose,
   isNostrConnected,
@@ -170,10 +182,16 @@ export const UserProfile: React.FC<UserProfileProps> = ({
               key={post.id}
               post={post}
               userState={userState}
+              knownUsers={knownUsers}
               onVote={onVote}
               onComment={onComment}
+              onEditComment={onEditComment}
+              onDeleteComment={onDeleteComment}
               onCommentVote={onCommentVote}
               onViewBit={onViewBit}
+              onViewProfile={onViewProfile}
+              onTagClick={onTagClick}
+              onEditPost={onEditPost}
               isBookmarked={bookmarkedIdSet.has(post.id)}
               onToggleBookmark={onToggleBookmark}
               hasReported={reportedPostIdSet.has(post.id)}
