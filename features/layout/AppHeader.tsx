@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bookmark, Wifi, WifiOff, Zap, Bell, Globe, Plus } from 'lucide-react';
+import { Bookmark, Wifi, WifiOff, Zap, Bell, Globe, Plus, Menu } from 'lucide-react';
 import type { NostrIdentity, UserState } from '../../types';
 import { ThemeId, ViewMode } from '../../types';
 import { notificationService } from '../../services/notificationService';
@@ -15,6 +15,7 @@ export function AppHeader(props: {
   userState: UserState;
   onNavigateGlobal: () => void;
   onSetViewMode: (mode: ViewMode) => void;
+  onOpenDrawer?: () => void;
 }) {
   const {
     theme,
@@ -25,6 +26,7 @@ export function AppHeader(props: {
     userState,
     onNavigateGlobal,
     onSetViewMode,
+    onOpenDrawer,
   } = props;
 
   const [unreadCount, setUnreadCount] = useState(0);
@@ -43,10 +45,81 @@ export function AppHeader(props: {
   }, []);
 
   return (
-    <header className="flex flex-col mb-8 border-b-2 border-terminal-dim py-[5px] gap-4">
+    <header className="flex flex-col mb-4 md:mb-8 border-b-2 border-terminal-dim py-[5px] gap-2 md:gap-4">
+      {/* Mobile Header Row */}
+      <div className="flex items-center justify-between md:hidden">
+        {/* Hamburger Menu Button */}
+        <button
+          type="button"
+          onClick={onOpenDrawer}
+          className="p-2 -ml-2 text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10 transition-colors"
+          aria-label="Open menu"
+        >
+          <Menu size={24} />
+        </button>
+
+        {/* Mobile Logo */}
+        <button
+          type="button"
+          onClick={onNavigateGlobal}
+          className="flex items-center gap-2"
+          aria-label="Go to global feed"
+        >
+          {theme === ThemeId.BITBORING ? (
+            <span className="text-xl font-bold">BitBoring</span>
+          ) : theme === ThemeId.PATRIOT ? (
+            <img
+              src="/assets/BitBoardTESTFINAL.png"
+              alt="BitBoard Logo"
+              className="h-8 w-auto object-contain"
+            />
+          ) : theme === ThemeId.AMBER ? (
+            <img
+              src="/assets/bitboard-logo.png?v=3"
+              alt="BitBoard Logo"
+              className="h-8 w-auto object-contain"
+            />
+          ) : (
+            <div className="relative h-8 w-24">
+              <img
+                src="/assets/bitboard-logo.png?v=3"
+                alt="BitBoard Logo"
+                className="h-8 w-auto object-contain opacity-0 pointer-events-none"
+                aria-hidden="true"
+              />
+              <div
+                className="absolute inset-0"
+                style={{
+                  background: "linear-gradient(135deg, rgb(var(--color-terminal-text)) 40%, rgb(var(--color-terminal-dim)) 60%)",
+                  maskImage: "url('/assets/bitboard-logo.png?v=3')",
+                  WebkitMaskImage: "url('/assets/bitboard-logo.png?v=3')",
+                  maskSize: "contain",
+                  WebkitMaskSize: "contain",
+                  maskRepeat: "no-repeat",
+                  WebkitMaskRepeat: "no-repeat",
+                  maskPosition: "left center",
+                  WebkitMaskPosition: "left center"
+                }}
+              />
+            </div>
+          )}
+          <span className="font-terminal text-xl tracking-wider">BitBoard</span>
+        </button>
+
+        {/* Mobile Status Indicators */}
+        <div className="flex items-center gap-2 pr-1">
+          <div className={`w-2 h-2 rounded-full ${props.isNostrConnected ? 'bg-terminal-text animate-pulse' : 'bg-terminal-alert'}`} />
+          <div className="flex items-center gap-1 text-xs">
+            <Zap size={12} className={userState.bits === 0 ? "text-terminal-alert" : "text-terminal-text"} />
+            <span className="font-mono font-bold">{userState.bits}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop Header (hidden on mobile) */}
       <button
         type="button"
-        className="flex items-center gap-2 cursor-pointer hover:text-white transition-colors text-left"
+        className="hidden md:flex items-center gap-2 cursor-pointer hover:text-white transition-colors text-left"
         onClick={onNavigateGlobal}
         aria-label="Go to global feed"
       >
@@ -103,7 +176,8 @@ export function AppHeader(props: {
         )}
       </button>
 
-      <nav className="flex gap-4 text-sm md:text-base items-center flex-nowrap overflow-x-auto">
+      {/* Desktop Navigation (hidden on mobile) */}
+      <nav className="hidden md:flex gap-4 text-sm md:text-base items-center flex-nowrap overflow-x-auto">
         {/* User Bit Balance Display */}
         <div 
           className="flex items-center gap-2 px-2 py-1 border border-terminal-dim/50 bg-terminal-dim/5"
@@ -237,4 +311,3 @@ export function AppHeader(props: {
     </header>
   );
 }
-

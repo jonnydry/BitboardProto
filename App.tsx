@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ToastHost } from './components/ToastHost';
 import { AppProvider, useApp } from './features/layout/AppContext';
 import { AppHeader } from './features/layout/AppHeader';
 import { Sidebar } from './features/layout/Sidebar';
+import { MobileNav } from './features/layout/MobileNav';
+import { MobileDrawer } from './features/layout/MobileDrawer';
 import { FeedView } from './features/feed/FeedView';
 import { IdentityManager } from './components/IdentityManager';
 import { RelaySettings } from './components/RelaySettings';
@@ -14,6 +16,7 @@ import { Bookmarks } from './components/Bookmarks';
 import { EditPost } from './components/EditPost';
 import { BoardBrowser } from './components/BoardBrowser';
 import { PostItem } from './components/PostItem';
+import { NotificationCenter } from './components/NotificationCenter';
 import { ArrowLeft } from 'lucide-react';
 import { ViewMode, BoardType } from './types';
 import { nostrService } from './services/nostrService';
@@ -21,6 +24,7 @@ import { nostrService } from './services/nostrService';
 // Main App component that uses context
 const AppContent: React.FC = () => {
   const app = useApp();
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-terminal-bg text-terminal-text font-mono selection:bg-terminal-text selection:text-black relative">
@@ -28,7 +32,20 @@ const AppContent: React.FC = () => {
       {/* Scanline Overlay */}
       <div className="scanlines fixed inset-0 pointer-events-none z-50"></div>
 
-      <div className="max-w-[1174px] mx-auto p-4 md:p-6 relative z-10">
+      {/* Mobile Drawer */}
+      <MobileDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        viewMode={app.viewMode}
+        onSetViewMode={app.setViewMode}
+        onNavigateGlobal={() => app.navigateToBoard(null)}
+        identity={app.userState.identity || undefined}
+        userState={app.userState}
+        bookmarkedCount={app.bookmarkedIds.length}
+        isNostrConnected={app.isNostrConnected}
+      />
+
+      <div className="max-w-[1174px] mx-auto p-3 md:p-6 relative z-10 pb-20 md:pb-6">
         <AppHeader
           theme={app.theme}
           isNostrConnected={app.isNostrConnected}
@@ -39,11 +56,12 @@ const AppContent: React.FC = () => {
           userState={app.userState}
           onNavigateGlobal={() => app.navigateToBoard(null)}
           onSetViewMode={app.setViewMode}
+          onOpenDrawer={() => setIsDrawerOpen(true)}
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 py-[5px]">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-8 py-[5px]">
           {/* Main Content */}
-          <main className="md:col-span-3">
+          <main className="md:col-span-3 order-2 md:order-1">
             {/* Feed View */}
             {app.viewMode === ViewMode.FEED && (
               <FeedView
@@ -85,7 +103,7 @@ const AppContent: React.FC = () => {
               <div className="animate-fade-in">
                 <button
                   onClick={app.returnToFeed}
-                  className="flex items-center gap-2 text-terminal-dim hover:text-terminal-text mb-4 uppercase text-sm font-bold group"
+                  className="flex items-center gap-2 text-terminal-dim hover:text-terminal-text mb-4 uppercase text-xs md:text-sm font-bold group"
                 >
                   <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
                   BACK TO {app.activeBoard ? (app.activeBoard.type === BoardType.GEOHASH ? `#${app.activeBoard.geohash}` : `//${app.activeBoard.name}`) : 'GLOBAL'}
@@ -115,6 +133,13 @@ const AppContent: React.FC = () => {
                     isMuted={app.isMuted}
                   />
                 </div>
+              </div>
+            )}
+
+            {/* Notifications View */}
+            {app.viewMode === ViewMode.NOTIFICATIONS && (
+              <div className="animate-fade-in">
+                <NotificationCenter onClose={() => app.setViewMode(ViewMode.FEED)} />
               </div>
             )}
 
@@ -232,29 +257,41 @@ const AppContent: React.FC = () => {
             )}
           </main>
 
-          <Sidebar
-            userState={app.userState}
-            setUserState={app.setUserState}
-            theme={app.theme}
-            setTheme={app.setTheme}
-            getThemeColor={app.getThemeColor}
-            isNostrConnected={app.isNostrConnected}
-            viewMode={app.viewMode}
-            activeBoardId={app.activeBoardId}
-            feedFilter={app.feedFilter}
-            setFeedFilter={app.setFeedFilter}
-            topicBoards={app.topicBoards}
-            geohashBoards={app.geohashBoards}
-            navigateToBoard={app.navigateToBoard}
-            onSetViewMode={app.setViewMode}
-          />
+          {/* Sidebar - shows above content on mobile, beside on desktop */}
+          <aside className="order-1 md:order-2">
+            <Sidebar
+              userState={app.userState}
+              setUserState={app.setUserState}
+              theme={app.theme}
+              setTheme={app.setTheme}
+              getThemeColor={app.getThemeColor}
+              isNostrConnected={app.isNostrConnected}
+              viewMode={app.viewMode}
+              activeBoardId={app.activeBoardId}
+              feedFilter={app.feedFilter}
+              setFeedFilter={app.setFeedFilter}
+              topicBoards={app.topicBoards}
+              geohashBoards={app.geohashBoards}
+              navigateToBoard={app.navigateToBoard}
+              onSetViewMode={app.setViewMode}
+            />
+          </aside>
         </div>
       </div>
       
-      {/* Footer */}
-      <footer className="text-center text-terminal-dim text-xs py-8 opacity-50">
+      {/* Footer - hidden on mobile to make room for bottom nav */}
+      <footer className="hidden md:block text-center text-terminal-dim text-xs py-8 opacity-50">
         BitBoard NOSTR PROTOCOL V3.0 // RELAYS: {nostrService.getRelays().length} // NODES ACTIVE: {app.boards.length + app.locationBoards.length}
       </footer>
+
+      {/* Mobile Bottom Navigation */}
+      <MobileNav
+        viewMode={app.viewMode}
+        onSetViewMode={app.setViewMode}
+        onNavigateGlobal={() => app.navigateToBoard(null)}
+        identity={app.userState.identity || undefined}
+        bookmarkedCount={app.bookmarkedIds.length}
+      />
     </div>
   );
 };
@@ -269,4 +306,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-

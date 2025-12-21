@@ -1,9 +1,47 @@
 import React, { useEffect, useState } from 'react';
-import { HelpCircle, Hash, Lock, Globe, Eye, Key, MapPin, Radio, Activity, User } from 'lucide-react';
+import { HelpCircle, Hash, Lock, Globe, Eye, Key, MapPin, Radio, Activity, User, ChevronDown, ChevronRight } from 'lucide-react';
 import type { Board, UserState } from '../../types';
 import { BoardType, ThemeId, ViewMode } from '../../types';
 import { geonetDiscoveryService, type GeoChannel } from '../../services/geonetDiscoveryService';
 import { geohashService } from '../../services/geohashService';
+
+// Collapsible section component for mobile
+function CollapsibleSection({
+  title,
+  icon: Icon,
+  defaultOpen = false,
+  mobileOnly = true,
+  badge,
+  children,
+}: {
+  title: string;
+  icon: React.ElementType;
+  defaultOpen?: boolean;
+  mobileOnly?: boolean;
+  badge?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <div className="border border-terminal-dim p-2 md:p-3 bg-terminal-bg shadow-hard">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-full font-bold border-b border-terminal-dim mb-2 pb-1 text-xs md:text-sm flex items-center gap-2 ${mobileOnly ? 'md:cursor-default' : ''}`}
+      >
+        <Icon size={14} />
+        <span className="flex-1 text-left">{">>"} {title}</span>
+        {badge}
+        <span className={`transition-transform ${mobileOnly ? 'md:hidden' : ''}`}>
+          {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </span>
+      </button>
+      <div className={`${isOpen ? 'block' : 'hidden'} ${mobileOnly ? 'md:block' : ''}`}>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export function Sidebar(props: {
   userState: UserState;
@@ -41,6 +79,8 @@ export function Sidebar(props: {
   // Nearby activity state
   const [nearbyActivity, setNearbyActivity] = useState<GeoChannel[]>([]);
   const [isLoadingActivity, setIsLoadingActivity] = useState(false);
+  // Mobile state: show more boards
+  const [showAllBoards, setShowAllBoards] = useState(false);
 
   // Load cached discovery result on mount
   useEffect(() => {
@@ -81,14 +121,18 @@ export function Sidebar(props: {
     geonetDiscoveryService.isRecentlyActive(ch)
   ).length;
 
+  // Board limits for mobile vs desktop
+  const MOBILE_BOARD_LIMIT = 3;
+  const DESKTOP_BOARD_LIMIT = 6;
+
   return (
-    <aside className="order-first md:order-none space-y-4">
+    <aside className="order-first md:order-none space-y-2 md:space-y-4">
       
-      {/* Connection Status */}
-      <div className="border border-terminal-dim p-3 bg-terminal-bg shadow-hard relative overflow-hidden group">
+      {/* Connection Status - Always visible but compact on mobile */}
+      <div className="border border-terminal-dim p-2 md:p-3 bg-terminal-bg shadow-hard relative overflow-hidden group">
         <div className="absolute inset-0 bg-terminal-dim/5 translate-x-[-100%] group-hover:translate-x-full transition-transform duration-1000 pointer-events-none" />
         <div className="flex items-center justify-between text-xs mb-1">
-          <span className="text-terminal-dim font-bold">SYSTEM_STATUS</span>
+          <span className="text-terminal-dim font-bold text-[10px] md:text-xs">SYSTEM_STATUS</span>
           <div className="flex gap-1">
             <div className={`w-2 h-2 rounded-sm ${isNostrConnected ? 'bg-terminal-text animate-pulse' : 'bg-terminal-dim/30'}`} />
             <div className={`w-2 h-2 rounded-sm ${userState.identity ? 'bg-terminal-text' : 'bg-terminal-dim/30'}`} />
@@ -109,39 +153,36 @@ export function Sidebar(props: {
           </div>
         </div>
         {userState.identity && (
-          <div className="mt-2 text-[10px] text-terminal-dim truncate border-t border-terminal-dim/30 pt-1">
+          <div className="hidden md:block mt-2 text-[10px] text-terminal-dim truncate border-t border-terminal-dim/30 pt-1">
             KEY: {userState.identity.npub.slice(0, 16)}...
           </div>
         )}
       </div>
 
-      {/* Feed Filter (when on global feed) */}
+      {/* Feed Filter (when on global feed) - Collapsible on mobile */}
       {!activeBoardId && viewMode === ViewMode.FEED && (
-        <div className="border border-terminal-dim p-3 bg-terminal-bg shadow-hard">
-          <h3 className="font-bold border-b border-terminal-dim mb-2 pb-1 text-sm flex items-center gap-2">
-            <Radio size={14} /> {">>"} FILTER_MODE
-          </h3>
-          <div className="flex flex-col gap-1">
+        <CollapsibleSection title="FILTER_MODE" icon={Radio} defaultOpen={true}>
+          <div className="flex flex-row md:flex-col gap-1 overflow-x-auto md:overflow-x-visible pb-1 md:pb-0">
             {[
-              { id: 'all', label: 'ALL_SIGNALS', icon: Globe },
-              { id: 'topic', label: 'TOPIC_BOARDS', icon: Hash },
-              { id: 'location', label: 'GEO_CHANNELS', icon: MapPin },
-              { id: 'following', label: 'FOLLOWING', icon: User },
-            ].map(({ id, label, icon: Icon }) => (
+              { id: 'all', label: 'ALL', fullLabel: 'ALL_SIGNALS', icon: Globe },
+              { id: 'topic', label: 'TOPIC', fullLabel: 'TOPIC_BOARDS', icon: Hash },
+              { id: 'location', label: 'GEO', fullLabel: 'GEO_CHANNELS', icon: MapPin },
+              { id: 'following', label: 'FOLLOW', fullLabel: 'FOLLOWING', icon: User },
+            ].map(({ id, label, fullLabel, icon: Icon }) => (
               <button
                 key={id}
                 onClick={() => setFeedFilterRaw(id as typeof feedFilter)}
                 style={feedFilter === id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
-                className={`text-left text-sm px-2 py-1.5 transition-all flex items-center gap-2 group cursor-pointer
+                className={`text-left text-xs md:text-sm px-2 py-1.5 transition-all flex items-center gap-1 md:gap-2 group cursor-pointer whitespace-nowrap flex-shrink-0
                   ${feedFilter === id 
                     ? 'bg-terminal-text font-bold border border-terminal-text' 
-                    : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
+                    : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10 border border-transparent md:border-none'
                   }
                 `}
               >
                 <span 
                   style={feedFilter === id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
-                  className={`opacity-0 group-hover:opacity-100 transition-opacity ${feedFilter === id ? 'opacity-100' : 'text-terminal-text'}`}
+                  className={`hidden md:inline opacity-0 group-hover:opacity-100 transition-opacity ${feedFilter === id ? 'opacity-100' : 'text-terminal-text'}`}
                 >
                   {'>'}
                 </span>
@@ -151,25 +192,29 @@ export function Sidebar(props: {
                 /> 
                 <span 
                   style={feedFilter === id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                  className="md:hidden"
                 >
                   {label}
+                </span>
+                <span 
+                  style={feedFilter === id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                  className="hidden md:inline"
+                >
+                  {fullLabel}
                 </span>
               </button>
             ))}
           </div>
-        </div>
+        </CollapsibleSection>
       )}
 
-      {/* Topic Board Directory */}
-      <div className="border border-terminal-dim p-3 bg-terminal-bg shadow-hard">
-        <h3 className="font-bold border-b border-terminal-dim mb-2 pb-1 text-sm flex items-center gap-2">
-          <Hash size={14} /> {">>"} TOPIC_NET
-        </h3>
-        <div className="flex flex-col gap-1 max-h-[300px] overflow-y-auto pr-1">
+      {/* Topic Board Directory - Collapsible on mobile */}
+      <CollapsibleSection title="TOPIC_NET" icon={Hash} defaultOpen={false}>
+        <div className="flex flex-col gap-1 max-h-[200px] md:max-h-[300px] overflow-y-auto pr-1">
           <button
             onClick={() => navigateToBoard(null)}
             style={activeBoardId === null ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
-            className={`text-left text-sm px-2 py-1.5 transition-all flex items-center gap-2 group
+            className={`text-left text-xs md:text-sm px-2 py-1.5 transition-all flex items-center gap-2 group
               ${activeBoardId === null
                 ? 'bg-terminal-text font-bold'
                 : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
@@ -188,10 +233,11 @@ export function Sidebar(props: {
             </span>
           </button>
           {(() => {
-            const SIDEBAR_BOARD_LIMIT = 6;
             const publicBoards = topicBoards.filter((b) => b.type === BoardType.TOPIC && b.isPublic);
-            const visibleBoards = publicBoards.slice(0, SIDEBAR_BOARD_LIMIT);
-            const hiddenCount = Math.max(0, publicBoards.length - SIDEBAR_BOARD_LIMIT);
+            // On mobile, show fewer boards unless expanded
+            const mobileLimit = showAllBoards ? DESKTOP_BOARD_LIMIT : MOBILE_BOARD_LIMIT;
+            const visibleBoards = publicBoards.slice(0, window.innerWidth < 768 ? mobileLimit : DESKTOP_BOARD_LIMIT);
+            const hiddenCount = Math.max(0, publicBoards.length - visibleBoards.length);
 
             return (
               <>
@@ -200,7 +246,7 @@ export function Sidebar(props: {
                     key={board.id}
                     onClick={() => navigateToBoard(board.id)}
                     style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
-                    className={`text-left text-sm px-2 py-1 transition-all flex items-center gap-2 group w-full
+                    className={`text-left text-xs md:text-sm px-2 py-1 transition-all flex items-center gap-2 group w-full
                       ${activeBoardId === board.id
                         ? 'bg-terminal-text font-bold'
                         : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
@@ -221,9 +267,23 @@ export function Sidebar(props: {
                     </span>
                   </button>
                 ))}
+                {/* Mobile: Show more toggle */}
+                {!showAllBoards && hiddenCount > 0 && (
+                  <button
+                    onClick={() => setShowAllBoards(true)}
+                    className="md:hidden text-left text-xs px-2 py-1.5 text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10 transition-all flex items-center gap-2 group w-full"
+                  >
+                    <span className="shrink-0 text-[10px] opacity-50 group-hover:opacity-100">
+                      {'+'}
+                    </span>
+                    <span className="truncate">
+                      Show {hiddenCount} more
+                    </span>
+                  </button>
+                )}
                 <button
                   onClick={() => onSetViewMode(ViewMode.BROWSE_BOARDS)}
-                  className="text-left text-sm px-2 py-1.5 text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10 transition-all flex items-center gap-2 group w-full"
+                  className="text-left text-xs md:text-sm px-2 py-1.5 text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10 transition-all flex items-center gap-2 group w-full"
                 >
                   <span className="shrink-0 text-[10px] opacity-50 group-hover:opacity-100">
                     {'>>'}
@@ -240,38 +300,36 @@ export function Sidebar(props: {
             <button
               key={board.id}
               disabled
-              className="text-left text-sm px-2 py-1 text-terminal-dim/30 flex items-center gap-2 cursor-not-allowed italic"
+              className="text-left text-xs md:text-sm px-2 py-1 text-terminal-dim/30 flex items-center gap-2 cursor-not-allowed italic"
             >
               <Lock size={10} /> {board.name}
             </button>
           ))}
         </div>
-          <button
-            onClick={() => onSetViewMode(ViewMode.CREATE_BOARD)}
-            className="mt-4 w-full text-xs border border-terminal-dim border-dashed text-terminal-dim p-2 hover:text-terminal-bg hover:bg-terminal-text hover:border-solid transition-all uppercase"
-          >
-            [+] Init_Board
-          </button>
-      </div>
+        <button
+          onClick={() => onSetViewMode(ViewMode.CREATE_BOARD)}
+          className="mt-2 md:mt-4 w-full text-[10px] md:text-xs border border-terminal-dim border-dashed text-terminal-dim p-1.5 md:p-2 hover:text-terminal-bg hover:bg-terminal-text hover:border-solid transition-all uppercase"
+        >
+          [+] Init_Board
+        </button>
+      </CollapsibleSection>
 
-      {/* Location Channels */}
-      <div className="border border-terminal-dim p-3 bg-terminal-bg shadow-hard">
-        <h3 className="font-bold border-b border-terminal-dim mb-2 pb-1 text-sm flex items-center justify-between">
-          <span className="flex items-center gap-2">
-            <MapPin size={14} /> {">>"} GEO_NET
+      {/* Location Channels - Collapsible on mobile */}
+      <CollapsibleSection 
+        title="GEO_NET" 
+        icon={MapPin} 
+        defaultOpen={false}
+        badge={totalNearbyPosts > 0 ? (
+          <span className="flex items-center gap-1 text-[10px] text-terminal-text font-normal">
+            <Activity size={10} className={recentlyActiveCount > 0 ? 'animate-pulse' : ''} />
+            {totalNearbyPosts}
           </span>
-          {totalNearbyPosts > 0 && (
-            <span className="flex items-center gap-1 text-[10px] text-terminal-text font-normal">
-              <Activity size={10} className={recentlyActiveCount > 0 ? 'animate-pulse' : ''} />
-              {totalNearbyPosts} nearby
-            </span>
-          )}
-        </h3>
-
+        ) : undefined}
+      >
         {/* Nearby Activity Summary */}
         {nearbyActivity.length > 0 && (
-          <div className="mb-3 p-2 bg-terminal-dim/10 border border-terminal-dim/30">
-            <div className="text-[10px] text-terminal-dim uppercase mb-1">Active Channels</div>
+          <div className="mb-2 md:mb-3 p-1.5 md:p-2 bg-terminal-dim/10 border border-terminal-dim/30">
+            <div className="text-[9px] md:text-[10px] text-terminal-dim uppercase mb-1">Active Channels</div>
             <div className="flex flex-wrap gap-1">
               {nearbyActivity.slice(0, 3).map((channel) => (
                 <button
@@ -300,9 +358,8 @@ export function Sidebar(props: {
 
         <div className="flex flex-col gap-1">
           {geohashBoards.length === 0 ? (
-            <p className="text-xs text-terminal-dim py-2 font-mono">
-              [NO_SIGNAL] <br/>
-              Enable location to scan frequencies.
+            <p className="text-[10px] md:text-xs text-terminal-dim py-1 md:py-2 font-mono">
+              [NO_SIGNAL] Enable location to scan.
             </p>
           ) : (
             geohashBoards.map((board) => {
@@ -314,7 +371,7 @@ export function Sidebar(props: {
                   key={board.id}
                   onClick={() => navigateToBoard(board.id)}
                   style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
-                  className={`text-left text-sm px-2 py-1 transition-all flex items-center gap-2 group w-full
+                  className={`text-left text-xs md:text-sm px-2 py-1 transition-all flex items-center gap-2 group w-full
                     ${activeBoardId === board.id 
                       ? 'bg-terminal-text font-bold' 
                       : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
@@ -347,18 +404,47 @@ export function Sidebar(props: {
         </div>
         <button
           onClick={() => onSetViewMode(ViewMode.LOCATION)}
-          className="mt-4 w-full text-xs border border-terminal-dim border-dashed text-terminal-dim p-2 hover:text-terminal-bg hover:bg-terminal-text hover:border-solid transition-all flex items-center justify-center gap-2 uppercase"
+          className="mt-2 md:mt-4 w-full text-[10px] md:text-xs border border-terminal-dim border-dashed text-terminal-dim p-1.5 md:p-2 hover:text-terminal-bg hover:bg-terminal-text hover:border-solid transition-all flex items-center justify-center gap-2 uppercase"
         >
           <MapPin size={12} /> {isLoadingActivity ? 'Scanning...' : 'Scan_Nearby'}
         </button>
-      </div>
+      </CollapsibleSection>
 
-      {/* Theme Selector */}
-      <div className="border border-terminal-dim p-3 bg-terminal-bg shadow-hard">
-        <h3 className="font-bold border-b border-terminal-dim mb-2 pb-1 text-sm flex items-center gap-2">
-          <Eye size={14} /> {">>"} VISUAL_CORE
-        </h3>
-        <div className="grid grid-cols-2 gap-2 py-2">
+      {/* Theme Selector - Horizontal scroll on mobile, grid on desktop */}
+      <CollapsibleSection title="VISUAL_CORE" icon={Eye} defaultOpen={false}>
+        {/* Mobile: Horizontal scroll */}
+        <div className="flex md:hidden gap-2 py-1 overflow-x-auto pb-2 -mx-1 px-1">
+          {Object.values(ThemeId).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTheme(t)}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-1.5 font-mono text-[10px] transition-all border rounded
+                ${theme === t 
+                  ? 'border-terminal-text bg-terminal-dim/10 text-terminal-text' 
+                  : 'border-terminal-dim/30 text-terminal-dim'
+                }
+              `}
+              title={t === ThemeId.BITBORING ? 'BITBORING (UGLY MODE)' : String(t).toUpperCase()}
+            >
+              <span
+                className={`w-3 h-3 rounded-full transition-transform ${theme === t ? 'scale-110' : 'scale-100'}`}
+                style={{
+                  background: t === ThemeId.PATRIOT
+                    ? 'linear-gradient(90deg, #ff1428 0 33%, #ffffff 33% 66%, #0a4bff 66% 100%)'
+                    : undefined,
+                  backgroundColor: t === ThemeId.PATRIOT ? undefined : getThemeColor(t),
+                  border: (t === ThemeId.BITBORING || t === ThemeId.PATRIOT || t === ThemeId.SAKURA) ? '1px solid #888' : 'none',
+                  boxShadow: theme === t
+                    ? `0 0 5px ${t === ThemeId.PATRIOT ? '#ffffff' : getThemeColor(t)}`
+                    : 'none'
+                }}
+              />
+              <span className="uppercase">{t}</span>
+            </button>
+          ))}
+        </div>
+        {/* Desktop: Grid */}
+        <div className="hidden md:grid grid-cols-2 gap-2 py-2">
           {Object.values(ThemeId).map((t) => (
             <button
               key={t}
@@ -374,7 +460,6 @@ export function Sidebar(props: {
               <span
                 className={`w-2 h-2 rounded-full transition-transform ${theme === t ? 'scale-125' : 'scale-100 group-hover:scale-110'}`}
                 style={{
-                  // PATRIOT: show a red/white/blue striped bubble (works on light and dark themes)
                   background: t === ThemeId.PATRIOT
                     ? 'linear-gradient(90deg, #ff1428 0 33%, #ffffff 33% 66%, #0a4bff 66% 100%)'
                     : undefined,
@@ -391,9 +476,10 @@ export function Sidebar(props: {
             </button>
           ))}
         </div>
-      </div>
+      </CollapsibleSection>
 
-      <div className="border border-terminal-dim p-3 bg-terminal-bg shadow-hard">
+      {/* ID Config - Hidden on mobile (accessible via drawer) */}
+      <div className="hidden md:block border border-terminal-dim p-3 bg-terminal-bg shadow-hard">
         <h3 className="font-bold border-b border-terminal-dim mb-2 pb-1 text-sm flex items-center gap-2">
           <HelpCircle size={14} /> {">>"} ID_CONFIG
         </h3>
@@ -423,4 +509,3 @@ export function Sidebar(props: {
     </aside>
   );
 }
-

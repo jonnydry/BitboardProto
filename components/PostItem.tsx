@@ -359,9 +359,9 @@ const PostItemComponent: React.FC<PostItemProps> = ({
       <div className="absolute -top-1 -left-1 w-2 h-2 border-t-2 border-l-2 border-terminal-text opacity-0 group-hover:opacity-100 transition-opacity"></div>
       <div className="absolute -bottom-1 -right-1 w-2 h-2 border-b-2 border-r-2 border-terminal-text opacity-0 group-hover:opacity-100 transition-opacity"></div>
 
-      <div className={`flex flex-row gap-3 p-2 ${isExpanded ? 'p-4' : ''}`}>
+      <div className={`flex flex-row gap-2 md:gap-3 p-2 ${isExpanded ? 'p-3 md:p-4' : ''}`}>
         {/* Voting Column - Cryptographically Verified */}
-        <div className="flex flex-col items-center w-12 border-r border-terminal-dim pr-2 justify-start pt-1 gap-1 flex-shrink-0">
+        <div className="flex flex-col items-center w-10 md:w-12 border-r border-terminal-dim pr-1 md:pr-2 justify-start pt-1 gap-0.5 md:gap-1 flex-shrink-0">
           {/* Guest User Indicator */}
           {!userState.identity && (
             <div className="mb-1 flex items-center gap-1 px-1.5 py-0.5 border border-terminal-dim/50 bg-terminal-dim/10 rounded" title="Guest mode: Connect identity to cast verified votes">
@@ -371,7 +371,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
           )}
           <button 
             onClick={handleVoteUp}
-            className={`p-2 md:p-1 hover:bg-terminal-dim transition-colors ${isUpvoted ? 'text-terminal-text font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`p-2 md:p-1 hover:bg-terminal-dim transition-colors min-w-[40px] min-h-[40px] md:min-w-0 md:min-h-0 flex items-center justify-center ${isUpvoted ? 'text-terminal-text font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
             disabled={(!userState.identity) || (userState.bits <= 0 && !hasInvested)}
             aria-label="Upvote"
             aria-pressed={isUpvoted}
@@ -385,16 +385,16 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                     : "INVEST 1 BIT (-1)"
             }
           >
-            <ArrowBigUp size={20} fill={isUpvoted ? "currentColor" : "none"} />
+            <ArrowBigUp size={22} className="md:w-5 md:h-5" fill={isUpvoted ? "currentColor" : "none"} />
           </button>
           
-          <span className={`text-base font-bold ${post.score > 0 ? 'text-terminal-text' : post.score < 0 ? 'text-terminal-alert' : 'text-terminal-dim/50'}`}>
+          <span className={`text-sm md:text-base font-bold ${post.score > 0 ? 'text-terminal-text' : post.score < 0 ? 'text-terminal-alert' : 'text-terminal-dim/50'}`}>
             {post.score > 0 ? '+' : ''}{post.score}
           </span>
 
           <button 
             onClick={handleVoteDown}
-            className={`p-2 md:p-1 hover:bg-terminal-dim transition-colors ${isDownvoted ? 'text-terminal-alert font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`p-2 md:p-1 hover:bg-terminal-dim transition-colors min-w-[40px] min-h-[40px] md:min-w-0 md:min-h-0 flex items-center justify-center ${isDownvoted ? 'text-terminal-alert font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
             disabled={(!userState.identity) || (userState.bits <= 0 && !hasInvested)}
             aria-label="Downvote"
             aria-pressed={isDownvoted}
@@ -408,7 +408,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                     : "INVEST 1 BIT (-1)"
             }
           >
-            <ArrowBigDown size={20} fill={isDownvoted ? "currentColor" : "none"} />
+            <ArrowBigDown size={22} className="md:w-5 md:h-5" fill={isDownvoted ? "currentColor" : "none"} />
           </button>
 
           {/* Nostr Verification Badge + Voter Count */}
@@ -567,30 +567,30 @@ const PostItemComponent: React.FC<PostItemProps> = ({
             </div>
           )}
 
-          <div className="mt-2 flex items-center justify-between border-t border-terminal-dim pt-1">
-            <div className="flex gap-2 flex-wrap">
+          <div className="mt-2 flex flex-col md:flex-row md:items-center justify-between border-t border-terminal-dim pt-2 md:pt-1 gap-2">
+            <div className="flex gap-1.5 md:gap-2 flex-wrap">
               {post.tags.map(tag => (
                 <button
                   key={tag}
                   onClick={(e) => handleTagClick(e, tag)}
-                  className="text-xs border border-terminal-dim px-1 text-terminal-dim flex items-center hover:text-terminal-text hover:border-terminal-text cursor-pointer transition-colors"
+                  className="text-[10px] md:text-xs border border-terminal-dim px-1.5 py-0.5 md:px-1 md:py-0 text-terminal-dim flex items-center hover:text-terminal-text hover:border-terminal-text cursor-pointer transition-colors"
                   title={`Search for #${tag}`}
                 >
-                  <Hash size={10} className="mr-1"/>{tag}
+                  <Hash size={10} className="mr-0.5 md:mr-1"/>{tag}
                 </button>
               ))}
             </div>
             
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 md:gap-2 flex-wrap justify-end">
               {/* Bookmark Button */}
               <button
                 onClick={handleBookmarkClick}
-                className={`p-2 md:p-1 transition-colors ${isBookmarked ? 'text-terminal-text' : 'text-terminal-dim hover:text-terminal-text'}`}
+                className={`p-2.5 md:p-1 transition-colors min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center ${isBookmarked ? 'text-terminal-text' : 'text-terminal-dim hover:text-terminal-text'}`}
                 title={isBookmarked ? 'Remove bookmark' : 'Save to bookmarks'}
                 aria-label={isBookmarked ? 'Remove bookmark' : 'Save to bookmarks'}
                 aria-pressed={isBookmarked}
               >
-                <Bookmark size={16} fill={isBookmarked ? 'currentColor' : 'none'} />
+                <Bookmark size={18} className="md:w-4 md:h-4" fill={isBookmarked ? 'currentColor' : 'none'} />
               </button>
 
               {/* Share Button */}
@@ -600,12 +600,12 @@ const PostItemComponent: React.FC<PostItemProps> = ({
               {!isOwnPost && (
                 <button
                   onClick={handleReportClick}
-                  className={`p-2 md:p-1 transition-colors ${hasReported ? 'text-terminal-alert' : 'text-terminal-dim hover:text-terminal-alert'}`}
+                  className={`p-2.5 md:p-1 transition-colors min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center ${hasReported ? 'text-terminal-alert' : 'text-terminal-dim hover:text-terminal-alert'}`}
                   title={hasReported ? 'Already reported' : 'Report this post'}
                   disabled={hasReported}
                   aria-label={hasReported ? 'Already reported' : 'Report this post'}
                 >
-                  <Flag size={14} fill={hasReported ? 'currentColor' : 'none'} />
+                  <Flag size={16} className="md:w-3.5 md:h-3.5" fill={hasReported ? 'currentColor' : 'none'} />
                 </button>
               )}
 
@@ -616,21 +616,22 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                     e.stopPropagation();
                     onToggleMute(post.authorPubkey!);
                   }}
-                  className={`p-2 md:p-1 transition-colors ${isMuted?.(post.authorPubkey) ? 'text-terminal-alert' : 'text-terminal-dim hover:text-terminal-alert'}`}
+                  className={`p-2.5 md:p-1 transition-colors min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center ${isMuted?.(post.authorPubkey) ? 'text-terminal-alert' : 'text-terminal-dim hover:text-terminal-alert'}`}
                   title={isMuted?.(post.authorPubkey) ? 'Unmute user' : 'Mute user'}
                 >
-                  <VolumeX size={14} />
+                  <VolumeX size={16} className="md:w-3.5 md:h-3.5" />
                 </button>
               )}
 
               <button 
                 onClick={handleCommentClick}
-                className="flex items-center gap-2 text-sm px-3 py-2 md:px-2 md:py-0.5 transition-colors border border-transparent shrink-0 text-terminal-dim hover:text-terminal-text hover:border-terminal-dim"
+                className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 py-2 md:px-2 md:py-0.5 transition-colors border border-terminal-dim/50 md:border-transparent shrink-0 text-terminal-dim hover:text-terminal-text hover:border-terminal-dim"
                 title="View full thread"
               >
                 <MessageSquare size={14} />
-                {post.commentCount} {post.commentCount === 1 ? 'COMMENT' : 'COMMENTS'}
-                <Maximize2 size={10} className="opacity-50" />
+                <span className="hidden sm:inline">{post.commentCount} {post.commentCount === 1 ? 'COMMENT' : 'COMMENTS'}</span>
+                <span className="sm:hidden">{post.commentCount}</span>
+                <Maximize2 size={10} className="opacity-50 hidden md:inline" />
               </button>
             </div>
           </div>

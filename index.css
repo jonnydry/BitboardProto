@@ -127,3 +127,96 @@ body {
   background: rgb(var(--color-terminal-dim));
   border: 1px solid rgb(var(--color-terminal-text));
 }
+
+/* ============================================
+   MOBILE / RESPONSIVE UTILITIES
+   ============================================ */
+
+/* Safe area insets for notched devices (iPhone X+, etc.) */
+:root {
+  --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  --safe-area-inset-right: env(safe-area-inset-right, 0px);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-inset-left: env(safe-area-inset-left, 0px);
+}
+
+/* Utility class for bottom safe area padding */
+.safe-area-bottom {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+}
+
+/* Utility class for top safe area padding */
+.safe-area-top {
+  padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
+}
+
+/* Mobile-optimized touch targets */
+@media (max-width: 767px) {
+  /* Ensure minimum touch target size on mobile */
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  
+  /* Reduce scrollbar width on mobile */
+  ::-webkit-scrollbar {
+    width: 4px;
+  }
+  
+  /* Hide scrollbar on mobile for cleaner look */
+  .hide-scrollbar-mobile::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .hide-scrollbar-mobile {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Smooth scrolling for all elements */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Prevent text size adjustment on orientation change */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Improve tap highlighting on mobile */
+* {
+  -webkit-tap-highlight-color: rgba(var(--color-terminal-text), 0.1);
+}
+
+/* Better focus styles for accessibility */
+:focus-visible {
+  outline: 2px solid rgb(var(--color-terminal-text));
+  outline-offset: 2px;
+}
+
+/* Remove default focus outline for mouse users */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Horizontal scroll without visible scrollbar */
+.horizontal-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.horizontal-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Mobile drawer backdrop blur (where supported) */
+@supports (backdrop-filter: blur(4px)) {
+  .backdrop-blur-mobile {
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+}
