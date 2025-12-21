@@ -1,7 +1,10 @@
-import React, { useMemo } from 'react';
-import { Post, UserState } from '../types';
+import React, { useMemo, useState, useEffect } from 'react';
+import { Post, UserState, ViewMode } from '../types';
 import { PostItem } from './PostItem';
-import { ArrowLeft, User, FileText, MessageSquare, TrendingUp, RefreshCw, VolumeX } from 'lucide-react';
+import { ProfileEditor } from './ProfileEditor';
+import { profileService, type ProfileMetadata } from '../services/profileService';
+import { useFollows } from '../hooks/useFollows';
+import { ArrowLeft, User, FileText, MessageSquare, TrendingUp, RefreshCw, VolumeX, Edit, Globe, Zap, Mail, ExternalLink, UserPlus, UserMinus } from 'lucide-react';
 
 interface UserProfileProps {
   username: string;
@@ -20,12 +23,14 @@ interface UserProfileProps {
   onViewBit: (postId: string) => void;
   onViewProfile?: (username: string, pubkey?: string) => void;
   onEditPost?: (postId: string) => void;
+  onDeletePost?: (postId: string) => void;
   onTagClick?: (tag: string) => void;
   onRefreshProfile?: (pubkey: string) => void;
   onClose: () => void;
   isNostrConnected: boolean;
   onToggleMute?: (pubkey: string) => void;
   isMuted?: (pubkey: string) => boolean;
+  onSetViewMode?: (mode: ViewMode) => void;
 }
 
 export const UserProfile: React.FC<UserProfileProps> = ({
@@ -45,13 +50,19 @@ export const UserProfile: React.FC<UserProfileProps> = ({
   onViewBit,
   onViewProfile,
   onEditPost,
+  onDeletePost,
   onTagClick,
   onRefreshProfile,
   onClose,
   isNostrConnected,
   onToggleMute,
   isMuted,
+  onSetViewMode,
 }) => {
+  const [profileMetadata, setProfileMetadata] = useState<ProfileMetadata | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const { follow, unfollow, isFollowing, isLoading: isFollowLoading } = useFollows();
   // Filter posts by this user
   const userPosts = useMemo(() => {
     return posts.filter(p => 
@@ -72,8 +83,68 @@ export const UserProfile: React.FC<UserProfileProps> = ({
     };
   }, [userPosts]);
 
-  const isOwnProfile = userState.username === username || 
+  const isOwnProfile = userState.username === username ||
     (authorPubkey && userState.identity?.pubkey === authorPubkey);
+
+  // Load profile metadata
+  useEffect(() => {
+    if (authorPubkey) {
+      setIsLoadingProfile(true);
+      profileService.getProfileMetadata(authorPubkey)
+        .then(metadata => {
+          setProfileMetadata(metadata);
+        })
+        .catch(error => {
+          console.error('[UserProfile] Failed to load profile metadata:', error);
+        })
+        .finally(() => {
+          setIsLoadingProfile(false);
+        });
+    }
+  }, [authorPubkey]);
+
+  const handleEditProfile = () => {
+    setIsEditingProfile(true);
+  };
+
+  const handleSaveProfile = (updatedProfile: ProfileMetadata) => {
+    setProfileMetadata(updatedProfile);
+    setIsEditingProfile(false);
+    // Refresh the profile data
+    if (authorPubkey && onRefreshProfile) {
+      onRefreshProfile(authorPubkey);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingProfile(false);
+  };
+
+  const handleFollowToggle = async () => {
+    if (!authorPubkey) return;
+
+    try {
+      if (isFollowing(authorPubkey)) {
+        await unfollow(authorPubkey);
+      } else {
+        await follow(authorPubkey);
+      }
+    } catch (error) {
+      console.error('[UserProfile] Follow/unfollow error:', error);
+    }
+  };
+
+  // If editing profile, show the editor
+  if (isEditingProfile && isOwnProfile) {
+    return (
+      <ProfileEditor
+        initialProfile={profileMetadata || {}}
+        onSave={handleSaveProfile}
+        onCancel={handleCancelEdit}
+        isLoading={isLoadingProfile}
+      />
+    );
+  }
 
   return (
     <div className="animate-fade-in">
@@ -87,20 +158,48 @@ export const UserProfile: React.FC<UserProfileProps> = ({
 
       {/* Profile Header */}
       <div className="border-2 border-terminal-text bg-terminal-bg p-6 mb-6 shadow-hard">
-        <div className="flex items-start gap-4">
-          <div className="w-16 h-16 border-2 border-terminal-text flex items-center justify-center bg-terminal-dim/20">
-            <User size={32} className="text-terminal-text" />
+        {/* Banner */}
+        {profileMetadata?.banner && (
+          <div className="w-full h-32 mb-4 overflow-hidden rounded border border-terminal-dim">
+            <img
+              src={profileMetadata.banner}
+              alt="Profile banner"
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
           </div>
-          
+        )}
+
+        <div className="flex items-start gap-4">
+          {/* Avatar */}
+          <div className="w-16 h-16 border-2 border-terminal-text flex items-center justify-center bg-terminal-dim/20 overflow-hidden rounded">
+            {profileMetadata?.picture ? (
+              <img
+                src={profileMetadata.picture}
+                alt={`${username}'s avatar`}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+            ) : null}
+            <User size={32} className={`text-terminal-text ${profileMetadata?.picture ? 'hidden' : ''}`} />
+          </div>
+
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
-              <h2 className="text-2xl font-bold text-terminal-text">{username}</h2>
+              <h2 className="text-2xl font-bold text-terminal-text">
+                {profileService.getDisplayName(username, profileMetadata)}
+              </h2>
               {isOwnProfile && (
                 <span className="text-xs border border-terminal-text px-2 py-0.5 text-terminal-text">
                   YOU
                 </span>
               )}
-              
+
               {!isOwnProfile && authorPubkey && onToggleMute && (
                 <button
                   onClick={() => onToggleMute(authorPubkey)}
@@ -115,26 +214,99 @@ export const UserProfile: React.FC<UserProfileProps> = ({
                 </button>
               )}
 
+              {/* Follow/Unfollow Button */}
+              {!isOwnProfile && authorPubkey && (
+                <button
+                  onClick={handleFollowToggle}
+                  disabled={isFollowLoading}
+                  className={`flex items-center gap-1 text-xs border px-2 py-0.5 transition-colors uppercase ${
+                    isFollowing(authorPubkey)
+                      ? 'border-terminal-alert text-terminal-alert hover:bg-terminal-alert hover:text-black'
+                      : 'border-terminal-dim text-terminal-dim hover:border-terminal-text hover:text-terminal-text'
+                  }`}
+                >
+                  {isFollowing(authorPubkey) ? (
+                    <>
+                      <UserMinus size={12} />
+                      UNFOLLOW
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus size={12} />
+                      FOLLOW
+                    </>
+                  )}
+                </button>
+              )}
+
+              {/* Edit Profile Button */}
+              {isOwnProfile && onSetViewMode && (
+                <button
+                  onClick={handleEditProfile}
+                  className="flex items-center gap-1 text-xs border border-terminal-dim px-2 py-0.5 hover:border-terminal-text hover:text-terminal-text transition-colors uppercase"
+                >
+                  <Edit size={12} />
+                  EDIT
+                </button>
+              )}
+
               {authorPubkey && onRefreshProfile && (
                 <button
                   type="button"
                   onClick={() => onRefreshProfile(authorPubkey)}
-                  disabled={!isNostrConnected}
+                  disabled={!isNostrConnected || isLoadingProfile}
                   className="ml-auto flex items-center gap-2 px-3 py-2 md:py-1 border border-terminal-dim text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors uppercase text-xs disabled:opacity-50"
                   title={isNostrConnected ? 'Refresh profile metadata' : 'Offline: cannot refresh profile'}
                 >
-                  <RefreshCw size={12} />
+                  <RefreshCw size={12} className={isLoadingProfile ? 'animate-spin' : ''} />
                   REFRESH
                 </button>
               )}
             </div>
-            
+
             {authorPubkey && (
               <p className="text-xs text-terminal-dim font-mono mb-3 truncate max-w-md">
                 npub: {authorPubkey.slice(0, 16)}...{authorPubkey.slice(-8)}
               </p>
             )}
-            
+
+            {/* Bio/About */}
+            {profileMetadata?.about && (
+              <p className="text-terminal-text mb-3 leading-relaxed">
+                {profileMetadata.about}
+              </p>
+            )}
+
+            {/* Links */}
+            {(profileMetadata?.website || profileMetadata?.nip05 || profileMetadata?.lud16 || profileMetadata?.lud06) && (
+              <div className="flex flex-wrap gap-3 mb-4">
+                {profileMetadata.website && (
+                  <a
+                    href={profileMetadata.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs text-terminal-dim hover:text-terminal-text transition-colors"
+                  >
+                    <Globe size={12} />
+                    Website
+                    <ExternalLink size={10} />
+                  </a>
+                )}
+                {profileMetadata.nip05 && (
+                  <div className="flex items-center gap-1 text-xs text-terminal-dim">
+                    <Mail size={12} />
+                    {profileMetadata.nip05}
+                  </div>
+                )}
+                {(profileMetadata.lud16 || profileMetadata.lud06) && (
+                  <div className="flex items-center gap-1 text-xs text-terminal-dim">
+                    <Zap size={12} />
+                    Lightning
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Stats */}
             <div className="flex gap-6 text-sm">
               <div className="flex items-center gap-2">
@@ -192,6 +364,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
               onViewProfile={onViewProfile}
               onTagClick={onTagClick}
               onEditPost={onEditPost}
+              onDeletePost={onDeletePost}
               isBookmarked={bookmarkedIdSet.has(post.id)}
               onToggleBookmark={onToggleBookmark}
               hasReported={reportedPostIdSet.has(post.id)}

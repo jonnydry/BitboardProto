@@ -1,6 +1,6 @@
 import React, { useMemo, useCallback } from 'react';
 import { Post, UserState } from '../types';
-import { ArrowLeft, Clock, Hash, Image as ImageIcon, Lock, ExternalLink, Edit3, Bookmark, Flag, Shield, Users, UserX, ArrowBigUp, ArrowBigDown } from 'lucide-react';
+import { ArrowLeft, Clock, Hash, Image as ImageIcon, Lock, ExternalLink, Edit3, Bookmark, Flag, Shield, Users, UserX, ArrowBigUp, ArrowBigDown, Trash2 } from 'lucide-react';
 import { CommentThread, buildCommentTree } from './CommentThread';
 import { MentionText } from './MentionText';
 import { MentionInput } from './MentionInput';
@@ -19,6 +19,7 @@ interface PostDetailPageProps {
   onCommentVote?: (postId: string, commentId: string, direction: 'up' | 'down') => void;
   onViewProfile?: (author: string, authorPubkey?: string) => void;
   onEditPost?: (postId: string) => void;
+  onDeletePost?: (postId: string) => void;
   onTagClick?: (tag: string) => void;
   onBack: () => void;
   isBookmarked?: boolean;
@@ -39,6 +40,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
   onCommentVote,
   onViewProfile,
   onEditPost,
+  onDeletePost,
   onTagClick,
   onBack,
   isBookmarked = false,
@@ -49,6 +51,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
   const [newComment, setNewComment] = React.useState('');
   const [isTransmitting, setIsTransmitting] = React.useState(false);
   const [showReportModal, setShowReportModal] = React.useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
 
   const handleReportClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -56,6 +59,22 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
       setShowReportModal(true);
     }
   }, [hasReported]);
+
+  const handleDeleteClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowDeleteConfirm(true);
+  }, []);
+
+  const handleConfirmDelete = useCallback(async () => {
+    setShowDeleteConfirm(false);
+    if (onDeletePost) {
+      await onDeletePost(post.id);
+    }
+  }, [onDeletePost, post.id]);
+
+  const handleCancelDelete = useCallback(() => {
+    setShowDeleteConfirm(false);
+  }, []);
 
   const isOwnPost = useMemo(() => {
     if (!userState.identity) return false;
@@ -284,6 +303,16 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
                   <span className="text-[10px]">EDIT</span>
                 </button>
               )}
+              {isOwnPost && onDeletePost && (
+                <button
+                  onClick={handleDeleteClick}
+                  className="flex items-center gap-1 text-terminal-dim hover:text-terminal-alert transition-colors"
+                  title="Delete this post"
+                >
+                  <Trash2 size={10} />
+                  <span className="text-[10px]">DELETE</span>
+                </button>
+              )}
               {post.url && (
                  <span className="ml-auto border border-terminal-dim px-1 text-[10px] text-terminal-text flex items-center gap-1">
                    LINK_BIT
@@ -456,6 +485,55 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
           targetPreview={post.title}
           onClose={() => setShowReportModal(false)}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div 
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
+          onClick={handleCancelDelete}
+        >
+          <div 
+            className="bg-terminal-bg border-2 border-terminal-alert p-6 max-w-md w-full mx-4 shadow-glow"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <Trash2 size={24} className="text-terminal-alert" />
+              <h3 className="text-lg font-bold text-terminal-text uppercase tracking-wider">
+                Delete Post?
+              </h3>
+            </div>
+            
+            <p className="text-terminal-text/80 text-sm mb-2">
+              Are you sure you want to delete this post?
+            </p>
+            <p className="text-terminal-dim text-xs mb-6 border-l-2 border-terminal-dim pl-3">
+              "{post.title.length > 60 ? post.title.slice(0, 60) + '...' : post.title}"
+            </p>
+            
+            {post.nostrEventId && (
+              <p className="text-terminal-alert/80 text-xs mb-4 flex items-center gap-2">
+                <Shield size={12} />
+                A deletion request will be broadcast to Nostr relays. Some relays may still retain the post.
+              </p>
+            )}
+            
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={handleCancelDelete}
+                className="px-4 py-2 text-sm border border-terminal-dim text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors uppercase font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 text-sm bg-terminal-alert/20 border border-terminal-alert text-terminal-alert hover:bg-terminal-alert hover:text-black transition-colors uppercase font-bold"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

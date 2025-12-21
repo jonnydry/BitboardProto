@@ -612,13 +612,65 @@ export const useAppEventHandlers = ({
     [postsById, boardsById, userState.identity, getRelayHint, setPosts, setEditingPostId, setViewMode]
   );
 
-  const handleDeletePost = useCallback((postId: string) => {
+  const handleDeletePost = useCallback(async (postId: string) => {
+    const post = postsById.get(postId);
+    if (!post) return;
+
+    // Check ownership
+    if (userState.identity && post.authorPubkey && post.authorPubkey !== userState.identity.pubkey) {
+      toastService.push({
+        type: 'error',
+        message: 'Cannot delete post',
+        detail: 'You can only delete your own posts.',
+        durationMs: UIConfig.TOAST_DURATION_MS,
+        dedupeKey: 'delete-post-not-owner',
+      });
+      return;
+    }
+
+    // Remove from local state immediately
     setPosts(currentPosts => currentPosts.filter(p => p.id !== postId));
     // Also remove from bookmarks if bookmarked
     bookmarkService.removeBookmark(postId);
     setEditingPostId(null);
     setViewMode(ViewMode.FEED);
-  }, [setPosts, setEditingPostId, setViewMode]);
+
+    // Publish NIP-09 delete event if this post is on Nostr and we have an identity
+    if (userState.identity && post.nostrEventId) {
+      try {
+        const unsigned = nostrService.buildPostDeleteEvent({
+          postEventId: post.nostrEventId,
+          pubkey: userState.identity.pubkey,
+        });
+        const signed = await identityService.signEvent(unsigned);
+        await nostrService.publishSignedEvent(signed);
+        
+        toastService.push({
+          type: 'success',
+          message: 'Post deleted',
+          detail: 'Delete request published to Nostr relays.',
+          durationMs: UIConfig.TOAST_DURATION_MS,
+          dedupeKey: `post-deleted-${postId}`,
+        });
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        toastService.push({
+          type: 'error',
+          message: 'Failed to publish delete to Nostr (deleted locally)',
+          detail: `${errMsg} — ${getRelayHint()}`,
+          durationMs: UIConfig.TOAST_DURATION_MS,
+          dedupeKey: `post-delete-failed-${postId}`,
+        });
+      }
+    } else {
+      toastService.push({
+        type: 'success',
+        message: 'Post deleted locally',
+        durationMs: UIConfig.TOAST_DURATION_MS,
+        dedupeKey: `post-deleted-local-${postId}`,
+      });
+    }
+  }, [postsById, userState.identity, getRelayHint, setPosts, setEditingPostId, setViewMode]);
 
   const handleTagClick = useCallback((tag: string) => {
     setSearchQuery(tag);

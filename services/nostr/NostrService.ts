@@ -14,8 +14,10 @@ import {
   buildCommentDeleteEvent,
   buildCommentEditEvent,
   buildCommentEvent,
+  buildContactListEvent,
   buildPostEditEvent,
   buildPostEvent,
+  buildProfileEvent,
   buildReportEvent,
   buildVoteEvent,
 } from './eventBuilders';
@@ -856,6 +858,35 @@ class NostrService {
   }
 
   /**
+   * Build a NIP-01 profile metadata event (kind 0)
+   */
+  buildProfileEvent(args: {
+    pubkey: string;
+    name?: string;
+    display_name?: string;
+    about?: string;
+    picture?: string;
+    banner?: string;
+    website?: string;
+    lud06?: string;
+    lud16?: string;
+    nip05?: string;
+  }): UnsignedNostrEvent {
+    return buildProfileEvent(args);
+  }
+
+  /**
+   * Build a NIP-02 contact list event (kind 3)
+   */
+  buildContactListEvent(args: {
+    pubkey: string;
+    follows: string[];
+    relayHints?: Record<string, string>;
+  }): UnsignedNostrEvent {
+    return buildContactListEvent(args);
+  }
+
+  /**
    * Build a NIP-56 report event
    */
   buildReportEvent(args: {
@@ -1499,6 +1530,35 @@ class NostrService {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Fetch a user's latest contact list (kind 3). Returns the raw event (if any).
+   */
+  async fetchContactListEvent(pubkey: string): Promise<NostrEvent | null> {
+    const filter: Filter = {
+      kinds: [3], // NIP-02 contact list
+      authors: [pubkey],
+      limit: 1,
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      if (!events.length) return null;
+      // Latest by created_at
+      return events.sort((a, b) => b.created_at - a.created_at)[0];
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Parse a contact list event into an array of followed pubkeys
+   */
+  parseContactList(event: NostrEvent): string[] {
+    return event.tags
+      .filter(tag => tag[0] === 'p' && tag[1])
+      .map(tag => tag[1]);
   }
 }
 

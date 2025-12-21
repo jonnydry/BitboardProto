@@ -262,6 +262,35 @@ export function buildCommentDeleteEvent(args: {
   return event as UnsignedNostrEvent;
 }
 
+/**
+ * Build a NIP-09 delete event for a post
+ */
+export function buildPostDeleteEvent(args: {
+  /** The event ID of the post to delete */
+  postEventId: string;
+  /** The pubkey of the post author (must match signer) */
+  pubkey: string;
+  /** Optional reason for deletion */
+  reason?: string;
+}): UnsignedNostrEvent {
+  const tags: string[][] = [
+    ['client', 'bitboard'],
+    // NIP-09: 'e' tag references the event to be deleted
+    ['e', args.postEventId],
+  ];
+
+  const event: Partial<NostrEvent> = {
+    pubkey: args.pubkey,
+    kind: NOSTR_KINDS.DELETE,
+    created_at: Math.floor(Date.now() / 1000),
+    tags,
+    // NIP-09: content may contain a reason for deletion
+    content: args.reason || '',
+  };
+
+  return event as UnsignedNostrEvent;
+}
+
 export function buildVoteEvent(
   postEventId: string,
   direction: 'up' | 'down',
@@ -351,6 +380,90 @@ export function buildBoardEvent(
 /**
  * Build a NIP-56 report event (kind 1984)
  */
+/**
+ * Build a NIP-01 profile metadata event (kind 0)
+ */
+export function buildProfileEvent(args: {
+  /** User's pubkey */
+  pubkey: string;
+  /** Profile display name */
+  name?: string;
+  /** Profile display name (legacy field) */
+  display_name?: string;
+  /** Profile bio/about */
+  about?: string;
+  /** Profile picture URL */
+  picture?: string;
+  /** Profile banner/cover image URL */
+  banner?: string;
+  /** Website URL */
+  website?: string;
+  /** Lightning address for tips */
+  lud06?: string;
+  /** Lightning LNURL for tips */
+  lud16?: string;
+  /** NIP-05 verification address */
+  nip05?: string;
+}): UnsignedNostrEvent {
+  // Build the profile metadata object per NIP-01
+  const profile: Record<string, string> = {};
+
+  if (args.name) profile.name = args.name;
+  if (args.display_name) profile.display_name = args.display_name;
+  if (args.about) profile.about = args.about;
+  if (args.picture) profile.picture = args.picture;
+  if (args.banner) profile.banner = args.banner;
+  if (args.website) profile.website = args.website;
+  if (args.lud06) profile.lud06 = args.lud06;
+  if (args.lud16) profile.lud16 = args.lud16;
+  if (args.nip05) profile.nip05 = args.nip05;
+
+  const event: Partial<NostrEvent> = {
+    pubkey: args.pubkey,
+    kind: 0, // NIP-01 profile metadata
+    created_at: Math.floor(Date.now() / 1000),
+    tags: [],
+    content: Object.keys(profile).length > 0 ? JSON.stringify(profile) : '',
+  };
+
+  return event as UnsignedNostrEvent;
+}
+
+/**
+ * Build a NIP-02 contact list event (kind 3)
+ * Contains a list of pubkeys the user follows
+ */
+export function buildContactListEvent(args: {
+  /** User's pubkey */
+  pubkey: string;
+  /** Array of pubkeys to follow */
+  follows: string[];
+  /** Optional relay hints for each follow */
+  relayHints?: Record<string, string>;
+}): UnsignedNostrEvent {
+  const tags: string[][] = [];
+
+  // NIP-02: 'p' tags for each followed pubkey
+  for (const followedPubkey of args.follows) {
+    if (args.relayHints?.[followedPubkey]) {
+      // Include relay hint as 3rd element
+      tags.push(['p', followedPubkey, args.relayHints[followedPubkey]]);
+    } else {
+      tags.push(['p', followedPubkey]);
+    }
+  }
+
+  const event: Partial<NostrEvent> = {
+    pubkey: args.pubkey,
+    kind: 3, // NIP-02 contact list
+    created_at: Math.floor(Date.now() / 1000),
+    tags,
+    content: '', // Usually empty for contact lists
+  };
+
+  return event as UnsignedNostrEvent;
+}
+
 export function buildReportEvent(args: {
   /** The event ID being reported */
   targetEventId: string;

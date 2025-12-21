@@ -1,13 +1,18 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Post, UserState, Comment } from '../types';
 import { EXPANSION_THRESHOLD, INLINE_PREVIEW_COMMENT_COUNT } from '../constants';
-import { ArrowBigUp, ArrowBigDown, MessageSquare, Clock, Hash, ExternalLink, CornerDownRight, Maximize2, Image as ImageIcon, Shield, Users, UserX, Bookmark, Edit3, Flag, Lock, VolumeX } from 'lucide-react';
+import { ArrowBigUp, ArrowBigDown, MessageSquare, Clock, Hash, ExternalLink, CornerDownRight, Maximize2, Image as ImageIcon, Shield, Users, UserX, Bookmark, Edit3, Flag, Lock, VolumeX, Trash2 } from 'lucide-react';
+import { profileService } from '../services/profileService';
 import { CommentThread, buildCommentTree } from './CommentThread';
 import { MentionText } from './MentionText';
 import { MentionInput } from './MentionInput';
 import { ShareButton } from './ShareButton';
 import { ReportModal } from './ReportModal';
 import { ImagePreview } from './ImagePreview';
+import { MarkdownRenderer } from './MarkdownRenderer';
+import { LinkPreviewList } from './LinkPreview';
+import { extractUrls } from '../services/linkPreviewService';
 
 interface PostItemProps {
   post: Post;
@@ -22,6 +27,7 @@ interface PostItemProps {
   onViewBit: (postId: string) => void;
   onViewProfile?: (author: string, authorPubkey?: string) => void;
   onEditPost?: (postId: string) => void;
+  onDeletePost?: (postId: string) => void;
   onTagClick?: (tag: string) => void;
   isBookmarked?: boolean;
   onToggleBookmark?: (postId: string) => void;
@@ -45,6 +51,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   onViewBit,
   onViewProfile,
   onEditPost,
+  onDeletePost,
   onTagClick,
   isBookmarked = false,
   onToggleBookmark,
@@ -58,6 +65,8 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   const [newComment, setNewComment] = useState('');
   const [isTransmitting, setIsTransmitting] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [authorProfile, setAuthorProfile] = useState<any>(null);
 
   const handleReportClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -91,6 +100,22 @@ const PostItemComponent: React.FC<PostItemProps> = ({
     }
   }, [onEditPost, post.id]);
 
+  const handleDeleteClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowDeleteConfirm(true);
+  }, []);
+
+  const handleConfirmDelete = useCallback(async () => {
+    setShowDeleteConfirm(false);
+    if (onDeletePost) {
+      await onDeletePost(post.id);
+    }
+  }, [onDeletePost, post.id]);
+
+  const handleCancelDelete = useCallback(() => {
+    setShowDeleteConfirm(false);
+  }, []);
+
   const handleTagClick = useCallback((e: React.MouseEvent, tag: string) => {
     e.stopPropagation();
     if (onTagClick) {
@@ -102,6 +127,21 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   useEffect(() => {
     if (isFullPage) setIsExpanded(true);
   }, [isFullPage]);
+
+  // Load author profile metadata
+  useEffect(() => {
+    if (post.authorPubkey) {
+      profileService.getProfileMetadata(post.authorPubkey)
+        .then(profile => {
+          if (profile) {
+            setAuthorProfile(profile);
+          }
+        })
+        .catch(error => {
+          console.error('[PostItem] Failed to load author profile:', error);
+        });
+    }
+  }, [post.authorPubkey]);
 
   const voteDirection = useMemo(() => userState.votedPosts[post.id], [userState.votedPosts, post.id]);
   const isUpvoted = useMemo(() => voteDirection === 'up', [voteDirection]);
@@ -291,6 +331,16 @@ const PostItemComponent: React.FC<PostItemProps> = ({
     );
   }, [post.content, post.imageUrl, isEncryptedWithoutKey]);
 
+  // Extract non-image URLs for link previews
+  const linkUrls = useMemo(() => {
+    if (!post.content || isEncryptedWithoutKey) return [];
+    // Also include the post's url if it exists
+    const contentUrls = extractUrls(post.content);
+    const allUrls = post.url ? [post.url, ...contentUrls] : contentUrls;
+    // Deduplicate
+    return [...new Set(allUrls)];
+  }, [post.content, post.url, isEncryptedWithoutKey]);
+
   return (
     <div 
       style={
@@ -415,10 +465,20 @@ const PostItemComponent: React.FC<PostItemProps> = ({
             )}
             <button
               onClick={handleAuthorClick}
-              className="font-bold text-terminal-dim hover:text-terminal-text hover:underline transition-colors cursor-pointer"
-              title={`View ${post.author}'s profile`}
+              className="flex items-center gap-1 font-bold text-terminal-dim hover:text-terminal-text hover:underline transition-colors cursor-pointer"
+              title={`View ${profileService.getDisplayName(post.author, authorProfile)}'s profile`}
             >
-              {post.author}
+              {authorProfile?.picture && (
+                <img
+                  src={authorProfile.picture}
+                  alt={`${post.author}'s avatar`}
+                  className="w-4 h-4 rounded-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              )}
+              <span>{profileService.getDisplayName(post.author, authorProfile)}</span>
             </button>
             <span>::</span>
             <span className="flex items-center gap-1"><Clock size={12} /> {formatTime(post.timestamp)}</span>
@@ -430,6 +490,16 @@ const PostItemComponent: React.FC<PostItemProps> = ({
               >
                 <Edit3 size={10} />
                 <span className="text-[10px]">EDIT</span>
+              </button>
+            )}
+            {isOwnPost && onDeletePost && (
+              <button
+                onClick={handleDeleteClick}
+                className="flex items-center gap-1 text-terminal-dim hover:text-terminal-alert transition-colors"
+                title="Delete this post"
+              >
+                <Trash2 size={10} />
+                <span className="text-[10px]">DELETE</span>
               </button>
             )}
             {post.url && (
@@ -493,10 +563,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
               role="button"
               className={`text-sm text-terminal-text/80 font-mono leading-relaxed mb-2 cursor-pointer break-words ${!isExpanded ? 'line-clamp-2' : 'opacity-100'}`}
             >
-              <MentionText 
-                content={post.content} 
-                onMentionClick={(username) => onViewProfile?.(username, undefined)}
-              />
+              <MarkdownRenderer content={post.content} />
             </div>
           )}
 
@@ -577,6 +644,17 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                   {inlineImages.map((url, i) => (
                     <ImagePreview key={i} src={url} className="max-w-md" />
                   ))}
+                </div>
+              )}
+
+              {/* Link Previews */}
+              {linkUrls.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="text-[10px] text-terminal-dim mb-3 font-bold uppercase tracking-widest flex items-center gap-2">
+                    <ExternalLink size={12} />
+                    LINKED_RESOURCES
+                  </h4>
+                  <LinkPreviewList urls={linkUrls} maxPreviews={3} />
                 </div>
               )}
 
@@ -662,14 +740,65 @@ const PostItemComponent: React.FC<PostItemProps> = ({
         </div>
       </div>
 
-      {/* Report Modal */}
-      {showReportModal && (
+      {/* Report Modal - rendered via portal to escape contentVisibility containment */}
+      {showReportModal && createPortal(
         <ReportModal
           targetType="post"
           targetId={post.id}
           targetPreview={post.title}
           onClose={() => setShowReportModal(false)}
-        />
+        />,
+        document.body
+      )}
+
+      {/* Delete Confirmation Modal - rendered via portal to escape contentVisibility containment */}
+      {showDeleteConfirm && createPortal(
+        <div 
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
+          onClick={handleCancelDelete}
+        >
+          <div 
+            className="bg-terminal-bg border-2 border-terminal-alert p-6 max-w-md w-full mx-4 shadow-glow"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <Trash2 size={24} className="text-terminal-alert" />
+              <h3 className="text-lg font-bold text-terminal-text uppercase tracking-wider">
+                Delete Post?
+              </h3>
+            </div>
+            
+            <p className="text-terminal-text/80 text-sm mb-2">
+              Are you sure you want to delete this post?
+            </p>
+            <p className="text-terminal-dim text-xs mb-6 border-l-2 border-terminal-dim pl-3">
+              "{post.title.length > 60 ? post.title.slice(0, 60) + '...' : post.title}"
+            </p>
+            
+            {post.nostrEventId && (
+              <p className="text-terminal-alert/80 text-xs mb-4 flex items-center gap-2">
+                <Shield size={12} />
+                A deletion request will be broadcast to Nostr relays. Some relays may still retain the post.
+              </p>
+            )}
+            
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={handleCancelDelete}
+                className="px-4 py-2 text-sm border border-terminal-dim text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors uppercase font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 text-sm bg-terminal-alert/20 border border-terminal-alert text-terminal-alert hover:bg-terminal-alert hover:text-black transition-colors uppercase font-bold"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -31,6 +31,7 @@ export function FeedView(props: {
   onViewBit: (postId: string) => void;
   onViewProfile: (username: string, pubkey?: string) => void;
   onEditPost: (postId: string) => void;
+  onDeletePost: (postId: string) => void;
   onTagClick: (tag: string) => void;
 
   bookmarkedIdSet: Set<string>;
@@ -65,6 +66,7 @@ export function FeedView(props: {
     onViewBit,
     onViewProfile,
     onEditPost,
+    onDeletePost,
     onTagClick,
     bookmarkedIdSet,
     reportedPostIdSet,
@@ -155,6 +157,7 @@ export function FeedView(props: {
               onViewBit={onViewBit}
               onViewProfile={onViewProfile}
               onEditPost={onEditPost}
+              onDeletePost={onDeletePost}
               onTagClick={onTagClick}
               isBookmarked={bookmarkedIdSet.has(post.id)}
               onToggleBookmark={onToggleBookmark}

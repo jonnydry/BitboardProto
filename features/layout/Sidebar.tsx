@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { HelpCircle, Hash, Lock, Globe, Eye, Key, MapPin, Radio, Activity } from 'lucide-react';
+import { HelpCircle, Hash, Lock, Globe, Eye, Key, MapPin, Radio, Activity, User } from 'lucide-react';
 import type { Board, UserState } from '../../types';
 import { BoardType, ThemeId, ViewMode } from '../../types';
 import { geonetDiscoveryService, type GeoChannel } from '../../services/geonetDiscoveryService';
@@ -14,8 +14,8 @@ export function Sidebar(props: {
   isNostrConnected: boolean;
   viewMode: ViewMode;
   activeBoardId: string | null;
-  feedFilter: 'all' | 'topic' | 'location';
-  setFeedFilter: (v: 'all' | 'topic' | 'location') => void;
+  feedFilter: 'all' | 'topic' | 'location' | 'following';
+  setFeedFilter: (v: 'all' | 'topic' | 'location' | 'following') => void;
   topicBoards: Board[];
   geohashBoards: Board[];
   navigateToBoard: (id: string | null) => void;
@@ -31,7 +31,7 @@ export function Sidebar(props: {
     viewMode,
     activeBoardId,
     feedFilter,
-    setFeedFilter,
+    setFeedFilter: setFeedFilterRaw,
     topicBoards,
     geohashBoards,
     navigateToBoard,
@@ -126,10 +126,11 @@ export function Sidebar(props: {
               { id: 'all', label: 'ALL_SIGNALS', icon: Globe },
               { id: 'topic', label: 'TOPIC_BOARDS', icon: Hash },
               { id: 'location', label: 'GEO_CHANNELS', icon: MapPin },
+              { id: 'following', label: 'FOLLOWING', icon: User },
             ].map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
-                onClick={() => setFeedFilter(id as typeof feedFilter)}
+                onClick={() => setFeedFilterRaw(id as typeof feedFilter)}
                 style={feedFilter === id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
                 className={`text-left text-sm px-2 py-1.5 transition-all flex items-center gap-2 group cursor-pointer
                   ${feedFilter === id 
@@ -169,49 +170,71 @@ export function Sidebar(props: {
             onClick={() => navigateToBoard(null)}
             style={activeBoardId === null ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
             className={`text-left text-sm px-2 py-1.5 transition-all flex items-center gap-2 group
-              ${activeBoardId === null 
-                ? 'bg-terminal-text font-bold' 
+              ${activeBoardId === null
+                ? 'bg-terminal-text font-bold'
                 : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
               }
             `}
           >
-            <Globe 
-              size={12} 
+            <Globe
+              size={12}
               style={activeBoardId === null ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
-            /> 
-            <span 
+            />
+            <span
               style={activeBoardId === null ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
               className="truncate"
             >
               GLOBAL_NET
             </span>
           </button>
-          {topicBoards.filter((b) => b.type === BoardType.TOPIC && b.isPublic).map((board) => (
-            <button
-              key={board.id}
-              onClick={() => navigateToBoard(board.id)}
-              style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
-              className={`text-left text-sm px-2 py-1 transition-all flex items-center gap-2 group w-full
-                ${activeBoardId === board.id 
-                  ? 'bg-terminal-text font-bold' 
-                  : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
-                }
-              `}
-            >
-              <span 
-                style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
-                className={`shrink-0 text-[10px] opacity-50 group-hover:opacity-100 ${activeBoardId === board.id ? 'opacity-100' : ''}`}
-              >
-                //
-              </span> 
-              <span 
-                style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
-                className="truncate"
-              >
-                {board.name}
-              </span>
-            </button>
-          ))}
+          {(() => {
+            const SIDEBAR_BOARD_LIMIT = 6;
+            const publicBoards = topicBoards.filter((b) => b.type === BoardType.TOPIC && b.isPublic);
+            const visibleBoards = publicBoards.slice(0, SIDEBAR_BOARD_LIMIT);
+            const hiddenCount = Math.max(0, publicBoards.length - SIDEBAR_BOARD_LIMIT);
+
+            return (
+              <>
+                {visibleBoards.map((board) => (
+                  <button
+                    key={board.id}
+                    onClick={() => navigateToBoard(board.id)}
+                    style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                    className={`text-left text-sm px-2 py-1 transition-all flex items-center gap-2 group w-full
+                      ${activeBoardId === board.id
+                        ? 'bg-terminal-text font-bold'
+                        : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
+                      }
+                    `}
+                  >
+                    <span
+                      style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                      className={`shrink-0 text-[10px] opacity-50 group-hover:opacity-100 ${activeBoardId === board.id ? 'opacity-100' : ''}`}
+                    >
+                      //
+                    </span>
+                    <span
+                      style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                      className="truncate"
+                    >
+                      {board.name}
+                    </span>
+                  </button>
+                ))}
+                <button
+                  onClick={() => onSetViewMode(ViewMode.BROWSE_BOARDS)}
+                  className="text-left text-sm px-2 py-1.5 text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10 transition-all flex items-center gap-2 group w-full"
+                >
+                  <span className="shrink-0 text-[10px] opacity-50 group-hover:opacity-100">
+                    {'>>'}
+                  </span>
+                  <span className="truncate">
+                    BROWSE_ALL{hiddenCount > 0 ? ` (+${hiddenCount})` : ''}
+                  </span>
+                </button>
+              </>
+            );
+          })()}
           <div className="border-t border-terminal-dim/30 my-2"></div>
           {topicBoards.filter((b) => b.type === BoardType.TOPIC && !b.isPublic).map((board) => (
             <button

@@ -8,7 +8,7 @@
   --color-terminal-text: 255 176 0; /* #ffb000 */
   --color-terminal-dim: 128 88 0; /* #805800 */
   --color-terminal-alert: 224 91 18; /* #e05b12 */
-  --color-terminal-highlight: 41 29 0; /* #291d00 */
+  --color-terminal-highlight: 18 12 0; /* #0c0800 */
   --scanline-color: rgba(255, 176, 0, 0.03);
   --text-shadow-val: 0 0 2px rgb(var(--color-terminal-text) / 0.3);
   --shadow-glow: 0 0 15px rgb(var(--color-terminal-text) / 0.1);
@@ -21,7 +21,7 @@
   --color-terminal-text: 0 255 65; /* #00ff41 */
   --color-terminal-dim: 0 100 25; /* #006419 */
   --color-terminal-alert: 255 51 51; /* #ff3333 */
-  --color-terminal-highlight: 0 40 10;
+  --color-terminal-highlight: 0 18 4;
   --scanline-color: rgba(0, 255, 65, 0.03);
 }
 
@@ -31,7 +31,7 @@
   --color-terminal-text: 0 240 255; /* #00f0ff */
   --color-terminal-dim: 0 100 110; /* #00646e */
   --color-terminal-alert: 255 0 85; /* #ff0055 */
-  --color-terminal-highlight: 0 30 40;
+  --color-terminal-highlight: 0 12 18;
   --scanline-color: rgba(0, 240, 255, 0.03);
 }
 
@@ -41,7 +41,7 @@
   --color-terminal-text: 255 70 70; /* #ff4646 */
   --color-terminal-dim: 120 20 20; /* #781414 */
   --color-terminal-alert: 255 200 0; /* #ffc800 */
-  --color-terminal-highlight: 40 10 10;
+  --color-terminal-highlight: 18 4 4;
   --scanline-color: rgba(255, 70, 70, 0.03);
 }
 
@@ -51,7 +51,7 @@
   --color-terminal-text: 200 200 200; /* #c8c8c8 */
   --color-terminal-dim: 80 80 80; /* #505050 */
   --color-terminal-alert: 255 80 80; /* #ff5050 */
-  --color-terminal-highlight: 35 35 35;
+  --color-terminal-highlight: 15 15 15;
   --scanline-color: rgba(255, 255, 255, 0.03);
 }
 
@@ -61,18 +61,18 @@
   --color-terminal-text: 255 255 255; /* White */
   --color-terminal-dim: 100 120 160; /* Blue-Grey */
   --color-terminal-alert: 255 20 40; /* Red */
-  --color-terminal-highlight: 20 50 100; /* Medium Blue */
+  --color-terminal-highlight: 8 20 45; /* Even Darker Blue */
   --scanline-color: rgba(255, 255, 255, 0.05);
 }
 
 [data-theme="sakura"] {
-  /* SAKURA (Cherry Blossom Pink) */
-  --color-terminal-bg: 20 10 15; /* Dark Pinkish/Purple */
-  --color-terminal-text: 255 180 220; /* Light Pink */
-  --color-terminal-dim: 140 80 110; /* Muted Rose */
-  --color-terminal-alert: 255 120 150; /* Bright Pink/Coral */
-  --color-terminal-highlight: 50 25 40; /* Darker Pink Highlight */
-  --scanline-color: rgba(255, 180, 220, 0.03);
+  /* SAKURA (Pink on Black) */
+  --color-terminal-bg: 0 0 0; /* Pure Black */
+  --color-terminal-text: 255 160 210; /* Vibrant Pink */
+  --color-terminal-dim: 180 80 140; /* Dim Pink/Magenta */
+  --color-terminal-alert: 255 80 120; /* Hot Pink/Red */
+  --color-terminal-highlight: 18 4 12; /* Even Darker Pink Highlight */
+  --scanline-color: rgba(255, 160, 210, 0.05);
 }
 
 [data-theme="bitboring"] {
@@ -81,7 +81,7 @@
   --color-terminal-text: 0 0 0; /* #000000 */
   --color-terminal-dim: 120 120 120; /* #787878 */
   --color-terminal-alert: 255 0 0; /* #ff0000 */
-  --color-terminal-highlight: 235 240 255; /* #ebf0ff */
+  --color-terminal-highlight: 255 255 255; /* Pure White */
   --scanline-color: transparent;
   --text-shadow-val: none;
   --shadow-glow: none;

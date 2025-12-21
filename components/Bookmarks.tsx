@@ -18,6 +18,7 @@ interface BookmarksProps {
   onViewBit: (postId: string) => void;
   onViewProfile?: (username: string, pubkey?: string) => void;
   onEditPost?: (postId: string) => void;
+  onDeletePost?: (postId: string) => void;
   onTagClick?: (tag: string) => void;
   onClose: () => void;
   isNostrConnected: boolean;
@@ -39,6 +40,7 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
   onViewBit,
   onViewProfile,
   onEditPost,
+  onDeletePost,
   onTagClick,
   onClose,
   isNostrConnected,
@@ -122,6 +124,7 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
               onViewProfile={onViewProfile}
               onTagClick={onTagClick}
               onEditPost={onEditPost}
+              onDeletePost={onDeletePost}
               isBookmarked={true}
               onToggleBookmark={(id) => bookmarkService.toggleBookmark(id)}
               hasReported={reportedPostIdSet.has(post.id)}

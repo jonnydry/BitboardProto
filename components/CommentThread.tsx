@@ -5,6 +5,8 @@ import { MentionText } from './MentionText';
 import { MentionInput } from './MentionInput';
 import { ReportModal } from './ReportModal';
 import { reportService } from '../services/reportService';
+import { profileService } from '../services/profileService';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface CommentThreadProps {
   comment: Comment;
@@ -53,6 +55,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [authorProfile, setAuthorProfile] = useState<any>(null);
 
   // Load persisted collapse state (local only)
   useEffect(() => {
@@ -65,6 +68,21 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
       // ignore
     }
   }, [comment.id]);
+
+  // Load author profile metadata
+  useEffect(() => {
+    if (comment.authorPubkey) {
+      profileService.getProfileMetadata(comment.authorPubkey)
+        .then(profile => {
+          if (profile) {
+            setAuthorProfile(profile);
+          }
+        })
+        .catch(error => {
+          console.error('[CommentThread] Failed to load author profile:', error);
+        });
+    }
+  }, [comment.authorPubkey]);
 
   // Check if this is the user's own comment
   const isOwnComment = useMemo(() => {
@@ -285,9 +303,19 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
           {/* Author */}
           <button
             onClick={handleAuthorClick}
-            className="text-terminal-text font-bold hover:underline cursor-pointer"
+            className="flex items-center gap-1 text-terminal-text font-bold hover:underline cursor-pointer"
           >
-            {comment.author}
+            {authorProfile?.picture && (
+              <img
+                src={authorProfile.picture}
+                alt={`${comment.author}'s avatar`}
+                className="w-4 h-4 rounded-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            )}
+            <span>{profileService.getDisplayName(comment.author, authorProfile)}</span>
           </button>
           
           <span className="text-terminal-dim">::</span>
@@ -319,10 +347,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
                     <span className="text-xs">[Encrypted - Access Required]</span>
                   </div>
                 ) : (
-                  <MentionText
-                    content={comment.content}
-                    onMentionClick={(username) => onViewProfile?.(username, undefined)}
-                  />
+                  <MarkdownRenderer content={comment.content} />
                 )}
                 {!isDeleted && comment.editedAt && (
                   <span className="ml-2 text-[10px] text-terminal-dim uppercase">(edited)</span>

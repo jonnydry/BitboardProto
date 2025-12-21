@@ -124,7 +124,7 @@ interface AppContextType {
   handleViewProfile: (username: string, pubkey?: string) => void;
   handleEditPost: (postId: string) => void;
   handleSavePost: (postId: string, updates: Partial<Post>) => void;
-  handleDeletePost: (postId: string) => void;
+  handleDeletePost: (postId: string) => Promise<void>;
   handleTagClick: (tag: string) => void;
   handleVote: (postId: string, direction: 'up' | 'down') => void;
   handleCommentVote: (postId: string, commentId: string, direction: 'up' | 'down') => void;
