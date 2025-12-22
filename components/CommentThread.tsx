@@ -69,18 +69,25 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
     }
   }, [comment.id]);
 
-  // Load author profile metadata
+  // Load author profile metadata from cache (profiles are pre-fetched at parent level)
   useEffect(() => {
     if (comment.authorPubkey) {
-      profileService.getProfileMetadata(comment.authorPubkey)
-        .then(profile => {
-          if (profile) {
-            setAuthorProfile(profile);
-          }
-        })
-        .catch(error => {
-          console.error('[CommentThread] Failed to load author profile:', error);
-        });
+      // First check sync cache (profiles should be pre-fetched by useCommentsLoader)
+      const cachedProfile = profileService.getCachedProfileSync(comment.authorPubkey);
+      if (cachedProfile) {
+        setAuthorProfile(cachedProfile);
+      } else {
+        // Fallback: async fetch if not in cache (e.g., for real-time new comments)
+        profileService.getProfileMetadata(comment.authorPubkey)
+          .then(profile => {
+            if (profile) {
+              setAuthorProfile(profile);
+            }
+          })
+          .catch(error => {
+            console.error('[CommentThread] Failed to load author profile:', error);
+          });
+      }
     }
   }, [comment.authorPubkey]);
 

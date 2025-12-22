@@ -22,17 +22,48 @@ export interface ProfileMetadata {
  * Service for handling profile metadata operations
  */
 class ProfileService {
+  // Local cache for profile metadata (synced from nostrService fetches)
+  private profileCache: Map<string, ProfileMetadata> = new Map();
+
   /**
-   * Get cached profile metadata for a pubkey
+   * Get cached profile metadata for a pubkey (async, triggers fetch if not cached)
    */
   async getProfileMetadata(pubkey: string): Promise<ProfileMetadata | null> {
     try {
       const profile = await nostrService.fetchProfiles([pubkey], { force: false });
       const metadata = profile.get(pubkey);
+      if (metadata) {
+        // Update local cache
+        this.profileCache.set(pubkey, metadata);
+      }
       return metadata || null;
     } catch (error) {
       console.error('[ProfileService] Failed to fetch profile:', error);
       return null;
+    }
+  }
+
+  /**
+   * Get cached profile metadata synchronously (returns null if not cached)
+   * Use this when you want to avoid triggering network requests
+   */
+  getCachedProfileSync(pubkey: string): ProfileMetadata | null {
+    return this.profileCache.get(pubkey) || null;
+  }
+
+  /**
+   * Pre-fetch profiles for multiple pubkeys (batch operation)
+   * Call this at a parent level to warm the cache before rendering children
+   */
+  async prefetchProfiles(pubkeys: string[]): Promise<void> {
+    if (pubkeys.length === 0) return;
+    try {
+      const profiles = await nostrService.fetchProfiles(pubkeys, { force: false });
+      profiles.forEach((metadata, pubkey) => {
+        this.profileCache.set(pubkey, metadata);
+      });
+    } catch (error) {
+      console.error('[ProfileService] Failed to prefetch profiles:', error);
     }
   }
 

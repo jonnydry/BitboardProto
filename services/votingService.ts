@@ -474,6 +474,15 @@ class VotingService {
     return results;
   }
 
+  /**
+   * Batch fetch votes for multiple comments
+   * Comments use the same vote mechanism as posts (kind 7 reactions)
+   * This is an alias for fetchVotesForPosts since the underlying mechanism is identical
+   */
+  async fetchVotesForComments(commentIds: string[]): Promise<Map<string, VoteTally>> {
+    return this.fetchVotesForPosts(commentIds);
+  }
+
   // ----------------------------------------
   // CASTING VOTES
   // ----------------------------------------
@@ -612,6 +621,16 @@ class VotingService {
    * Get all of a user's votes (for restoring state)
    */
   getUserVotes(userPubkey: string): Map<string, 'up' | 'down'> {
+    return this.userVotes.get(userPubkey) || new Map();
+  }
+
+  /**
+   * Get all of a user's comment votes (for restoring state)
+   * Comments use the same vote tracking as posts
+   */
+  getUserCommentVotes(userPubkey: string): Map<string, 'up' | 'down'> {
+    // Comment votes are tracked in the same userVotes map
+    // since comments are just Nostr events like posts
     return this.userVotes.get(userPubkey) || new Map();
   }
 

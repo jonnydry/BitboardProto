@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import type { Comment, Post, UserState } from '../types';
 import { nostrService } from '../services/nostrService';
 import { votingService } from '../services/votingService';
+import { profileService } from '../services/profileService';
 
 type LatestCommentUpdate = {
   created_at: number;
@@ -141,9 +142,10 @@ export function useCommentsLoader(args: {
       }
 
       // Best-effort profile enrichment (kind 0) for comment authors
+      // Batch prefetch to warm profileService cache before CommentThread components render
       const pubkeys = Array.from(new Set(comments.map((c) => c.authorPubkey).filter(Boolean) as string[]));
       if (pubkeys.length > 0) {
-        nostrService.fetchProfiles(pubkeys).then(() => {
+        profileService.prefetchProfiles(pubkeys).then(() => {
           setPosts((prevPosts) =>
             prevPosts.map((p) => {
               if (p.id !== selectedBitId) return p;

@@ -214,79 +214,100 @@ const PostItemComponent: React.FC<PostItemProps> = ({
       return commentTree;
     }
 
-    // Get most recent comments (flattened, sorted by timestamp)
     const allComments = post.comments;
+    
+    // Early return if no comments or very few comments
+    if (allComments.length === 0) {
+      return [];
+    }
+    if (allComments.length <= INLINE_PREVIEW_COMMENT_COUNT) {
+      return commentTree;
+    }
+
+    // Build a Map for O(1) parent lookups instead of repeated Array.find
+    const commentMap = new Map<string, Comment>();
+    for (const c of allComments) {
+      commentMap.set(c.id, c);
+    }
+
+    // Get most recent comments (sorted by timestamp desc)
     const sortedByTime = [...allComments].sort((a, b) => b.timestamp - a.timestamp);
     
     // Find user's own reply if they have one
-    const userReply = userState.identity?.pubkey 
-      ? allComments.find(c => c.authorPubkey === userState.identity?.pubkey)
+    const userPubkey = userState.identity?.pubkey;
+    const userReply = userPubkey 
+      ? allComments.find(c => c.authorPubkey === userPubkey)
       : null;
     
-    // Collect comment IDs to include in preview
+    // Collect comment IDs to include in preview using Set for O(1) lookups
     const previewIds = new Set<string>();
     
-    // Add user's reply first if it exists
-    if (userReply) {
-      previewIds.add(userReply.id);
-      // Also include parent chain if it's a nested reply
-      let current: Comment | undefined = userReply;
-      while (current?.parentId) {
-        const parent = allComments.find(c => c.id === current!.parentId);
+    // Helper to add comment and its parent chain
+    const addWithParentChain = (comment: Comment) => {
+      previewIds.add(comment.id);
+      let parentId = comment.parentId;
+      while (parentId) {
+        const parent = commentMap.get(parentId);
         if (parent) {
           previewIds.add(parent.id);
-          current = parent;
+          parentId = parent.parentId;
         } else {
           break;
         }
       }
+    };
+    
+    // Add user's reply first if it exists
+    if (userReply) {
+      addWithParentChain(userReply);
     }
     
-    // Add most recent comments (up to limit, excluding user reply if already added)
-    let added = previewIds.size;
+    // Add most recent comments up to limit
+    let added = userReply ? 1 : 0;
     for (const comment of sortedByTime) {
-      if (!previewIds.has(comment.id) && added < INLINE_PREVIEW_COMMENT_COUNT) {
-        previewIds.add(comment.id);
-        // Include parent chain for nested comments
-        let current: Comment | undefined = comment;
-        while (current?.parentId) {
-          const parent = allComments.find(c => c.id === current!.parentId);
-          if (parent) {
-            previewIds.add(parent.id);
-            current = parent;
-          } else {
-            break;
-          }
-        }
+      if (added >= INLINE_PREVIEW_COMMENT_COUNT) break;
+      if (!previewIds.has(comment.id)) {
+        addWithParentChain(comment);
         added++;
       }
     }
     
-    // Filter the comment tree to include only preview comments and their ancestors
+    // Pre-compute which IDs have preview descendants for O(1) lookup during filtering
+    const hasPreviewDescendantCache = new Map<string, boolean>();
+    
+    const hasPreviewDescendant = (c: Comment): boolean => {
+      const cached = hasPreviewDescendantCache.get(c.id);
+      if (cached !== undefined) return cached;
+      
+      if (previewIds.has(c.id)) {
+        hasPreviewDescendantCache.set(c.id, true);
+        return true;
+      }
+      if (c.replies && c.replies.length > 0) {
+        const result = c.replies.some(reply => hasPreviewDescendant(reply));
+        hasPreviewDescendantCache.set(c.id, result);
+        return result;
+      }
+      hasPreviewDescendantCache.set(c.id, false);
+      return false;
+    };
+    
+    // Filter the comment tree
     const filterTree = (comments: typeof commentTree): typeof commentTree => {
-      return comments
-        .map(comment => {
-          const hasPreviewDescendant = (c: typeof commentTree[0]): boolean => {
-            if (previewIds.has(c.id)) return true;
-            if (c.replies) {
-              return c.replies.some(reply => hasPreviewDescendant(reply));
-            }
-            return false;
-          };
-          
-          if (hasPreviewDescendant(comment)) {
-            return {
-              ...comment,
-              replies: comment.replies ? filterTree(comment.replies) : []
-            };
-          }
-          return null;
-        })
-        .filter((c): c is typeof commentTree[0] => c !== null);
+      const result: typeof commentTree = [];
+      for (const comment of comments) {
+        if (hasPreviewDescendant(comment)) {
+          result.push({
+            ...comment,
+            replies: comment.replies ? filterTree(comment.replies) : []
+          });
+        }
+      }
+      return result;
     };
     
     return filterTree(commentTree);
-  }, [post.comments, userState.identity, isFullPage, commentTree]);
+  }, [post.comments, userState.identity?.pubkey, isFullPage, commentTree]);
 
   const handleInteraction = useCallback(() => {
     if (isFullPage) return; // Already expanded in full view
