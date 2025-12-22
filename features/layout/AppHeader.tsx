@@ -45,7 +45,7 @@ export function AppHeader(props: {
   }, []);
 
   return (
-    <header className="flex flex-col mb-4 md:mb-8 border-b-2 border-terminal-dim py-[5px] gap-2 md:gap-4">
+    <header className="flex flex-col mb-4 md:mb-6 lg:mb-8 border-b-2 border-terminal-dim py-[5px] gap-2 md:gap-3 lg:gap-4">
       {/* Mobile Header Row */}
       <div className="flex items-center justify-between md:hidden">
         {/* Hamburger Menu Button */}
@@ -119,14 +119,14 @@ export function AppHeader(props: {
       {/* Desktop Header (hidden on mobile) */}
       <button
         type="button"
-        className="hidden md:flex items-center gap-2 cursor-pointer hover:text-white transition-colors text-left"
+        className="hidden md:flex items-center gap-2 cursor-pointer hover:text-white transition-colors text-left shrink-0"
         onClick={onNavigateGlobal}
         aria-label="Go to global feed"
       >
         {theme === ThemeId.BITBORING ? (
           <div className="flex flex-col">
-            <h1 className="text-3xl font-bold tracking-tight leading-none">BitBoring</h1>
-            <span className="text-sm text-terminal-dim">( -_-) zzz</span>
+            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight leading-none">BitBoring</h1>
+            <span className="text-xs lg:text-sm text-terminal-dim">( -_-) zzz</span>
           </div>
         ) : (
           <>
@@ -134,24 +134,24 @@ export function AppHeader(props: {
               <img
                 src="/assets/BitBoardTESTFINAL.png"
                 alt="BitBoard Logo"
-                className="h-16 w-auto object-contain transition-transform duration-200 origin-left hover:scale-[3] hover:z-50 relative"
+                className="h-10 lg:h-16 w-auto object-contain transition-all duration-200 hover:brightness-125"
               />
             ) : theme === ThemeId.AMBER ? (
               <img
                 src="/assets/bitboard-logo.png?v=3"
                 alt="BitBoard Logo"
-                className="h-16 w-auto object-contain transition-transform duration-200 origin-left hover:scale-[3] hover:z-50 relative"
+                className="h-10 lg:h-16 w-auto object-contain transition-all duration-200 hover:brightness-125"
               />
             ) : (
               <div className="relative">
                 <img
                   src="/assets/bitboard-logo.png?v=3"
                   alt="BitBoard Logo"
-                  className="h-16 w-auto object-contain opacity-0 pointer-events-none"
+                  className="h-10 lg:h-16 w-auto object-contain opacity-0 pointer-events-none"
                   aria-hidden="true"
                 />
                 <div
-                  className="absolute inset-0 transition-transform duration-200 origin-left hover:scale-[3] hover:z-50"
+                  className="absolute inset-0 transition-all duration-200 hover:brightness-125"
                   style={{
                     background: "linear-gradient(135deg, rgb(var(--color-terminal-text)) 40%, rgb(var(--color-terminal-dim)) 60%)",
                     maskImage: "url('/assets/bitboard-logo.png?v=3')",
@@ -167,8 +167,8 @@ export function AppHeader(props: {
               </div>
             )}
             <div className="flex flex-col">
-              <h1 className="text-4xl font-terminal tracking-wider leading-none">BitBoard</h1>
-              <span className="text-xs text-terminal-dim tracking-[0.2em]">
+              <h1 className="text-2xl lg:text-4xl font-terminal tracking-wider leading-none">BitBoard</h1>
+              <span className="text-[10px] lg:text-xs text-terminal-dim tracking-[0.15em] lg:tracking-[0.2em]">
                 DECENTRALIZED SOCIAL NEWS
               </span>
             </div>
@@ -177,74 +177,84 @@ export function AppHeader(props: {
       </button>
 
       {/* Desktop Navigation (hidden on mobile) */}
-      <nav className="hidden md:flex gap-4 text-sm md:text-base items-center flex-nowrap overflow-x-auto">
+      <nav className="hidden md:flex gap-2 lg:gap-4 text-xs lg:text-sm items-center flex-wrap">
         {/* User Bit Balance Display */}
         <div 
-          className="flex items-center gap-2 px-2 py-1 border border-terminal-dim/50 bg-terminal-dim/5"
+          className="flex items-center gap-1 lg:gap-2 px-1.5 lg:px-2 py-1 border border-terminal-dim/50 bg-terminal-dim/5 shrink-0"
           title="Your Bit Balance (Influence)"
         >
-          <Zap size={14} className={userState.bits === 0 ? "text-terminal-alert" : "text-terminal-text"} />
-          <span className="font-mono font-bold">
+          <Zap size={12} className={userState.bits === 0 ? "text-terminal-alert" : "text-terminal-text"} />
+          <span className="font-mono font-bold text-[11px] lg:text-sm">
             {userState.bits}/{userState.maxBits}
           </span>
         </div>
 
         <button
           onClick={onNavigateGlobal}
-          className={`uppercase hover:underline flex items-center gap-1 ${viewMode === ViewMode.FEED && activeBoardId === null ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+          className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${viewMode === ViewMode.FEED && activeBoardId === null ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+          title="Global Feed"
         >
           <Globe 
             size={12} 
             style={{ color: 'rgb(var(--color-terminal-text))' }}
           />
-          [ Global_Feed ]
+          <span className="hidden lg:inline">[ Global_Feed ]</span>
+          <span className="lg:hidden">FEED</span>
         </button>
         <button
           onClick={() => onSetViewMode(ViewMode.CREATE)}
-          className={`uppercase hover:underline flex items-center gap-1 ${viewMode === ViewMode.CREATE ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+          className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${viewMode === ViewMode.CREATE ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+          title="Create New Bit"
         >
           <Plus 
             size={12} 
             style={{ color: 'rgb(var(--color-terminal-text))' }}
           />
-          [ New_Bit ]
+          <span className="hidden lg:inline">[ New_Bit ]</span>
+          <span className="lg:hidden">NEW</span>
         </button>
         <button
           onClick={() => onSetViewMode(ViewMode.BOOKMARKS)}
-          className={`uppercase hover:underline flex items-center gap-1 ${viewMode === ViewMode.BOOKMARKS ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+          className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${viewMode === ViewMode.BOOKMARKS ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+          title="Saved Posts"
         >
           <Bookmark size={12} style={{ color: 'rgb(var(--color-terminal-text))' }} />
-          [ Saved{bookmarkedCount > 0 ? ` (${bookmarkedCount})` : ''} ]
+          <span className="hidden lg:inline">[ Saved{bookmarkedCount > 0 ? ` (${bookmarkedCount})` : ''} ]</span>
+          <span className="lg:hidden">{bookmarkedCount > 0 ? `(${bookmarkedCount})` : 'SAVED'}</span>
         </button>
         <button
           onClick={() => onSetViewMode(ViewMode.IDENTITY)}
-          className={`uppercase hover:underline flex items-center gap-1 ${viewMode === ViewMode.IDENTITY ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+          className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${viewMode === ViewMode.IDENTITY ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+          title={identity ? 'Identity Settings' : 'Connect Identity'}
         >
           {identity ? (
             <Wifi size={12} style={{ color: 'rgb(var(--color-terminal-text))' }} />
           ) : (
             <WifiOff size={12} style={{ color: 'rgb(var(--color-terminal-text))' }} />
           )}
-          [ {identity ? 'IDENTITY' : 'CONNECT'} ]
+          <span className="hidden lg:inline">[ {identity ? 'IDENTITY' : 'CONNECT'} ]</span>
+          <span className="lg:hidden">{identity ? 'ID' : 'LINK'}</span>
         </button>
         <button
           onClick={() => setShowNotifications(true)}
-          className={`uppercase hover:underline flex items-center gap-1 ${showNotifications ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+          className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${showNotifications ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
           title="Notifications"
         >
           <Bell size={12} style={{ color: 'rgb(var(--color-terminal-text))' }} />
-          [ NOTIFICATIONS{unreadCount > 0 ? ` (${unreadCount})` : ''} ]
+          <span className="hidden lg:inline">[ ALERTS{unreadCount > 0 ? ` (${unreadCount})` : ''} ]</span>
+          <span className="lg:hidden">{unreadCount > 0 ? `(${unreadCount})` : '!'}</span>
         </button>
         <button
           onClick={() => onSetViewMode(ViewMode.RELAYS)}
-          className={`uppercase hover:underline flex items-center gap-1 ${viewMode === ViewMode.RELAYS ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+          className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${viewMode === ViewMode.RELAYS ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
           title={props.isNostrConnected ? "Relays Connected" : "Relays Disconnected"}
         >
           {props.isNostrConnected ? (
             <svg 
-              width="32" 
+              width="24" 
               height="12" 
               viewBox="0 0 32 12" 
+              className="shrink-0"
               style={{ color: 'rgb(var(--color-terminal-text))' }}
             >
               <rect x="0" y="8" width="2" height="4" fill="currentColor">
@@ -282,10 +292,10 @@ export function AppHeader(props: {
             </svg>
           ) : (
             <svg 
-              width="32" 
+              width="24" 
               height="12" 
               viewBox="0 0 32 12" 
-              className="text-terminal-alert animate-pulse"
+              className="text-terminal-alert animate-pulse shrink-0"
               style={{ color: 'rgb(var(--color-terminal-alert))' }}
             >
               <rect x="0" y="10" width="2" height="2" fill="currentColor" />
@@ -298,7 +308,7 @@ export function AppHeader(props: {
               <rect x="28" y="10" width="2" height="2" fill="currentColor" />
             </svg>
           )}
-          <span className="hidden md:inline">RELAYS</span>
+          <span className="hidden lg:inline">RELAYS</span>
         </button>
       </nav>
 

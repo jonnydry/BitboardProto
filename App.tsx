@@ -27,7 +27,7 @@ const AppContent: React.FC = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-terminal-bg text-terminal-text font-mono selection:bg-terminal-text selection:text-black relative">
+    <div className="min-h-screen bg-terminal-bg text-terminal-text font-mono selection:bg-terminal-text selection:text-black relative overflow-x-hidden">
       <ToastHost />
       {/* Scanline Overlay */}
       <div className="scanlines fixed inset-0 pointer-events-none z-50"></div>

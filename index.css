@@ -213,6 +213,19 @@ html {
   display: none;
 }
 
+/* Prevent horizontal overflow on the entire page */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* Responsive container that prevents overflow */
+.responsive-container {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 /* Mobile drawer backdrop blur (where supported) */
 @supports (backdrop-filter: blur(4px)) {
   .backdrop-blur-mobile {
