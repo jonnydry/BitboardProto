@@ -54,7 +54,7 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>
     );
 
-    const resetButton = screen.getByText(/RESET/i);
+    const resetButton = screen.getByText(/RETRY/i);
     expect(resetButton).toBeInTheDocument();
 
     // After reset, should render children again
