@@ -86,7 +86,7 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
   }, [boards, locationBoards]);
 
   // Helper functions
-  const getBoardName = (postId: string) => {
+  const getBoardName = (_postId: string) => {
     // This is a simplified implementation - in a real app you'd have post-to-board mapping
     // For now, return undefined as boards are determined by filters
     return undefined;

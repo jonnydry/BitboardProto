@@ -8,7 +8,7 @@ import { nostrService } from '../../services/nostrService';
 import { identityService } from '../../services/identityService';
 import { votingService } from '../../services/votingService';
 import { toastService } from '../../services/toastService';
-import { inputValidator } from '../../services/inputValidator';
+// inputValidator available for future use
 import { UIConfig } from '../../config';
 import { makeUniqueBoardId } from '../../services/boardIdService';
 import { boardRateLimiter } from '../../services/boardRateLimiter';
@@ -210,8 +210,9 @@ export const useCombinedEventHandlers = () => {
           try {
             // Check if board is encrypted and encrypt content if needed
             const board = boards.boardsById.get(existing.boardId);
-            let encryptedTitle: string | undefined;
-            let encryptedContent: string | undefined;
+            // TODO: Use encrypted values in buildPostEditEvent when encryption support is added
+            let _encryptedTitle: string | undefined;
+            let _encryptedContent: string | undefined;
 
             if (board?.isEncrypted) {
               const boardKey = encryptedBoardService.getBoardKey(board.id);
@@ -231,8 +232,8 @@ export const useCombinedEventHandlers = () => {
                   { title: merged.title, content: merged.content },
                   boardKey
                 );
-                encryptedTitle = encrypted.encryptedTitle;
-                encryptedContent = encrypted.encryptedContent;
+                _encryptedTitle = encrypted.encryptedTitle;
+                _encryptedContent = encrypted.encryptedContent;
               } catch (error) {
                 console.error('[CombinedEventHandlers] Failed to encrypt post edit:', error);
                 toastService.push({
@@ -321,7 +322,7 @@ export const useCombinedEventHandlers = () => {
       durationMs: UIConfig.TOAST_DURATION_MS,
       dedupeKey: `post-deleted-local-${postId}`,
     });
-  }, [posts, user, ui, getRelayHint]);
+  }, [posts, user, ui]);
 
   const loadMorePosts = useCallback(async () => {
     if (!posts.oldestTimestamp || !posts.hasMorePosts) return;
@@ -415,7 +416,7 @@ export const useCombinedEventHandlers = () => {
         dedupeKey: 'load-more-failed',
       });
     }
-  }, [posts, getRelayHint]);
+  }, [posts]);
 
   return {
     handleCreatePost,

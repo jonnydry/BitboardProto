@@ -208,7 +208,7 @@ class FollowService {
    * Get follower count for a user (requires fetching their contact lists)
    * Note: This is expensive and should be cached
    */
-  async getFollowerCount(pubkey: string): Promise<number> {
+  async getFollowerCount(_pubkey: string): Promise<number> {
     try {
       // This is a simplified implementation - in practice you'd need to
       // fetch all contact lists that include this pubkey

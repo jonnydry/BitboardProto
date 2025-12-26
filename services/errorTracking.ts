@@ -18,6 +18,10 @@ class ErrorTrackingService {
   /**
    * Initialize error tracking (Sentry)
    * Call this once at app startup if error tracking is desired
+   * 
+   * Note: Sentry support is currently disabled. To enable:
+   * 1. Install @sentry/react: npm install @sentry/react
+   * 2. Uncomment the Sentry initialization code below
    */
   async initialize(config: ErrorTrackingConfig): Promise<void> {
     this.config = config;
@@ -27,23 +31,23 @@ class ErrorTrackingService {
       return;
     }
 
+    // Sentry initialization is disabled by default to avoid build issues
+    // when the package isn't installed. To enable Sentry:
+    // 1. Install: npm install @sentry/react
+    // 2. Uncomment the code below and remove this console.log
+    console.log('[ErrorTracking] Sentry support disabled - install @sentry/react to enable');
+    
+    /*
     try {
-      // Dynamically import Sentry to avoid bundling it if not used
-      // Only import if package is actually installed
-      const Sentry = await import('@sentry/react').catch(() => null);
-      
-      if (!Sentry) {
-        console.log('[ErrorTracking] @sentry/react not installed, skipping initialization');
-        return;
-      }
+      const Sentry = await import('@sentry/react');
       
       Sentry.init({
         dsn: config.dsn,
         environment: config.environment || 'production',
         release: config.release,
         integrations: [
-          new Sentry.BrowserTracing(),
-          new Sentry.Replay(),
+          Sentry.browserTracingIntegration(),
+          Sentry.replayIntegration(),
         ],
         tracesSampleRate: 0.1, // 10% of transactions
         replaysSessionSampleRate: 0.1,
@@ -55,6 +59,7 @@ class ErrorTrackingService {
     } catch (error) {
       console.warn('[ErrorTracking] Failed to initialize Sentry:', error);
     }
+    */
   }
 
   /**

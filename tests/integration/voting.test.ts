@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockPost, createMockUserState } from '../utils/testHelpers';
 import { votingService } from '../../services/votingService';
-import { nostrService } from '../../services/nostrService';
-import type { Post } from '../../types';
 
 // Mock services
 vi.mock('../../services/votingService');
@@ -14,8 +12,9 @@ describe('Voting Integration', () => {
   });
 
   it('upvotes a post', async () => {
-    const post = createMockPost({ id: 'post-1', nostrEventId: 'event-1' });
-    const userState = createMockUserState();
+    // Create mock data to demonstrate test setup
+    const _post = createMockPost({ id: 'post-1', nostrEventId: 'event-1' });
+    const _userState = createMockUserState();
 
     // Mock vote fetching
     vi.mocked(votingService.fetchVotesForPosts).mockResolvedValue(

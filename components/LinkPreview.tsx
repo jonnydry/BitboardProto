@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ExternalLink, Globe, ImageOff, Loader2, AlertCircle } from 'lucide-react';
+import { ExternalLink, Globe, Loader2, AlertCircle } from 'lucide-react';
 import { fetchLinkPreview, getCachedPreview, type LinkPreviewData } from '../services/linkPreviewService';
 
 interface LinkPreviewProps {
@@ -45,7 +45,7 @@ export const LinkPreview: React.FC<LinkPreviewProps> = ({
           setPreview(data);
           setIsLoading(false);
         }
-      } catch (error) {
+      } catch {
         if (!cancelled) {
           setPreview({ url, error: 'Failed to load preview' });
           setIsLoading(false);

@@ -250,7 +250,7 @@ export const fetchLinkPreview = async (url: string): Promise<LinkPreviewData> =>
  * Extract URLs from text content
  */
 export const extractUrls = (content: string): string[] => {
-  const urlRegex = /https?:\/\/[^\s<>\[\]()]+/g;
+  const urlRegex = /https?:\/\/[^\s<>[\]()]+/g;
   const matches = content.match(urlRegex) || [];
   
   // Filter out image URLs and clean up

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, PlusSquare, Bookmark, Bell, User, Wifi, WifiOff } from 'lucide-react';
+import { Home, PlusSquare, Bookmark, Bell, Wifi, WifiOff } from 'lucide-react';
 import { ViewMode } from '../../types';
 import type { NostrIdentity } from '../../types';
 import { notificationService } from '../../services/notificationService';

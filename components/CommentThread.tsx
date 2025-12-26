@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Comment, UserState } from '../types';
 import { ChevronDown, ChevronRight, CornerDownRight, Clock, Flag, Edit3, Trash2, Lock, ArrowBigUp, ArrowBigDown, UserX, VolumeX } from 'lucide-react';
-import { MentionText } from './MentionText';
+// MentionText is used via MarkdownRenderer
 import { MentionInput } from './MentionInput';
 import { ReportModal } from './ReportModal';
 import { reportService } from '../services/reportService';

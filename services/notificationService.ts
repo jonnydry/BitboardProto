@@ -177,7 +177,7 @@ class NotificationService {
     }
   }
 
-  private handleVoteEvent(event: any, userPubkey: string): void {
+  private handleVoteEvent(_event: unknown, _userPubkey: string): void {
     // This is a simplified version - in practice we'd need to check
     // if votes are on our posts by fetching vote targets
     // For now, we'll skip vote notifications as they require more complex logic

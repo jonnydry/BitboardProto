@@ -2,7 +2,7 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { ExternalLink, Code, Hash, Bold, Italic, List, Quote } from 'lucide-react';
+import { ExternalLink, Code, Hash, Quote } from 'lucide-react';
 import { LinkPreview } from './LinkPreview';
 
 interface MarkdownRendererProps {
@@ -42,7 +42,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
           ),
 
           // Paragraphs - Check for standalone links to render as preview cards
-          p: ({ children, node }) => {
+          p: ({ children }) => {
             // Check if paragraph contains only a single link
             const childArray = React.Children.toArray(children);
             if (childArray.length === 1) {
@@ -81,7 +81,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
           ),
 
           // Code blocks
-          code: ({ node, inline, className, children, ...props }) => {
+          code: ({ inline, className, children, ...props }) => {
             const match = /language-(\w+)/.exec(className || '');
             return !inline && match ? (
               <div className="my-4 border border-terminal-dim rounded">

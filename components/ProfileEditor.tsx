@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Save, X, Upload, User, Globe, Zap, Mail, Image, FileText } from 'lucide-react';
+import React, { useState } from 'react';
+import { Save, X, User, Globe, Zap, Mail, Image, FileText } from 'lucide-react';
 import { profileService, type ProfileMetadata } from '../services/profileService';
-import { identityService } from '../services/identityService';
 import { toastService } from '../services/toastService';
 import { UIConfig } from '../config';
 
@@ -16,7 +15,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   onSave,
   onCancel,
   initialProfile = {},
-  isLoading = false,
+  isLoading: _isLoading = false,
 }) => {
   const [profile, setProfile] = useState<Partial<ProfileMetadata>>(initialProfile);
   const [errors, setErrors] = useState<string[]>([]);

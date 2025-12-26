@@ -224,7 +224,7 @@ class ReportService {
       const signed = await identityService.signEvent(unsigned);
       const event = await nostrService.publishSignedEvent(signed);
       return event;
-    } catch (error) {
+    } catch {
       // Error already logged by diagnosticsService in NostrService
       return null;
     }

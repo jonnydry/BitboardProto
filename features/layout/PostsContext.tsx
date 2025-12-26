@@ -5,7 +5,7 @@ import { useVoting } from '../../hooks/useVoting';
 import { useCommentVoting } from '../../hooks/useCommentVoting';
 import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
 import { useAppEventHandlers } from './useAppEventHandlers';
-import { StorageKeys, UIConfig } from '../../config';
+import { StorageKeys } from '../../config';
 import { nostrService } from '../../services/nostrService';
 
 interface PostsContextType {
@@ -53,7 +53,7 @@ export const PostsProvider: React.FC<PostsProviderProps> = ({
   children,
   userState,
   activeBoardId,
-  feedFilter,
+  feedFilter: _feedFilter,
   searchQuery,
   sortMode,
   viewMode,
@@ -118,7 +118,7 @@ export const PostsProvider: React.FC<PostsProviderProps> = ({
       result = result.filter(p => p.boardId === activeBoardId);
     } else {
       // Global feed filtering
-      result = result.filter(p => {
+      result = result.filter(_p => {
         // Skip posts from boards that don't exist or aren't public
         // This will be enhanced when boards context is available
         return true; // For now, show all posts

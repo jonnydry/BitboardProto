@@ -174,7 +174,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const rawMuted = localStorage.getItem('bitboard_muted_users');
         if (rawMuted) mutedPubkeys = JSON.parse(rawMuted);
       }
-    } catch {}
+    } catch {
+      // Silently ignore localStorage errors
+    }
 
     return {
       username: existingIdentity?.displayName || 'u/guest_' + Math.floor(Math.random() * 10000).toString(16),
@@ -283,6 +285,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     return result;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [posts, activeBoardId, boardsById, feedFilter, searchQuery]);
 
   const sortedPosts = useMemo(() => {

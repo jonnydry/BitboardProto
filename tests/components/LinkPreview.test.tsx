@@ -35,15 +35,13 @@ describe('LinkPreview', () => {
 
   it('renders loading state initially', () => {
     mockGetCachedPreview.mockReturnValue(null);
-    mockFetchLinkPreview.mockResolvedValue({
-      url: 'https://example.com',
-      title: 'Test Title',
-      description: 'Test Description',
-    });
+    // Keep the promise pending to see loading state
+    mockFetchLinkPreview.mockImplementation(() => new Promise(() => {}));
 
-    render(<LinkPreview url="https://example.com" />);
+    const { container } = render(<LinkPreview url="https://example.com" />);
 
-    expect(screen.getByText(/loading/i)).toBeInTheDocument();
+    // Loading state shows a pulsing skeleton with animate-pulse class
+    expect(container.querySelector('.animate-pulse')).toBeInTheDocument();
   });
 
   it('renders preview with title and description', async () => {
@@ -63,7 +61,8 @@ describe('LinkPreview', () => {
     });
 
     expect(screen.getByText('Test Description')).toBeInTheDocument();
-    expect(screen.getByText('example.com')).toBeInTheDocument();
+    // When siteName is provided, it displays that instead of the domain
+    expect(screen.getByText('Example Site')).toBeInTheDocument();
   });
 
   it('renders compact mode correctly', async () => {
@@ -186,7 +185,9 @@ describe('LinkPreview', () => {
     render(<LinkPreview url="not-a-url" />);
 
     await waitFor(() => {
-      expect(screen.getByText('not-a-url')).toBeInTheDocument();
+      // Multiple elements may contain the URL text (domain display + link display)
+      const urlElements = screen.getAllByText('not-a-url');
+      expect(urlElements.length).toBeGreaterThan(0);
     });
   });
 });

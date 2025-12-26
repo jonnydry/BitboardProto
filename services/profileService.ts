@@ -1,6 +1,5 @@
 import { nostrService } from './nostrService';
 import { identityService } from './identityService';
-import type { NostrIdentity } from '../types';
 
 /**
  * Profile metadata interface (NIP-01 kind 0 content)

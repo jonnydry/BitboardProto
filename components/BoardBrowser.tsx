@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ArrowLeft, Hash, Lock, Globe, Plus } from 'lucide-react';
 import type { Board } from '../types';
-import { BoardType, ViewMode } from '../types';
+import { ViewMode } from '../types';
 
 interface BoardBrowserProps {
   topicBoards: Board[];

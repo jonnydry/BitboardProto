@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createMockPost, createMockBoard, createMockUserState, createMockIdentity } from '../utils/testHelpers';
+import { createMockBoard, createMockUserState, createMockIdentity } from '../utils/testHelpers';
 import { encryptedBoardService } from '../../services/encryptedBoardService';
 import { nostrService } from '../../services/nostrService';
 import { identityService } from '../../services/identityService';
-import type { Post, Board } from '../../types';
+// Types available for use in tests
 import { BoardType } from '../../types';
 
 // Mock services
@@ -33,8 +33,8 @@ describe('Post Creation Integration', () => {
       sig: 'sig',
     });
 
-    // Simulate post creation flow
-    const postData = {
+    // Simulate post creation flow - demonstrate the data shape
+    const _postData = {
       title: 'Test Post',
       content: 'Test content',
       boardId: board.id,

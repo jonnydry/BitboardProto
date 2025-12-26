@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { UserState, NostrIdentity } from '../../types';
-import { MAX_DAILY_BITS, INITIAL_POSTS, INITIAL_BOARDS } from '../../constants';
+import { MAX_DAILY_BITS } from '../../constants';
 import { identityService } from '../../services/identityService';
 import { bookmarkService } from '../../services/bookmarkService';
 import { reportService } from '../../services/reportService';
@@ -35,7 +35,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const rawMuted = localStorage.getItem('bitboard_muted_users');
         if (rawMuted) mutedPubkeys = JSON.parse(rawMuted);
       }
-    } catch {}
+    } catch {
+      // Silently ignore localStorage errors
+    }
 
     return {
       username: existingIdentity?.displayName || 'u/guest_' + Math.floor(Math.random() * 10000).toString(16),
@@ -49,7 +51,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   });
 
-  const [isNostrConnected, setIsNostrConnected] = useState(false);
+  const [isNostrConnected, _setIsNostrConnected] = useState(false);
   const [bookmarkedIds, setBookmarkedIds] = useState<string[]>(() => bookmarkService.getBookmarkedIds());
   const [reportedPostIds, setReportedPostIds] = useState<string[]>(() =>
     reportService.getReportsByType('post').map(r => r.targetId)
@@ -93,7 +95,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     bookmarkService.toggleBookmark(postId);
   }, []);
 
-  const handleViewProfile = useCallback((username: string, pubkey?: string) => {
+  const handleViewProfile = useCallback((_username: string, _pubkey?: string) => {
     // This will be handled by UIContext - we'll call it from App.tsx
   }, []);
 

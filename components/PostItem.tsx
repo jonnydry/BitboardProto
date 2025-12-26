@@ -5,7 +5,7 @@ import { EXPANSION_THRESHOLD, INLINE_PREVIEW_COMMENT_COUNT } from '../constants'
 import { ArrowBigUp, ArrowBigDown, MessageSquare, Clock, Hash, ExternalLink, CornerDownRight, Maximize2, Image as ImageIcon, Shield, Users, UserX, Bookmark, Edit3, Flag, Lock, VolumeX, Trash2 } from 'lucide-react';
 import { profileService } from '../services/profileService';
 import { CommentThread, buildCommentTree } from './CommentThread';
-import { MentionText } from './MentionText';
+// MentionText is used via MarkdownRenderer
 import { MentionInput } from './MentionInput';
 import { ShareButton } from './ShareButton';
 import { ReportModal } from './ReportModal';

@@ -44,7 +44,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ onClose 
         durationMs: UIConfig.TOAST_DURATION_MS,
         dedupeKey: 'mark-all-read',
       });
-    } catch (error) {
+    } catch {
       toastService.push({
         type: 'error',
         message: 'Failed to mark notifications as read',
