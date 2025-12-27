@@ -1,12 +1,13 @@
-import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
-import { MAX_DAILY_BITS, INITIAL_POSTS, INITIAL_BOARDS } from '../../constants';
+import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Post, UserState, ViewMode, Board, ThemeId, BoardType, NostrIdentity, SortMode } from '../../types';
+import { SortMode as SortModeEnum } from '../../types';
 import { nostrService } from '../../services/nostrService';
 import { identityService } from '../../services/identityService';
 import { bookmarkService } from '../../services/bookmarkService';
 import { reportService } from '../../services/reportService';
 import { toastService } from '../../services/toastService';
 import { encryptedBoardService } from '../../services/encryptedBoardService';
+import { searchService } from '../../services/searchService';
 import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
 import { FeatureFlags, StorageKeys, UIConfig } from '../../config';
 import { useTheme } from '../../hooks/useTheme';
@@ -16,6 +17,12 @@ import { useCommentsLoader } from '../../hooks/useCommentsLoader';
 import { useVoting } from '../../hooks/useVoting';
 import { useCommentVoting } from '../../hooks/useCommentVoting';
 import { useAppEventHandlers } from './useAppEventHandlers';
+
+// Import new focused contexts
+import { PostsProvider, usePosts } from './contexts/PostsContext';
+import { BoardsProvider, useBoards } from './contexts/BoardsContext';
+import { UserProvider, useUser } from './contexts/UserContext';
+import { UIProvider, useUI } from './contexts/UIContext';
 
 const MAX_CACHED_POSTS = 200;
 
@@ -144,51 +151,41 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | null>(null);
 
+// AppProvider now wraps focused contexts for backward compatibility
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // State
-  const [posts, setPosts] = useState<Post[]>(() => loadCachedPosts() ?? INITIAL_POSTS);
-  const [boards, setBoards] = useState<Board[]>(() => loadCachedBoards() ?? INITIAL_BOARDS);
-  const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.FEED);
+  return (
+    <UIProvider>
+      <UserProvider>
+        <BoardsProvider>
+          <PostsProvider>
+            <AppProviderInternal>
+              {children}
+            </AppProviderInternal>
+          </PostsProvider>
+        </BoardsProvider>
+      </UserProvider>
+    </UIProvider>
+  );
+};
+
+// Internal provider that aggregates from focused contexts
+const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // State for things not handled by focused contexts
   const [selectedBitId, setSelectedBitId] = useState<string | null>(null);
-  const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
-  const [theme, setTheme] = useState<ThemeId>(ThemeId.AMBER);
-  const [isNostrConnected, setIsNostrConnected] = useState(false);
-  const [locationBoards, setLocationBoards] = useState<Board[]>([]);
   const [feedFilter, setFeedFilter] = useState<'all' | 'topic' | 'location'>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortMode, setSortMode] = useState<SortMode>(SortMode.TOP);
-  const [profileUser, setProfileUser] = useState<{ username: string; pubkey?: string } | null>(null);
-  const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [bookmarkedIds, setBookmarkedIds] = useState<string[]>(() => bookmarkService.getBookmarkedIds());
   const [reportedPostIds, setReportedPostIds] = useState<string[]>(() =>
     reportService.getReportsByType('post').map(r => r.targetId)
   );
+  const [isNostrConnected, setIsNostrConnected] = useState(false);
   const [hasMorePosts, setHasMorePosts] = useState(true);
   const [oldestTimestamp, setOldestTimestamp] = useState<number | null>(null);
 
-  const [userState, setUserState] = useState<UserState>(() => {
-    const existingIdentity = identityService.getIdentity();
-    let mutedPubkeys: string[] = [];
-    try {
-      if (typeof localStorage !== 'undefined') {
-        const rawMuted = localStorage.getItem('bitboard_muted_users');
-        if (rawMuted) mutedPubkeys = JSON.parse(rawMuted);
-      }
-    } catch {
-      // Silently ignore localStorage errors
-    }
-
-    return {
-      username: existingIdentity?.displayName || 'u/guest_' + Math.floor(Math.random() * 10000).toString(16),
-      bits: MAX_DAILY_BITS,
-      maxBits: MAX_DAILY_BITS,
-      votedPosts: {},
-      votedComments: {},
-      identity: existingIdentity || undefined,
-      hasIdentity: !!existingIdentity,
-      mutedPubkeys,
-    };
-  });
+  // Access focused contexts
+  const postsCtx = usePosts();
+  const boardsCtx = useBoards();
+  const userCtx = useUser();
+  const uiCtx = useUI();
 
   // Get relay hint helper
   const getRelayHint = useCallback(() => {
@@ -198,53 +195,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return `${state} Relays: ${connected}/${total}. Open RELAYS to adjust/retry.`;
   }, []);
 
-  const toggleMute = useCallback((pubkey: string) => {
-    setUserState((prev) => {
-      const currentMuted = prev.mutedPubkeys || [];
-      const isMuted = currentMuted.includes(pubkey);
-      const newMuted = isMuted
-        ? currentMuted.filter((p) => p !== pubkey)
-        : [...currentMuted, pubkey];
+  // Track search worker results
+  const [workerSearchIds, setWorkerSearchIds] = useState<Set<string> | null>(null);
+  const lastSearchQuery = useRef<string>('');
 
-      try {
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem('bitboard_muted_users', JSON.stringify(newMuted));
+  // Update search worker index when posts change
+  useEffect(() => {
+    searchService.updateIndex(postsCtx.posts);
+  }, [postsCtx.posts]);
+
+  // Perform search using worker (async, non-blocking)
+  useEffect(() => {
+    const query = uiCtx.searchQuery.trim();
+    
+    // Skip if query hasn't changed
+    if (query === lastSearchQuery.current) return;
+    lastSearchQuery.current = query;
+
+    if (!query) {
+      // Clear worker results when no query
+      setWorkerSearchIds(null);
+      return;
+    }
+
+    // Use worker for search (non-blocking)
+    if (searchService.isWorkerReady()) {
+      searchService.search(query).then(ids => {
+        // Only update if this is still the current query
+        if (lastSearchQuery.current === query) {
+          setWorkerSearchIds(new Set(ids));
         }
-      } catch {
-        // ignore
-      }
+      }).catch(() => {
+        // Fallback to null (will use main thread)
+        setWorkerSearchIds(null);
+      });
+    }
+  }, [uiCtx.searchQuery]);
 
-      return { ...prev, mutedPubkeys: newMuted };
-    });
-  }, []);
-
-  const isMuted = useCallback((pubkey: string) => {
-    return (userState.mutedPubkeys || []).includes(pubkey);
-  }, [userState.mutedPubkeys]);
-
-  // Computed values
-  const boardsById = useMemo(() => {
-    const map = new Map<string, Board>();
-    boards.forEach(b => map.set(b.id, b));
-    locationBoards.forEach(b => map.set(b.id, b));
-    return map;
-  }, [boards, locationBoards]);
-
-  const postsById = useMemo(() => {
-    const map = new Map<string, Post>();
-    posts.forEach(p => map.set(p.id, p));
-    return map;
-  }, [posts]);
-
+  // Computed values (aggregated from focused contexts)
   const filteredPosts = useMemo(() => {
-    let result = posts;
+    let result = postsCtx.posts;
 
     // Filter by board
-    if (activeBoardId) {
-      result = result.filter(p => p.boardId === activeBoardId);
+    if (boardsCtx.activeBoardId) {
+      result = result.filter(p => p.boardId === boardsCtx.activeBoardId);
     } else {
       result = result.filter(p => {
-        const board = boardsById.get(p.boardId);
+        const board = boardsCtx.boardsById.get(p.boardId);
         if (!board?.isPublic) return false;
 
         if (feedFilter === 'topic') return board.type === BoardType.TOPIC;
@@ -254,44 +251,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // Filter muted users
-    if (userState.mutedPubkeys && userState.mutedPubkeys.length > 0) {
-      const mutedSet = new Set(userState.mutedPubkeys);
+    if (userCtx.userState.mutedPubkeys && userCtx.userState.mutedPubkeys.length > 0) {
+      const mutedSet = new Set(userCtx.userState.mutedPubkeys);
       result = result.filter(p => !p.authorPubkey || !mutedSet.has(p.authorPubkey));
     }
 
     // Apply search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
-      result = result.filter((p) => {
-        const board = boardsById.get(p.boardId);
-        const boardName = board?.name?.toLowerCase() ?? '';
+    if (uiCtx.searchQuery.trim()) {
+      // Use worker results if available, otherwise fallback to main thread
+      if (workerSearchIds) {
+        result = result.filter(p => workerSearchIds.has(p.id));
+      } else {
+        // Fallback: main thread search (only if worker not ready)
+        const query = uiCtx.searchQuery.toLowerCase().trim();
+        result = result.filter((p) => {
+          const board = boardsCtx.boardsById.get(p.boardId);
+          const boardName = board?.name?.toLowerCase() ?? '';
 
-        const inPost =
-          p.title.toLowerCase().includes(query) ||
-          p.content.toLowerCase().includes(query) ||
-          p.author.toLowerCase().includes(query) ||
-          boardName.includes(query) ||
-          p.tags.some((tag) => tag.toLowerCase().includes(query));
+          const inPost =
+            p.title.toLowerCase().includes(query) ||
+            p.content.toLowerCase().includes(query) ||
+            p.author.toLowerCase().includes(query) ||
+            boardName.includes(query) ||
+            p.tags.some((tag) => tag.toLowerCase().includes(query));
 
-        if (inPost) return true;
+          if (inPost) return true;
 
-        // Also search comments (author + content)
-        return p.comments.some(
-          (c) =>
-            c.author.toLowerCase().includes(query) ||
-            c.content.toLowerCase().includes(query)
-        );
-      });
+          // Also search comments (author + content)
+          return p.comments.some(
+            (c) =>
+              c.author.toLowerCase().includes(query) ||
+              c.content.toLowerCase().includes(query)
+          );
+        });
+      }
     }
 
     return result;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [posts, activeBoardId, boardsById, feedFilter, searchQuery]);
+  }, [postsCtx.posts, boardsCtx.activeBoardId, boardsCtx.boardsById, feedFilter, uiCtx.searchQuery, userCtx.userState.mutedPubkeys, workerSearchIds]);
 
   const sortedPosts = useMemo(() => {
     const sorted = [...filteredPosts];
 
-    switch (sortMode) {
+    switch (uiCtx.sortMode) {
       case SortMode.NEWEST:
         return sorted.sort((a, b) => b.timestamp - a.timestamp);
       case SortMode.OLDEST:
@@ -314,40 +316,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       default:
         return sorted.sort((a, b) => b.score - a.score);
     }
-  }, [filteredPosts, sortMode]);
+  }, [filteredPosts, uiCtx.sortMode]);
 
   const knownUsers = useMemo(() => {
     const users = new Set<string>();
-    posts.forEach(post => {
+    postsCtx.posts.forEach(post => {
       users.add(post.author);
       post.comments.forEach(comment => {
         users.add(comment.author);
       });
     });
     return users;
-  }, [posts]);
+  }, [postsCtx.posts]);
 
   const selectedPost = useMemo(() => {
-    return selectedBitId ? postsById.get(selectedBitId) || null : null;
-  }, [selectedBitId, postsById]);
-
-  const activeBoard = useMemo(() => {
-    return activeBoardId ? boardsById.get(activeBoardId) : null;
-  }, [activeBoardId, boardsById]);
-
-  const topicBoards = useMemo(() => {
-    return boards.filter(b => b.type === BoardType.TOPIC);
-  }, [boards]);
-
-  const geohashBoards = useMemo(() => {
-    const geohashBoardsFromState = boards.filter(b => b.type === BoardType.GEOHASH);
-    const geohashBoardsMap = new Map<string, Board>();
-    // Add boards from state first
-    geohashBoardsFromState.forEach(b => geohashBoardsMap.set(b.id, b));
-    // Add location boards, which will overwrite duplicates (locationBoards take precedence)
-    locationBoards.forEach(b => geohashBoardsMap.set(b.id, b));
-    return Array.from(geohashBoardsMap.values());
-  }, [boards, locationBoards]);
+    const post = selectedBitId ? postsCtx.postsById.get(selectedBitId) || null : null;
+    
+    // Mark post as accessed for LRU cache
+    if (post && selectedBitId) {
+      postsCtx.markPostAccessed(selectedBitId);
+      postsCtx.setSelectedPostId(selectedBitId);
+    }
+    
+    return post;
+  }, [selectedBitId, postsCtx]);
 
   const bookmarkedIdSet = useMemo(() => new Set(bookmarkedIds), [bookmarkedIds]);
   const reportedPostIdSet = useMemo(() => new Set(reportedPostIds), [reportedPostIds]);
@@ -360,7 +352,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       [ThemeId.PLASMA, '#00f0ff'],
       [ThemeId.VERMILION, '#ff4646'],
       [ThemeId.SLATE, '#c8c8c8'],
-      // Note: PATRIOT's theme bubble uses custom stripes in Sidebar; this is used as a fallback.
       [ThemeId.PATRIOT, '#ffffff'],
       [ThemeId.SAKURA, '#ffb4dc'],
       [ThemeId.BITBORING, '#ffffff'],
@@ -368,54 +359,89 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   // Hooks
-  useTheme(theme);
-  useUrlPostRouting({ viewMode, selectedBitId, setViewMode, setSelectedBitId });
+  useTheme(uiCtx.theme);
+  useUrlPostRouting({
+    viewMode: uiCtx.viewMode,
+    selectedBitId,
+    setViewMode: uiCtx.setViewMode,
+    setSelectedBitId
+  });
 
-  // Offline persistence
+  // Nostr feed hook with focused context setters
+  useNostrFeed({
+    setPosts: postsCtx.setPosts,
+    setBoards: boardsCtx.setBoards,
+    setIsNostrConnected,
+    setOldestTimestamp,
+    setHasMorePosts
+  });
+
+  useCommentsLoader({
+    selectedBitId,
+    postsById: postsCtx.postsById,
+    setPosts: postsCtx.setPosts
+  });
+
+  const { handleVote } = useVoting({
+    postsById: postsCtx.postsById,
+    userState: userCtx.userState,
+    setUserState: userCtx.setUserState,
+    setPosts: postsCtx.setPosts
+  });
+
+  const { handleCommentVote } = useCommentVoting({
+    postsById: postsCtx.postsById,
+    userState: userCtx.userState,
+    setUserState: userCtx.setUserState,
+    setPosts: postsCtx.setPosts
+  });
+
+  // Event handlers (imported from separate file with updated context access)
+  const eventHandlers = useAppEventHandlers({
+    posts: postsCtx.posts,
+    setPosts: postsCtx.setPosts,
+    boards: boardsCtx.boards,
+    setBoards: boardsCtx.setBoards,
+    boardsById: boardsCtx.boardsById,
+    postsById: postsCtx.postsById,
+    userState: userCtx.userState,
+    setUserState: userCtx.setUserState,
+    setViewMode: uiCtx.setViewMode,
+    setSelectedBitId,
+    setActiveBoardId: boardsCtx.setActiveBoardId,
+    setLocationBoards: boardsCtx.setLocationBoards,
+    setProfileUser: uiCtx.setProfileUser,
+    setEditingPostId: uiCtx.setEditingPostId,
+    getRelayHint,
+    setSearchQuery: uiCtx.setSearchQuery,
+    oldestTimestamp,
+    hasMorePosts,
+    locationBoards: boardsCtx.locationBoards,
+  });
+
+  // Infinite scroll hook
+  const { loaderRef, isLoading: isLoadingMore } = useInfiniteScroll(
+    eventHandlers.loadMorePosts,
+    hasMorePosts && uiCtx.viewMode === ViewMode.FEED,
+    { threshold: 300 }
+  );
+
+  // Effects
   useEffect(() => {
-    if (!FeatureFlags.ENABLE_OFFLINE_MODE) return;
-    if (typeof localStorage === 'undefined') return;
-
-    const id = window.setTimeout(() => {
-      try {
-        const postsToStore = posts.slice(0, MAX_CACHED_POSTS);
-        localStorage.setItem(
-          StorageKeys.POSTS_CACHE,
-          JSON.stringify({ savedAt: Date.now(), posts: postsToStore })
-        );
-        localStorage.setItem(
-          StorageKeys.BOARDS_CACHE,
-          JSON.stringify({ savedAt: Date.now(), boards })
-        );
-      } catch {
-        // Ignore quota / serialization errors
-      }
-    }, 500);
-
-    return () => window.clearTimeout(id);
-  }, [boards, posts]);
-
-  // Subscribe to bookmark changes
-  useEffect(() => {
+    // Subscribe to bookmark changes
     const unsubscribe = bookmarkService.subscribe(() => {
       setBookmarkedIds(bookmarkService.getBookmarkedIds());
     });
     return unsubscribe;
   }, []);
 
-  // Subscribe to report changes
   useEffect(() => {
+    // Subscribe to report changes
     const unsubscribe = reportService.subscribe(() => {
       setReportedPostIds(reportService.getReportsByType('post').map(r => r.targetId));
     });
     return unsubscribe;
   }, []);
-
-  useNostrFeed({ setPosts, setBoards, setIsNostrConnected, setOldestTimestamp, setHasMorePosts });
-  useCommentsLoader({ selectedBitId, postsById, setPosts });
-
-  const { handleVote } = useVoting({ postsById, userState, setUserState, setPosts });
-  const { handleCommentVote } = useCommentVoting({ postsById, userState, setUserState, setPosts });
 
   // Ensure identity is loaded
   useEffect(() => {
@@ -427,7 +453,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (cancelled) return;
         if (!identity) return;
 
-        setUserState((prev) => {
+        userCtx.setUserState((prev) => {
           // If user already has an identity in state, don't override it.
           if (prev.hasIdentity || prev.identity) return prev;
 
@@ -455,18 +481,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [userCtx]);
 
   // Handle encrypted board share links (URL fragment contains key)
   useEffect(() => {
     const shareData = encryptedBoardService.handleShareLink();
     if (shareData) {
       console.log('[App] Received encrypted board share link:', shareData.boardId);
-      
+
       // Navigate to the board
-      setActiveBoardId(shareData.boardId);
-      setViewMode(ViewMode.FEED);
-      
+      boardsCtx.setActiveBoardId(shareData.boardId);
+      uiCtx.setViewMode(ViewMode.FEED);
+
       // Show success toast
       toastService.push({
         type: 'success',
@@ -476,85 +502,97 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         dedupeKey: 'encrypted-board-access',
       });
     }
+  }, [boardsCtx, uiCtx]);
+
+  // Cleanup on unmount and beforeunload
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      nostrService.cleanup();
+      // votingService.cleanup(); // Would need to be passed down
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      nostrService.cleanup();
+      // votingService.cleanup();
+    };
   }, []);
 
-  // Event handlers (imported from separate file)
-  const eventHandlers = useAppEventHandlers({
-    posts,
-    setPosts,
-    boards,
-    setBoards,
-    boardsById,
-    postsById,
-    userState,
-    setUserState,
-    setViewMode,
-    setSelectedBitId,
-    setActiveBoardId,
-    setLocationBoards,
-    setProfileUser,
-    setEditingPostId,
-    getRelayHint,
-    setSearchQuery,
-    oldestTimestamp,
-    hasMorePosts,
-  });
+  // Offline persistence
+  useEffect(() => {
+    if (!FeatureFlags.ENABLE_OFFLINE_MODE) return;
+    if (typeof localStorage === 'undefined') return;
 
-  // Infinite scroll hook
-  const { loaderRef, isLoading: isLoadingMore } = useInfiniteScroll(
-    eventHandlers.loadMorePosts,
-    hasMorePosts && viewMode === ViewMode.FEED,
-    { threshold: 300 }
-  );
+    const id = window.setTimeout(() => {
+      try {
+        const postsToStore = postsCtx.posts.slice(0, MAX_CACHED_POSTS);
+        localStorage.setItem(
+          StorageKeys.POSTS_CACHE,
+          JSON.stringify({ savedAt: Date.now(), posts: postsToStore })
+        );
+        localStorage.setItem(
+          StorageKeys.BOARDS_CACHE,
+          JSON.stringify({ savedAt: Date.now(), boards: boardsCtx.boards })
+        );
+      } catch {
+        // Ignore quota / serialization errors
+      }
+    }, 500);
 
+    return () => window.clearTimeout(id);
+  }, [boardsCtx.boards, postsCtx.posts]);
+
+  // Create aggregated context value from focused contexts
   const contextValue: AppContextType = {
-    // State
-    posts,
-    boards,
-    viewMode,
+    // State (aggregated from focused contexts)
+    posts: postsCtx.posts,
+    boards: boardsCtx.boards,
+    viewMode: uiCtx.viewMode,
     selectedBitId,
-    activeBoardId,
-    theme,
+    activeBoardId: boardsCtx.activeBoardId,
+    theme: uiCtx.theme,
     isNostrConnected,
-    locationBoards,
+    locationBoards: boardsCtx.locationBoards,
     feedFilter,
-    searchQuery,
-    sortMode,
-    profileUser,
-    editingPostId,
+    searchQuery: uiCtx.searchQuery,
+    sortMode: uiCtx.sortMode,
+    profileUser: uiCtx.profileUser,
+    editingPostId: uiCtx.editingPostId,
     bookmarkedIds,
     reportedPostIds,
-    userState,
+    userState: userCtx.userState,
     hasMorePosts,
     oldestTimestamp,
 
-    // Computed values
-    boardsById,
-    postsById,
+    // Computed values (aggregated from focused contexts)
+    boardsById: boardsCtx.boardsById,
+    postsById: postsCtx.postsById,
     filteredPosts,
     sortedPosts,
     knownUsers,
     selectedPost,
-    activeBoard,
-    topicBoards,
-    geohashBoards,
+    activeBoard: boardsCtx.activeBoard,
+    topicBoards: boardsCtx.topicBoards,
+    geohashBoards: boardsCtx.geohashBoards,
     bookmarkedIdSet,
     reportedPostIdSet,
 
-    // Actions
-    setPosts,
-    setBoards,
-    setViewMode,
+    // Actions (delegated to focused contexts)
+    setPosts: postsCtx.setPosts,
+    setBoards: boardsCtx.setBoards,
+    setViewMode: uiCtx.setViewMode,
     setSelectedBitId,
-    setActiveBoardId,
-    setTheme,
-    setLocationBoards,
+    setActiveBoardId: boardsCtx.setActiveBoardId,
+    setTheme: uiCtx.setTheme,
+    setLocationBoards: boardsCtx.setLocationBoards,
     setFeedFilter,
-    setSearchQuery,
-    setSortMode,
-    setProfileUser,
-    setEditingPostId,
-    setUserState,
+    setSearchQuery: uiCtx.setSearchQuery,
+    setSortMode: uiCtx.setSortMode,
+    setProfileUser: uiCtx.setProfileUser,
+    setEditingPostId: uiCtx.setEditingPostId,
+    setUserState: userCtx.setUserState,
     setHasMorePosts,
     setOldestTimestamp,
 
@@ -567,7 +605,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     handleViewBit: eventHandlers.handleViewBit,
     navigateToBoard: eventHandlers.navigateToBoard,
     returnToFeed: eventHandlers.returnToFeed,
-    handleIdentityChange: eventHandlers.handleIdentityChange,
+    handleIdentityChange: userCtx.handleIdentityChange,
     handleLocationBoardSelect: eventHandlers.handleLocationBoardSelect,
     handleViewProfile: eventHandlers.handleViewProfile,
     handleEditPost: eventHandlers.handleEditPost,
@@ -582,8 +620,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     getThemeColor: (id: ThemeId) => themeColors.get(id) || '#fff',
     getBoardName: eventHandlers.getBoardName,
     refreshProfileMetadata: eventHandlers.refreshProfileMetadata,
-    toggleMute,
-    isMuted,
+    toggleMute: userCtx.toggleMute,
+    isMuted: userCtx.isMuted,
 
     // Hooks
     loaderRef,

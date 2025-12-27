@@ -1,5 +1,8 @@
 import { type Event as NostrEvent, type Filter, SimplePool } from 'nostr-tools';
 
+const PROFILE_CACHE_KEY = 'nostr_profile_cache_v1';
+const CACHE_SAVE_DEBOUNCE_MS = 2000;
+
 export interface NostrProfileMetadata {
   pubkey: string;
   displayName: string;
@@ -16,6 +19,7 @@ export class NostrProfileCache {
   private readonly ttlMs: number;
   private readonly maxCount: number;
   private inFlightProfiles: Map<string, Promise<NostrProfileMetadata | null>> = new Map();
+  private saveTimeout: NodeJS.Timeout | null = null;
 
   constructor(args: {
     pool: SimplePool;
@@ -27,10 +31,94 @@ export class NostrProfileCache {
     this.getReadRelays = args.getReadRelays;
     this.ttlMs = args.ttlMs ?? 6 * 60 * 60 * 1000; // 6 hours
     this.maxCount = args.maxCount ?? 2000;
+    
+    // Load cached profiles from localStorage
+    this.loadFromStorage();
   }
 
   private pool: SimplePool;
   private getReadRelays: () => string[];
+
+  /**
+   * Load cached profiles from localStorage
+   */
+  private loadFromStorage(): void {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      
+      const stored = localStorage.getItem(PROFILE_CACHE_KEY);
+      if (!stored) return;
+
+      const parsed: Record<string, NostrProfileMetadata> = JSON.parse(stored);
+      const now = Date.now();
+      let loadedCount = 0;
+
+      // Load non-expired profiles
+      for (const [pubkey, profile] of Object.entries(parsed)) {
+        if (now - profile.cachedAt < this.ttlMs) {
+          this.profileCache.set(pubkey, profile);
+          loadedCount++;
+        }
+      }
+
+      console.log(`[ProfileCache] Loaded ${loadedCount} profiles from localStorage`);
+    } catch (e) {
+      console.warn('[ProfileCache] Failed to load from localStorage:', e);
+      // Clear corrupted data
+      this.clearStorage();
+    }
+  }
+
+  /**
+   * Schedule a save to localStorage (debounced)
+   */
+  private scheduleSave(): void {
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+    }
+
+    this.saveTimeout = setTimeout(() => {
+      this.saveToStorage();
+    }, CACHE_SAVE_DEBOUNCE_MS);
+  }
+
+  /**
+   * Save current cache to localStorage
+   */
+  private saveToStorage(): void {
+    try {
+      if (typeof localStorage === 'undefined') return;
+
+      // Convert Map to plain object for JSON serialization
+      const toSave: Record<string, NostrProfileMetadata> = {};
+      for (const [pubkey, profile] of this.profileCache.entries()) {
+        toSave[pubkey] = profile;
+      }
+
+      localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(toSave));
+      console.log(`[ProfileCache] Saved ${this.profileCache.size} profiles to localStorage`);
+    } catch (e) {
+      console.warn('[ProfileCache] Failed to save to localStorage:', e);
+      
+      // Handle quota exceeded
+      if (e instanceof Error && e.name === 'QuotaExceededError') {
+        console.warn('[ProfileCache] Storage quota exceeded, clearing old cache');
+        this.clearStorage();
+      }
+    }
+  }
+
+  /**
+   * Clear localStorage cache
+   */
+  private clearStorage(): void {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      localStorage.removeItem(PROFILE_CACHE_KEY);
+    } catch (e) {
+      console.warn('[ProfileCache] Failed to clear localStorage:', e);
+    }
+  }
 
   private getCachedProfile(pubkey: string): NostrProfileMetadata | null {
     const cached = this.profileCache.get(pubkey);
@@ -48,7 +136,11 @@ export class NostrProfileCache {
       this.profileCache.delete(pubkey);
     } else {
       this.profileCache.clear();
+      this.clearStorage();
     }
+    
+    // Schedule save after clearing
+    this.scheduleSave();
   }
 
   private enforceProfileCacheLimit(): void {
@@ -62,6 +154,9 @@ export class NostrProfileCache {
       const [pubkey] = entries[i];
       this.profileCache.delete(pubkey);
     }
+    
+    // Schedule save after eviction
+    this.scheduleSave();
   }
 
   /**
@@ -170,6 +265,10 @@ export class NostrProfileCache {
 
         this.profileCache.set(pubkey, parsed);
         this.enforceProfileCacheLimit();
+        
+        // Schedule save to localStorage
+        this.scheduleSave();
+        
         return parsed;
       } catch {
         return null;
@@ -180,6 +279,16 @@ export class NostrProfileCache {
 
     this.inFlightProfiles.set(pubkey, p);
     return p;
+  }
+  
+  /**
+   * Cleanup method to save immediately before unload
+   */
+  destroy(): void {
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+    }
+    this.saveToStorage();
   }
 }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Post, UserState, Comment } from '../types';
 import { EXPANSION_THRESHOLD, INLINE_PREVIEW_COMMENT_COUNT } from '../constants';
@@ -10,9 +10,15 @@ import { MentionInput } from './MentionInput';
 import { ShareButton } from './ShareButton';
 import { ReportModal } from './ReportModal';
 import { ImagePreview } from './ImagePreview';
-import { MarkdownRenderer } from './MarkdownRenderer';
+// Lazy load MarkdownRenderer - only for content that needs it
+const MarkdownRenderer = lazy(() => import('./MarkdownRenderer').then(module => ({ default: module.MarkdownRenderer })));
 import { LinkPreviewList } from './LinkPreview';
 import { extractUrls } from '../services/linkPreviewService';
+
+// Simple renderer for plain text content (no markdown)
+const PlainTextRenderer: React.FC<{ content: string }> = ({ content }) => (
+  <span className="whitespace-pre-wrap">{content}</span>
+);
 
 interface PostItemProps {
   post: Post;
@@ -67,6 +73,8 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   const [showReportModal, setShowReportModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [authorProfile, setAuthorProfile] = useState<any>(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const postRef = useRef<HTMLDivElement>(null);
 
   const handleReportClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -128,9 +136,34 @@ const PostItemComponent: React.FC<PostItemProps> = ({
     if (isFullPage) setIsExpanded(true);
   }, [isFullPage]);
 
-  // Load author profile metadata
+  // Intersection Observer for lazy profile loading
   useEffect(() => {
-    if (post.authorPubkey) {
+    if (!postRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && !isVisible) {
+            setIsVisible(true);
+          }
+        });
+      },
+      {
+        rootMargin: '200px', // Load profiles 200px before entering viewport
+        threshold: 0.01,
+      }
+    );
+
+    observer.observe(postRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [isVisible]);
+
+  // Load author profile metadata (only when visible)
+  useEffect(() => {
+    if (isVisible && post.authorPubkey && !authorProfile) {
       profileService.getProfileMetadata(post.authorPubkey)
         .then(profile => {
           if (profile) {
@@ -141,7 +174,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
           console.error('[PostItem] Failed to load author profile:', error);
         });
     }
-  }, [post.authorPubkey]);
+  }, [isVisible, post.authorPubkey, authorProfile]);
 
   const voteDirection = useMemo(() => userState.votedPosts[post.id], [userState.votedPosts, post.id]);
   const isUpvoted = useMemo(() => voteDirection === 'up', [voteDirection]);
@@ -204,9 +237,12 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   }, [onDeleteComment, post.id]);
 
   // Build comment tree for threaded display
+  // Memoize based on comment array identity (reference) to avoid recomputing when posts update
+  const commentsIdentity = useMemo(() => post.comments, [post.comments]);
+  
   const commentTree = useMemo(() => {
-    return buildCommentTree(post.comments);
-  }, [post.comments]);
+    return buildCommentTree(commentsIdentity);
+  }, [commentsIdentity]);
 
   // Build preview comment tree for inline preview (not full page)
   const previewCommentTree = useMemo(() => {
@@ -214,7 +250,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
       return commentTree;
     }
 
-    const allComments = post.comments;
+    const allComments = commentsIdentity;
     
     // Early return if no comments or very few comments
     if (allComments.length === 0) {
@@ -363,7 +399,8 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   }, [post.content, post.url, isEncryptedWithoutKey]);
 
   return (
-    <div 
+    <div
+      ref={postRef}
       style={
         !isExpanded && !isFullPage
           ? ({ contentVisibility: 'auto', containIntrinsicSize: '420px' } as React.CSSProperties)
@@ -577,14 +614,24 @@ const PostItemComponent: React.FC<PostItemProps> = ({
               </p>
             </div>
           ) : (
-            <div 
+            <div
               onClick={handleInteraction}
               onKeyDown={handleInteractionKeyDown}
               tabIndex={0}
               role="button"
               className={`text-sm text-terminal-text/80 font-mono leading-relaxed mb-2 cursor-pointer break-words ${!isExpanded ? 'line-clamp-2' : 'opacity-100'}`}
             >
-              <MarkdownRenderer content={post.content} />
+              {(() => {
+                // Detect markdown syntax - only load full renderer if needed
+                const hasMarkdown = /[*_#`\[>\-\|~]/.test(post.content);
+                return hasMarkdown ? (
+                  <Suspense fallback={<PlainTextRenderer content={post.content} />}>
+                    <MarkdownRenderer content={post.content} />
+                  </Suspense>
+                ) : (
+                  <PlainTextRenderer content={post.content} />
+                );
+              })()}
             </div>
           )}
 

@@ -1,4 +1,5 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { Post, UserState, ViewMode } from '../types';
 import { PostItem } from './PostItem';
 import { ProfileEditor } from './ProfileEditor';
@@ -85,6 +86,69 @@ export const UserProfile: React.FC<UserProfileProps> = ({
 
   const isOwnProfile = userState.username === username ||
     (authorPubkey && userState.identity?.pubkey === authorPubkey);
+
+  // Stabilize callbacks to prevent PostItem re-renders
+  const handleVote = useCallback((postId: string, direction: 'up' | 'down') => {
+    onVote(postId, direction);
+  }, [onVote]);
+
+  const handleComment = useCallback((postId: string, content: string, parentCommentId?: string) => {
+    onComment(postId, content, parentCommentId);
+  }, [onComment]);
+
+  const handleEditComment = useCallback((postId: string, commentId: string, content: string) => {
+    onEditComment?.(postId, commentId, content);
+  }, [onEditComment]);
+
+  const handleDeleteComment = useCallback((postId: string, commentId: string) => {
+    onDeleteComment?.(postId, commentId);
+  }, [onDeleteComment]);
+
+  const handleCommentVote = useCallback((postId: string, commentId: string, direction: 'up' | 'down') => {
+    onCommentVote?.(postId, commentId, direction);
+  }, [onCommentVote]);
+
+  const handleViewBit = useCallback((postId: string) => {
+    onViewBit(postId);
+  }, [onViewBit]);
+
+  const handleViewProfile = useCallback((username: string, pubkey?: string) => {
+    onViewProfile?.(username, pubkey);
+  }, [onViewProfile]);
+
+  const handleEditPost = useCallback((postId: string) => {
+    onEditPost?.(postId);
+  }, [onEditPost]);
+
+  const handleDeletePost = useCallback((postId: string) => {
+    onDeletePost?.(postId);
+  }, [onDeletePost]);
+
+  const handleTagClick = useCallback((tag: string) => {
+    onTagClick?.(tag);
+  }, [onTagClick]);
+
+  const handleToggleBookmark = useCallback((id: string) => {
+    onToggleBookmark(id);
+  }, [onToggleBookmark]);
+
+  const handleToggleMute = useCallback((pubkey: string) => {
+    onToggleMute?.(pubkey);
+  }, [onToggleMute]);
+
+  // Virtualization for large lists (>25 items)
+  const VIRTUALIZE_THRESHOLD = 25;
+  const parentRef = useRef<HTMLDivElement>(null);
+  const shouldVirtualize = userPosts.length > VIRTUALIZE_THRESHOLD;
+
+  const rowVirtualizer = shouldVirtualize
+    ? useWindowVirtualizer({
+        count: userPosts.length,
+        estimateSize: () => 250,
+        scrollMargin: parentRef.current?.offsetTop ?? 0,
+        overscan: 5,
+      })
+    : null;
 
   // Load profile metadata
   useEffect(() => {
@@ -347,6 +411,54 @@ export const UserProfile: React.FC<UserProfileProps> = ({
             <p className="text-xs mt-2">This user hasn't posted anything yet.</p>
           </div>
         </div>
+      ) : shouldVirtualize ? (
+        <div ref={parentRef} className="relative">
+          <div
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+            }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const post = userPosts[virtualRow.index];
+              return (
+                <div
+                  key={virtualRow.key}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  <PostItem
+                    post={post}
+                    userState={userState}
+                    knownUsers={knownUsers}
+                    onVote={handleVote}
+                    onComment={handleComment}
+                    onEditComment={handleEditComment}
+                    onDeleteComment={handleDeleteComment}
+                    onCommentVote={handleCommentVote}
+                    onViewBit={handleViewBit}
+                    onViewProfile={handleViewProfile}
+                    onTagClick={handleTagClick}
+                    onEditPost={handleEditPost}
+                    onDeletePost={handleDeletePost}
+                    isBookmarked={bookmarkedIdSet.has(post.id)}
+                    onToggleBookmark={handleToggleBookmark}
+                    hasReported={reportedPostIdSet.has(post.id)}
+                    isNostrConnected={isNostrConnected}
+                    onToggleMute={handleToggleMute}
+                    isMuted={isMuted}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
       ) : (
         <div className="space-y-2">
           {userPosts.map(post => (
@@ -355,21 +467,21 @@ export const UserProfile: React.FC<UserProfileProps> = ({
               post={post}
               userState={userState}
               knownUsers={knownUsers}
-              onVote={onVote}
-              onComment={onComment}
-              onEditComment={onEditComment}
-              onDeleteComment={onDeleteComment}
-              onCommentVote={onCommentVote}
-              onViewBit={onViewBit}
-              onViewProfile={onViewProfile}
-              onTagClick={onTagClick}
-              onEditPost={onEditPost}
-              onDeletePost={onDeletePost}
+              onVote={handleVote}
+              onComment={handleComment}
+              onEditComment={handleEditComment}
+              onDeleteComment={handleDeleteComment}
+              onCommentVote={handleCommentVote}
+              onViewBit={handleViewBit}
+              onViewProfile={handleViewProfile}
+              onTagClick={handleTagClick}
+              onEditPost={handleEditPost}
+              onDeletePost={handleDeletePost}
               isBookmarked={bookmarkedIdSet.has(post.id)}
-              onToggleBookmark={onToggleBookmark}
+              onToggleBookmark={handleToggleBookmark}
               hasReported={reportedPostIdSet.has(post.id)}
               isNostrConnected={isNostrConnected}
-              onToggleMute={onToggleMute}
+              onToggleMute={handleToggleMute}
               isMuted={isMuted}
             />
           ))}

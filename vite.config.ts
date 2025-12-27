@@ -51,9 +51,17 @@ export default defineConfig(({ mode }) => {
             react: ['react', 'react-dom'],
             nostr: ['nostr-tools'],
             genai: ['@google/genai'],
+            markdown: ['react-markdown', 'react-syntax-highlighter'],
+            virtual: ['@tanstack/react-virtual'],
+            icons: ['lucide-react'],
           },
         },
       },
+    },
+
+    // Web Worker configuration
+    worker: {
+      format: 'es',
     },
 
     // Minor hardening: keep stack traces but drop debugger statements in prod.

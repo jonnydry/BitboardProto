@@ -103,9 +103,18 @@ class VotingService {
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
   private readonly CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
+  // Web Worker for vote verification
+  private worker: Worker | null = null;
+  private workerPromises = new Map<string, { resolve: (results: any) => void; reject: (error: any) => void }>();
+  private workerRequestId = 0;
+  private workerReady = false;
+
   constructor() {
     // Start periodic cleanup
     this.startPeriodicCleanup();
+    
+    // Try to initialize Web Worker
+    this.initWorker();
   }
 
   /**
@@ -120,12 +129,110 @@ class VotingService {
   }
 
   /**
+   * Initialize Web Worker for vote verification (if supported)
+   */
+  private initWorker(): void {
+    if (typeof Worker === 'undefined') {
+      console.log('[Voting] Web Workers not supported, using main thread verification');
+      return;
+    }
+
+    try {
+      this.worker = new Worker(
+        new URL('./workers/voteVerifier.worker.ts', import.meta.url),
+        { type: 'module' }
+      );
+
+      this.worker.onmessage = (e: MessageEvent) => {
+        const { type, id, results, error } = e.data;
+
+        if (type === 'ready') {
+          this.workerReady = true;
+          console.log('[Voting] Web Worker initialized successfully');
+          return;
+        }
+
+        const promise = this.workerPromises.get(id);
+        if (!promise) return;
+
+        this.workerPromises.delete(id);
+
+        if (error) {
+          promise.reject(new Error(error));
+        } else {
+          promise.resolve(results);
+        }
+      };
+
+      this.worker.onerror = (error) => {
+        console.error('[Voting] Web Worker error:', error);
+        this.worker = null;
+        this.workerReady = false;
+      };
+    } catch (e) {
+      console.warn('[Voting] Failed to initialize Web Worker:', e);
+      this.worker = null;
+      this.workerReady = false;
+    }
+  }
+
+  /**
+   * Verify vote events using Web Worker (if available) or fallback to main thread
+   */
+  private async verifyVoteEventsBatch(events: NostrEvent[]): Promise<Map<string, boolean>> {
+    if (this.worker && this.workerReady) {
+      return this.verifyVoteEventsWorker(events);
+    } else {
+      return this.verifyVoteEventsMainThread(events);
+    }
+  }
+
+  /**
+   * Verify vote events using Web Worker
+   */
+  private verifyVoteEventsWorker(events: NostrEvent[]): Promise<Map<string, boolean>> {
+    return new Promise((resolve, reject) => {
+      const id = `verify-${this.workerRequestId++}`;
+      
+      this.workerPromises.set(id, { resolve, reject });
+
+      // Send batch to worker
+      this.worker!.postMessage({ id, events });
+    }).then((results: Array<{ id: string; pubkey: string; valid: boolean }>) => {
+      // Convert results array to Map
+      const resultMap = new Map<string, boolean>();
+      for (const result of results) {
+        resultMap.set(result.id, result.valid);
+      }
+      return resultMap;
+    });
+  }
+
+  /**
+   * Verify vote events on main thread (fallback)
+   */
+  private verifyVoteEventsMainThread(events: NostrEvent[]): Map<string, boolean> {
+    const results = new Map<string, boolean>();
+    for (const event of events) {
+      results.set(event.id, verifyEvent(event));
+    }
+    return results;
+  }
+
+  /**
    * Stop periodic cleanup (for testing/cleanup)
    */
   private stopPeriodicCleanup(): void {
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;
+    }
+
+    // Cleanup worker
+    if (this.worker) {
+      this.worker.terminate();
+      this.worker = null;
+      this.workerReady = false;
     }
   }
 
@@ -323,6 +430,9 @@ class VotingService {
       lastUpdated: Date.now(),
     };
 
+    // Batch verify all events (using Web Worker if available)
+    const verificationResults = await this.verifyVoteEventsBatch(voteEvents);
+
     // Process each vote event
     // Sort by timestamp to ensure latest vote per user wins
     const sortedEvents = [...voteEvents].sort(
@@ -330,14 +440,32 @@ class VotingService {
     );
 
     for (const event of sortedEvents) {
-      // Cryptographically verify each vote
-      const isVerified = this.verifyVoteEvent(event);
-      if (!isVerified) {
-        console.warn('[Voting] Rejected unverified vote from:', event.pubkey.slice(0, 8));
+      // Check verification result from batch
+      const isSignatureValid = verificationResults.get(event.id) ?? false;
+      
+      if (!isSignatureValid) {
+        console.warn('[Voting] Invalid signature for vote from:', event.pubkey.slice(0, 8));
         continue;
       }
 
-      const vote = this.eventToVote(event, isVerified);
+      // Additional validation (kind, content, tags)
+      if (event.kind !== NOSTR_KINDS.REACTION) {
+        console.warn('[Voting] Invalid event kind for vote:', event.kind);
+        continue;
+      }
+
+      if (event.content !== '+' && event.content !== '-') {
+        console.warn('[Voting] Invalid vote content:', event.content);
+        continue;
+      }
+
+      const postTag = event.tags.find(t => t[0] === 'e');
+      if (!postTag || !postTag[1]) {
+        console.warn('[Voting] Vote missing post reference');
+        continue;
+      }
+
+      const vote = this.eventToVote(event, isSignatureValid);
       if (!vote) continue;
 
       // Check for existing vote from this pubkey (one vote per user)
@@ -412,6 +540,22 @@ class VotingService {
 
     const voteEventArrays = await Promise.all(voteEventPromises);
 
+    // Collect all events for batch verification
+    const allEvents: NostrEvent[] = [];
+    const eventToPostMap = new Map<string, string>(); // event.id -> postId
+    
+    for (let i = 0; i < uncachedPostIds.length; i++) {
+      const postId = uncachedPostIds[i];
+      const events = voteEventArrays[i];
+      for (const event of events) {
+        allEvents.push(event);
+        eventToPostMap.set(event.id, postId);
+      }
+    }
+
+    // Batch verify all events at once (using Web Worker if available)
+    const verificationResults = await this.verifyVoteEventsBatch(allEvents);
+
     // Process each post's votes
     for (let i = 0; i < uncachedPostIds.length; i++) {
       const postId = uncachedPostIds[i];
@@ -433,13 +577,29 @@ class VotingService {
       );
 
       for (const event of sortedEvents) {
-        const isVerified = this.verifyVoteEvent(event);
-        if (!isVerified) {
-          console.warn('[Voting] Rejected unverified vote from:', event.pubkey.slice(0, 8));
+        // Check verification result from batch
+        const isSignatureValid = verificationResults.get(event.id) ?? false;
+        
+        if (!isSignatureValid) {
+          console.warn('[Voting] Invalid signature for vote from:', event.pubkey.slice(0, 8));
           continue;
         }
 
-        const vote = this.eventToVote(event, isVerified);
+        // Additional validation (kind, content, tags)
+        if (event.kind !== NOSTR_KINDS.REACTION) {
+          continue;
+        }
+
+        if (event.content !== '+' && event.content !== '-') {
+          continue;
+        }
+
+        const postTag = event.tags.find(t => t[0] === 'e');
+        if (!postTag || !postTag[1]) {
+          continue;
+        }
+
+        const vote = this.eventToVote(event, isSignatureValid);
         if (!vote) continue;
 
         const existingVote = tally.votes.get(vote.voterPubkey);

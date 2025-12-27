@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { MapPin } from 'lucide-react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import type { Board, Post, SortMode, UserState } from '../../types';
@@ -6,6 +6,7 @@ import { BoardType, ViewMode } from '../../types';
 import { SearchBar } from '../../components/SearchBar';
 import { SortSelector } from '../../components/SortSelector';
 import { PostItem } from '../../components/PostItem';
+import { PostSkeleton, InlineLoadingSkeleton } from '../../components/PostSkeleton';
 
 const FEED_VIRTUALIZE_THRESHOLD = 25;
 
@@ -45,6 +46,7 @@ export function FeedView(props: {
   hasMorePosts: boolean;
   onToggleMute?: (pubkey: string) => void;
   isMuted?: (pubkey: string) => boolean;
+  isInitialLoading?: boolean;
 }) {
   const {
     sortedPosts,
@@ -77,6 +79,7 @@ export function FeedView(props: {
     hasMorePosts,
     onToggleMute,
     isMuted,
+    isInitialLoading = false,
   } = props;
 
   const shouldVirtualizeFeed = viewMode === ViewMode.FEED && sortedPosts.length > FEED_VIRTUALIZE_THRESHOLD;
@@ -86,6 +89,55 @@ export function FeedView(props: {
     estimateSize: () => 520,
     overscan: 6,
   });
+
+  // Stabilize callbacks to prevent PostItem re-renders
+  const handleVote = useCallback((postId: string, direction: 'up' | 'down') => {
+    onVote(postId, direction);
+  }, [onVote]);
+
+  const handleComment = useCallback((postId: string, content: string, parentCommentId?: string) => {
+    onComment(postId, content, parentCommentId);
+  }, [onComment]);
+
+  const handleEditComment = useCallback((postId: string, commentId: string, content: string) => {
+    onEditComment(postId, commentId, content);
+  }, [onEditComment]);
+
+  const handleDeleteComment = useCallback((postId: string, commentId: string) => {
+    onDeleteComment(postId, commentId);
+  }, [onDeleteComment]);
+
+  const handleCommentVote = useCallback((postId: string, commentId: string, direction: 'up' | 'down') => {
+    onCommentVote?.(postId, commentId, direction);
+  }, [onCommentVote]);
+
+  const handleViewBit = useCallback((postId: string) => {
+    onViewBit(postId);
+  }, [onViewBit]);
+
+  const handleViewProfile = useCallback((username: string, pubkey?: string) => {
+    onViewProfile(username, pubkey);
+  }, [onViewProfile]);
+
+  const handleEditPost = useCallback((postId: string) => {
+    onEditPost(postId);
+  }, [onEditPost]);
+
+  const handleDeletePost = useCallback((postId: string) => {
+    onDeletePost(postId);
+  }, [onDeletePost]);
+
+  const handleTagClick = useCallback((tag: string) => {
+    onTagClick(tag);
+  }, [onTagClick]);
+
+  const handleToggleBookmark = useCallback((id: string) => {
+    onToggleBookmark(id);
+  }, [onToggleBookmark]);
+
+  const handleToggleMute = useCallback((pubkey: string) => {
+    onToggleMute?.(pubkey);
+  }, [onToggleMute]);
 
   const emptyState = useMemo(() => {
     return (
@@ -138,9 +190,15 @@ export function FeedView(props: {
         <SortSelector currentSort={sortMode} onSortChange={setSortMode} />
       </div>
 
-      {sortedPosts.length === 0 && emptyState}
+      {/* Initial loading state with skeleton */}
+      {isInitialLoading && sortedPosts.length === 0 && (
+        <PostSkeleton count={5} />
+      )}
 
-      {!shouldVirtualizeFeed && (
+      {/* Empty state (only show if not loading) */}
+      {!isInitialLoading && sortedPosts.length === 0 && emptyState}
+
+      {!shouldVirtualizeFeed && !isInitialLoading && (
         <>
           {sortedPosts.map((post) => (
             <PostItem
@@ -149,36 +207,32 @@ export function FeedView(props: {
               boardName={getBoardName(post.id)}
               userState={userState}
               knownUsers={knownUsers}
-              onVote={onVote}
-              onComment={onComment}
-              onEditComment={onEditComment}
-              onDeleteComment={onDeleteComment}
-              onCommentVote={onCommentVote}
-              onViewBit={onViewBit}
-              onViewProfile={onViewProfile}
-              onEditPost={onEditPost}
-              onDeletePost={onDeletePost}
-              onTagClick={onTagClick}
+              onVote={handleVote}
+              onComment={handleComment}
+              onEditComment={handleEditComment}
+              onDeleteComment={handleDeleteComment}
+              onCommentVote={handleCommentVote}
+              onViewBit={handleViewBit}
+              onViewProfile={handleViewProfile}
+              onEditPost={handleEditPost}
+              onDeletePost={handleDeletePost}
+              onTagClick={handleTagClick}
               isBookmarked={bookmarkedIdSet.has(post.id)}
-              onToggleBookmark={onToggleBookmark}
+              onToggleBookmark={handleToggleBookmark}
               hasReported={reportedPostIdSet.has(post.id)}
               isNostrConnected={isNostrConnected}
-              onToggleMute={onToggleMute}
+              onToggleMute={handleToggleMute}
               isMuted={isMuted}
             />
           ))}
 
-          <div ref={loaderRef} className="py-8 text-center">
-            {isLoadingMore && (
-              <div className="flex items-center justify-center gap-3 text-terminal-dim">
-                <div className="animate-pulse">▓▓▓</div>
-                <span className="text-sm uppercase tracking-wider">Loading more signals...</span>
-                <div className="animate-pulse">▓▓▓</div>
-              </div>
-            )}
+          <div ref={loaderRef} className="py-4">
+            {isLoadingMore && <InlineLoadingSkeleton />}
             {!hasMorePosts && sortedPosts.length > 0 && (
-              <div className="text-xs text-terminal-dim uppercase tracking-wider border border-terminal-dim/30 inline-block px-4 py-2">
-                END_OF_FEED // All signals loaded
+              <div className="text-center py-4">
+                <div className="text-xs text-terminal-dim uppercase tracking-wider border border-terminal-dim/30 inline-block px-4 py-2">
+                  END_OF_FEED // All signals loaded
+                </div>
               </div>
             )}
           </div>
@@ -202,18 +256,14 @@ export function FeedView(props: {
                     width: '100%',
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
-                  className="py-8 text-center"
+                  className="py-4"
                 >
-                  {isLoadingMore && (
-                    <div className="flex items-center justify-center gap-3 text-terminal-dim">
-                      <div className="animate-pulse">▓▓▓</div>
-                      <span className="text-sm uppercase tracking-wider">Loading more signals...</span>
-                      <div className="animate-pulse">▓▓▓</div>
-                    </div>
-                  )}
+                  {isLoadingMore && <InlineLoadingSkeleton />}
                   {!hasMorePosts && sortedPosts.length > 0 && (
-                    <div className="text-xs text-terminal-dim uppercase tracking-wider border border-terminal-dim/30 inline-block px-4 py-2">
-                      END_OF_FEED // All signals loaded
+                    <div className="text-center py-4">
+                      <div className="text-xs text-terminal-dim uppercase tracking-wider border border-terminal-dim/30 inline-block px-4 py-2">
+                        END_OF_FEED // All signals loaded
+                      </div>
                     </div>
                   )}
                 </div>
@@ -239,20 +289,20 @@ export function FeedView(props: {
                   boardName={getBoardName(post.id)}
                   userState={userState}
                   knownUsers={knownUsers}
-                  onVote={onVote}
-                  onComment={onComment}
-                  onEditComment={onEditComment}
-                  onDeleteComment={onDeleteComment}
-                  onCommentVote={onCommentVote}
-                  onViewBit={onViewBit}
-                  onViewProfile={onViewProfile}
-                  onEditPost={onEditPost}
-                  onTagClick={onTagClick}
+                  onVote={handleVote}
+                  onComment={handleComment}
+                  onEditComment={handleEditComment}
+                  onDeleteComment={handleDeleteComment}
+                  onCommentVote={handleCommentVote}
+                  onViewBit={handleViewBit}
+                  onViewProfile={handleViewProfile}
+                  onEditPost={handleEditPost}
+                  onTagClick={handleTagClick}
                   isBookmarked={bookmarkedIdSet.has(post.id)}
-                  onToggleBookmark={onToggleBookmark}
+                  onToggleBookmark={handleToggleBookmark}
                   hasReported={reportedPostIdSet.has(post.id)}
                   isNostrConnected={isNostrConnected}
-                  onToggleMute={onToggleMute}
+                  onToggleMute={handleToggleMute}
                   isMuted={isMuted}
                 />
               </div>

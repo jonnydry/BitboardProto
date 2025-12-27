@@ -20,8 +20,15 @@ export function useNostrFeed(args: {
     const initNostr = async () => {
       try {
         const initialLimit = UIConfig.INITIAL_POSTS_COUNT;
-        const nostrPosts = await nostrService.fetchPosts({ limit: initialLimit });
 
+        // PHASE 1: Parallel fetch posts and boards
+        const [nostrPosts, nostrBoards] = await Promise.all([
+          nostrService.fetchPosts({ limit: initialLimit }),
+          nostrService.fetchBoards()
+        ]);
+
+        // Process posts
+        let processedPosts: Post[] = [];
         if (nostrPosts.length > 0) {
           const convertedPosts = nostrPosts
             .filter((event) => nostrService.isBitboardPostEvent(event))
@@ -30,7 +37,15 @@ export function useNostrFeed(args: {
           // Batch fetch cryptographically verified votes for all posts
           const postsWithNostrIds = convertedPosts.filter((p) => p.nostrEventId);
           const postIds = postsWithNostrIds.map((p) => p.nostrEventId!);
-          const voteTallies = await votingService.fetchVotesForPosts(postIds);
+
+          // PHASE 2: Parallel fetch votes and edits
+          const [voteTallies, editEventsResult] = await Promise.all([
+            votingService.fetchVotesForPosts(postIds),
+            nostrService.fetchPostEdits(postIds, { limit: 300 }).catch((err) => {
+              console.warn('[NostrFeed] Failed to fetch post edits:', err);
+              return [];
+            })
+          ]);
 
           const postsWithVotes = convertedPosts.map((post) => {
             if (post.nostrEventId) {
@@ -49,58 +64,34 @@ export function useNostrFeed(args: {
             return post;
           });
 
-          // Fetch and apply latest post edits (BitBoard edit companion events)
+          // Apply latest post edits (BitBoard edit companion events)
           let postsWithEdits = postsWithVotes;
-          try {
-            const editEvents = await nostrService.fetchPostEdits(postIds, { limit: 300 });
-            if (editEvents.length > 0) {
-              const latestByRoot = new Map<string, { created_at: number; event: NostrEvent }>();
-              for (const ev of editEvents) {
-                const parsed = nostrService.eventToPostEditUpdate(ev);
-                if (!parsed) continue;
-                const existing = latestByRoot.get(parsed.rootPostEventId);
-                if (!existing || ev.created_at > existing.created_at) {
-                  latestByRoot.set(parsed.rootPostEventId, { created_at: ev.created_at, event: ev });
-                }
+          if (editEventsResult.length > 0) {
+            const latestByRoot = new Map<string, { created_at: number; event: NostrEvent }>();
+            for (const ev of editEventsResult) {
+              const parsed = nostrService.eventToPostEditUpdate(ev);
+              if (!parsed) continue;
+              const existing = latestByRoot.get(parsed.rootPostEventId);
+              if (!existing || ev.created_at > existing.created_at) {
+                latestByRoot.set(parsed.rootPostEventId, { created_at: ev.created_at, event: ev });
               }
-
-              postsWithEdits = postsWithVotes.map((p) => {
-                const rootId = p.nostrEventId;
-                if (!rootId) return p;
-                const latest = latestByRoot.get(rootId);
-                if (!latest) return p;
-                const parsed = nostrService.eventToPostEditUpdate(latest.event);
-                if (!parsed) return p;
-                return {
-                  ...p,
-                  ...parsed.updates,
-                };
-              });
             }
-          } catch (err) {
-            // Non-fatal: show original posts if edit fetch fails
-            console.warn('[NostrFeed] Failed to fetch post edits:', err);
-          }
 
-          setPosts((prev) => {
-            const existingIds = new Set(prev.map((p) => p.nostrEventId).filter(Boolean));
-            const newPosts = postsWithEdits.filter((p) => !existingIds.has(p.nostrEventId));
-            return [...prev, ...newPosts];
-          });
-
-          // Best-effort profile enrichment (kind 0): update author display names after caching
-          const pubkeys = Array.from(
-            new Set(postsWithVotes.map((p) => p.authorPubkey).filter(Boolean) as string[])
-          );
-          if (pubkeys.length > 0) {
-            nostrService.fetchProfiles(pubkeys).then(() => {
-              setPosts((prev) =>
-                prev.map((p) =>
-                  p.authorPubkey ? { ...p, author: nostrService.getDisplayName(p.authorPubkey) } : p
-                )
-              );
+            postsWithEdits = postsWithVotes.map((p) => {
+              const rootId = p.nostrEventId;
+              if (!rootId) return p;
+              const latest = latestByRoot.get(rootId);
+              if (!latest) return p;
+              const parsed = nostrService.eventToPostEditUpdate(latest.event);
+              if (!parsed) return p;
+              return {
+                ...p,
+                ...parsed.updates,
+              };
             });
           }
+
+          processedPosts = postsWithEdits;
 
           const timestamps = postsWithVotes.map((p) => p.timestamp);
           if (timestamps.length > 0) {
@@ -112,17 +103,53 @@ export function useNostrFeed(args: {
           setHasMorePosts(false);
         }
 
-        const nostrBoards = await nostrService.fetchBoards();
+        // Process boards
+        let processedBoards: Board[] = [];
         if (nostrBoards.length > 0) {
-          const convertedBoards = nostrBoards.map((event) => nostrService.eventToBoard(event));
-          setBoards((prev) => {
-            const existingIds = new Set(prev.map((b) => b.id));
-            const newBoards = convertedBoards.filter((b) => !existingIds.has(b.id));
-            return [...prev, ...newBoards];
-          });
+          processedBoards = nostrBoards.map((event) => nostrService.eventToBoard(event));
         }
 
+        // Single state update with all data
+        setPosts((prev) => {
+          const existingIds = new Set(prev.map((p) => p.nostrEventId).filter(Boolean));
+          const newPosts = processedPosts.filter((p) => !existingIds.has(p.nostrEventId));
+          return [...prev, ...newPosts];
+        });
+
+        setBoards((prev) => {
+          const existingIds = new Set(prev.map((b) => b.id));
+          const newBoards = processedBoards.filter((b) => !existingIds.has(b.id));
+          return [...prev, ...newBoards];
+        });
+
         setIsNostrConnected(true);
+
+        // PHASE 3: Defer profile fetching to after initial render
+        if (processedPosts.length > 0) {
+          // Use requestIdleCallback if available, otherwise setTimeout
+          const scheduleProfiles = typeof requestIdleCallback !== 'undefined'
+            ? () => requestIdleCallback(fetchProfiles)
+            : () => setTimeout(fetchProfiles, 100);
+
+          const fetchProfiles = () => {
+            const pubkeys = Array.from(
+              new Set(processedPosts.map((p) => p.authorPubkey).filter(Boolean) as string[])
+            );
+            if (pubkeys.length > 0) {
+              nostrService.fetchProfiles(pubkeys).then(() => {
+                setPosts((prev) =>
+                  prev.map((p) =>
+                    p.authorPubkey ? { ...p, author: nostrService.getDisplayName(p.authorPubkey) } : p
+                  )
+                );
+              }).catch((err) => {
+                console.warn('[NostrFeed] Failed to fetch profiles:', err);
+              });
+            }
+          };
+
+          scheduleProfiles();
+        }
       } catch (error) {
         console.error('[App] Failed to initialize Nostr:', error);
         setIsNostrConnected(false);
