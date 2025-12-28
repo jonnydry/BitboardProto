@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 import type { UserState, NostrIdentity } from '../../../types';
 import { MAX_DAILY_BITS } from '../../../constants';
 

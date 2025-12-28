@@ -141,14 +141,13 @@ export const UserProfile: React.FC<UserProfileProps> = ({
   const parentRef = useRef<HTMLDivElement>(null);
   const shouldVirtualize = userPosts.length > VIRTUALIZE_THRESHOLD;
 
-  const rowVirtualizer = shouldVirtualize
-    ? useWindowVirtualizer({
-        count: userPosts.length,
-        estimateSize: () => 250,
-        scrollMargin: parentRef.current?.offsetTop ?? 0,
-        overscan: 5,
-      })
-    : null;
+  // Always call the hook (React rules), but use count=0 when not virtualizing
+  const rowVirtualizer = useWindowVirtualizer({
+    count: shouldVirtualize ? userPosts.length : 0,
+    estimateSize: () => 250,
+    scrollMargin: parentRef.current?.offsetTop ?? 0,
+    overscan: 5,
+  });
 
   // Load profile metadata
   useEffect(() => {
@@ -411,7 +410,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
             <p className="text-xs mt-2">This user hasn't posted anything yet.</p>
           </div>
         </div>
-      ) : shouldVirtualize ? (
+      ) : shouldVirtualize && rowVirtualizer ? (
         <div ref={parentRef} className="relative">
           <div
             style={{

@@ -1,10 +1,9 @@
 import React, { createContext, useContext, useState, useMemo, useCallback, useRef } from 'react';
-import type { Post, SortMode, BoardType, UserState, Board } from '../../../types';
+import type { Post } from '../../../types';
 import { logger } from '../../../services/loggingService';
 
 // LRU Cache configuration
 const MAX_POSTS_IN_MEMORY = 500;
-const MIN_POSTS_TO_KEEP = 100;
 
 interface PostsContextType {
   // State

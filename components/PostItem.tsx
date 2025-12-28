@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Post, UserState, Comment, SyncStatus } from '../types';
+import { Post, UserState, Comment } from '../types';
 import { EXPANSION_THRESHOLD, INLINE_PREVIEW_COMMENT_COUNT } from '../constants';
-import { ArrowBigUp, ArrowBigDown, MessageSquare, Clock, Hash, ExternalLink, CornerDownRight, Maximize2, Image as ImageIcon, Shield, Users, UserX, Bookmark, Edit3, Flag, Lock, VolumeX, Trash2, RefreshCw, AlertTriangle, Loader2, CheckCircle2 } from 'lucide-react';
+import { ArrowBigUp, ArrowBigDown, MessageSquare, Clock, Hash, ExternalLink, CornerDownRight, Maximize2, Image as ImageIcon, Shield, Users, UserX, Bookmark, Edit3, Flag, Lock, VolumeX, Trash2, RefreshCw, AlertTriangle, Loader2 } from 'lucide-react';
 import { profileService } from '../services/profileService';
 import { CommentThread, buildCommentTree } from './CommentThread';
 // MentionText is used via MarkdownRenderer
@@ -345,7 +345,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
     };
     
     return filterTree(commentTree);
-  }, [post.comments, userState.identity?.pubkey, isFullPage, commentTree]);
+  }, [commentsIdentity, userState.identity?.pubkey, isFullPage, commentTree]);
 
   const handleInteraction = useCallback(() => {
     if (isFullPage) return; // Already expanded in full view
@@ -668,7 +668,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
             >
               {(() => {
                 // Detect markdown syntax - only load full renderer if needed
-                const hasMarkdown = /[*_#`\[>\-\|~]/.test(post.content);
+                const hasMarkdown = /[*_#`[>\-|~]/.test(post.content);
                 return hasMarkdown ? (
                   <Suspense fallback={<PlainTextRenderer content={post.content} />}>
                     <MarkdownRenderer content={post.content} />

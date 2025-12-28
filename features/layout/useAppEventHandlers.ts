@@ -178,7 +178,7 @@ export const useAppEventHandlers = ({
         }
       })();
     }
-  }, [userState.identity, boardsById, getRelayHint, setPosts, setViewMode]);
+  }, [userState.identity, boardsById, setPosts, setViewMode]);
 
   const handleCreateBoard = useCallback(async (newBoardData: Omit<Board, 'id' | 'memberCount' | 'nostrEventId'>) => {
     // Require identity for board creation

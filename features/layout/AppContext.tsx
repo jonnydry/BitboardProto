@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Post, UserState, ViewMode, Board, ThemeId, BoardType, NostrIdentity, SortMode } from '../../types';
-import { SortMode as SortModeEnum } from '../../types';
 import { nostrService } from '../../services/nostrService';
 import { identityService } from '../../services/identityService';
 import { bookmarkService } from '../../services/bookmarkService';
@@ -26,46 +25,6 @@ import { UserProvider, useUser } from './contexts/UserContext';
 import { UIProvider, useUI } from './contexts/UIContext';
 
 const MAX_CACHED_POSTS = 200;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object';
-}
-
-function isCachedPost(value: unknown): value is Post {
-  return isRecord(value) && typeof value.id === 'string' && typeof value.title === 'string';
-}
-
-function isCachedBoard(value: unknown): value is Board {
-  return isRecord(value) && typeof value.id === 'string' && typeof value.name === 'string';
-}
-
-function loadCachedPosts(): Post[] | null {
-  try {
-    if (typeof localStorage === 'undefined') return null;
-    const raw = localStorage.getItem(StorageKeys.POSTS_CACHE);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { savedAt?: number; posts?: unknown };
-    if (!parsed || !Array.isArray(parsed.posts)) return null;
-
-    return parsed.posts.filter(isCachedPost);
-  } catch {
-    return null;
-  }
-}
-
-function loadCachedBoards(): Board[] | null {
-  try {
-    if (typeof localStorage === 'undefined') return null;
-    const raw = localStorage.getItem(StorageKeys.BOARDS_CACHE);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { savedAt?: number; boards?: unknown };
-    if (!parsed || !Array.isArray(parsed.boards)) return null;
-
-    return parsed.boards.filter(isCachedBoard);
-  } catch {
-    return null;
-  }
-}
 
 interface AppContextType {
   // State

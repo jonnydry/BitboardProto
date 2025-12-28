@@ -156,7 +156,7 @@ class SearchService {
   /**
    * Fallback main-thread search (used when worker unavailable)
    */
-  private searchMainThread(query: string): string[] {
+  private searchMainThread(_query: string): string[] {
     logger.warn('SearchService', 'Using main thread search fallback');
     // Return empty array - caller should implement fallback
     return [];

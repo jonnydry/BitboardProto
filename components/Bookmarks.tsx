@@ -116,14 +116,13 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
   const parentRef = useRef<HTMLDivElement>(null);
   const shouldVirtualize = bookmarkedPosts.length > VIRTUALIZE_THRESHOLD;
 
-  const rowVirtualizer = shouldVirtualize
-    ? useWindowVirtualizer({
-        count: bookmarkedPosts.length,
-        estimateSize: () => 250,
-        scrollMargin: parentRef.current?.offsetTop ?? 0,
-        overscan: 5,
-      })
-    : null;
+  // Always call the hook (React rules), but use count=0 when not virtualizing
+  const rowVirtualizer = useWindowVirtualizer({
+    count: shouldVirtualize ? bookmarkedPosts.length : 0,
+    estimateSize: () => 250,
+    scrollMargin: parentRef.current?.offsetTop ?? 0,
+    overscan: 5,
+  });
 
   return (
     <div className="animate-fade-in">
@@ -171,7 +170,7 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
             </p>
           </div>
         </div>
-      ) : shouldVirtualize ? (
+      ) : shouldVirtualize && rowVirtualizer ? (
         <div ref={parentRef} className="relative">
           <div
             style={{

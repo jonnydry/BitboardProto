@@ -116,7 +116,7 @@ class ErrorTrackingService {
 
       this.sentry = Sentry;
       logger.info('ErrorTracking', 'Sentry initialized successfully');
-    } catch (error) {
+    } catch (_error) {
       // Sentry not installed - this is expected in development
       logger.debug('ErrorTracking', 'Sentry not available (install @sentry/react to enable)');
     }
