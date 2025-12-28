@@ -185,9 +185,9 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
             These are the relays BitBoard will use for reads/writes (user relays first, then defaults).
           </p>
           <ul className="space-y-2">
-            {effectiveRelays.map((url) => (
-              <li key={url}>
-                <code className="block text-xs bg-terminal-dim/10 border border-terminal-dim/30 p-2 break-all">{url}</code>
+            {effectiveRelays.map((relay) => (
+              <li key={relay.url}>
+                <code className="block text-xs bg-terminal-dim/10 border border-terminal-dim/30 p-2 break-all">{relay.url}</code>
               </li>
             ))}
           </ul>

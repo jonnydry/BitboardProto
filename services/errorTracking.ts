@@ -97,7 +97,9 @@ class ErrorTrackingService {
 
     try {
       // Dynamically import Sentry to avoid build errors when not installed
-      const Sentry = await import('@sentry/react') as SentryLike;
+      // Using a variable prevents Vite from statically analyzing the import
+      const sentryModule = '@sentry/react';
+      const Sentry = await import(/* @vite-ignore */ sentryModule) as SentryLike;
       
       Sentry.init({
         dsn: config.dsn,

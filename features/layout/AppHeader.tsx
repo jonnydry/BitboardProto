@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bookmark, Zap, Bell, Globe, Plus, Menu } from 'lucide-react';
+import { Bookmark, Zap, Bell, Globe, Plus, Menu, Wifi, WifiOff } from 'lucide-react';
 import type { NostrIdentity, UserState } from '../../types';
 import { ThemeId, ViewMode } from '../../types';
 import { notificationService } from '../../services/notificationService';
