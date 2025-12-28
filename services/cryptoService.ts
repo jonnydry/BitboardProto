@@ -10,6 +10,8 @@
 // - Encryption key stored separately from encrypted data
 // - Browser-derived key (no password needed)
 
+import { logger } from './loggingService';
+
 // ============================================
 // STORAGE KEYS
 // ============================================
@@ -50,16 +52,16 @@ class CryptoService {
       
       if (storedKey) {
         this.encryptionKey = await this.importKey(storedKey);
-        console.log('[Crypto] Loaded existing encryption key');
+        logger.debug('Crypto', 'Loaded existing encryption key');
       } else {
         // Generate new key
         this.encryptionKey = await this.generateKey();
         const exportedKey = await this.exportKey(this.encryptionKey);
         localStorage.setItem(STORAGE_KEYS.ENCRYPTION_KEY, exportedKey);
-        console.log('[Crypto] Generated new encryption key');
+        logger.debug('Crypto', 'Generated new encryption key');
       }
     } catch (error) {
-      console.error('[Crypto] Failed to initialize:', error);
+      logger.error('Crypto', 'Failed to initialize', error);
       throw error;
     }
   }
@@ -257,7 +259,7 @@ class CryptoService {
     localStorage.removeItem(STORAGE_KEYS.ENCRYPTION_KEY);
     this.encryptionKey = null;
     this.initPromise = null;
-    console.log('[Crypto] Encryption key deleted');
+    logger.info('Crypto', 'Encryption key deleted');
   }
 
   /**

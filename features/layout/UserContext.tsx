@@ -5,6 +5,7 @@ import { identityService } from '../../services/identityService';
 import { bookmarkService } from '../../services/bookmarkService';
 import { reportService } from '../../services/reportService';
 import { toastService } from '../../services/toastService';
+import { logger } from '../../services/loggingService';
 import { UIConfig } from '../../config';
 
 interface UserContextType {
@@ -101,7 +102,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshProfileMetadata = useCallback(async (pubkeys: string[]) => {
     // TODO: Implement profile metadata refresh
-    console.log('refreshProfileMetadata called with:', pubkeys);
+    logger.debug('UserContext', `refreshProfileMetadata called with: ${pubkeys.length} pubkeys`);
   }, []);
 
   // Subscribe to bookmark changes
@@ -145,7 +146,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
       .catch((err) => {
         // Non-fatal: app can run in guest mode
-        console.warn('[UserContext] Failed to load identity:', err);
+        logger.warn('UserContext', 'Failed to load identity', err);
         toastService.push({
           type: 'error',
           message: 'Failed to load identity (guest mode)',

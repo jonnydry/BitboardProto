@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useMemo, useCallback, useRef } from 'react';
 import type { Post, SortMode, BoardType, UserState, Board } from '../../../types';
+import { logger } from '../../../services/loggingService';
 
 // LRU Cache configuration
 const MAX_POSTS_IN_MEMORY = 500;
@@ -49,7 +50,7 @@ export const PostsProvider: React.FC<{
         return newPosts;
       }
 
-      console.log(`[PostsContext] LRU eviction triggered: ${newPosts.length} posts -> ${MAX_POSTS_IN_MEMORY}`);
+      logger.debug('PostsContext', `LRU eviction triggered: ${newPosts.length} posts -> ${MAX_POSTS_IN_MEMORY}`);
 
       // Sort posts by access time (most recent first)
       const postsWithScore = newPosts.map((post) => ({
@@ -79,10 +80,33 @@ export const PostsProvider: React.FC<{
     });
   }, [selectedPostId]);
 
+  /**
+   * Create a Map-like wrapper that automatically marks posts as accessed
+   * when retrieved via get(). This ensures proper LRU cache behavior.
+   */
   const postsById = useMemo(() => {
-    const map = new Map<string, Post>();
-    posts.forEach(p => map.set(p.id, p));
-    return map;
+    const innerMap = new Map<string, Post>();
+    posts.forEach(p => innerMap.set(p.id, p));
+    
+    // Return a Map-like object that tracks access for LRU
+    return {
+      get: (key: string): Post | undefined => {
+        const post = innerMap.get(key);
+        if (post) {
+          // Auto-mark as accessed for LRU cache
+          postAccessTimes.current.set(key, Date.now());
+        }
+        return post;
+      },
+      has: (key: string): boolean => innerMap.has(key),
+      size: innerMap.size,
+      keys: () => innerMap.keys(),
+      values: () => innerMap.values(),
+      entries: () => innerMap.entries(),
+      forEach: (callback: (value: Post, key: string, map: Map<string, Post>) => void) => 
+        innerMap.forEach(callback),
+      [Symbol.iterator]: () => innerMap[Symbol.iterator](),
+    } as Map<string, Post>;
   }, [posts]);
 
   // Note: filteredPosts and sortedPosts are now computed in AppProviderInternal

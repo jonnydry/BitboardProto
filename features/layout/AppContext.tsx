@@ -8,6 +8,7 @@ import { reportService } from '../../services/reportService';
 import { toastService } from '../../services/toastService';
 import { encryptedBoardService } from '../../services/encryptedBoardService';
 import { searchService } from '../../services/searchService';
+import { logger } from '../../services/loggingService';
 import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
 import { FeatureFlags, StorageKeys, UIConfig } from '../../config';
 import { useTheme } from '../../hooks/useTheme';
@@ -141,6 +142,7 @@ interface AppContextType {
   getThemeColor: (id: ThemeId) => string;
   getBoardName: (postId: string) => string | undefined;
   refreshProfileMetadata: (pubkeys: string[]) => Promise<void>;
+  handleRetryPost: (postId: string) => Promise<void>;
   toggleMute: (pubkey: string) => void;
   isMuted: (pubkey: string) => boolean;
 
@@ -468,7 +470,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
       })
       .catch((err) => {
         // Non-fatal: app can run in guest mode
-        console.warn('[App] Failed to load identity:', err);
+        logger.warn('App', 'Failed to load identity', err);
         toastService.push({
           type: 'error',
           message: 'Failed to load identity (guest mode)',
@@ -487,7 +489,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const shareData = encryptedBoardService.handleShareLink();
     if (shareData) {
-      console.log('[App] Received encrypted board share link:', shareData.boardId);
+      logger.info('App', `Received encrypted board share link: ${shareData.boardId}`);
 
       // Navigate to the board
       boardsCtx.setActiveBoardId(shareData.boardId);
@@ -620,6 +622,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     getThemeColor: (id: ThemeId) => themeColors.get(id) || '#fff',
     getBoardName: eventHandlers.getBoardName,
     refreshProfileMetadata: eventHandlers.refreshProfileMetadata,
+    handleRetryPost: eventHandlers.handleRetryPost,
     toggleMute: userCtx.toggleMute,
     isMuted: userCtx.isMuted,
 

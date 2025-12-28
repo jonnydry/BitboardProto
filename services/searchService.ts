@@ -11,6 +11,7 @@
 // ============================================
 
 import type { Post } from '../types';
+import { logger } from './loggingService';
 
 type SearchWorkerMessage =
   | { type: 'READY' }
@@ -34,7 +35,7 @@ class SearchService {
    */
   private initWorker(): void {
     if (typeof Worker === 'undefined') {
-      console.log('[SearchService] Web Workers not supported, using main thread search');
+      logger.debug('SearchService', 'Web Workers not supported, using main thread search');
       return;
     }
 
@@ -50,13 +51,13 @@ class SearchService {
         switch (type) {
           case 'READY':
             this.workerReady = true;
-            console.log('[SearchService] Worker ready');
+            logger.debug('SearchService', 'Worker ready');
             break;
 
           case 'INDEX_UPDATED': {
             const { count } = e.data;
             this.lastIndexedPostCount = count;
-            console.log(`[SearchService] Index updated: ${count} posts`);
+            logger.debug('SearchService', `Index updated: ${count} posts`);
             break;
           }
 
@@ -73,12 +74,12 @@ class SearchService {
       };
 
       this.worker.onerror = (error) => {
-        console.error('[SearchService] Worker error:', error);
+        logger.error('SearchService', 'Worker error', error);
         this.worker = null;
         this.workerReady = false;
       };
     } catch (e) {
-      console.warn('[SearchService] Failed to initialize worker:', e);
+      logger.warn('SearchService', 'Failed to initialize worker', e);
       this.worker = null;
       this.workerReady = false;
     }
@@ -156,7 +157,7 @@ class SearchService {
    * Fallback main-thread search (used when worker unavailable)
    */
   private searchMainThread(query: string): string[] {
-    console.warn('[SearchService] Using main thread search fallback');
+    logger.warn('SearchService', 'Using main thread search fallback');
     // Return empty array - caller should implement fallback
     return [];
   }

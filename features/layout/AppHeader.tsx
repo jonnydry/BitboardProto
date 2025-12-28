@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Bookmark, Wifi, WifiOff, Zap, Bell, Globe, Plus, Menu } from 'lucide-react';
+import { Bookmark, Zap, Bell, Globe, Plus, Menu } from 'lucide-react';
 import type { NostrIdentity, UserState } from '../../types';
 import { ThemeId, ViewMode } from '../../types';
 import { notificationService } from '../../services/notificationService';
 import { NotificationCenter } from '../../components/NotificationCenter';
+import { NetworkIndicator } from '../../components/NetworkIndicator';
 
 export function AppHeader(props: {
   theme: ThemeId;
@@ -310,6 +311,11 @@ export function AppHeader(props: {
           )}
           <span className="hidden lg:inline">RELAYS</span>
         </button>
+
+        {/* Real-time network activity indicator */}
+        <div className="hidden md:flex items-center ml-2 pl-2 border-l border-terminal-dim/30">
+          <NetworkIndicator />
+        </div>
       </nav>
 
       {/* Notification Center Modal */}

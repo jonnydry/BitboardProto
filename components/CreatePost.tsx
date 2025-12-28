@@ -136,23 +136,21 @@ export const CreatePost: React.FC<CreatePostProps> = ({ availableBoards, current
     const rawTags = tagsStr.split(',').map(t => t.trim()).filter(t => t.length > 0);
     const sanitizedTags = inputValidator.validateTags(rawTags);
     
-    // Simulate network delay for effect
-    setTimeout(() => {
-      onSubmit({
-        boardId: selectedBoardId,
-        title: sanitizedTitle,
-        content: sanitizedContent,
-        url: sanitizedUrl,
-        imageUrl: sanitizedImageUrl,
-        linkDescription: linkDescription.trim() || undefined,
-        author: activeUser,
-        authorPubkey: userPubkey,
-        tags: sanitizedTags.length > 0 ? sanitizedTags : ['general'],
-        upvotes: 1,
-        downvotes: 0,
-      });
-      setIsSubmitting(false);
-    }, 800);
+    // Submit immediately (no artificial delay!)
+    onSubmit({
+      boardId: selectedBoardId,
+      title: sanitizedTitle,
+      content: sanitizedContent,
+      url: sanitizedUrl,
+      imageUrl: sanitizedImageUrl,
+      linkDescription: linkDescription.trim() || undefined,
+      author: activeUser,
+      authorPubkey: userPubkey,
+      tags: sanitizedTags.length > 0 ? sanitizedTags : ['general'],
+      upvotes: 1,
+      downvotes: 0,
+    });
+    setIsSubmitting(false);
   };
 
   // Character count helpers

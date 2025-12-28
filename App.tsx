@@ -104,6 +104,7 @@ const AppContent: React.FC = () => {
                 hasMorePosts={app.hasMorePosts}
                 onToggleMute={app.toggleMute}
                 isMuted={app.isMuted}
+                onRetryPost={app.handleRetryPost}
               />
             )}
 
@@ -140,6 +141,7 @@ const AppContent: React.FC = () => {
                     isNostrConnected={app.isNostrConnected}
                     onToggleMute={app.toggleMute}
                     isMuted={app.isMuted}
+                    onRetryPost={app.handleRetryPost}
                   />
                 </div>
               </div>

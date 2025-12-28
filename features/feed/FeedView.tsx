@@ -47,6 +47,7 @@ export function FeedView(props: {
   onToggleMute?: (pubkey: string) => void;
   isMuted?: (pubkey: string) => boolean;
   isInitialLoading?: boolean;
+  onRetryPost?: (postId: string) => void;
 }) {
   const {
     sortedPosts,
@@ -80,6 +81,7 @@ export function FeedView(props: {
     onToggleMute,
     isMuted,
     isInitialLoading = false,
+    onRetryPost,
   } = props;
 
   const shouldVirtualizeFeed = viewMode === ViewMode.FEED && sortedPosts.length > FEED_VIRTUALIZE_THRESHOLD;
@@ -138,6 +140,10 @@ export function FeedView(props: {
   const handleToggleMute = useCallback((pubkey: string) => {
     onToggleMute?.(pubkey);
   }, [onToggleMute]);
+
+  const handleRetryPost = useCallback((postId: string) => {
+    onRetryPost?.(postId);
+  }, [onRetryPost]);
 
   const emptyState = useMemo(() => {
     return (
@@ -223,6 +229,7 @@ export function FeedView(props: {
               isNostrConnected={isNostrConnected}
               onToggleMute={handleToggleMute}
               isMuted={isMuted}
+              onRetryPost={handleRetryPost}
             />
           ))}
 
@@ -304,6 +311,7 @@ export function FeedView(props: {
                   isNostrConnected={isNostrConnected}
                   onToggleMute={handleToggleMute}
                   isMuted={isMuted}
+                  onRetryPost={handleRetryPost}
                 />
               </div>
             );

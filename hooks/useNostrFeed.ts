@@ -5,6 +5,7 @@ import { UIConfig } from '../config';
 import { nostrService } from '../services/nostrService';
 import { votingService } from '../services/votingService';
 import { toastService } from '../services/toastService';
+import { logger } from '../services/loggingService';
 
 export function useNostrFeed(args: {
   setPosts: React.Dispatch<React.SetStateAction<Post[]>>;
@@ -19,13 +20,17 @@ export function useNostrFeed(args: {
   useEffect(() => {
     const initNostr = async () => {
       try {
+        logger.mark('nostr-init-start');
         const initialLimit = UIConfig.INITIAL_POSTS_COUNT;
 
         // PHASE 1: Parallel fetch posts and boards
+        logger.mark('nostr-fetch-start');
         const [nostrPosts, nostrBoards] = await Promise.all([
           nostrService.fetchPosts({ limit: initialLimit }),
           nostrService.fetchBoards()
         ]);
+        logger.mark('nostr-fetch-end');
+        logger.measure('nostr-initial-fetch', 'nostr-fetch-start', 'nostr-fetch-end');
 
         // Process posts
         let processedPosts: Post[] = [];
@@ -42,7 +47,7 @@ export function useNostrFeed(args: {
           const [voteTallies, editEventsResult] = await Promise.all([
             votingService.fetchVotesForPosts(postIds),
             nostrService.fetchPostEdits(postIds, { limit: 300 }).catch((err) => {
-              console.warn('[NostrFeed] Failed to fetch post edits:', err);
+              logger.warn('NostrFeed', 'Failed to fetch post edits', err);
               return [];
             })
           ]);
@@ -123,6 +128,8 @@ export function useNostrFeed(args: {
         });
 
         setIsNostrConnected(true);
+        logger.mark('nostr-init-end');
+        logger.measure('nostr-initialization', 'nostr-init-start', 'nostr-init-end');
 
         // PHASE 3: Defer profile fetching to after initial render
         if (processedPosts.length > 0) {
@@ -143,7 +150,7 @@ export function useNostrFeed(args: {
                   )
                 );
               }).catch((err) => {
-                console.warn('[NostrFeed] Failed to fetch profiles:', err);
+                logger.warn('NostrFeed', 'Failed to fetch profiles', err);
               });
             }
           };
@@ -151,7 +158,7 @@ export function useNostrFeed(args: {
           scheduleProfiles();
         }
       } catch (error) {
-        console.error('[App] Failed to initialize Nostr:', error);
+        logger.error('NostrFeed', 'Failed to initialize Nostr', error);
         setIsNostrConnected(false);
         const connected = nostrService.getConnectedCount();
         const total = nostrService.getRelays().length;

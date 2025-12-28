@@ -6,6 +6,7 @@
 
 import { geohashService, PRECISION_LABELS, PRECISION_DESCRIPTIONS } from './geohashService';
 import { nostrService } from './nostrService';
+import { logger } from './loggingService';
 import { GeohashPrecision, type Board } from '../types';
 
 // ============================================
@@ -62,7 +63,7 @@ class GeonetDiscoveryService {
         }
       }
     } catch (error) {
-      console.error('[GeonetDiscovery] Failed to load cache:', error);
+      logger.warn('GeonetDiscovery', 'Failed to load cache', error);
     }
   }
 
@@ -71,7 +72,7 @@ class GeonetDiscoveryService {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(result));
       this.cache = result;
     } catch (error) {
-      console.error('[GeonetDiscovery] Failed to save cache:', error);
+      logger.warn('GeonetDiscovery', 'Failed to save cache', error);
     }
   }
 
@@ -121,7 +122,7 @@ class GeonetDiscoveryService {
     lon: number,
     includeNeighbors: boolean
   ): Promise<DiscoveryResult> {
-    console.log('[GeonetDiscovery] Starting discovery for', lat, lon);
+    logger.debug('GeonetDiscovery', `Starting discovery for ${lat}, ${lon}`);
 
     // Get geohashes at all precision levels
     const userGeohashes = geohashService.getAllPrecisions(lat, lon);
@@ -168,7 +169,7 @@ class GeonetDiscoveryService {
               channelMap.set(geohash, activity);
             }
           } catch (error) {
-            console.warn('[GeonetDiscovery] Failed to query', geohash, error);
+            logger.warn('GeonetDiscovery', `Failed to query ${geohash}`, error);
           }
         })
       );

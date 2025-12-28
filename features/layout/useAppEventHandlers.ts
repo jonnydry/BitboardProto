@@ -7,6 +7,7 @@ import { identityService } from '../../services/identityService';
 import { votingService } from '../../services/votingService';
 import { toastService } from '../../services/toastService';
 import { inputValidator } from '../../services/inputValidator';
+import { logger } from '../../services/loggingService';
 import { UIConfig } from '../../config';
 import { makeUniqueBoardId } from '../../services/boardIdService';
 import { boardRateLimiter } from '../../services/boardRateLimiter';
@@ -65,101 +66,118 @@ export const useAppEventHandlers = ({
     newPostData: Omit<Post, 'id' | 'timestamp' | 'score' | 'commentCount' | 'comments' | 'nostrEventId' | 'upvotes' | 'downvotes'>
   ) => {
     const timestamp = Date.now();
+    const localId = `local-${timestamp}`;
 
     const newPost: Post = {
       ...newPostData,
-      id: `local-${Date.now()}`,
+      id: localId,
       timestamp,
       score: 1,
       commentCount: 0,
       comments: [],
       upvotes: 1,
       downvotes: 0,
+      // Start with pending status if we have identity, otherwise synced (local-only)
+      syncStatus: userState.identity ? 'pending' : 'synced',
     };
 
-    // Publish to Nostr if identity exists
-    if (userState.identity) {
-      try {
-        // Check if posting to a geohash board and include the geohash
-        const targetBoard = boardsById.get(newPostData.boardId);
-        const geohash = targetBoard?.type === BoardType.GEOHASH ? targetBoard.geohash : undefined;
-        const boardAddress =
-          targetBoard?.createdBy
-            ? `${NOSTR_KINDS.BOARD_DEFINITION}:${targetBoard.createdBy}:${targetBoard.id}`
-            : undefined;
-
-        const eventPayload = {
-          ...newPostData,
-          timestamp,
-          upvotes: 0,
-          downvotes: 0,
-        };
-
-        // Check if board is encrypted and encrypt content if needed
-        let encryptedTitle: string | undefined;
-        let encryptedContent: string | undefined;
-        
-        if (targetBoard?.isEncrypted) {
-          const boardKey = encryptedBoardService.getBoardKey(targetBoard.id);
-          if (!boardKey) {
-            toastService.push({
-              type: 'error',
-              message: 'Encryption key not found',
-              detail: 'You need the board share link to post in this encrypted board.',
-              durationMs: UIConfig.TOAST_DURATION_MS,
-              dedupeKey: 'encryption-key-missing',
-            });
-            return; // Abort post creation
-          }
-          
-          try {
-            const encrypted = await encryptedBoardService.encryptPost(
-              { title: newPostData.title, content: newPostData.content },
-              boardKey
-            );
-            encryptedTitle = encrypted.encryptedTitle;
-            encryptedContent = encrypted.encryptedContent;
-            newPost.isEncrypted = true;
-            newPost.encryptedTitle = encryptedTitle;
-            newPost.encryptedContent = encryptedContent;
-          } catch (error) {
-            console.error('[App] Failed to encrypt post:', error);
-            toastService.push({
-              type: 'error',
-              message: 'Failed to encrypt post',
-              detail: error instanceof Error ? error.message : String(error),
-              durationMs: UIConfig.TOAST_DURATION_MS,
-              dedupeKey: 'encryption-failed',
-            });
-            return; // Abort post creation
-          }
-        }
-        
-        const unsigned = nostrService.buildPostEvent(eventPayload, userState.identity.pubkey, geohash, {
-          boardAddress,
-          boardName: targetBoard?.name,
-          encryptedTitle,
-          encryptedContent,
-        });
-        const signed = await identityService.signEvent(unsigned);
-        const event = await nostrService.publishSignedEvent(signed);
-        newPost.nostrEventId = event.id;
-        newPost.id = event.id;
-      } catch (error) {
-        console.error('[App] Failed to publish post to Nostr:', error);
-        const errMsg = error instanceof Error ? error.message : String(error);
+    // Check encryption requirements BEFORE showing post (encryption is required for encrypted boards)
+    const targetBoard = boardsById.get(newPostData.boardId);
+    if (targetBoard?.isEncrypted) {
+      const boardKey = encryptedBoardService.getBoardKey(targetBoard.id);
+      if (!boardKey) {
         toastService.push({
           type: 'error',
-          message: 'Failed to publish post to Nostr (saved locally)',
-          detail: `${errMsg} — ${getRelayHint()}`,
+          message: 'Encryption key not found',
+          detail: 'You need the board share link to post in this encrypted board.',
           durationMs: UIConfig.TOAST_DURATION_MS,
-          dedupeKey: 'publish-post-failed',
+          dedupeKey: 'encryption-key-missing',
         });
+        return; // Abort post creation
+      }
+      
+      try {
+        const encrypted = await encryptedBoardService.encryptPost(
+          { title: newPostData.title, content: newPostData.content },
+          boardKey
+        );
+        newPost.isEncrypted = true;
+        newPost.encryptedTitle = encrypted.encryptedTitle;
+        newPost.encryptedContent = encrypted.encryptedContent;
+      } catch (error) {
+        logger.error('App', 'Failed to encrypt post', error);
+        toastService.push({
+          type: 'error',
+          message: 'Failed to encrypt post',
+          detail: error instanceof Error ? error.message : String(error),
+          durationMs: UIConfig.TOAST_DURATION_MS,
+          dedupeKey: 'encryption-failed',
+        });
+        return; // Abort post creation
       }
     }
 
+    // OPTIMISTIC: Add post to UI immediately (before network)
     setPosts(prev => [newPost, ...prev]);
     setViewMode(ViewMode.FEED);
+
+    // Publish to Nostr in background (non-blocking)
+    if (userState.identity) {
+      (async () => {
+        try {
+          const geohash = targetBoard?.type === BoardType.GEOHASH ? targetBoard.geohash : undefined;
+          const boardAddress =
+            targetBoard?.createdBy
+              ? `${NOSTR_KINDS.BOARD_DEFINITION}:${targetBoard.createdBy}:${targetBoard.id}`
+              : undefined;
+
+          const eventPayload = {
+            ...newPostData,
+            timestamp,
+            upvotes: 0,
+            downvotes: 0,
+          };
+
+          const unsigned = nostrService.buildPostEvent(eventPayload, userState.identity!.pubkey, geohash, {
+            boardAddress,
+            boardName: targetBoard?.name,
+            encryptedTitle: newPost.encryptedTitle,
+            encryptedContent: newPost.encryptedContent,
+          });
+          const signed = await identityService.signEvent(unsigned);
+          const event = await nostrService.publishSignedEvent(signed);
+
+          // Success: Update post with real Nostr ID and mark as synced
+          setPosts(prev =>
+            prev.map(p =>
+              p.id === localId
+                ? { ...p, nostrEventId: event.id, id: event.id, syncStatus: 'synced', syncError: undefined }
+                : p
+            )
+          );
+        } catch (error) {
+          logger.error('App', 'Failed to publish post to Nostr', error);
+          const errMsg = error instanceof Error ? error.message : String(error);
+          
+          // Mark post as failed with error message
+          setPosts(prev =>
+            prev.map(p =>
+              p.id === localId
+                ? { ...p, syncStatus: 'failed', syncError: errMsg }
+                : p
+            )
+          );
+          
+          toastService.push({
+            type: 'error',
+            message: 'Failed to publish to Nostr',
+            detail: 'Your post is saved locally. Tap to retry.',
+            durationMs: UIConfig.TOAST_DURATION_MS,
+            dedupeKey: 'publish-post-failed',
+          });
+        }
+      })();
+    }
   }, [userState.identity, boardsById, getRelayHint, setPosts, setViewMode]);
 
   const handleCreateBoard = useCallback(async (newBoardData: Omit<Board, 'id' | 'memberCount' | 'nostrEventId'>) => {
@@ -209,7 +227,7 @@ export const useAppEventHandlers = ({
       // Record successful creation for rate limiting
       boardRateLimiter.recordCreation(userState.identity.pubkey, newBoard.id);
     } catch (error) {
-      console.error('[App] Failed to publish board to Nostr:', error);
+      logger.error('App', 'Failed to publish board to Nostr', error);
       const errMsg = error instanceof Error ? error.message : String(error);
       toastService.push({
         type: 'error',
@@ -249,7 +267,7 @@ export const useAppEventHandlers = ({
       try {
         encryptedContent = await encryptedBoardService.encryptContent(content, boardKey);
       } catch (error) {
-        console.error('[App] Failed to encrypt comment:', error);
+        logger.error('App', 'Failed to encrypt comment', error);
         toastService.push({
           type: 'error',
           message: 'Failed to encrypt comment',
@@ -307,7 +325,7 @@ export const useAppEventHandlers = ({
           );
         })
         .catch(error => {
-          console.error('[App] Failed to publish comment to Nostr:', error);
+          logger.error('App', 'Failed to publish comment to Nostr', error);
           const errMsg = error instanceof Error ? error.message : String(error);
           toastService.push({
             type: 'error',
@@ -385,7 +403,7 @@ export const useAppEventHandlers = ({
           try {
             encryptedContent = await encryptedBoardService.encryptContent(validated, boardKey);
           } catch (error) {
-            console.error('[App] Failed to encrypt comment edit:', error);
+            logger.error('App', 'Failed to encrypt comment edit', error);
             toastService.push({
               type: 'error',
               message: 'Failed to encrypt comment edit',
@@ -554,7 +572,7 @@ export const useAppEventHandlers = ({
                 encryptedTitle = encrypted.encryptedTitle;
                 encryptedContent = encrypted.encryptedContent;
               } catch (error) {
-                console.error('[App] Failed to encrypt post edit:', error);
+                logger.error('App', 'Failed to encrypt post edit', error);
                 toastService.push({
                   type: 'error',
                   message: 'Failed to encrypt post edit',
@@ -589,7 +607,7 @@ export const useAppEventHandlers = ({
               dedupeKey: `post-edit-published-${existing.nostrEventId}`,
             });
           } catch (error) {
-            console.error('[App] Failed to publish post edit to Nostr:', error);
+            logger.error('App', 'Failed to publish post edit to Nostr', error);
             const errMsg = error instanceof Error ? error.message : String(error);
             toastService.push({
               type: 'error',
@@ -745,7 +763,7 @@ export const useAppEventHandlers = ({
             }
           }
         } catch (err) {
-          console.warn('[App] Failed to fetch post edits for pagination:', err);
+          logger.warn('App', 'Failed to fetch post edits for pagination', err);
         }
 
         setPosts(prev => {
@@ -766,7 +784,7 @@ export const useAppEventHandlers = ({
         setHasMorePosts(false);
       }
     } catch (error) {
-      console.error('[App] Failed to load more posts:', error);
+      logger.error('App', 'Failed to load more posts', error);
       toastService.push({
         type: 'error',
         message: 'Failed to load more posts',
@@ -830,6 +848,102 @@ export const useAppEventHandlers = ({
     }
   }, [setPosts]);
 
+  /**
+   * Retry publishing a failed post to Nostr
+   */
+  const handleRetryPost = useCallback(async (postId: string) => {
+    const post = postsById.get(postId);
+    if (!post || post.syncStatus !== 'failed') {
+      logger.warn('App', `Cannot retry post - not found or not failed: ${postId}`);
+      return;
+    }
+
+    if (!userState.identity) {
+      toastService.push({
+        type: 'error',
+        message: 'Identity required',
+        detail: 'Connect your Nostr identity to publish.',
+        durationMs: UIConfig.TOAST_DURATION_MS,
+        dedupeKey: 'retry-no-identity',
+      });
+      return;
+    }
+
+    // Mark as pending (retrying)
+    setPosts(prev =>
+      prev.map(p =>
+        p.id === postId ? { ...p, syncStatus: 'pending', syncError: undefined } : p
+      )
+    );
+
+    try {
+      const targetBoard = boardsById.get(post.boardId);
+      const geohash = targetBoard?.type === BoardType.GEOHASH ? targetBoard.geohash : undefined;
+      const boardAddress =
+        targetBoard?.createdBy
+          ? `${NOSTR_KINDS.BOARD_DEFINITION}:${targetBoard.createdBy}:${targetBoard.id}`
+          : undefined;
+
+      const eventPayload = {
+        boardId: post.boardId,
+        title: post.title,
+        content: post.content,
+        author: post.author,
+        authorPubkey: post.authorPubkey,
+        tags: post.tags,
+        url: post.url,
+        imageUrl: post.imageUrl,
+        linkDescription: post.linkDescription,
+        timestamp: post.timestamp,
+        upvotes: 0,
+        downvotes: 0,
+      };
+
+      const unsigned = nostrService.buildPostEvent(eventPayload, userState.identity.pubkey, geohash, {
+        boardAddress,
+        boardName: targetBoard?.name,
+        encryptedTitle: post.encryptedTitle,
+        encryptedContent: post.encryptedContent,
+      });
+      const signed = await identityService.signEvent(unsigned);
+      const event = await nostrService.publishSignedEvent(signed);
+
+      // Success: Update post with real Nostr ID and mark as synced
+      setPosts(prev =>
+        prev.map(p =>
+          p.id === postId
+            ? { ...p, nostrEventId: event.id, id: event.id, syncStatus: 'synced', syncError: undefined }
+            : p
+        )
+      );
+
+      toastService.push({
+        type: 'success',
+        message: 'Post published to Nostr',
+        durationMs: UIConfig.TOAST_DURATION_MS,
+        dedupeKey: `retry-success-${postId}`,
+      });
+    } catch (error) {
+      logger.error('App', 'Retry failed', error);
+      const errMsg = error instanceof Error ? error.message : String(error);
+
+      // Mark as failed again
+      setPosts(prev =>
+        prev.map(p =>
+          p.id === postId ? { ...p, syncStatus: 'failed', syncError: errMsg } : p
+        )
+      );
+
+      toastService.push({
+        type: 'error',
+        message: 'Retry failed',
+        detail: errMsg,
+        durationMs: UIConfig.TOAST_DURATION_MS,
+        dedupeKey: `retry-failed-${postId}`,
+      });
+    }
+  }, [postsById, boardsById, userState.identity, setPosts]);
+
   return {
     handleCreatePost,
     handleCreateBoard,
@@ -850,5 +964,6 @@ export const useAppEventHandlers = ({
     loadMorePosts,
     getBoardName,
     refreshProfileMetadata,
+    handleRetryPost,
   };
 };

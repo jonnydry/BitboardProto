@@ -46,6 +46,7 @@ import { type Event as NostrEvent, verifyEvent } from 'nostr-tools';
 import { nostrService } from './nostrService';
 import { rateLimiter } from './rateLimiter';
 import { voteDeduplicator } from './messageDeduplicator';
+import { logger } from './loggingService';
 import { NOSTR_KINDS } from '../types';
 import type { NostrIdentity } from '../types';
 import { identityService } from './identityService';
@@ -133,7 +134,7 @@ class VotingService {
    */
   private initWorker(): void {
     if (typeof Worker === 'undefined') {
-      console.log('[Voting] Web Workers not supported, using main thread verification');
+      logger.debug('Voting', 'Web Workers not supported, using main thread verification');
       return;
     }
 
@@ -148,7 +149,7 @@ class VotingService {
 
         if (type === 'ready') {
           this.workerReady = true;
-          console.log('[Voting] Web Worker initialized successfully');
+          logger.debug('Voting', 'Web Worker initialized successfully');
           return;
         }
 
@@ -165,12 +166,12 @@ class VotingService {
       };
 
       this.worker.onerror = (error) => {
-        console.error('[Voting] Web Worker error:', error);
+        logger.error('Voting', 'Web Worker error', error);
         this.worker = null;
         this.workerReady = false;
       };
     } catch (e) {
-      console.warn('[Voting] Failed to initialize Web Worker:', e);
+      logger.warn('Voting', 'Failed to initialize Web Worker', e);
       this.worker = null;
       this.workerReady = false;
     }
@@ -266,26 +267,26 @@ class VotingService {
   verifyVoteEvent(event: NostrEvent): boolean {
     // 1. Verify the cryptographic signature
     if (!verifyEvent(event)) {
-      console.warn('[Voting] Invalid signature for vote event:', event.id);
+      logger.warn('Voting', `Invalid signature for vote event: ${event.id}`);
       return false;
     }
 
     // 2. Verify it's a reaction event (kind 7)
     if (event.kind !== NOSTR_KINDS.REACTION) {
-      console.warn('[Voting] Invalid event kind for vote:', event.kind);
+      logger.warn('Voting', `Invalid event kind for vote: ${event.kind}`);
       return false;
     }
 
     // 3. Verify it has a valid vote content (+ or -)
     if (event.content !== '+' && event.content !== '-') {
-      console.warn('[Voting] Invalid vote content:', event.content);
+      logger.warn('Voting', `Invalid vote content: ${event.content}`);
       return false;
     }
 
     // 4. Verify it references a post (has 'e' tag)
     const postTag = event.tags.find(t => t[0] === 'e');
     if (!postTag || !postTag[1]) {
-      console.warn('[Voting] Vote missing post reference');
+      logger.warn('Voting', 'Vote missing post reference');
       return false;
     }
 
@@ -444,24 +445,24 @@ class VotingService {
       const isSignatureValid = verificationResults.get(event.id) ?? false;
       
       if (!isSignatureValid) {
-        console.warn('[Voting] Invalid signature for vote from:', event.pubkey.slice(0, 8));
+        logger.warn('Voting', `Invalid signature for vote from: ${event.pubkey.slice(0, 8)}`);
         continue;
       }
 
       // Additional validation (kind, content, tags)
       if (event.kind !== NOSTR_KINDS.REACTION) {
-        console.warn('[Voting] Invalid event kind for vote:', event.kind);
+        logger.warn('Voting', `Invalid event kind for vote: ${event.kind}`);
         continue;
       }
 
       if (event.content !== '+' && event.content !== '-') {
-        console.warn('[Voting] Invalid vote content:', event.content);
+        logger.warn('Voting', `Invalid vote content: ${event.content}`);
         continue;
       }
 
       const postTag = event.tags.find(t => t[0] === 'e');
       if (!postTag || !postTag[1]) {
-        console.warn('[Voting] Vote missing post reference');
+        logger.warn('Voting', 'Vote missing post reference');
         continue;
       }
 
@@ -499,7 +500,7 @@ class VotingService {
     // Enforce cache limit (LRU eviction)
     this.enforceCacheLimit();
 
-    console.log(`[Voting] Post ${postId.slice(0, 8)}: ${tally.uniqueVoters} unique voters, score ${tally.score}`);
+    logger.debug('Voting', `Post ${postId.slice(0, 8)}: ${tally.uniqueVoters} unique voters, score ${tally.score}`);
 
     return tally;
   }
@@ -533,7 +534,7 @@ class VotingService {
     // Note: nostr-tools SimplePool can handle multiple queries efficiently
     const voteEventPromises = uncachedPostIds.map(postId => 
       nostrService.fetchVoteEvents(postId).catch(error => {
-        console.error(`[Voting] Failed to fetch votes for post ${postId.slice(0, 8)}:`, error);
+        logger.error('Voting', `Failed to fetch votes for post ${postId.slice(0, 8)}`, error);
         return [];
       })
     );
@@ -581,7 +582,7 @@ class VotingService {
         const isSignatureValid = verificationResults.get(event.id) ?? false;
         
         if (!isSignatureValid) {
-          console.warn('[Voting] Invalid signature for vote from:', event.pubkey.slice(0, 8));
+          logger.warn('Voting', `Invalid signature for vote from: ${event.pubkey.slice(0, 8)}`);
           continue;
         }
 
@@ -669,7 +670,7 @@ class VotingService {
     // Check for duplicate vote attempt (local check)
     if (voteDeduplicator.isVoteDuplicate(userPubkey, postId)) {
       // User already voted - this is a vote change
-      console.log('[Voting] Vote change detected for post:', postId);
+      logger.debug('Voting', `Vote change detected for post: ${postId}`);
     }
 
     try {
@@ -743,7 +744,7 @@ class VotingService {
         newTally: tally,
       };
     } catch (error) {
-      console.error('[Voting] Failed to cast vote:', error);
+      logger.error('Voting', 'Failed to cast vote', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to publish vote',

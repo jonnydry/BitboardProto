@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import type { Post, UserState } from '../types';
 import { votingService, computeOptimisticUpdate, computeRollback } from '../services/votingService';
+import { logger } from '../services/loggingService';
 
 export function useVoting(args: {
   postsById: Map<string, Post>;
@@ -18,12 +19,12 @@ export function useVoting(args: {
       const currentVote = currentUserState.votedPosts[postId];
 
       if (!currentUserState.identity) {
-        console.warn('[Vote] No identity - connect an identity to vote.');
+        logger.warn('Vote', 'No identity - connect an identity to vote.');
         return;
       }
 
       if (!currentVote && currentUserState.bits <= 0) {
-        console.warn('[Vote] Insufficient bits');
+        logger.warn('Vote', 'Insufficient bits');
         return;
       }
 
@@ -69,9 +70,9 @@ export function useVoting(args: {
                   : p
               )
             );
-            console.log(`[Vote] Verified: ${result.newTally.uniqueVoters} unique voters`);
+            logger.debug('Vote', `Verified: ${result.newTally.uniqueVoters} unique voters`);
           } else if (result.error) {
-            console.error('[Vote] Failed:', result.error);
+            logger.error('Vote', `Failed: ${result.error}`);
             const rollback = computeRollback(optimisticUpdate, currentUserState.votedPosts, postId);
             setUserState((prev) => ({
               ...prev,
@@ -83,7 +84,7 @@ export function useVoting(args: {
             );
           }
         } catch (error) {
-          console.error('[Vote] Error publishing:', error);
+          logger.error('Vote', 'Error publishing', error);
           // Best-effort rollback for publish exceptions
           const rollback = computeRollback(optimisticUpdate, currentUserState.votedPosts, postId);
           setUserState((prev) => ({

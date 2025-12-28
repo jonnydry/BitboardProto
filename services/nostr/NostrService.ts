@@ -8,6 +8,7 @@ import { NostrConfig } from '../../config';
 import { nostrEventDeduplicator } from '../messageDeduplicator';
 import { inputValidator } from '../inputValidator';
 import { diagnosticsService } from '../diagnosticsService';
+import { logger } from '../loggingService';
 import { NostrProfileCache, type NostrProfileMetadata } from './profileCache';
 import {
   buildBoardEvent,
@@ -75,6 +76,10 @@ class NostrService {
   
   // Reconnection timers
   private reconnectTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+
+  // Network activity tracking (for UI indicators)
+  private _activePublishes = 0;
+  private _activeFetches = 0;
 
   constructor() {
     this.pool = new SimplePool();
@@ -213,7 +218,17 @@ class NostrService {
     });
   }
 
-  getRelays(): string[] {
+  getRelays(): Array<{ url: string; status: 'connected' | 'disconnected' | 'connecting' }> {
+    return this.relays.map(url => {
+      const status = this.relayStatuses.get(url);
+      return {
+        url,
+        status: status?.isConnected ? 'connected' : 'disconnected',
+      };
+    });
+  }
+
+  getRelayUrls(): string[] {
     return this.relays;
   }
 
@@ -240,6 +255,58 @@ class NostrService {
 
   getQueuedMessageCount(): number {
     return this.messageQueue.length;
+  }
+
+  /**
+   * Get network activity status for UI indicators
+   */
+  getNetworkStatus(): { isPublishing: boolean; isFetching: boolean; pendingOps: number } {
+    return {
+      isPublishing: this._activePublishes > 0,
+      isFetching: this._activeFetches > 0,
+      pendingOps: this._activePublishes + this._activeFetches + this.messageQueue.length,
+    };
+  }
+
+  /**
+   * Pre-warm relay connections (call early for faster initial load)
+   * Returns a promise that resolves when at least one relay is connected
+   */
+  async preconnect(): Promise<void> {
+    const startTime = Date.now();
+    logger.mark('nostr-preconnect-start');
+    logger.debug('Nostr', 'Pre-warming relay connections...');
+
+    // Attempt a minimal query to trigger WebSocket connections
+    // This is a no-op query that forces the pool to establish connections
+    try {
+      const readRelays = this.getReadRelays();
+      
+      // Race: resolve as soon as ANY relay connects (fast path)
+      const connectionPromises = readRelays.map(async (url) => {
+        try {
+          // Minimal query to trigger connection
+          await Promise.race([
+            this.pool.querySync([url], { kinds: [0], limit: 1 }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
+          ]);
+          this.updateRelayStatus(url, true);
+          return url;
+        } catch {
+          return null;
+        }
+      });
+
+      // Wait for at least one to succeed (or all to fail)
+      const results = await Promise.allSettled(connectionPromises);
+      const connected = results.filter(r => r.status === 'fulfilled' && r.value).length;
+      
+      logger.mark('nostr-preconnect-end');
+      logger.info('Nostr', `Pre-connected to ${connected}/${readRelays.length} relays in ${Date.now() - startTime}ms`);
+    } catch (error) {
+      logger.mark('nostr-preconnect-end');
+      logger.warn('Nostr', 'Pre-connect failed', error);
+    }
   }
 
   // ----------------------------------------
@@ -280,7 +347,7 @@ class NostrService {
     if (errorMessage.includes('dns') || 
         errorMessage.includes('hostname') ||
         errorMessage.includes('not found')) {
-      console.warn(`[Nostr] Permanent failure for ${url} - not retrying`);
+      logger.warn('Nostr', `Permanent failure for ${url} - not retrying`);
       diagnosticsService.error('nostr', `Relay permanent failure: ${url}`, error.message);
       status.reconnectAttempts = this.MAX_RECONNECT_ATTEMPTS;
       return;
@@ -290,7 +357,7 @@ class NostrService {
     status.reconnectAttempts++;
     
     if (status.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
-      console.warn(`[Nostr] Max reconnection attempts (${this.MAX_RECONNECT_ATTEMPTS}) reached for ${url}`);
+      logger.warn('Nostr', `Max reconnection attempts (${this.MAX_RECONNECT_ATTEMPTS}) reached for ${url}`);
       return;
     }
 
@@ -302,7 +369,7 @@ class NostrService {
 
     status.nextReconnectTime = Date.now() + backoffInterval;
 
-    console.log(`[Nostr] Scheduling reconnection to ${url} in ${backoffInterval}ms (attempt ${status.reconnectAttempts})`);
+    logger.debug('Nostr', `Scheduling reconnection to ${url} in ${backoffInterval}ms (attempt ${status.reconnectAttempts})`);
 
     // Clear any existing timer
     const existingTimer = this.reconnectTimers.get(url);
@@ -320,13 +387,13 @@ class NostrService {
   }
 
   private attemptReconnection(url: string) {
-    console.log(`[Nostr] Attempting reconnection to ${url}`);
+    logger.debug('Nostr', `Attempting reconnection to ${url}`);
     // The SimplePool handles reconnection internally
     // We just need to try a query to trigger it
     this.pool.querySync([url], { kinds: [0], limit: 1 })
       .then(() => {
         this.updateRelayStatus(url, true);
-        console.log(`[Nostr] Reconnected to ${url}`);
+        logger.info('Nostr', `Reconnected to ${url}`);
       })
       .catch((error) => {
         this.handleRelayDisconnection(url, error);
@@ -456,6 +523,7 @@ class NostrService {
   // ----------------------------------------
 
   async publishSignedEvent(signedEvent: NostrEvent): Promise<NostrEvent> {
+    this._activePublishes++;
     try {
       const publishRelays = this.getPublishRelays();
       if (publishRelays.length === 0) {
@@ -510,6 +578,8 @@ class NostrService {
       // Queue the message for retry
       this.queueMessage(signedEvent, this.getPublishRelays());
       throw error;
+    } finally {
+      this._activePublishes--;
     }
   }
 
@@ -980,6 +1050,7 @@ class NostrService {
     // Filter for BitBoard client posts
     filter['#client'] = ['bitboard'];
 
+    this._activeFetches++;
     try {
       const readRelays = this.getReadRelays();
       // Query fastest relays first with timeout
@@ -1012,6 +1083,8 @@ class NostrService {
       console.error('[Nostr] Failed to fetch posts:', error);
       // Don't throw - return empty array for graceful degradation
       return [];
+    } finally {
+      this._activeFetches--;
     }
   }
 
@@ -1216,7 +1289,7 @@ class NostrService {
             pendingEvents.forEach(e => onEvent(e));
             pendingEvents.length = 0;
           }
-          console.log('[Nostr] End of stored events for subscription:', subscriptionId);
+          logger.debug('Nostr', `End of stored events for subscription: ${subscriptionId}`);
         }
       }
     );
@@ -1254,7 +1327,7 @@ class NostrService {
         onEvent(event);
       },
       oneose: () => {
-        console.log('[Nostr] End of stored events for subscription:', subscriptionId);
+        logger.debug('Nostr', `End of stored events for subscription: ${subscriptionId}`);
       },
     });
 
@@ -1338,6 +1411,10 @@ class NostrService {
     this.reconnectTimers.forEach(timer => clearTimeout(timer));
     this.reconnectTimers.clear();
     this.messageQueue = [];
+    
+    // Save profile cache to localStorage before shutdown
+    this.profiles.destroy();
+    
     // Keep relay status map so callers can still read relays/status after cleanup
     this.relayStatuses.forEach((status) => {
       status.isConnected = false;

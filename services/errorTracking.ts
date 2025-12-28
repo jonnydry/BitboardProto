@@ -1,11 +1,57 @@
-// Error tracking service for production monitoring
-// Supports Sentry integration (optional)
+/**
+ * Error Tracking Service for BitBoard
+ * 
+ * Supports optional Sentry integration for production error monitoring.
+ * 
+ * ## Setup Instructions for Sentry (Optional)
+ * 
+ * To enable Sentry error tracking in production:
+ * 
+ * 1. Install the Sentry SDK:
+ *    ```bash
+ *    npm install @sentry/react
+ *    ```
+ * 
+ * 2. Set the SENTRY_ENABLED flag to true in the initialize call:
+ *    ```typescript
+ *    errorTrackingService.initialize({
+ *      enabled: true,
+ *      dsn: 'YOUR_SENTRY_DSN',
+ *      environment: 'production',
+ *      release: '1.0.0'
+ *    });
+ *    ```
+ * 
+ * 3. Call initialize() early in your app startup (e.g., in index.tsx)
+ * 
+ * ## Without Sentry
+ * 
+ * The service gracefully handles cases where Sentry is not installed.
+ * All error tracking methods will log to the console instead, ensuring
+ * the app continues to function normally.
+ */
 
-interface ErrorTrackingConfig {
+import { logger } from './loggingService';
+
+export interface ErrorTrackingConfig {
+  /** Enable/disable error tracking */
   enabled: boolean;
+  /** Sentry DSN (required if enabled) */
   dsn?: string;
+  /** Environment name (e.g., 'production', 'staging', 'development') */
   environment?: string;
+  /** Application release version */
   release?: string;
+}
+
+interface SentryLike {
+  init: (config: unknown) => void;
+  captureException: (error: Error, context?: unknown) => void;
+  captureMessage: (message: string, level: string) => void;
+  setUser: (user: unknown) => void;
+  addBreadcrumb: (breadcrumb: unknown) => void;
+  browserTracingIntegration: () => unknown;
+  replayIntegration: () => unknown;
 }
 
 class ErrorTrackingService {
@@ -13,33 +59,45 @@ class ErrorTrackingService {
     enabled: false,
   };
 
-  private sentry: any = null;
+  private sentry: SentryLike | null = null;
+  private initialized = false;
 
   /**
-   * Initialize error tracking (Sentry)
-   * Call this once at app startup if error tracking is desired
+   * Initialize error tracking service
    * 
-   * Note: Sentry support is currently disabled. To enable:
-   * 1. Install @sentry/react: npm install @sentry/react
-   * 2. Uncomment the Sentry initialization code below
+   * @param config - Configuration options for error tracking
+   * @example
+   * ```typescript
+   * await errorTrackingService.initialize({
+   *   enabled: true,
+   *   dsn: 'https://your-sentry-dsn',
+   *   environment: 'production',
+   *   release: '1.0.0'
+   * });
+   * ```
    */
   async initialize(config: ErrorTrackingConfig): Promise<void> {
-    this.config = config;
-
-    if (!config.enabled || !config.dsn) {
-      console.log('[ErrorTracking] Error tracking disabled');
+    if (this.initialized) {
+      logger.warn('ErrorTracking', 'Already initialized, skipping');
       return;
     }
 
-    // Sentry initialization is disabled by default to avoid build issues
-    // when the package isn't installed. To enable Sentry:
-    // 1. Install: npm install @sentry/react
-    // 2. Uncomment the code below and remove this console.log
-    console.log('[ErrorTracking] Sentry support disabled - install @sentry/react to enable');
-    
-    /*
+    this.config = config;
+    this.initialized = true;
+
+    if (!config.enabled) {
+      logger.debug('ErrorTracking', 'Error tracking disabled');
+      return;
+    }
+
+    if (!config.dsn) {
+      logger.warn('ErrorTracking', 'No DSN provided, error tracking disabled');
+      return;
+    }
+
     try {
-      const Sentry = await import('@sentry/react');
+      // Dynamically import Sentry to avoid build errors when not installed
+      const Sentry = await import('@sentry/react') as SentryLike;
       
       Sentry.init({
         dsn: config.dsn,
@@ -49,71 +107,93 @@ class ErrorTrackingService {
           Sentry.browserTracingIntegration(),
           Sentry.replayIntegration(),
         ],
-        tracesSampleRate: 0.1, // 10% of transactions
+        // Performance monitoring: sample 10% of transactions
+        tracesSampleRate: 0.1,
+        // Session replay: sample 10% of sessions, 100% on error
         replaysSessionSampleRate: 0.1,
         replaysOnErrorSampleRate: 1.0,
       });
 
       this.sentry = Sentry;
-      console.log('[ErrorTracking] Sentry initialized');
+      logger.info('ErrorTracking', 'Sentry initialized successfully');
     } catch (error) {
-      console.warn('[ErrorTracking] Failed to initialize Sentry:', error);
+      // Sentry not installed - this is expected in development
+      logger.debug('ErrorTracking', 'Sentry not available (install @sentry/react to enable)');
     }
-    */
   }
 
   /**
-   * Capture an exception
+   * Capture an exception for error tracking
+   * 
+   * @param error - The error to capture
+   * @param context - Optional additional context for debugging
    */
-  captureException(error: Error, context?: Record<string, any>): void {
-    if (!this.config.enabled) {
-      console.error('[ErrorTracking] Exception (tracking disabled):', error, context);
-      return;
-    }
-
+  captureException(error: Error, context?: Record<string, unknown>): void {
     if (this.sentry) {
       this.sentry.captureException(error, {
         contexts: {
           custom: context,
         },
       });
-    } else {
-      console.error('[ErrorTracking] Exception:', error, context);
     }
+    
+    // Always log to console for local debugging
+    logger.error('ErrorTracking', `Exception: ${error.message}`, context);
   }
 
   /**
-   * Capture a message
+   * Capture a message for tracking
+   * 
+   * @param message - The message to capture
+   * @param level - Severity level
    */
   captureMessage(message: string, level: 'info' | 'warning' | 'error' = 'info'): void {
-    if (!this.config.enabled) {
-      console.log(`[ErrorTracking] ${level}:`, message);
-      return;
-    }
-
     if (this.sentry) {
       this.sentry.captureMessage(message, level);
+    }
+    
+    // Log based on level
+    if (level === 'error') {
+      logger.error('ErrorTracking', message);
+    } else if (level === 'warning') {
+      logger.warn('ErrorTracking', message);
     } else {
-      console.log(`[ErrorTracking] ${level}:`, message);
+      logger.info('ErrorTracking', message);
     }
   }
 
   /**
-   * Set user context
+   * Set the current user context for error tracking
+   * 
+   * @param user - User information, or null to clear
    */
   setUser(user: { id?: string; username?: string; email?: string } | null): void {
-    if (!this.config.enabled || !this.sentry) return;
-
-    this.sentry.setUser(user);
+    if (this.sentry) {
+      this.sentry.setUser(user);
+    }
   }
 
   /**
-   * Add breadcrumb for debugging
+   * Add a breadcrumb for debugging context
+   * 
+   * @param breadcrumb - Breadcrumb data
    */
-  addBreadcrumb(breadcrumb: { message: string; category?: string; level?: 'info' | 'warning' | 'error' }): void {
-    if (!this.config.enabled || !this.sentry) return;
+  addBreadcrumb(breadcrumb: { 
+    message: string; 
+    category?: string; 
+    level?: 'info' | 'warning' | 'error';
+    data?: Record<string, unknown>;
+  }): void {
+    if (this.sentry) {
+      this.sentry.addBreadcrumb(breadcrumb);
+    }
+  }
 
-    this.sentry.addBreadcrumb(breadcrumb);
+  /**
+   * Check if error tracking is enabled and initialized
+   */
+  isEnabled(): boolean {
+    return this.config.enabled && this.sentry !== null;
   }
 }
 

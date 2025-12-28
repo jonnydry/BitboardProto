@@ -6,6 +6,7 @@
 
 import { nostrService } from './nostrService';
 import { identityService } from './identityService';
+import { logger } from './loggingService';
 import { ReportType, type NostrIdentity, type NostrEvent } from '../types';
 
 export enum ReportReason {
@@ -141,7 +142,7 @@ class ReportService {
     this.saveToStorage();
     this.notifyListeners();
 
-    console.log(`[Reports] Submitted report for ${targetType} ${targetId}:`, reason);
+    logger.info('Reports', `Submitted report for ${targetType} ${targetId}: ${reason}`);
     
     return report;
   }

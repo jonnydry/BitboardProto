@@ -1,4 +1,5 @@
 import { type Event as NostrEvent, type Filter, SimplePool } from 'nostr-tools';
+import { logger } from '../loggingService';
 
 const PROFILE_CACHE_KEY = 'nostr_profile_cache_v1';
 const CACHE_SAVE_DEBOUNCE_MS = 2000;
@@ -61,9 +62,9 @@ export class NostrProfileCache {
         }
       }
 
-      console.log(`[ProfileCache] Loaded ${loadedCount} profiles from localStorage`);
+      logger.debug('ProfileCache', `Loaded ${loadedCount} profiles from localStorage`);
     } catch (e) {
-      console.warn('[ProfileCache] Failed to load from localStorage:', e);
+      logger.warn('ProfileCache', 'Failed to load from localStorage', e);
       // Clear corrupted data
       this.clearStorage();
     }
@@ -96,13 +97,13 @@ export class NostrProfileCache {
       }
 
       localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(toSave));
-      console.log(`[ProfileCache] Saved ${this.profileCache.size} profiles to localStorage`);
+      logger.debug('ProfileCache', `Saved ${this.profileCache.size} profiles to localStorage`);
     } catch (e) {
-      console.warn('[ProfileCache] Failed to save to localStorage:', e);
+      logger.warn('ProfileCache', 'Failed to save to localStorage', e);
       
       // Handle quota exceeded
       if (e instanceof Error && e.name === 'QuotaExceededError') {
-        console.warn('[ProfileCache] Storage quota exceeded, clearing old cache');
+        logger.warn('ProfileCache', 'Storage quota exceeded, clearing old cache');
         this.clearStorage();
       }
     }
@@ -116,7 +117,7 @@ export class NostrProfileCache {
       if (typeof localStorage === 'undefined') return;
       localStorage.removeItem(PROFILE_CACHE_KEY);
     } catch (e) {
-      console.warn('[ProfileCache] Failed to clear localStorage:', e);
+      logger.warn('ProfileCache', 'Failed to clear localStorage', e);
     }
   }
 

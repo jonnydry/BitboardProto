@@ -377,8 +377,6 @@ class RateLimiter {
     cleanMap(this.userVoteBuckets);
     cleanMap(this.userCommentBuckets);
     cleanMap(this.contentBuckets);
-
-    console.log('[RateLimiter] Cleanup complete');
   }
 }
 

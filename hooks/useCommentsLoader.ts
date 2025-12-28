@@ -3,6 +3,7 @@ import type { Comment, Post, UserState } from '../types';
 import { nostrService } from '../services/nostrService';
 import { votingService } from '../services/votingService';
 import { profileService } from '../services/profileService';
+import { logger } from '../services/loggingService';
 
 type LatestCommentUpdate = {
   created_at: number;
@@ -75,7 +76,7 @@ export function useCommentsLoader(args: {
           latestByComment.forEach((v, commentId) => applyCommentUpdates(commentId, v.updates));
         }
       } catch (e) {
-        console.warn('[CommentsLoader] Failed to fetch comment edits/deletes:', e);
+        logger.warn('CommentsLoader', 'Failed to fetch comment edits/deletes', e);
       }
     };
 
@@ -168,7 +169,7 @@ export function useCommentsLoader(args: {
         await applyBatchEdits();
       } catch (error) {
         if (cancelled) return;
-        console.error('[App] Failed to fetch comments:', error);
+        logger.error('CommentsLoader', 'Failed to fetch comments', error);
       }
     })();
 

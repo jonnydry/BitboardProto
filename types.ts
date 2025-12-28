@@ -97,6 +97,9 @@ export interface Comment {
   votesVerified?: boolean;
 }
 
+// Sync status for optimistic updates
+export type SyncStatus = 'pending' | 'synced' | 'failed';
+
 export interface Post {
   id: string;
   boardId: string;
@@ -123,6 +126,9 @@ export interface Post {
   encryptedTitle?: string;
   encryptedContent?: string;
   isEncrypted?: boolean;
+  // Sync status for optimistic updates
+  syncStatus?: SyncStatus;
+  syncError?: string;
 }
 
 // ============================================

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Post, UserState, Comment } from '../types';
+import { Post, UserState, Comment, SyncStatus } from '../types';
 import { EXPANSION_THRESHOLD, INLINE_PREVIEW_COMMENT_COUNT } from '../constants';
-import { ArrowBigUp, ArrowBigDown, MessageSquare, Clock, Hash, ExternalLink, CornerDownRight, Maximize2, Image as ImageIcon, Shield, Users, UserX, Bookmark, Edit3, Flag, Lock, VolumeX, Trash2 } from 'lucide-react';
+import { ArrowBigUp, ArrowBigDown, MessageSquare, Clock, Hash, ExternalLink, CornerDownRight, Maximize2, Image as ImageIcon, Shield, Users, UserX, Bookmark, Edit3, Flag, Lock, VolumeX, Trash2, RefreshCw, AlertTriangle, Loader2, CheckCircle2 } from 'lucide-react';
 import { profileService } from '../services/profileService';
 import { CommentThread, buildCommentTree } from './CommentThread';
 // MentionText is used via MarkdownRenderer
@@ -42,6 +42,7 @@ interface PostItemProps {
   isNostrConnected?: boolean;
   onToggleMute?: (pubkey: string) => void;
   isMuted?: (pubkey: string) => boolean;
+  onRetryPost?: (postId: string) => void;
 }
 
 const PostItemComponent: React.FC<PostItemProps> = ({
@@ -66,6 +67,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   isNostrConnected = false,
   onToggleMute,
   isMuted,
+  onRetryPost,
 }) => {
   const [isExpanded, setIsExpanded] = useState(isFullPage);
   const [newComment, setNewComment] = useState('');
@@ -407,17 +409,60 @@ const PostItemComponent: React.FC<PostItemProps> = ({
           : undefined
       }
       className={`w-full border-2 transition-all duration-200 mb-4 relative group font-mono
-        ${isExpanded 
-          ? 'border-terminal-text bg-terminal-highlight shadow-glow' 
-          : 'border-terminal-dim bg-terminal-bg hover:border-terminal-text'
+        ${post.syncStatus === 'pending' 
+          ? 'border-terminal-dim/50 bg-terminal-bg/80 animate-pulse' 
+          : post.syncStatus === 'failed'
+            ? 'border-terminal-alert/70 bg-terminal-alert/5'
+            : isExpanded 
+              ? 'border-terminal-text bg-terminal-highlight shadow-glow' 
+              : 'border-terminal-dim bg-terminal-bg hover:border-terminal-text'
         }
       `}
     >
+      {/* Sync Status Indicator */}
+      {post.syncStatus && post.syncStatus !== 'synced' && (
+        <div 
+          className={`absolute top-0 left-0 right-0 flex items-center justify-between px-2 py-1 text-[10px] uppercase tracking-wider font-mono z-10
+            ${post.syncStatus === 'pending' 
+              ? 'bg-terminal-dim/20 text-terminal-dim border-b border-terminal-dim/30' 
+              : 'bg-terminal-alert/10 text-terminal-alert border-b border-terminal-alert/30'
+            }
+          `}
+        >
+          <div className="flex items-center gap-1.5">
+            {post.syncStatus === 'pending' ? (
+              <>
+                <Loader2 size={10} className="animate-spin" />
+                <span>Publishing to Nostr...</span>
+              </>
+            ) : (
+              <>
+                <AlertTriangle size={10} />
+                <span>Sync failed{post.syncError ? `: ${post.syncError.slice(0, 30)}${post.syncError.length > 30 ? '...' : ''}` : ''}</span>
+              </>
+            )}
+          </div>
+          {post.syncStatus === 'failed' && onRetryPost && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRetryPost(post.id);
+              }}
+              className="flex items-center gap-1 px-2 py-0.5 bg-terminal-alert/20 hover:bg-terminal-alert/30 border border-terminal-alert/40 rounded text-terminal-alert transition-colors"
+              title="Retry publishing to Nostr"
+            >
+              <RefreshCw size={10} />
+              <span>RETRY</span>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Decorator corners */}
       <div className="absolute -top-1 -left-1 w-2 h-2 border-t-2 border-l-2 border-terminal-text opacity-0 group-hover:opacity-100 transition-opacity"></div>
       <div className="absolute -bottom-1 -right-1 w-2 h-2 border-b-2 border-r-2 border-terminal-text opacity-0 group-hover:opacity-100 transition-opacity"></div>
 
-      <div className={`flex flex-row gap-2 md:gap-3 p-2 ${isExpanded ? 'p-3 md:p-4' : ''}`}>
+      <div className={`flex flex-row gap-2 md:gap-3 p-2 ${isExpanded ? 'p-3 md:p-4' : ''} ${post.syncStatus && post.syncStatus !== 'synced' ? 'pt-8' : ''}`}>
         {/* Voting Column - Cryptographically Verified */}
         <div className="flex flex-col items-center w-10 md:w-12 border-r border-terminal-dim pr-1 md:pr-2 justify-start pt-1 gap-0.5 md:gap-1 flex-shrink-0">
           {/* Guest User Indicator */}
