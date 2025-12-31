@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useMemo } from 'react';
-import type { Board, BoardType } from '../../../types';
+import { BoardType, type Board } from '../../../types';
 
 interface BoardsContextType {
   // State

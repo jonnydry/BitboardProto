@@ -15,17 +15,17 @@
     
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://bitboard.app/" />
+    <meta property="og:url" content="" id="og-url" />
     <meta property="og:title" content="BitBoard - Decentralized Message Board on Nostr" />
     <meta property="og:description" content="Terminal-styled message board built on the Nostr protocol. Create boards, post, comment, and vote." />
-    <meta property="og:image" content="/assets/bitboard-logo.png" />
+    <meta property="og:image" content="" id="og-image" />
     
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:url" content="https://bitboard.app/" />
+    <meta property="twitter:url" content="" id="twitter-url" />
     <meta property="twitter:title" content="BitBoard - Decentralized Message Board on Nostr" />
     <meta property="twitter:description" content="Terminal-styled message board built on the Nostr protocol." />
-    <meta property="twitter:image" content="/assets/bitboard-logo.png" />
+    <meta property="twitter:image" content="" id="twitter-image" />
     
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="/assets/bitboard-logo.png" />
@@ -51,6 +51,22 @@
     
     <!-- Theme Color -->
     <meta name="theme-color" content="#000000" />
+    
+    <!-- Dynamic URL Script - Updates meta tags with current origin -->
+    <script>
+      (function() {
+        const origin = window.location.origin;
+        const ogUrl = document.getElementById('og-url');
+        const ogImage = document.getElementById('og-image');
+        const twitterUrl = document.getElementById('twitter-url');
+        const twitterImage = document.getElementById('twitter-image');
+        
+        if (ogUrl) ogUrl.setAttribute('content', origin + '/');
+        if (ogImage) ogImage.setAttribute('content', origin + '/assets/bitboard-logo.png');
+        if (twitterUrl) twitterUrl.setAttribute('content', origin + '/');
+        if (twitterImage) twitterImage.setAttribute('content', origin + '/assets/bitboard-logo.png');
+      })();
+    </script>
 </head>
   <body>
     <div id="root"></div>

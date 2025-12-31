@@ -22,6 +22,8 @@ const Bookmarks = lazy(() => import('./components/Bookmarks').then(module => ({ 
 const EditPost = lazy(() => import('./components/EditPost').then(module => ({ default: module.EditPost })));
 const BoardBrowser = lazy(() => import('./components/BoardBrowser').then(module => ({ default: module.BoardBrowser })));
 const NotificationCenter = lazy(() => import('./components/NotificationCenter').then(module => ({ default: module.NotificationCenter })));
+const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy').then(module => ({ default: module.PrivacyPolicy })));
+const TermsOfService = lazy(() => import('./components/TermsOfService').then(module => ({ default: module.TermsOfService })));
 
 // Loading fallback for lazy components
 const LoadingFallback = () => (
@@ -286,6 +288,16 @@ const AppContent: React.FC = () => {
                 />
               </Suspense>
             )}
+            {app.viewMode === ViewMode.PRIVACY_POLICY && (
+              <Suspense fallback={<LoadingFallback />}>
+                <PrivacyPolicy />
+              </Suspense>
+            )}
+            {app.viewMode === ViewMode.TERMS_OF_SERVICE && (
+              <Suspense fallback={<LoadingFallback />}>
+                <TermsOfService />
+              </Suspense>
+            )}
           </main>
 
           {/* Sidebar - shows above content on mobile, beside on desktop */}
@@ -312,7 +324,24 @@ const AppContent: React.FC = () => {
       
       {/* Footer - hidden on mobile to make room for bottom nav */}
       <footer className="hidden md:block text-center text-terminal-dim text-xs py-8 opacity-50">
-        BitBoard NOSTR PROTOCOL V3.0 // RELAYS: {nostrService.getRelays().length} // NODES ACTIVE: {app.boards.length + app.locationBoards.length}
+        <div className="mb-2">
+          BitBoard NOSTR PROTOCOL V3.0 // RELAYS: {nostrService.getRelays().length} // NODES ACTIVE: {app.boards.length + app.locationBoards.length}
+        </div>
+        <div className="space-x-4">
+          <button
+            onClick={() => app.setViewMode(ViewMode.PRIVACY_POLICY)}
+            className="hover:text-terminal-text transition-colors underline"
+          >
+            Privacy Policy
+          </button>
+          <span>•</span>
+          <button
+            onClick={() => app.setViewMode(ViewMode.TERMS_OF_SERVICE)}
+            className="hover:text-terminal-text transition-colors underline"
+          >
+            Terms of Service
+          </button>
+        </div>
       </footer>
 
       {/* Mobile Bottom Navigation */}

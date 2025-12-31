@@ -232,10 +232,8 @@ class EncryptedBoardService {
       .replace(/\//g, '_')
       .replace(/=+$/, '');
     
-    // Get the base URL (works in browser)
-    const baseUrl = typeof window !== 'undefined' 
-      ? window.location.origin 
-      : 'https://bitboard.app';
+    // Get the base URL from current origin (client-side only app)
+    const baseUrl = window.location.origin;
     
     return `${baseUrl}/b/${boardId}#key=${urlSafeKey}`;
   }

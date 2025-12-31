@@ -1,0 +1,11 @@
+# BitBoard robots.txt
+# Allow all search engines to crawl the site
+
+User-agent: *
+Allow: /
+
+# Sitemap location (update when sitemap is generated)
+# Sitemap: https://yourdomain.com/sitemap.xml
+
+# Crawl-delay (optional, helps prevent overloading)
+# Crawl-delay: 1
