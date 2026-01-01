@@ -16,6 +16,7 @@ export function FeedView(props: {
   sortMode: SortMode;
   setSortMode: (m: SortMode) => void;
   activeBoard: Board | null;
+  feedFilter?: 'all' | 'topic' | 'location';
   viewMode: ViewMode;
   onSetViewMode: (m: ViewMode) => void;
   onSearch: (q: string) => void;
@@ -55,6 +56,7 @@ export function FeedView(props: {
     sortMode,
     setSortMode,
     activeBoard,
+    feedFilter,
     viewMode,
     onSetViewMode,
     onSearch,
@@ -146,6 +148,45 @@ export function FeedView(props: {
   }, [onRetryPost]);
 
   const emptyState = useMemo(() => {
+    // Location-specific empty state
+    if (feedFilter === 'location') {
+      return (
+        <div className="border border-terminal-dim p-12 text-center text-terminal-dim flex flex-col items-center gap-4">
+          <MapPin size={48} className="opacity-20" />
+          <div>
+            <p className="font-bold">&gt; NO LOCATION CHANNELS FOUND</p>
+            <p className="text-xs mt-2">Enable location access to discover nearby channels.</p>
+          </div>
+          <button
+            onClick={() => onSetViewMode(ViewMode.LOCATION)}
+            className="mt-4 px-4 py-2 border border-terminal-dim hover:bg-terminal-dim hover:text-white transition-colors uppercase text-sm"
+          >
+            [ SCAN_NEARBY ]
+          </button>
+        </div>
+      );
+    }
+
+    // Topic-specific empty state
+    if (feedFilter === 'topic') {
+      return (
+        <div className="border border-terminal-dim p-12 text-center text-terminal-dim flex flex-col items-center gap-4">
+          <div className="text-4xl opacity-20">¯\\_(ツ)_/¯</div>
+          <div>
+            <p className="font-bold">&gt; NO TOPIC BOARDS FOUND</p>
+            <p className="text-xs mt-2">Browse available boards or create your own.</p>
+          </div>
+          <button
+            onClick={() => onSetViewMode(ViewMode.BROWSE_BOARDS)}
+            className="mt-4 px-4 py-2 border border-terminal-dim hover:bg-terminal-dim hover:text-white transition-colors uppercase text-sm"
+          >
+            [ BROWSE_BOARDS ]
+          </button>
+        </div>
+      );
+    }
+
+    // Default empty state
     return (
       <div className="border border-terminal-dim p-12 text-center text-terminal-dim flex flex-col items-center gap-4">
         <div className="text-4xl opacity-20">¯\\_(ツ)_/¯</div>
@@ -161,7 +202,7 @@ export function FeedView(props: {
         </button>
       </div>
     );
-  }, [onSetViewMode]);
+  }, [feedFilter, onSetViewMode]);
 
   return (
     <div className="space-y-2">
@@ -180,14 +221,22 @@ export function FeedView(props: {
                   ? activeBoard.type === BoardType.GEOHASH
                     ? `#${activeBoard.geohash}`
                     : `// ${activeBoard.name}`
-                  : 'GLOBAL_FEED'}
+                  : feedFilter === 'location'
+                    ? 'GEO_CHANNELS'
+                    : feedFilter === 'topic'
+                      ? 'TOPIC_BOARDS'
+                      : 'GLOBAL_FEED'}
             </h2>
             <p className="text-xs text-terminal-dim mt-1">
               {searchQuery
                 ? `${sortedPosts.length} results found`
                 : activeBoard
                   ? activeBoard.description
-                  : 'AGGREGATING TOP SIGNALS FROM PUBLIC SECTORS'}
+                  : feedFilter === 'location'
+                    ? 'Location-based channels near you'
+                    : feedFilter === 'topic'
+                      ? 'Topic-based discussion boards'
+                      : 'AGGREGATING TOP SIGNALS FROM PUBLIC SECTORS'}
             </p>
           </div>
           <span className="text-xs border border-terminal-dim px-2 py-1">SIGNAL_COUNT: {sortedPosts.length}</span>

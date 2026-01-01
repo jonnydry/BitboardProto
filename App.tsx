@@ -212,6 +212,7 @@ const AppContent: React.FC = () => {
                 sortMode={app.sortMode}
                 setSortMode={app.setSortMode}
                 activeBoard={app.activeBoard}
+                feedFilter={app.feedFilter}
                 viewMode={app.viewMode}
                 onSetViewMode={app.setViewMode}
                 onSearch={app.handleSearch}

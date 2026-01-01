@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, ChevronRight, ChevronLeft } from 'lucide-react';
+import { X, ChevronRight, ChevronLeft, Check } from 'lucide-react';
 
 interface OnboardingFlowProps {
   isOpen: boolean;
@@ -81,7 +81,7 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip }: OnboardingFlowPro
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-terminal-bg font-mono text-terminal-text text-sm md:text-base p-4">
         <div className="w-full max-w-2xl">
-          <div className="mb-4 text-terminal-highlight font-bold">
+          <div className="mb-4 text-terminal-text font-bold">
             BITBOARD BOOT SEQUENCE
           </div>
           <div className="space-y-1">
@@ -166,7 +166,7 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip }: OnboardingFlowPro
                   </pre>
                 </div>
                 
-                <h1 className="text-2xl md:text-4xl font-terminal font-bold text-terminal-highlight tracking-wider animate-pulse">
+                <h1 className="text-2xl md:text-4xl font-terminal font-bold text-terminal-text tracking-wider animate-pulse">
                   SYSTEM INITIALIZED
                 </h1>
                 
@@ -176,15 +176,15 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip }: OnboardingFlowPro
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left mt-8">
                   <div className="border border-terminal-dim p-3 hover:bg-terminal-dim/10 transition-colors">
-                    <div className="font-bold text-terminal-highlight mb-1">[PROTOCOL]</div>
+                    <div className="font-bold text-terminal-text mb-1">[PROTOCOL]</div>
                     <div className="text-sm">NOSTR</div>
                   </div>
                   <div className="border border-terminal-dim p-3 hover:bg-terminal-dim/10 transition-colors">
-                    <div className="font-bold text-terminal-highlight mb-1">[NETWORK]</div>
+                    <div className="font-bold text-terminal-text mb-1">[NETWORK]</div>
                     <div className="text-sm">DECENTRALIZED</div>
                   </div>
                   <div className="border border-terminal-dim p-3 hover:bg-terminal-dim/10 transition-colors">
-                    <div className="font-bold text-terminal-highlight mb-1">[SECURITY]</div>
+                    <div className="font-bold text-terminal-text mb-1">[SECURITY]</div>
                     <div className="text-sm">CRYPTOGRAPHIC</div>
                   </div>
                 </div>
@@ -193,15 +193,15 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip }: OnboardingFlowPro
 
             {currentStep === 'identity' && (
               <div className="space-y-6">
-                <div className="border-l-4 border-terminal-highlight pl-4 mb-8">
+                <div className="border-l-4 border-terminal-text pl-4 mb-8">
                   <h2 className="text-3xl font-terminal font-bold mb-2">IDENTITY CONFIGURATION</h2>
-                  <p className="text-terminal-dim">SELECT AUTHENTICATION METHOD_</p>
+                  <p className="text-terminal-text opacity-70">SELECT AUTHENTICATION METHOD_</p>
                 </div>
 
                 <div className="grid gap-6">
                   <div className="group border-2 border-terminal-dim p-6 hover:border-terminal-text hover:shadow-[4px_4px_0_rgba(var(--color-terminal-text),0.4)] transition-all cursor-pointer relative overflow-hidden">
                     <div className="absolute top-0 right-0 bg-terminal-dim text-terminal-bg px-2 py-1 text-xs font-bold group-hover:bg-terminal-text">OPTION_A</div>
-                    <h3 className="text-xl font-bold text-terminal-highlight mb-2 group-hover:underline decoration-2 underline-offset-4">
+                    <h3 className="text-xl font-bold text-terminal-text mb-2 group-hover:underline decoration-2 underline-offset-4">
                       {`>>`} GENERATE NEW KEYS
                     </h3>
                     <p className="text-sm opacity-80">
@@ -211,7 +211,7 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip }: OnboardingFlowPro
 
                   <div className="group border-2 border-terminal-dim p-6 hover:border-terminal-text hover:shadow-[4px_4px_0_rgba(var(--color-terminal-text),0.4)] transition-all cursor-pointer relative overflow-hidden">
                     <div className="absolute top-0 right-0 bg-terminal-dim text-terminal-bg px-2 py-1 text-xs font-bold group-hover:bg-terminal-text">OPTION_B</div>
-                    <h3 className="text-xl font-bold text-terminal-highlight mb-2 group-hover:underline decoration-2 underline-offset-4">
+                    <h3 className="text-xl font-bold text-terminal-text mb-2 group-hover:underline decoration-2 underline-offset-4">
                       {`>>`} IMPORT EXISTING KEYS
                     </h3>
                     <p className="text-sm opacity-80">
@@ -228,9 +228,9 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip }: OnboardingFlowPro
 
             {currentStep === 'boards' && (
               <div className="space-y-6">
-                <div className="border-l-4 border-terminal-highlight pl-4 mb-8">
+                <div className="border-l-4 border-terminal-text pl-4 mb-8">
                   <h2 className="text-3xl font-terminal font-bold mb-2">BOARD DIRECTORY</h2>
-                  <p className="text-terminal-dim">AVAILABLE CHANNELS_</p>
+                  <p className="text-terminal-text opacity-70">AVAILABLE CHANNELS_</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -241,7 +241,7 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip }: OnboardingFlowPro
                     { title: "CUSTOM BOARDS", desc: "User-created boards on any topic" }
                   ].map((item, i) => (
                     <div key={i} className="border border-terminal-dim p-4 hover:bg-terminal-dim/10 transition-colors">
-                      <div className="text-terminal-highlight font-bold mb-1">{`[0${i+1}]`} {item.title}</div>
+                      <div className="text-terminal-text font-bold mb-1">{`[0${i+1}]`} {item.title}</div>
                       <div className="text-sm opacity-80">{item.desc}</div>
                     </div>
                   ))}
@@ -251,28 +251,28 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip }: OnboardingFlowPro
 
             {currentStep === 'features' && (
               <div className="space-y-6">
-                <div className="border-l-4 border-terminal-highlight pl-4 mb-8">
+                <div className="border-l-4 border-terminal-text pl-4 mb-8">
                   <h2 className="text-3xl font-terminal font-bold mb-2">SYSTEM CAPABILITIES</h2>
-                  <p className="text-terminal-dim">FEATURE OVERVIEW_</p>
+                  <p className="text-terminal-text opacity-70">FEATURE OVERVIEW_</p>
                 </div>
 
                 <ul className="space-y-4 font-mono">
                   <li className="flex items-start gap-3">
-                    <span className="text-terminal-highlight mt-1">NOSTR_SIG:</span>
+                    <span className="text-terminal-text mt-1">NOSTR_SIG:</span>
                     <div>
                       <div className="font-bold">Cryptographic Voting</div>
                       <div className="text-sm opacity-70">One person, one vote. Mathematically verified.</div>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
-                    <span className="text-terminal-highlight mt-1">OFFLINE_DB:</span>
+                    <span className="text-terminal-text mt-1">OFFLINE_DB:</span>
                     <div>
                       <div className="font-bold">Offline Resilience</div>
                       <div className="text-sm opacity-70">Read and queue posts without connection. Auto-sync on reconnect.</div>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
-                    <span className="text-terminal-highlight mt-1">INPUT_MOD:</span>
+                    <span className="text-terminal-text mt-1">INPUT_MOD:</span>
                     <div>
                       <div className="font-bold">Power User Controls</div>
                       <div className="text-sm opacity-70">Press <span className="bg-terminal-text text-terminal-bg px-1 font-bold">?</span> for keyboard shortcuts. Markdown supported.</div>
@@ -284,12 +284,12 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip }: OnboardingFlowPro
 
             {currentStep === 'complete' && (
               <div className="text-center space-y-8 py-8">
-                <div className="inline-flex items-center justify-center w-24 h-24 border-4 border-terminal-highlight animate-pulse">
-                  <Check size={64} className="text-terminal-highlight" />
+                <div className="inline-flex items-center justify-center w-24 h-24 border-4 border-terminal-text animate-pulse">
+                  <Check size={64} className="text-terminal-text" />
                 </div>
                 
                 <div>
-                  <h2 className="text-3xl font-terminal font-bold text-terminal-highlight mb-2">CONFIGURATION COMPLETE</h2>
+                  <h2 className="text-3xl font-terminal font-bold text-terminal-text mb-2">CONFIGURATION COMPLETE</h2>
                   <p className="text-xl font-mono">SYSTEM READY FOR INPUT</p>
                 </div>
 
