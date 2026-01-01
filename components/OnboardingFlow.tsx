@@ -1,11 +1,5 @@
-/**
- * Onboarding Flow Component
- *
- * Guides new users through BitBoard setup with a multi-step wizard.
- */
-
-import { useState } from 'react';
-import { X, ChevronRight, ChevronLeft, Check } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, ChevronRight, ChevronLeft } from 'lucide-react';
 
 interface OnboardingFlowProps {
   isOpen: boolean;
@@ -13,243 +7,338 @@ interface OnboardingFlowProps {
   onSkip: () => void;
 }
 
-type OnboardingStep = 'welcome' | 'identity' | 'boards' | 'features' | 'complete';
+type OnboardingStep = 'boot' | 'welcome' | 'identity' | 'boards' | 'features' | 'complete';
 
 export function OnboardingFlow({ isOpen, onComplete, onSkip }: OnboardingFlowProps) {
-  const [currentStep, setCurrentStep] = useState<OnboardingStep>('welcome');
+  const [currentStep, setCurrentStep] = useState<OnboardingStep>('boot');
+  const [bootLog, setBootLog] = useState<string[]>([]);
+  const [bootComplete, setBootComplete] = useState(false);
+  const bootLines = useRef<string[]>([
+    "INITIALIZING BITBOARD SYSTEM v3.0...",
+    "LOADING MEMORY MODULES... [OK]",
+    "CONNECTING TO NOSTR PROTOCOL... [OK]",
+    "ESTABLISHING RELAY UPLINKS... [OK]",
+    "VERIFYING CRYPTOGRAPHIC SIGNATURES... [OK]",
+    "LOADING USER INTERFACE... [OK]",
+    "SYSTEM READY."
+  ]);
+  const [showContent, setShowContent] = useState(false);
+
+  // Boot sequence animation
+  useEffect(() => {
+    if (isOpen && currentStep === 'boot') {
+      let lineIndex = 0;
+      const interval = setInterval(() => {
+        if (lineIndex < bootLines.current.length) {
+          setBootLog(prev => [...prev, bootLines.current[lineIndex]]);
+          lineIndex++;
+        } else {
+          clearInterval(interval);
+          setBootComplete(true);
+          setTimeout(() => {
+            setCurrentStep('welcome');
+            setShowContent(true);
+          }, 800);
+        }
+      }, 300); // 300ms per line
+
+      return () => clearInterval(interval);
+    }
+  }, [isOpen, currentStep]);
 
   if (!isOpen) return null;
 
-  const steps: OnboardingStep[] = ['welcome', 'identity', 'boards', 'features', 'complete'];
-  const currentStepIndex = steps.indexOf(currentStep);
-  const progress = ((currentStepIndex + 1) / steps.length) * 100;
+  const steps: OnboardingStep[] = ['boot', 'welcome', 'identity', 'boards', 'features', 'complete'];
+  // We only show progress for steps after 'boot'
+  const visibleSteps = steps.filter(s => s !== 'boot');
+  const visibleStepIndex = visibleSteps.indexOf(currentStep);
+  const totalVisibleSteps = visibleSteps.length;
+  
+  // Calculate progress bar blocks (e.g., 20 blocks total)
+  const totalBlocks = 20;
+  const filledBlocks = Math.round(((visibleStepIndex + 1) / totalVisibleSteps) * totalBlocks);
+  const progressBar = `[${'█'.repeat(filledBlocks)}${'-'.repeat(totalBlocks - filledBlocks)}]`;
+  const percentComplete = Math.round(((visibleStepIndex + 1) / totalVisibleSteps) * 100);
 
   const handleNext = () => {
-    const nextIndex = currentStepIndex + 1;
-    if (nextIndex < steps.length) {
-      setCurrentStep(steps[nextIndex]);
+    const nextIndex = visibleStepIndex + 1;
+    if (nextIndex < visibleSteps.length) {
+      setCurrentStep(visibleSteps[nextIndex]);
     } else {
       onComplete();
     }
   };
 
   const handleBack = () => {
-    const prevIndex = currentStepIndex - 1;
+    const prevIndex = visibleStepIndex - 1;
     if (prevIndex >= 0) {
-      setCurrentStep(steps[prevIndex]);
+      setCurrentStep(visibleSteps[prevIndex]);
     }
   };
 
+  // Render boot screen
+  if (currentStep === 'boot') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-terminal-bg font-mono text-terminal-text text-sm md:text-base p-4">
+        <div className="w-full max-w-2xl">
+          <div className="mb-4 text-terminal-highlight font-bold">
+            BITBOARD BOOT SEQUENCE
+          </div>
+          <div className="space-y-1">
+            {bootLog.map((line, i) => (
+              <div key={i} className="flex">
+                <span className="mr-2 opacity-50">{`>`}</span>
+                <span>{line}</span>
+              </div>
+            ))}
+            {!bootComplete && (
+              <div className="animate-pulse">_</div>
+            )}
+          </div>
+          
+          {/* Scanline overlay */}
+          <div className="scanlines fixed inset-0 pointer-events-none z-[60]"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-sm p-4 animate-fade-in"
       role="dialog"
       aria-modal="true"
       aria-labelledby="onboarding-title"
     >
-      <div className="relative w-full max-w-3xl border border-terminal-highlight bg-terminal-bg p-8 shadow-glow">
-        {/* Progress bar */}
-        <div className="mb-6">
-          <div className="h-1 w-full bg-terminal-dim">
-            <div
-              className="h-full bg-terminal-highlight transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
+      {/* Scanline overlay */}
+      <div className="scanlines fixed inset-0 pointer-events-none z-[60]"></div>
+
+      <div className="relative w-full max-w-4xl bg-terminal-bg border-2 border-terminal-text shadow-[0_0_20px_rgba(var(--color-terminal-text),0.3)] flex flex-col max-h-[90vh] overflow-hidden">
+        
+        {/* Terminal Window Header */}
+        <div className="bg-terminal-text text-terminal-bg px-4 py-1 font-bold flex justify-between items-center select-none">
+          <div className="flex items-center gap-2">
+            <span>■</span>
+            <span>SETUP_WIZARD.EXE</span>
+          </div>
+          <div className="flex gap-2">
+            <button 
+              onClick={onSkip}
+              className="hover:bg-terminal-bg hover:text-terminal-text px-2 font-bold transition-colors"
+              aria-label="Close"
+            >
+              [X]
+            </button>
           </div>
         </div>
 
-        {/* Skip button */}
-        <button
-          onClick={onSkip}
-          className="absolute top-4 right-4 text-terminal-dim hover:text-terminal-text"
-          aria-label="Skip onboarding"
-        >
-          <X size={24} />
-        </button>
-
-        {/* Step content */}
-        <div className="min-h-[400px]">
-          {currentStep === 'welcome' && (
-            <div className="text-center space-y-6">
-              <h1 id="onboarding-title" className="text-4xl font-mono text-terminal-highlight">
-                WELCOME TO BITBOARD
-              </h1>
-              <p className="text-xl text-terminal-text font-mono">
-                A decentralized message board built on Nostr
-              </p>
-              <div className="space-y-4 text-left max-w-xl mx-auto">
-                <div className="border-l-2 border-terminal-highlight pl-4">
-                  <p className="text-terminal-text font-mono">
-                    <span className="text-terminal-highlight">✓</span> No servers, no censorship
-                  </p>
-                </div>
-                <div className="border-l-2 border-terminal-highlight pl-4">
-                  <p className="text-terminal-text font-mono">
-                    <span className="text-terminal-highlight">✓</span> Your keys, your identity
-                  </p>
-                </div>
-                <div className="border-l-2 border-terminal-highlight pl-4">
-                  <p className="text-terminal-text font-mono">
-                    <span className="text-terminal-highlight">✓</span> Encrypted boards for privacy
-                  </p>
-                </div>
+        {/* Content Area */}
+        <div className="p-4 md:p-8 overflow-y-auto flex-1 font-mono text-terminal-text scrollbar-thin scrollbar-track-terminal-dim/20 scrollbar-thumb-terminal-text">
+          
+          {/* Progress Header */}
+          <div className="mb-8 border-b-2 border-terminal-dim/30 pb-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2">
+              <div className="text-xl font-bold font-terminal text-terminal-text tracking-widest uppercase">
+                STEP {visibleStepIndex + 1}/{totalVisibleSteps}: {currentStep}
+              </div>
+              <div className="font-mono text-xs md:text-sm text-terminal-dim">
+                SYSTEM_ID: {Math.random().toString(36).substring(7).toUpperCase()}
               </div>
             </div>
-          )}
+            <div className="font-mono text-xs md:text-sm tracking-widest opacity-80 whitespace-pre">
+              {progressBar} {percentComplete}%
+            </div>
+          </div>
 
-          {currentStep === 'identity' && (
-            <div className="space-y-6">
-              <h2 className="text-3xl font-mono text-terminal-highlight">YOUR IDENTITY</h2>
-              <p className="text-terminal-text font-mono">
-                BitBoard uses Nostr keys for identity. You can either:
-              </p>
-              <div className="space-y-4">
-                <div className="border border-terminal-dim p-4 hover:border-terminal-highlight">
-                  <h3 className="text-xl font-mono text-terminal-highlight mb-2">
-                    Generate New Keys
-                  </h3>
-                  <p className="text-terminal-text font-mono text-sm">
-                    Create a new Nostr identity. Keep your private key (nsec) safe!
-                  </p>
+          <div className="min-h-[300px] flex flex-col justify-center animate-fade-in">
+            {currentStep === 'welcome' && (
+              <div className="space-y-8 text-center">
+                <div className="inline-block border-2 border-terminal-text p-4 mb-4 shadow-[4px_4px_0_rgba(var(--color-terminal-text),0.4)]">
+                  <pre className="text-[0.5rem] md:text-xs leading-[0.5rem] md:leading-3 font-bold select-none text-left overflow-hidden">
+{`
+  ██████╗ ██╗████████╗██████╗  ██████╗  █████╗ ██████╗ ██████╗ 
+  ██╔══██╗██║╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗
+  ██████╔╝██║   ██║   ██████╔╝██║   ██║███████║██████╔╝██║  ██║
+  ██╔══██╗██║   ██║   ██╔══██╗██║   ██║██╔══██║██╔══██╗██║  ██║
+  ██████╔╝██║   ██║   ██████╔╝╚██████╔╝██║  ██║██║  ██║██████╔╝
+  ╚═════╝ ╚═╝   ╚═╝   ╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ 
+`}
+                  </pre>
                 </div>
-                <div className="border border-terminal-dim p-4 hover:border-terminal-highlight">
-                  <h3 className="text-xl font-mono text-terminal-highlight mb-2">
-                    Import Existing Keys
-                  </h3>
-                  <p className="text-terminal-text font-mono text-sm">
-                    Use your existing Nostr keys (nsec or browser extension).
-                  </p>
-                </div>
-              </div>
-              <div className="bg-terminal-dim/20 border border-terminal-dim p-4">
-                <p className="text-terminal-text font-mono text-sm">
-                  <span className="text-terminal-alert">⚠ Important:</span> Your private key is stored
-                  encrypted in your browser. Never share your nsec with anyone!
+                
+                <h1 className="text-2xl md:text-4xl font-terminal font-bold text-terminal-highlight tracking-wider animate-pulse">
+                  SYSTEM INITIALIZED
+                </h1>
+                
+                <p className="text-lg md:text-xl max-w-2xl mx-auto leading-relaxed border-l-4 border-terminal-dim pl-4 text-left">
+                  Welcome to the decentralized web. No servers. No masters. Just pure data.
                 </p>
-              </div>
-            </div>
-          )}
 
-          {currentStep === 'boards' && (
-            <div className="space-y-6">
-              <h2 className="text-3xl font-mono text-terminal-highlight">BOARDS</h2>
-              <p className="text-terminal-text font-mono">
-                BitBoard organizes discussions into boards:
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="border border-terminal-dim p-4">
-                  <h3 className="text-xl font-mono text-terminal-highlight mb-2">Topic Boards</h3>
-                  <p className="text-terminal-text font-mono text-sm">
-                    Like /tech, /random - organized by subject
-                  </p>
-                </div>
-                <div className="border border-terminal-dim p-4">
-                  <h3 className="text-xl font-mono text-terminal-highlight mb-2">Location Boards</h3>
-                  <p className="text-terminal-text font-mono text-sm">
-                    Based on geohash - find local discussions
-                  </p>
-                </div>
-                <div className="border border-terminal-dim p-4">
-                  <h3 className="text-xl font-mono text-terminal-highlight mb-2">Encrypted Boards</h3>
-                  <p className="text-terminal-text font-mono text-sm">
-                    Password-protected private discussions
-                  </p>
-                </div>
-                <div className="border border-terminal-dim p-4">
-                  <h3 className="text-xl font-mono text-terminal-highlight mb-2">Custom Boards</h3>
-                  <p className="text-terminal-text font-mono text-sm">
-                    Create your own boards on any topic
-                  </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left mt-8">
+                  <div className="border border-terminal-dim p-3 hover:bg-terminal-dim/10 transition-colors">
+                    <div className="font-bold text-terminal-highlight mb-1">[PROTOCOL]</div>
+                    <div className="text-sm">NOSTR</div>
+                  </div>
+                  <div className="border border-terminal-dim p-3 hover:bg-terminal-dim/10 transition-colors">
+                    <div className="font-bold text-terminal-highlight mb-1">[NETWORK]</div>
+                    <div className="text-sm">DECENTRALIZED</div>
+                  </div>
+                  <div className="border border-terminal-dim p-3 hover:bg-terminal-dim/10 transition-colors">
+                    <div className="font-bold text-terminal-highlight mb-1">[SECURITY]</div>
+                    <div className="text-sm">CRYPTOGRAPHIC</div>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {currentStep === 'features' && (
-            <div className="space-y-6">
-              <h2 className="text-3xl font-mono text-terminal-highlight">FEATURES</h2>
-              <div className="space-y-4">
-                <div className="border-l-2 border-terminal-highlight pl-4">
-                  <h3 className="text-lg font-mono text-terminal-highlight">Cryptographic Voting</h3>
-                  <p className="text-terminal-text font-mono text-sm">
-                    One vote per user, verified by Nostr signatures
-                  </p>
+            {currentStep === 'identity' && (
+              <div className="space-y-6">
+                <div className="border-l-4 border-terminal-highlight pl-4 mb-8">
+                  <h2 className="text-3xl font-terminal font-bold mb-2">IDENTITY CONFIGURATION</h2>
+                  <p className="text-terminal-dim">SELECT AUTHENTICATION METHOD_</p>
                 </div>
-                <div className="border-l-2 border-terminal-highlight pl-4">
-                  <h3 className="text-lg font-mono text-terminal-highlight">Offline Mode</h3>
-                  <p className="text-terminal-text font-mono text-sm">
-                    Posts queue automatically when offline
-                  </p>
-                </div>
-                <div className="border-l-2 border-terminal-highlight pl-4">
-                  <h3 className="text-lg font-mono text-terminal-highlight">Keyboard Shortcuts</h3>
-                  <p className="text-terminal-text font-mono text-sm">
-                    Press <kbd className="bg-terminal-dim px-1">?</kbd> to see all shortcuts
-                  </p>
-                </div>
-                <div className="border-l-2 border-terminal-highlight pl-4">
-                  <h3 className="text-lg font-mono text-terminal-highlight">Markdown Support</h3>
-                  <p className="text-terminal-text font-mono text-sm">
-                    Format your posts with markdown and code blocks
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
 
-          {currentStep === 'complete' && (
-            <div className="text-center space-y-6">
-              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full border-2 border-terminal-highlight">
-                <Check size={48} className="text-terminal-highlight" />
+                <div className="grid gap-6">
+                  <div className="group border-2 border-terminal-dim p-6 hover:border-terminal-text hover:shadow-[4px_4px_0_rgba(var(--color-terminal-text),0.4)] transition-all cursor-pointer relative overflow-hidden">
+                    <div className="absolute top-0 right-0 bg-terminal-dim text-terminal-bg px-2 py-1 text-xs font-bold group-hover:bg-terminal-text">OPTION_A</div>
+                    <h3 className="text-xl font-bold text-terminal-highlight mb-2 group-hover:underline decoration-2 underline-offset-4">
+                      {`>>`} GENERATE NEW KEYS
+                    </h3>
+                    <p className="text-sm opacity-80">
+                      Create a fresh identity. We'll generate a cryptographically secure keypair for you.
+                    </p>
+                  </div>
+
+                  <div className="group border-2 border-terminal-dim p-6 hover:border-terminal-text hover:shadow-[4px_4px_0_rgba(var(--color-terminal-text),0.4)] transition-all cursor-pointer relative overflow-hidden">
+                    <div className="absolute top-0 right-0 bg-terminal-dim text-terminal-bg px-2 py-1 text-xs font-bold group-hover:bg-terminal-text">OPTION_B</div>
+                    <h3 className="text-xl font-bold text-terminal-highlight mb-2 group-hover:underline decoration-2 underline-offset-4">
+                      {`>>`} IMPORT EXISTING KEYS
+                    </h3>
+                    <p className="text-sm opacity-80">
+                      Already on Nostr? Connect using your extension (Alby, nos2x) or paste your nsec.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6 p-4 bg-terminal-alert/10 border border-terminal-alert text-terminal-alert text-sm">
+                  <span className="font-bold">WARNING:</span> Your private key is the only way to access your account. BitBoard cannot recover lost keys.
+                </div>
               </div>
-              <h2 className="text-3xl font-mono text-terminal-highlight">YOU'RE ALL SET!</h2>
-              <p className="text-terminal-text font-mono">
-                You're ready to start exploring BitBoard.
-              </p>
-              <div className="bg-terminal-dim/20 border border-terminal-dim p-4 max-w-xl mx-auto">
-                <p className="text-terminal-text font-mono text-sm">
-                  Need help? Press <kbd className="bg-terminal-dim px-1">?</kbd> for keyboard shortcuts
-                  or visit the settings to configure your relays and preferences.
-                </p>
+            )}
+
+            {currentStep === 'boards' && (
+              <div className="space-y-6">
+                <div className="border-l-4 border-terminal-highlight pl-4 mb-8">
+                  <h2 className="text-3xl font-terminal font-bold mb-2">BOARD DIRECTORY</h2>
+                  <p className="text-terminal-dim">AVAILABLE CHANNELS_</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[
+                    { title: "TOPIC BOARDS", desc: "Subject-based discussions like /tech, /random" },
+                    { title: "LOCATION BOARDS", desc: "Geohash-based local community feeds" },
+                    { title: "ENCRYPTED BOARDS", desc: "Private, key-gated secure channels" },
+                    { title: "CUSTOM BOARDS", desc: "User-created boards on any topic" }
+                  ].map((item, i) => (
+                    <div key={i} className="border border-terminal-dim p-4 hover:bg-terminal-dim/10 transition-colors">
+                      <div className="text-terminal-highlight font-bold mb-1">{`[0${i+1}]`} {item.title}</div>
+                      <div className="text-sm opacity-80">{item.desc}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+
+            {currentStep === 'features' && (
+              <div className="space-y-6">
+                <div className="border-l-4 border-terminal-highlight pl-4 mb-8">
+                  <h2 className="text-3xl font-terminal font-bold mb-2">SYSTEM CAPABILITIES</h2>
+                  <p className="text-terminal-dim">FEATURE OVERVIEW_</p>
+                </div>
+
+                <ul className="space-y-4 font-mono">
+                  <li className="flex items-start gap-3">
+                    <span className="text-terminal-highlight mt-1">NOSTR_SIG:</span>
+                    <div>
+                      <div className="font-bold">Cryptographic Voting</div>
+                      <div className="text-sm opacity-70">One person, one vote. Mathematically verified.</div>
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="text-terminal-highlight mt-1">OFFLINE_DB:</span>
+                    <div>
+                      <div className="font-bold">Offline Resilience</div>
+                      <div className="text-sm opacity-70">Read and queue posts without connection. Auto-sync on reconnect.</div>
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="text-terminal-highlight mt-1">INPUT_MOD:</span>
+                    <div>
+                      <div className="font-bold">Power User Controls</div>
+                      <div className="text-sm opacity-70">Press <span className="bg-terminal-text text-terminal-bg px-1 font-bold">?</span> for keyboard shortcuts. Markdown supported.</div>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            )}
+
+            {currentStep === 'complete' && (
+              <div className="text-center space-y-8 py-8">
+                <div className="inline-flex items-center justify-center w-24 h-24 border-4 border-terminal-highlight animate-pulse">
+                  <Check size={64} className="text-terminal-highlight" />
+                </div>
+                
+                <div>
+                  <h2 className="text-3xl font-terminal font-bold text-terminal-highlight mb-2">CONFIGURATION COMPLETE</h2>
+                  <p className="text-xl font-mono">SYSTEM READY FOR INPUT</p>
+                </div>
+
+                <div className="max-w-md mx-auto border border-terminal-dim p-4 bg-terminal-dim/10 text-sm font-mono text-left">
+                  <div>{`> user_status: ACTIVE`}</div>
+                  <div>{`> connection: ESTABLISHED`}</div>
+                  <div>{`> permissions: READ/WRITE`}</div>
+                  <div className="animate-pulse">{`> awaiting_command_`}</div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Navigation buttons */}
-        <div className="mt-8 flex items-center justify-between">
+        {/* Footer Navigation */}
+        <div className="border-t-2 border-terminal-text p-4 md:p-6 bg-terminal-bg flex justify-between items-center gap-4">
           <button
             onClick={handleBack}
-            disabled={currentStepIndex === 0}
-            className="flex items-center gap-2 border border-terminal-dim px-4 py-2 font-mono text-terminal-text hover:border-terminal-highlight hover:text-terminal-highlight disabled:opacity-30 disabled:cursor-not-allowed"
+            disabled={visibleStepIndex === 0}
+            className={`
+              flex items-center gap-2 px-4 md:px-6 py-2 md:py-3 font-mono font-bold text-sm md:text-base border-2 border-transparent transition-all
+              ${visibleStepIndex === 0 
+                ? 'opacity-0 pointer-events-none' 
+                : 'hover:border-terminal-dim text-terminal-dim hover:text-terminal-text'}
+            `}
           >
             <ChevronLeft size={20} />
-            Back
+            BACK
           </button>
-
-          <div className="flex gap-2">
-            {steps.map((step, index) => (
-              <div
-                key={step}
-                className={`h-2 w-2 rounded-full ${
-                  index === currentStepIndex
-                    ? 'bg-terminal-highlight'
-                    : index < currentStepIndex
-                    ? 'bg-terminal-text'
-                    : 'bg-terminal-dim'
-                }`}
-              />
-            ))}
-          </div>
 
           <button
             onClick={handleNext}
-            className="flex items-center gap-2 border border-terminal-highlight px-4 py-2 font-mono text-terminal-highlight hover:bg-terminal-highlight hover:text-terminal-bg"
+            className="
+              flex items-center gap-2 px-6 md:px-8 py-2 md:py-3 
+              bg-terminal-text text-terminal-bg 
+              font-bold font-mono text-sm md:text-base tracking-wider
+              border-2 border-terminal-text
+              hover:bg-terminal-bg hover:text-terminal-text
+              shadow-[4px_4px_0_rgba(var(--color-terminal-text),0.5)]
+              hover:shadow-[2px_2px_0_rgba(var(--color-terminal-text),0.5)]
+              hover:translate-x-[2px] hover:translate-y-[2px]
+              transition-all
+            "
           >
-            {currentStep === 'complete' ? 'Get Started' : 'Next'}
-            <ChevronRight size={20} />
+            {currentStep === 'complete' ? 'LAUNCH_SYSTEM' : 'NEXT_STEP'}
+            {currentStep !== 'complete' && <ChevronRight size={20} />}
           </button>
         </div>
+
       </div>
     </div>
   );
