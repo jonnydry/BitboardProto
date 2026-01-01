@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Total Bundle Size",
+    "path": "dist/**/*.js",
+    "limit": "500 KB",
+    "gzip": true
+  },
+  {
+    "name": "Initial Bundle",
+    "path": "dist/assets/index-*.js",
+    "limit": "200 KB",
+    "gzip": true
+  },
+  {
+    "name": "React Vendor Bundle",
+    "path": "dist/assets/react-*.js",
+    "limit": "150 KB",
+    "gzip": true
+  },
+  {
+    "name": "Nostr Bundle",
+    "path": "dist/assets/nostr-*.js",
+    "limit": "100 KB",
+    "gzip": true
+  }
+]

@@ -27,15 +27,15 @@ jobs:
 
       - name: Run linter
         run: npm run lint
-        continue-on-error: true
 
       - name: Run tests
         run: npm test
-        continue-on-error: true
+
+      - name: Security audit
+        run: npm audit --audit-level=high
 
       - name: Build check
         run: npm run build
-        continue-on-error: true
 
 
 

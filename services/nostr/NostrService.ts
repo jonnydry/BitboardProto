@@ -16,6 +16,7 @@ import {
   buildCommentEditEvent,
   buildCommentEvent,
   buildContactListEvent,
+  buildPostDeleteEvent,
   buildPostEditEvent,
   buildPostEvent,
   buildProfileEvent,
@@ -726,6 +727,10 @@ class NostrService {
     imageUrl?: string;
     /** Editor pubkey (must match signing key) */
     pubkey: string;
+    /** Encrypted title (base64) */
+    encryptedTitle?: string;
+    /** Encrypted content (base64) */
+    encryptedContent?: string;
   }): UnsignedNostrEvent {
     return buildPostEditEvent(args);
   }
@@ -878,6 +883,18 @@ class NostrService {
     pubkey: string;
   }): UnsignedNostrEvent {
     return buildCommentDeleteEvent(args);
+  }
+
+  /**
+   * Build a NIP-09 deletion event for a post.
+   * NIP-09: kind=5 with 'e' tag referencing the deleted event id.
+   */
+  buildPostDeleteEvent(args: {
+    postEventId: string;
+    pubkey: string;
+    reason?: string;
+  }): UnsignedNostrEvent {
+    return buildPostDeleteEvent(args);
   }
 
   isBitboardCommentDeleteEvent(event: NostrEvent): boolean {

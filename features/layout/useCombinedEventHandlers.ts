@@ -210,9 +210,8 @@ export const useCombinedEventHandlers = () => {
           try {
             // Check if board is encrypted and encrypt content if needed
             const board = boards.boardsById.get(existing.boardId);
-            // TODO: Use encrypted values in buildPostEditEvent when encryption support is added
-            let _encryptedTitle: string | undefined;
-            let _encryptedContent: string | undefined;
+            let encryptedTitle: string | undefined;
+            let encryptedContent: string | undefined;
 
             if (board?.isEncrypted) {
               const boardKey = encryptedBoardService.getBoardKey(board.id);
@@ -232,8 +231,8 @@ export const useCombinedEventHandlers = () => {
                   { title: merged.title, content: merged.content },
                   boardKey
                 );
-                _encryptedTitle = encrypted.encryptedTitle;
-                _encryptedContent = encrypted.encryptedContent;
+                encryptedTitle = encrypted.encryptedTitle;
+                encryptedContent = encrypted.encryptedContent;
               } catch (error) {
                 console.error('[CombinedEventHandlers] Failed to encrypt post edit:', error);
                 toastService.push({
@@ -256,6 +255,8 @@ export const useCombinedEventHandlers = () => {
               url: merged.url,
               imageUrl: merged.imageUrl,
               pubkey: user.userState.identity!.pubkey,
+              encryptedTitle,
+              encryptedContent,
             });
 
             const signed = await identityService.signEvent(unsigned);
@@ -314,15 +315,42 @@ export const useCombinedEventHandlers = () => {
     ui.setEditingPostId(null);
     ui.setViewMode(ViewMode.FEED);
 
-    // TODO: Implement NIP-09 delete event for posts
-    // For now, just delete locally
-    toastService.push({
-      type: 'success',
-      message: 'Post deleted locally',
-      durationMs: UIConfig.TOAST_DURATION_MS,
-      dedupeKey: `post-deleted-local-${postId}`,
-    });
-  }, [posts, user, ui]);
+    // Publish NIP-09 delete event if this post is on Nostr and we have an identity
+    if (post.nostrEventId && user.userState.identity) {
+      try {
+        const unsigned = nostrService.buildPostDeleteEvent({
+          postEventId: post.nostrEventId,
+          pubkey: user.userState.identity.pubkey,
+        });
+        const signed = await identityService.signEvent(unsigned);
+        await nostrService.publishSignedEvent(signed);
+        
+        toastService.push({
+          type: 'success',
+          message: 'Post deleted',
+          detail: 'Delete request published to Nostr relays.',
+          durationMs: UIConfig.TOAST_DURATION_MS,
+          dedupeKey: `post-deleted-${postId}`,
+        });
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        toastService.push({
+          type: 'warning',
+          message: 'Post deleted locally',
+          detail: `Failed to publish delete to Nostr: ${errMsg} — ${getRelayHint()}`,
+          durationMs: UIConfig.TOAST_DURATION_MS,
+          dedupeKey: `post-delete-failed-${postId}`,
+        });
+      }
+    } else {
+      toastService.push({
+        type: 'success',
+        message: 'Post deleted locally',
+        durationMs: UIConfig.TOAST_DURATION_MS,
+        dedupeKey: `post-deleted-local-${postId}`,
+      });
+    }
+  }, [posts, user, ui, getRelayHint]);
 
   const loadMorePosts = useCallback(async () => {
     if (!posts.oldestTimestamp || !posts.hasMorePosts) return;

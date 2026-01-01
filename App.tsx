@@ -1,5 +1,8 @@
-import React, { useState, lazy, Suspense } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { ToastHost } from './components/ToastHost';
+import { SEOHead } from './components/SEOHead';
+import { KeyboardShortcutsHelp } from './components/KeyboardShortcutsHelp';
+import { OnboardingFlow } from './components/OnboardingFlow';
 import { AppProvider, useApp } from './features/layout/AppContext';
 import { AppHeader } from './features/layout/AppHeader';
 import { Sidebar } from './features/layout/Sidebar';
@@ -10,6 +13,9 @@ import { PostItem } from './components/PostItem';
 import { ArrowLeft } from 'lucide-react';
 import { ViewMode, BoardType } from './types';
 import { nostrService } from './services/nostrService';
+import { keyboardShortcutsService } from './services/keyboardShortcutsService';
+import { analyticsService, AnalyticsEvents } from './services/analyticsService';
+import { sentryService } from './services/sentryService';
 
 // Lazy load components that are only used in specific views
 const IdentityManager = lazy(() => import('./components/IdentityManager').then(module => ({ default: module.IdentityManager })));
@@ -36,12 +42,137 @@ const LoadingFallback = () => (
 const AppContent: React.FC = () => {
   const app = useApp();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // Initialize keyboard shortcuts
+  useEffect(() => {
+    keyboardShortcutsService.initialize();
+
+    // Register shortcuts
+    keyboardShortcutsService.register({
+      key: '?',
+      shift: true,
+      description: 'Show keyboard shortcuts',
+      category: 'general',
+      action: () => setShowKeyboardHelp(true),
+    });
+
+    keyboardShortcutsService.register({
+      key: 'g',
+      description: 'Go to feed',
+      category: 'navigation',
+      action: () => {
+        app.setViewMode(ViewMode.FEED);
+        app.navigateToBoard(null);
+      },
+    });
+
+    keyboardShortcutsService.register({
+      key: 'c',
+      description: 'Create new post',
+      category: 'navigation',
+      action: () => {
+        if (app.userState.identity) {
+          app.setViewMode(ViewMode.CREATE);
+        }
+      },
+    });
+
+    keyboardShortcutsService.register({
+      key: 'b',
+      description: 'Browse boards',
+      category: 'navigation',
+      action: () => app.setViewMode(ViewMode.BOARDS),
+    });
+
+    keyboardShortcutsService.register({
+      key: 's',
+      description: 'Search',
+      category: 'navigation',
+      action: () => {
+        const searchInput = document.querySelector('input[type="search"]') as HTMLInputElement;
+        searchInput?.focus();
+      },
+    });
+
+    keyboardShortcutsService.register({
+      key: 'Escape',
+      description: 'Close modal/dialog',
+      category: 'navigation',
+      action: () => {
+        if (showKeyboardHelp) setShowKeyboardHelp(false);
+        else if (showOnboarding) setShowOnboarding(false);
+        else if (app.viewMode !== ViewMode.FEED) app.setViewMode(ViewMode.FEED);
+      },
+    });
+
+    return () => keyboardShortcutsService.destroy();
+  }, [app, showKeyboardHelp, showOnboarding]);
+
+  // Check for first-time users
+  useEffect(() => {
+    const hasSeenOnboarding = localStorage.getItem('bitboard_onboarding_complete');
+    if (!hasSeenOnboarding && !app.userState.identity) {
+      setShowOnboarding(true);
+      analyticsService.track(AnalyticsEvents.ONBOARDING_STARTED);
+    }
+  }, [app.userState.identity]);
+
+  // Track identity creation
+  useEffect(() => {
+    if (app.userState.identity) {
+      const userId = app.userState.identity.pubkey;
+      const username = app.userState.username || 'Anonymous';
+
+      // Set user context in monitoring
+      sentryService.setUser({
+        id: userId,
+        username: username,
+        pubkey: userId,
+      });
+
+      analyticsService.identify(userId, {
+        username: username,
+        createdAt: new Date().toISOString(),
+      });
+    }
+  }, [app.userState.identity, app.userState.username]);
+
+  const handleOnboardingComplete = () => {
+    localStorage.setItem('bitboard_onboarding_complete', 'true');
+    setShowOnboarding(false);
+    analyticsService.track(AnalyticsEvents.ONBOARDING_COMPLETED);
+  };
+
+  const handleOnboardingSkip = () => {
+    localStorage.setItem('bitboard_onboarding_complete', 'true');
+    setShowOnboarding(false);
+    analyticsService.track(AnalyticsEvents.ONBOARDING_SKIPPED);
+  };
 
   return (
-    <div className="min-h-screen bg-terminal-bg text-terminal-text font-mono selection:bg-terminal-text selection:text-black relative overflow-x-hidden">
-      <ToastHost />
-      {/* Scanline Overlay */}
-      <div className="scanlines fixed inset-0 pointer-events-none z-50"></div>
+    <>
+      {/* SEO meta tags */}
+      <SEOHead />
+
+      {/* Keyboard shortcuts help modal */}
+      <KeyboardShortcutsHelp
+        isOpen={showKeyboardHelp}
+        onClose={() => setShowKeyboardHelp(false)}
+      />
+
+      {/* Onboarding flow for new users */}
+      <OnboardingFlow
+        isOpen={showOnboarding}
+        onComplete={handleOnboardingComplete}
+        onSkip={handleOnboardingSkip}
+      />
+
+      <div className="min-h-screen bg-terminal-bg text-terminal-text font-mono selection:bg-terminal-text selection:text-black relative overflow-x-hidden">
+        <ToastHost />
+        {/* Scanline Overlay */}
+        <div className="scanlines fixed inset-0 pointer-events-none z-50"></div>
 
       {/* Mobile Drawer */}
       <MobileDrawer
@@ -344,15 +475,16 @@ const AppContent: React.FC = () => {
         </div>
       </footer>
 
-      {/* Mobile Bottom Navigation */}
-      <MobileNav
-        viewMode={app.viewMode}
-        onSetViewMode={app.setViewMode}
-        onNavigateGlobal={() => app.navigateToBoard(null)}
-        identity={app.userState.identity || undefined}
-        bookmarkedCount={app.bookmarkedIds.length}
-      />
-    </div>
+        {/* Mobile Bottom Navigation */}
+        <MobileNav
+          viewMode={app.viewMode}
+          onSetViewMode={app.setViewMode}
+          onNavigateGlobal={() => app.navigateToBoard(null)}
+          identity={app.userState.identity || undefined}
+          bookmarkedCount={app.bookmarkedIds.length}
+        />
+      </div>
+    </>
   );
 };
 

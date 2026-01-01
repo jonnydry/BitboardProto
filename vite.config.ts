@@ -2,6 +2,7 @@ import path from 'path';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { visualizer } from 'rollup-plugin-visualizer';
+import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(({ mode }) => {
   const isProd = mode === 'production';
@@ -24,6 +25,75 @@ export default defineConfig(({ mode }) => {
 
     plugins: [
       react(),
+      VitePWA({
+        registerType: 'autoUpdate',
+        includeAssets: ['favicon.ico', 'robots.txt', 'apple-touch-icon.png'],
+        manifest: {
+          name: 'BitBoard - Decentralized Message Board',
+          short_name: 'BitBoard',
+          description: 'A terminal-styled message board built on the Nostr protocol',
+          theme_color: '#00ff00',
+          background_color: '#0a0a0a',
+          display: 'standalone',
+          orientation: 'portrait',
+          scope: '/',
+          start_url: '/',
+          icons: [
+            {
+              src: '/pwa-192x192.png',
+              sizes: '192x192',
+              type: 'image/png',
+            },
+            {
+              src: '/pwa-512x512.png',
+              sizes: '512x512',
+              type: 'image/png',
+            },
+            {
+              src: '/pwa-512x512.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'any maskable',
+            },
+          ],
+        },
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          runtimeCaching: [
+            {
+              urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'google-fonts-cache',
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+            {
+              urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'gstatic-fonts-cache',
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+          ],
+        },
+        devOptions: {
+          enabled: false, // Disable in dev for better DX
+        },
+      }),
       analyze
         ? visualizer({
             filename: 'dist/stats.html',
@@ -85,6 +155,26 @@ export default defineConfig(({ mode }) => {
         vmThreads: {
           singleThread: true,
         },
+      },
+      coverage: {
+        provider: 'v8',
+        reporter: ['text', 'json', 'html', 'lcov'],
+        exclude: [
+          'node_modules/',
+          'tests/',
+          '*.config.ts',
+          '*.config.js',
+          'dist/',
+          '.storybook/',
+          '**/*.stories.tsx',
+          '**/*.test.ts',
+          '**/*.test.tsx',
+        ],
+        all: true,
+        lines: 80,
+        functions: 80,
+        branches: 80,
+        statements: 80,
       },
     },
   };

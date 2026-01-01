@@ -33,6 +33,13 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Run test coverage
+        run: npm run test:coverage
+
+      - name: Security audit
+        run: npm audit --audit-level=high
+        continue-on-error: false
+
   build:
     name: Build Production Bundle
     runs-on: ubuntu-latest

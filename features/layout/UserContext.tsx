@@ -6,6 +6,7 @@ import { bookmarkService } from '../../services/bookmarkService';
 import { reportService } from '../../services/reportService';
 import { toastService } from '../../services/toastService';
 import { logger } from '../../services/loggingService';
+import { profileService } from '../../services/profileService';
 import { UIConfig } from '../../config';
 
 interface UserContextType {
@@ -101,8 +102,18 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const refreshProfileMetadata = useCallback(async (pubkeys: string[]) => {
-    // TODO: Implement profile metadata refresh
-    logger.debug('UserContext', `refreshProfileMetadata called with: ${pubkeys.length} pubkeys`);
+    if (pubkeys.length === 0) return;
+    
+    try {
+      // Refresh each profile (profileService handles batching)
+      const results = await Promise.all(
+        pubkeys.map(pubkey => profileService.refreshProfileMetadata(pubkey))
+      );
+      
+      logger.debug('UserContext', `Refreshed ${results.filter(Boolean).length} profiles`);
+    } catch (error) {
+      logger.error('UserContext', 'Failed to refresh profile metadata', error);
+    }
   }, []);
 
   // Subscribe to bookmark changes
