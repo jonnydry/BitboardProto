@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { MapPin, Navigation, RefreshCw, AlertTriangle, Check, Radio, Activity, Users } from 'lucide-react';
 import { geohashService, PRECISION_LABELS, PRECISION_DESCRIPTIONS } from '../services/geohashService';
 import { geonetDiscoveryService, type GeoChannel } from '../services/geonetDiscoveryService';
@@ -19,14 +19,7 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
   const [activeChannels, setActiveChannels] = useState<GeoChannel[]>([]);
   const [showActiveChannels, setShowActiveChannels] = useState(true);
 
-  // Discover active channels when position is set
-  useEffect(() => {
-    if (position) {
-      discoverChannels(position.lat, position.lon);
-    }
-  }, [position]);
-
-  const discoverChannels = async (lat: number, lon: number) => {
+  const discoverChannels = useCallback(async (lat: number, lon: number) => {
     setIsDiscovering(true);
     try {
       const result = await geonetDiscoveryService.discoverNearbyChannels(lat, lon);
@@ -36,7 +29,14 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
     } finally {
       setIsDiscovering(false);
     }
-  };
+  }, []);
+
+  // Discover active channels when position is set
+  useEffect(() => {
+    if (position) {
+      discoverChannels(position.lat, position.lon);
+    }
+  }, [position, discoverChannels]);
 
   const handleGetLocation = async () => {
     setIsLoading(true);

@@ -5,7 +5,10 @@ import { PostItem } from './PostItem';
 import { ProfileEditor } from './ProfileEditor';
 import { profileService, type ProfileMetadata } from '../services/profileService';
 import { useFollows } from '../hooks/useFollows';
-import { ArrowLeft, User, FileText, MessageSquare, TrendingUp, RefreshCw, VolumeX, Edit, Globe, Zap, Mail, ExternalLink, UserPlus, UserMinus } from 'lucide-react';
+import { dataExportService } from '../services/dataExportService';
+import { toastService } from '../services/toastService';
+import { UIConfig } from '../config';
+import { ArrowLeft, User, FileText, MessageSquare, TrendingUp, RefreshCw, VolumeX, Edit, Globe, Zap, Mail, ExternalLink, UserPlus, UserMinus, Download } from 'lucide-react';
 
 interface UserProfileProps {
   username: string;
@@ -197,6 +200,27 @@ export const UserProfile: React.FC<UserProfileProps> = ({
     }
   };
 
+  const handleExportData = async () => {
+    try {
+      await dataExportService.exportAndDownload();
+      toastService.push({
+        type: 'success',
+        message: 'Data exported successfully',
+        durationMs: UIConfig.TOAST_DURATION_MS,
+        dedupeKey: 'data-exported',
+      });
+    } catch (error) {
+      console.error('[UserProfile] Export error:', error);
+      toastService.push({
+        type: 'error',
+        message: 'Failed to export data',
+        detail: error instanceof Error ? error.message : 'Unknown error',
+        durationMs: UIConfig.TOAST_DURATION_MS,
+        dedupeKey: 'export-failed',
+      });
+    }
+  };
+
   // If editing profile, show the editor
   if (isEditingProfile && isOwnProfile) {
     return (
@@ -304,13 +328,23 @@ export const UserProfile: React.FC<UserProfileProps> = ({
 
               {/* Edit Profile Button */}
               {isOwnProfile && onSetViewMode && (
-                <button
-                  onClick={handleEditProfile}
-                  className="flex items-center gap-1 text-xs border border-terminal-dim px-2 py-0.5 hover:border-terminal-text hover:text-terminal-text transition-colors uppercase"
-                >
-                  <Edit size={12} />
-                  EDIT
-                </button>
+                <>
+                  <button
+                    onClick={handleEditProfile}
+                    className="flex items-center gap-1 text-xs border border-terminal-dim px-2 py-0.5 hover:border-terminal-text hover:text-terminal-text transition-colors uppercase"
+                  >
+                    <Edit size={12} />
+                    EDIT
+                  </button>
+                  <button
+                    onClick={handleExportData}
+                    className="flex items-center gap-1 text-xs border border-terminal-dim px-2 py-0.5 hover:border-terminal-text hover:text-terminal-text transition-colors uppercase"
+                    title="Export your data (GDPR compliant)"
+                  >
+                    <Download size={12} />
+                    EXPORT
+                  </button>
+                </>
               )}
 
               {authorPubkey && onRefreshProfile && (

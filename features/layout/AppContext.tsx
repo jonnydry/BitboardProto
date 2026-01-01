@@ -17,6 +17,9 @@ import { useCommentsLoader } from '../../hooks/useCommentsLoader';
 import { useVoting } from '../../hooks/useVoting';
 import { useCommentVoting } from '../../hooks/useCommentVoting';
 import { useAppEventHandlers } from './useAppEventHandlers';
+import { votingService } from '../../services/votingService';
+import { rateLimiter } from '../../services/rateLimiter';
+import { nostrEventDeduplicator, voteDeduplicator } from '../../services/messageDeduplicator';
 
 // Import new focused contexts
 import { PostsProvider, usePosts } from './contexts/PostsContext';
@@ -186,8 +189,9 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
         if (lastSearchQuery.current === query) {
           setWorkerSearchIds(new Set(ids));
         }
-      }).catch(() => {
+      }).catch((error) => {
         // Fallback to null (will use main thread)
+        logger.warn('AppContext', 'Search worker failed, falling back to main thread', error);
         setWorkerSearchIds(null);
       });
     }
@@ -469,7 +473,10 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const handleBeforeUnload = () => {
       nostrService.cleanup();
-      // votingService.cleanup(); // Would need to be passed down
+      votingService.cleanup();
+      rateLimiter.stopCleanup();
+      nostrEventDeduplicator.stopCleanup();
+      voteDeduplicator.stopCleanup();
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -477,7 +484,10 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       nostrService.cleanup();
-      // votingService.cleanup();
+      votingService.cleanup();
+      rateLimiter.stopCleanup();
+      nostrEventDeduplicator.stopCleanup();
+      voteDeduplicator.stopCleanup();
     };
   }, []);
 
