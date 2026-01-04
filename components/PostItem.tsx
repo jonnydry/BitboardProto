@@ -14,6 +14,7 @@ import { ImagePreview } from './ImagePreview';
 const MarkdownRenderer = lazy(() => import('./MarkdownRenderer').then(module => ({ default: module.MarkdownRenderer })));
 import { LinkPreviewList } from './LinkPreview';
 import { extractUrls } from '../services/linkPreviewService';
+import { ReactionBar } from './ReactionPicker';
 
 // Simple renderer for plain text content (no markdown)
 const PlainTextRenderer: React.FC<{ content: string }> = ({ content }) => (
@@ -695,6 +696,14 @@ const PostItemComponent: React.FC<PostItemProps> = ({
             </div>
             
             <div className="flex items-center gap-1 md:gap-2 flex-wrap justify-end">
+              {/* Reactions (FREE - social signals) */}
+              <ReactionBar
+                eventId={post.id}
+                nostrEventId={post.nostrEventId}
+                disabled={!userState.identity}
+                compact={true}
+              />
+
               {/* Bookmark Button */}
               <button
                 onClick={handleBookmarkClick}

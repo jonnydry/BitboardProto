@@ -21,6 +21,10 @@ import { usePostDecryption } from '../../hooks/usePostDecryption';
 import { votingService } from '../../services/votingService';
 import { rateLimiter } from '../../services/rateLimiter';
 import { nostrEventDeduplicator, voteDeduplicator } from '../../services/messageDeduplicator';
+import { dmService } from '../../services/dmService';
+import { followServiceV2 } from '../../services/followServiceV2';
+import { notificationServiceV2 } from '../../services/notificationServiceV2';
+import { advancedSearchService } from '../../services/advancedSearchService';
 
 // Import new focused contexts
 import { PostsProvider, usePosts } from './contexts/PostsContext';
@@ -389,6 +393,8 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     setSearchQuery: uiCtx.setSearchQuery,
     oldestTimestamp,
     hasMorePosts,
+    setOldestTimestamp,
+    setHasMorePosts,
     locationBoards: boardsCtx.locationBoards,
   });
 
@@ -415,6 +421,34 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     });
     return unsubscribe;
   }, []);
+
+  // Initialize Phase 2 services when identity changes
+  useEffect(() => {
+    const pubkey = userCtx.userState.identity?.pubkey;
+    if (!pubkey) return;
+
+    // Initialize all Phase 2 services with user context
+    const initServices = async () => {
+      try {
+        await dmService.initialize(pubkey);
+        await followServiceV2.initialize(pubkey);
+        await notificationServiceV2.initialize(pubkey);
+        advancedSearchService.initialize(pubkey);
+        logger.info('App', `Initialized Phase 2 services for ${pubkey.slice(0, 8)}...`);
+      } catch (err) {
+        logger.warn('App', 'Failed to initialize some Phase 2 services', err);
+      }
+    };
+    initServices();
+
+    // Cleanup on unmount or identity change
+    return () => {
+      dmService.cleanup();
+      followServiceV2.cleanup();
+      notificationServiceV2.cleanup();
+      advancedSearchService.cleanup();
+    };
+  }, [userCtx.userState.identity?.pubkey]);
 
   // Ensure identity is loaded
   useEffect(() => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bookmark, Zap, Bell, Globe, Plus, Menu, Wifi, WifiOff } from 'lucide-react';
+import { Bookmark, Zap, Bell, Globe, Plus, Menu, Wifi, WifiOff, MessageCircle, Search as _Search } from 'lucide-react';
 import type { NostrIdentity, UserState } from '../../types';
 import { ThemeId, ViewMode } from '../../types';
 import { notificationService } from '../../services/notificationService';
@@ -245,6 +245,17 @@ export function AppHeader(props: {
           <span className="hidden lg:inline">[ ALERTS{unreadCount > 0 ? ` (${unreadCount})` : ''} ]</span>
           <span className="lg:hidden">{unreadCount > 0 ? `(${unreadCount})` : '!'}</span>
         </button>
+        {identity && (
+          <button
+            onClick={() => onSetViewMode(ViewMode.DIRECT_MESSAGES)}
+            className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${viewMode === ViewMode.DIRECT_MESSAGES ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
+            title="Direct Messages"
+          >
+            <MessageCircle size={12} style={{ color: 'rgb(var(--color-terminal-text))' }} />
+            <span className="hidden lg:inline">[ DMs ]</span>
+            <span className="lg:hidden">DM</span>
+          </button>
+        )}
         <button
           onClick={() => onSetViewMode(ViewMode.RELAYS)}
           className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${viewMode === ViewMode.RELAYS ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}

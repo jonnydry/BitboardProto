@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { diagnosticsService } from '../services/diagnosticsService';
 
@@ -17,8 +17,11 @@ interface State {
  * Error Boundary component for graceful error handling
  * Prevents entire app crashes and provides user-friendly error messages
  */
-export class ErrorBoundary extends Component<Props, State> {
-  public state: Readonly<State>;
+ 
+export class ErrorBoundary extends React.Component<Props, State> {
+  declare state: State;
+  declare props: Props;
+  declare setState: React.Component<Props, State>['setState'];
 
   constructor(props: Props) {
     super(props);
@@ -136,4 +139,3 @@ export class ErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
-

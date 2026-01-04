@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, ChevronRight, ChevronLeft, Check } from 'lucide-react';
+import { X as _X, ChevronRight, ChevronLeft, Check } from 'lucide-react';
 
 interface OnboardingFlowProps {
   isOpen: boolean;
@@ -22,7 +22,7 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip }: OnboardingFlowPro
     "LOADING USER INTERFACE... [OK]",
     "SYSTEM READY."
   ]);
-  const [showContent, setShowContent] = useState(false);
+  const [_showContent, setShowContent] = useState(false);
 
   // Boot sequence animation
   useEffect(() => {

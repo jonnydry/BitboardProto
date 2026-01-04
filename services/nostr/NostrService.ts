@@ -696,6 +696,10 @@ class NostrService {
       boardAddress?: string;
       /** Used as a discoverability hashtag */
       boardName?: string;
+      /** Encrypted title (base64) */
+      encryptedTitle?: string;
+      /** Encrypted content (base64) */
+      encryptedContent?: string;
     }
   ): UnsignedNostrEvent {
     return buildPostEvent(post, pubkey, geohash, opts);
@@ -811,6 +815,8 @@ class NostrService {
       postAuthorPubkey?: string;
       /** Parent comment author's pubkey (for NIP-10 p tags) */
       parentCommentAuthorPubkey?: string;
+      /** Encrypted content (base64) */
+      encryptedContent?: string;
     }
   ): UnsignedNostrEvent {
     return buildCommentEvent(postEventId, content, pubkey, parentCommentId, opts);
@@ -826,6 +832,8 @@ class NostrService {
     targetCommentEventId: string;
     content: string;
     pubkey: string;
+    /** Encrypted content (base64) */
+    encryptedContent?: string;
   }): UnsignedNostrEvent {
     return buildCommentEditEvent(args);
   }
@@ -1224,7 +1232,7 @@ class NostrService {
       limit: opts.limit ?? 200,
     };
 
-    const events = await this.pool.querySync(this.getReadRelays(), filter);
+    const events = await this.pool.querySync(this.getReadRelays(), filter as Filter);
     return events.filter((event) => !nostrEventDeduplicator.isEventDuplicate(event.id) && this.isBitboardPostEditEvent(event));
   }
 
@@ -1291,9 +1299,10 @@ class NostrService {
       }, DEBOUNCE_MS);
     };
 
+     
     const sub = this.pool.subscribeMany(
       this.getReadRelays(),
-      [filter],
+      [filter] as any,
       {
         onevent: debouncedHandler,
         oneose: () => {
@@ -1337,7 +1346,8 @@ class NostrService {
       since: Math.floor(Date.now() / 1000) - NostrConfig.SUBSCRIPTION_SINCE_SECONDS,
     };
 
-    const sub = this.pool.subscribeMany(this.getReadRelays(), [filter], {
+     
+    const sub = this.pool.subscribeMany(this.getReadRelays(), [filter] as any, {
       onevent: (event) => {
         if (nostrEventDeduplicator.isEventDuplicate(event.id)) return;
         if (!this.isBitboardPostEditEvent(event)) return;
@@ -1368,7 +1378,8 @@ class NostrService {
       since: Math.floor(Date.now() / 1000) - NostrConfig.SUBSCRIPTION_SINCE_SECONDS,
     };
 
-    const sub = this.pool.subscribeMany(this.getReadRelays(), [filter], {
+     
+    const sub = this.pool.subscribeMany(this.getReadRelays(), [filter] as any, {
       onevent: (event) => {
         if (nostrEventDeduplicator.isEventDuplicate(event.id)) return;
         if (!this.isBitboardCommentEditEvent(event)) return;
@@ -1391,7 +1402,8 @@ class NostrService {
       since: Math.floor(Date.now() / 1000) - NostrConfig.SUBSCRIPTION_SINCE_SECONDS,
     };
 
-    const sub = this.pool.subscribeMany(this.getReadRelays(), [filter], {
+     
+    const sub = this.pool.subscribeMany(this.getReadRelays(), [filter] as any, {
       onevent: (event) => {
         if (nostrEventDeduplicator.isEventDuplicate(event.id)) return;
         if (!this.isBitboardCommentDeleteEvent(event)) return;
@@ -1658,3 +1670,6 @@ class NostrService {
 
 // Export singleton instance
 export const nostrService = new NostrService();
+
+// Export class for testing
+export { NostrService };

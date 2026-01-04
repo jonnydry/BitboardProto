@@ -270,13 +270,269 @@ class CryptoService {
            typeof crypto.subtle !== 'undefined' &&
            typeof crypto.subtle.encrypt === 'function';
   }
+
+  // ----------------------------------------
+  // NIP-04 ENCRYPTION (Legacy - for backward compatibility)
+  // ----------------------------------------
+
+  /**
+   * Encrypt a message using NIP-04 (secp256k1 ECDH + AES-256-CBC)
+   * Format: base64(ciphertext)?iv=base64(iv)
+   * 
+   * NOTE: NIP-04 is legacy. Prefer NIP-44 for new messages.
+   */
+  async encryptNIP04(
+    plaintext: string,
+    senderPrivkey: string,
+    recipientPubkey: string
+  ): Promise<string | null> {
+    try {
+      const { nip04 } = await import('nostr-tools');
+      const encrypted = await nip04.encrypt(senderPrivkey, recipientPubkey, plaintext);
+      return encrypted;
+    } catch (error) {
+      logger.error('Crypto', 'NIP-04 encryption failed', error);
+      return null;
+    }
+  }
+
+  /**
+   * Decrypt a NIP-04 encrypted message (async)
+   */
+  async decryptNIP04(
+    encryptedContent: string,
+    receiverPrivkey: string,
+    senderPubkey: string
+  ): Promise<string | null> {
+    try {
+      const { nip04 } = await import('nostr-tools');
+      const decrypted = await nip04.decrypt(receiverPrivkey, senderPubkey, encryptedContent);
+      return decrypted;
+    } catch (error) {
+      logger.error('Crypto', 'NIP-04 decryption failed', error);
+      return null;
+    }
+  }
+
+  // Alias for backward compatibility
+  async decryptNIP04Async(
+    encryptedContent: string,
+    receiverPrivkey: string,
+    senderPubkey: string
+  ): Promise<string | null> {
+    return this.decryptNIP04(encryptedContent, receiverPrivkey, senderPubkey);
+  }
+
+  // ----------------------------------------
+  // NIP-44 ENCRYPTION (Modern - Recommended)
+  // ----------------------------------------
+
+  /**
+   * Convert hex string to Uint8Array
+   */
+  private hexToBytes(hex: string): Uint8Array {
+    const bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+    }
+    return bytes;
+  }
+
+  /**
+   * Encrypt a message using NIP-44 (versioned encryption)
+   * 
+   * Benefits over NIP-04:
+   * - Message padding (hides message length)
+   * - ChaCha20-Poly1305 (modern AEAD)
+   * - Versioned for future upgrades
+   * - Better key derivation
+   */
+  async encryptNIP44(
+    plaintext: string,
+    senderPrivkey: string,
+    recipientPubkey: string
+  ): Promise<string | null> {
+    try {
+      const { nip44 } = await import('nostr-tools');
+      
+      // Convert hex string to Uint8Array
+      const privkeyBytes = this.hexToBytes(senderPrivkey);
+      
+      // Derive conversation key using ECDH
+      const conversationKey = nip44.getConversationKey(privkeyBytes, recipientPubkey);
+      
+      // Encrypt with NIP-44
+      const encrypted = nip44.encrypt(plaintext, conversationKey);
+      return encrypted;
+    } catch (error) {
+      logger.error('Crypto', 'NIP-44 encryption failed', error);
+      return null;
+    }
+  }
+
+  /**
+   * Decrypt a NIP-44 encrypted message
+   */
+  async decryptNIP44(
+    encryptedContent: string,
+    receiverPrivkey: string,
+    senderPubkey: string
+  ): Promise<string | null> {
+    try {
+      const { nip44 } = await import('nostr-tools');
+      
+      // Convert hex string to Uint8Array
+      const privkeyBytes = this.hexToBytes(receiverPrivkey);
+      
+      // Derive conversation key using ECDH
+      const conversationKey = nip44.getConversationKey(privkeyBytes, senderPubkey);
+      
+      // Decrypt with NIP-44
+      const decrypted = nip44.decrypt(encryptedContent, conversationKey);
+      return decrypted;
+    } catch (error) {
+      logger.error('Crypto', 'NIP-44 decryption failed', error);
+      return null;
+    }
+  }
+
+  // ----------------------------------------
+  // NIP-17 GIFT WRAPPING (Most Private DMs)
+  // ----------------------------------------
+
+  /**
+   * Create a NIP-17 gift-wrapped DM
+   * 
+   * Structure:
+   * 1. Rumor (unsigned kind 14) - actual message content
+   * 2. Seal (kind 13) - encrypted rumor, signed by sender
+   * 3. Gift Wrap (kind 1059) - encrypted seal, signed by random key
+   * 
+   * Benefits:
+   * - Hides sender/recipient from relays
+   * - Provides plausible deniability
+   * - Combines NIP-44 encryption for security
+   */
+  async createGiftWrap(args: {
+    content: string;
+    senderPrivkey: string;
+    senderPubkey: string;
+    recipientPubkey: string;
+    replyToId?: string;
+  }): Promise<{ giftWrap: any; sealEvent: any; rumor: any } | null> {
+    try {
+      const { nip44, nip59: _nip59, finalizeEvent, generateSecretKey, getPublicKey } = await import('nostr-tools');
+      
+      // 1. Create the rumor (unsigned kind 14 event)
+      const rumor = {
+        kind: 14, // NIP-17 private DM kind
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [['p', args.recipientPubkey]],
+        content: args.content,
+        pubkey: args.senderPubkey,
+      };
+
+      // Add reply reference if applicable
+      if (args.replyToId) {
+        rumor.tags.push(['e', args.replyToId, '', 'reply']);
+      }
+
+      // 2. Create the seal (kind 13) - encrypted rumor
+      const senderPrivkeyBytes = this.hexToBytes(args.senderPrivkey);
+      const sealConversationKey = nip44.getConversationKey(senderPrivkeyBytes, args.recipientPubkey);
+      const encryptedRumor = nip44.encrypt(JSON.stringify(rumor), sealConversationKey);
+      
+      const sealEvent = finalizeEvent({
+        kind: 13,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [],
+        content: encryptedRumor,
+      }, senderPrivkeyBytes);
+
+      // 3. Create the gift wrap (kind 1059) - encrypted seal with random key
+      const randomPrivkey = generateSecretKey();
+      const _randomPubkey = getPublicKey(randomPrivkey);
+      
+      const wrapConversationKey = nip44.getConversationKey(randomPrivkey, args.recipientPubkey);
+      const encryptedSeal = nip44.encrypt(JSON.stringify(sealEvent), wrapConversationKey);
+
+      const giftWrap = finalizeEvent({
+        kind: 1059,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [['p', args.recipientPubkey]],
+        content: encryptedSeal,
+      }, randomPrivkey);
+
+      return { giftWrap, sealEvent, rumor };
+    } catch (error) {
+      logger.error('Crypto', 'Failed to create gift wrap', error);
+      return null;
+    }
+  }
+
+  /**
+   * Unwrap a NIP-17 gift-wrapped DM
+   * 
+   * @returns The decrypted rumor (message content) or null
+   */
+  async unwrapGiftWrap(args: {
+    giftWrapEvent: any;
+    recipientPrivkey: string;
+  }): Promise<{
+    content: string;
+    senderPubkey: string;
+    timestamp: number;
+    replyToId?: string;
+  } | null> {
+    try {
+      const { nip44 } = await import('nostr-tools');
+      
+      // Convert hex string to Uint8Array
+      const recipientPrivkeyBytes = this.hexToBytes(args.recipientPrivkey);
+      
+      // 1. Decrypt the gift wrap to get the seal
+      const wrapperPubkey = args.giftWrapEvent.pubkey;
+      const wrapConversationKey = nip44.getConversationKey(recipientPrivkeyBytes, wrapperPubkey);
+      const sealJson = nip44.decrypt(args.giftWrapEvent.content, wrapConversationKey);
+      const sealEvent = JSON.parse(sealJson);
+
+      // 2. Decrypt the seal to get the rumor
+      const sealConversationKey = nip44.getConversationKey(recipientPrivkeyBytes, sealEvent.pubkey);
+      const rumorJson = nip44.decrypt(sealEvent.content, sealConversationKey);
+      const rumor = JSON.parse(rumorJson);
+
+      // 3. Extract message details
+      const replyTag = rumor.tags?.find((t: string[]) => t[0] === 'e' && t[3] === 'reply');
+
+      return {
+        content: rumor.content,
+        senderPubkey: sealEvent.pubkey, // Actual sender from seal
+        timestamp: rumor.created_at * 1000,
+        replyToId: replyTag?.[1],
+      };
+    } catch (error) {
+      logger.error('Crypto', 'Failed to unwrap gift wrap', error);
+      return null;
+    }
+  }
+
+  /**
+   * Detect if an event is a NIP-17 gift wrap
+   */
+  isGiftWrap(event: any): boolean {
+    return event?.kind === 1059;
+  }
+
+  /**
+   * Detect if an event is a NIP-04 DM (legacy)
+   */
+  isLegacyDM(event: any): boolean {
+    return event?.kind === 4;
+  }
 }
 
 // Export singleton instance
 export const cryptoService = new CryptoService();
 
-
-
-
-
-
+// Export the class for testing
+export { CryptoService };

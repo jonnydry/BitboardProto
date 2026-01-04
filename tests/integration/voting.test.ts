@@ -20,10 +20,13 @@ describe('Voting Integration', () => {
     vi.mocked(votingService.fetchVotesForPosts).mockResolvedValue(
       new Map([
         ['event-1', {
+          postId: 'event-1',
           upvotes: 5,
           downvotes: 1,
           score: 4,
           uniqueVoters: 6,
+          votes: new Map(),
+          lastUpdated: Date.now(),
         }],
       ])
     );
@@ -54,13 +57,3 @@ describe('Voting Integration', () => {
     expect(tallies.get('event-2')?.score).toBe(0);
   });
 });
-
-
-
-
-
-
-
-
-
-

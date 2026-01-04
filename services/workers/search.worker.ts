@@ -36,14 +36,32 @@ interface SearchablePost {
 let postIndex: Map<string, SearchablePost> = new Map();
 
 // Message types
-type WorkerMessage =
-  | { type: 'UPDATE_INDEX'; posts: Array<{ id: string; boardId: string; title: string; author: string; authorPubkey?: string; content: string; tags: string[]; comments: Array<{ author: string; content: string }> }> }
-  | { type: 'SEARCH'; query: string; requestId: string };
+interface UpdateIndexMessage {
+  type: 'UPDATE_INDEX';
+  posts: Array<{
+    id: string;
+    boardId: string;
+    title: string;
+    author: string;
+    authorPubkey?: string;
+    content: string;
+    tags: string[];
+    comments: Array<{ author: string; content: string }>;
+  }>;
+}
+
+interface SearchMessage {
+  type: 'SEARCH';
+  query: string;
+  requestId: string;
+}
+
+type WorkerMessage = UpdateIndexMessage | SearchMessage;
 
 /**
  * Build searchable index from posts
  */
-function buildIndex(posts: WorkerMessage extends { type: 'UPDATE_INDEX' } ? WorkerMessage['posts'] : never): void {
+function buildIndex(posts: UpdateIndexMessage['posts']): void {
   const newIndex = new Map<string, SearchablePost>();
 
   for (const post of posts) {

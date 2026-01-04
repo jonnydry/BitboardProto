@@ -7,6 +7,7 @@ import { ReportModal } from './ReportModal';
 import { reportService } from '../services/reportService';
 import { profileService } from '../services/profileService';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { ReactionBar } from './ReactionPicker';
 
 interface CommentThreadProps {
   comment: Comment;
@@ -392,6 +393,14 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
 
             {/* Actions */}
             <div className="flex items-center gap-3">
+              {/* Reactions (FREE - social signals) */}
+              <ReactionBar
+                eventId={comment.id}
+                nostrEventId={comment.nostrEventId}
+                disabled={!userState.identity}
+                compact={true}
+              />
+
               <button
                 onClick={handleReplyClick}
                 className={`text-xs flex items-center gap-1 transition-colors

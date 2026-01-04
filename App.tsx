@@ -30,11 +30,26 @@ const BoardBrowser = lazy(() => import('./components/BoardBrowser').then(module 
 const NotificationCenter = lazy(() => import('./components/NotificationCenter').then(module => ({ default: module.NotificationCenter })));
 const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy').then(module => ({ default: module.PrivacyPolicy })));
 const TermsOfService = lazy(() => import('./components/TermsOfService').then(module => ({ default: module.TermsOfService })));
+const DirectMessages = lazy(() => import('./components/DirectMessages').then(module => ({ default: module.DirectMessages })));
+// AdvancedSearchView is available for future use when advanced search UI is implemented
+const _AdvancedSearchView = lazy(() => import('./components/AdvancedSearch').then(module => ({ default: module.AdvancedSearch })));
 
-// Loading fallback for lazy components
+// Loading skeletons are available for future use when implementing progressive loading
+import { 
+  FeedSkeleton as _FeedSkeleton, 
+  UserProfileSkeleton as _UserProfileSkeleton, 
+  BoardListSkeleton as _BoardListSkeleton,
+  NotificationListSkeleton as _NotificationListSkeleton,
+  DMConversationSkeleton as _DMConversationSkeleton,
+  PageSkeleton as _PageSkeleton 
+} from './components/LoadingSkeletons';
+
+// Default loading fallback
 const LoadingFallback = () => (
   <div className="flex items-center justify-center py-8">
-    <div className="animate-pulse">LOADING...</div>
+    <div className="animate-pulse text-terminal-dim uppercase tracking-wider">
+      LOADING...
+    </div>
   </div>
 );
 
@@ -83,7 +98,7 @@ const AppContent: React.FC = () => {
       key: 'b',
       description: 'Browse boards',
       category: 'navigation',
-      action: () => app.setViewMode(ViewMode.BOARDS),
+      action: () => app.setViewMode(ViewMode.BROWSE_BOARDS),
     });
 
     keyboardShortcutsService.register({
@@ -428,6 +443,19 @@ const AppContent: React.FC = () => {
             {app.viewMode === ViewMode.TERMS_OF_SERVICE && (
               <Suspense fallback={<LoadingFallback />}>
                 <TermsOfService />
+              </Suspense>
+            )}
+            {/* Direct Messages View */}
+            {app.viewMode === ViewMode.DIRECT_MESSAGES && (
+              <Suspense fallback={<LoadingFallback />}>
+                <DirectMessages
+                  currentUserPubkey={app.userState.identity?.pubkey || null}
+                  knownUsers={Object.fromEntries(
+                    Array.from(app.knownUsers).map(u => [u, { name: u }])
+                  )}
+                  onClose={() => app.setViewMode(ViewMode.FEED)}
+                  onViewProfile={(pubkey) => app.handleViewProfile('', pubkey)}
+                />
               </Suspense>
             )}
           </main>

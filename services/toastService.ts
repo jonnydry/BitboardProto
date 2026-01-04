@@ -4,7 +4,7 @@
 // Minimal global notification bus (no external deps)
 import { diagnosticsService } from './diagnosticsService';
 
-export type ToastType = 'info' | 'success' | 'error';
+export type ToastType = 'info' | 'success' | 'error' | 'warning';
 
 export interface Toast {
   id: string;

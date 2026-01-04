@@ -115,7 +115,7 @@ class DataExportService {
       };
     } catch (error) {
       logger.warn('DataExport', 'Failed to export settings', error);
-      return {};
+      return { theme: 'amber', relays: [] };
     }
   }
 

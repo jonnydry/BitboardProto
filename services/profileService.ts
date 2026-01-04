@@ -30,12 +30,13 @@ class ProfileService {
   async getProfileMetadata(pubkey: string): Promise<ProfileMetadata | null> {
     try {
       const profile = await nostrService.fetchProfiles([pubkey], { force: false });
-      const metadata = profile.get(pubkey);
+      const rawMetadata = profile.get(pubkey);
+      const metadata = rawMetadata as unknown as ProfileMetadata | undefined;
       if (metadata) {
         // Update local cache
         this.profileCache.set(pubkey, metadata);
       }
-      return metadata || null;
+      return metadata ?? null;
     } catch (error) {
       console.error('[ProfileService] Failed to fetch profile:', error);
       return null;
@@ -58,8 +59,8 @@ class ProfileService {
     if (pubkeys.length === 0) return;
     try {
       const profiles = await nostrService.fetchProfiles(pubkeys, { force: false });
-      profiles.forEach((metadata, pubkey) => {
-        this.profileCache.set(pubkey, metadata);
+      profiles.forEach((rawMetadata, pubkey) => {
+        this.profileCache.set(pubkey, rawMetadata as unknown as ProfileMetadata);
       });
     } catch (error) {
       console.error('[ProfileService] Failed to prefetch profiles:', error);
@@ -72,8 +73,8 @@ class ProfileService {
   async refreshProfileMetadata(pubkey: string): Promise<ProfileMetadata | null> {
     try {
       const profile = await nostrService.fetchProfiles([pubkey], { force: true });
-      const metadata = profile.get(pubkey);
-      return metadata || null;
+      const rawMetadata = profile.get(pubkey);
+      return (rawMetadata as unknown as ProfileMetadata) ?? null;
     } catch (error) {
       console.error('[ProfileService] Failed to refresh profile:', error);
       return null;
@@ -175,4 +176,3 @@ class ProfileService {
 }
 
 export const profileService = new ProfileService();
-

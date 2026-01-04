@@ -88,7 +88,7 @@ export function BoardBrowser({ topicBoards, onNavigateToBoard, onSetViewMode, on
     onNavigateToBoard(boardId);
   };
 
-  const BoardCard = ({ board }: { board: Board }) => {
+  const BoardCard: React.FC<{ board: Board }> = ({ board }) => {
     const hasKey = encryptedBoardIds.has(board.id);
     const isLocked = board.isEncrypted && !hasKey;
 

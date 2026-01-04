@@ -1,9 +1,10 @@
 import path from 'path';
-import { defineConfig } from 'vitest/config';
+import { defineConfig, type UserConfig as _UserConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { visualizer } from 'rollup-plugin-visualizer';
 import { VitePWA } from 'vite-plugin-pwa';
 
+// @ts-expect-error - vitest/vite type version mismatch
 export default defineConfig(({ mode }) => {
   const isProd = mode === 'production';
   const analyze = process.env.ANALYZE === 'true';
@@ -114,16 +115,70 @@ export default defineConfig(({ mode }) => {
       // Keep sourcemaps out of production artifacts by default.
       sourcemap: !isProd,
 
+      // Chunk size warning threshold (in KB)
+      chunkSizeWarningLimit: 600,
+
       // Provide predictable, cache-friendly chunks.
       rollupOptions: {
         output: {
-          manualChunks: {
-            react: ['react', 'react-dom'],
-            nostr: ['nostr-tools'],
-            genai: ['@google/genai'],
-            markdown: ['react-markdown', 'react-syntax-highlighter'],
-            virtual: ['@tanstack/react-virtual'],
-            icons: ['lucide-react'],
+          manualChunks(id) {
+            // React core
+            if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) {
+              return 'react';
+            }
+            
+            // Nostr libraries
+            if (id.includes('node_modules/nostr-tools/') || id.includes('node_modules/@noble/')) {
+              return 'nostr';
+            }
+            
+            // Google AI
+            if (id.includes('node_modules/@google/genai')) {
+              return 'genai';
+            }
+            
+            // Markdown rendering
+            if (id.includes('react-markdown') || id.includes('react-syntax-highlighter') || 
+                id.includes('remark') || id.includes('rehype') || id.includes('unified') ||
+                id.includes('micromark') || id.includes('mdast') || id.includes('hast')) {
+              return 'markdown';
+            }
+            
+            // Virtualization
+            if (id.includes('@tanstack/react-virtual') || id.includes('@tanstack/virtual-core')) {
+              return 'virtual';
+            }
+            
+            // Icons - only frequently used ones in main bundle
+            if (id.includes('lucide-react')) {
+              return 'icons';
+            }
+            
+            // Date/time utilities
+            if (id.includes('date-fns') || id.includes('luxon') || id.includes('dayjs')) {
+              return 'datetime';
+            }
+            
+            // Form/validation libraries
+            if (id.includes('zod') || id.includes('yup') || id.includes('formik') || id.includes('react-hook-form')) {
+              return 'forms';
+            }
+            
+            // Crypto libraries
+            if (id.includes('@scure/') || id.includes('secp256k1') || id.includes('bech32')) {
+              return 'crypto';
+            }
+            
+            // All other vendor modules in a separate chunk
+            if (id.includes('node_modules')) {
+              // Extract package name
+              const match = id.match(/node_modules\/(@[^/]+\/[^/]+|[^/]+)/);
+              if (match) {
+                // Package name available: match[1].replace(/[@/]/g, '_')
+                // Group small packages into vendor chunk
+                return 'vendor';
+              }
+            }
           },
         },
       },

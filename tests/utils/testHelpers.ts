@@ -10,9 +10,10 @@ export function createMockIdentity(overrides?: Partial<NostrIdentity>): NostrIde
     kind: 'local',
     pubkey: 'a'.repeat(64),
     privkey: 'b'.repeat(64),
+    npub: 'npub1' + 'a'.repeat(59),
     displayName: 'Test User',
     ...overrides,
-  };
+  } as NostrIdentity;
 }
 
 /**
@@ -24,7 +25,9 @@ export function createMockUserState(overrides?: Partial<UserState>): UserState {
     hasIdentity: true,
     identity: createMockIdentity(),
     votedPosts: {},
+    votedComments: {},
     bits: 100,
+    maxBits: 1000,
     ...overrides,
   };
 }
@@ -106,13 +109,3 @@ export class MockLocalStorage {
     return keys[index] || null;
   }
 }
-
-
-
-
-
-
-
-
-
-

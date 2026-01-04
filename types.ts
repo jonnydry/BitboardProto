@@ -165,6 +165,7 @@ export enum ViewMode {
   BOOKMARKS = 'BOOKMARKS',
   EDIT_POST = 'EDIT_POST',
   NOTIFICATIONS = 'NOTIFICATIONS',
+  DIRECT_MESSAGES = 'DIRECT_MESSAGES',  // NIP-04 encrypted DMs
   PRIVACY_POLICY = 'PRIVACY_POLICY',
   TERMS_OF_SERVICE = 'TERMS_OF_SERVICE'
 }
@@ -193,13 +194,18 @@ export enum ThemeId {
 // ============================================
 
 export const NOSTR_KINDS = {
-  POST: 1,                    // Standard text note (we add tags)
-  DELETE: 5,                  // NIP-09 deletion event
-  REACTION: 7,                // Upvote/downvote
-  REPORT: 1984,               // NIP-56 content reporting
-  RELAY_LIST: 10002,          // NIP-65 relay list (kind 10002)
-  BOARD_DEFINITION: 30001,    // Parameterized replaceable for boards
-  LONG_FORM: 30023,           // Long-form content
+  POST: 1,
+  CONTACT_LIST: 3,        // NIP-02 follow list
+  ENCRYPTED_DM: 4,        // NIP-04 encrypted direct messages (legacy)
+  DELETE: 5,
+  REACTION: 7,
+  SEAL: 13,               // NIP-17 seal (encrypted rumor)
+  PRIVATE_DM: 14,         // NIP-17 rumor (actual DM content)
+  GIFT_WRAP: 1059,        // NIP-17 gift wrap (most private DMs)
+  REPORT: 1984,
+  RELAY_LIST: 10002,
+  BOARD_DEFINITION: 30001,
+  LONG_FORM: 30023,
 } as const;
 
 // ============================================

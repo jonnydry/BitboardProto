@@ -223,6 +223,9 @@ export const PostsProvider: React.FC<PostsProviderProps> = ({
     setSearchQuery: () => {},
     oldestTimestamp,
     hasMorePosts,
+    setOldestTimestamp,
+    setHasMorePosts,
+    locationBoards: [], // Will be passed from boards context
   });
 
   const { loaderRef, isLoading } = useInfiniteScroll(

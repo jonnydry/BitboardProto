@@ -8,7 +8,8 @@ import { useFollows } from '../hooks/useFollows';
 import { dataExportService } from '../services/dataExportService';
 import { toastService } from '../services/toastService';
 import { UIConfig } from '../config';
-import { ArrowLeft, User, FileText, MessageSquare, TrendingUp, RefreshCw, VolumeX, Edit, Globe, Zap, Mail, ExternalLink, UserPlus, UserMinus, Download } from 'lucide-react';
+import { ArrowLeft, User, FileText, MessageSquare, TrendingUp, RefreshCw, VolumeX, Edit, Globe, Zap, Mail, ExternalLink, Download, UserPlus, UserMinus } from 'lucide-react';
+import { FollowButton as _FollowButton, FollowStats as _FollowStats } from './FollowButton';
 
 interface UserProfileProps {
   username: string;
