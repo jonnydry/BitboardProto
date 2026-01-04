@@ -25,6 +25,27 @@ interface BoardsProviderProps {
   children: React.ReactNode;
 }
 
+/**
+ * Merge cached boards with INITIAL_BOARDS.
+ * - All INITIAL_BOARDS are always included (ensures updates propagate to users)
+ * - User-created boards from cache are preserved
+ */
+function mergeWithInitialBoards(cachedBoards: Board[]): Board[] {
+  const initialBoardIds = new Set(INITIAL_BOARDS.map(b => b.id));
+  
+  // Start with all default boards (ensures updates to defaults propagate)
+  const merged = [...INITIAL_BOARDS];
+  
+  // Add any user-created boards from cache (boards not in INITIAL_BOARDS)
+  for (const cached of cachedBoards) {
+    if (!initialBoardIds.has(cached.id)) {
+      merged.push(cached);
+    }
+  }
+  
+  return merged;
+}
+
 export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
   const [boards, setBoards] = useState<Board[]>(() => {
     try {
@@ -34,9 +55,12 @@ export const BoardsProvider: React.FC<BoardsProviderProps> = ({ children }) => {
       const parsed = JSON.parse(raw) as { savedAt?: number; boards?: unknown };
       if (!parsed || !Array.isArray(parsed.boards)) return INITIAL_BOARDS;
 
-      return parsed.boards.filter((b: any) =>
+      const cachedBoards = parsed.boards.filter((b: any) =>
         b && typeof b.id === 'string' && typeof b.name === 'string'
-      );
+      ) as Board[];
+      
+      // Merge cached boards with INITIAL_BOARDS to ensure new defaults appear
+      return mergeWithInitialBoards(cachedBoards);
     } catch (error) {
       console.error('[BoardsContext] Failed to load cached boards:', error);
       return INITIAL_BOARDS;

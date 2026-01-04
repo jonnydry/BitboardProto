@@ -292,6 +292,55 @@ class EncryptedBoardService {
     return parsed;
   }
 
+  /**
+   * Import a share link from user input (pasted link)
+   * Parses the link and saves the key
+   */
+  importFromShareLink(shareLink: string): { boardId: string; key: string } | null {
+    try {
+      const url = new URL(shareLink);
+      
+      // Extract board ID from path (/b/boardId)
+      const pathMatch = url.pathname.match(/\/b\/([^/]+)/);
+      const boardId = pathMatch?.[1];
+      
+      if (!boardId) {
+        throw new Error('Invalid share link: missing board ID');
+      }
+
+      // Extract key from fragment (#key=...)
+      const hash = url.hash;
+      if (!hash.includes('key=')) {
+        throw new Error('Invalid share link: missing encryption key');
+      }
+
+      const keyMatch = hash.match(/key=([A-Za-z0-9_-]+)/);
+      if (!keyMatch) {
+        throw new Error('Invalid share link: malformed encryption key');
+      }
+
+      // Convert URL-safe base64 back to standard base64
+      let key = keyMatch[1]
+        .replace(/-/g, '+')
+        .replace(/_/g, '/');
+      
+      // Add padding if needed
+      while (key.length % 4 !== 0) {
+        key += '=';
+      }
+
+      // Save the key for this board
+      this.saveBoardKey(boardId, key);
+
+      return { boardId, key };
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Invalid share link')) {
+        throw error;
+      }
+      throw new Error('Invalid share link format');
+    }
+  }
+
   // ----------------------------------------
   // UTILITY
   // ----------------------------------------

@@ -447,6 +447,9 @@ const AppContent: React.FC = () => {
               setFeedFilter={app.setFeedFilter}
               topicBoards={app.topicBoards}
               geohashBoards={app.geohashBoards}
+              boardsById={app.boardsById}
+              decryptionFailedBoardIds={app.decryptionFailedBoardIds}
+              removeFailedDecryptionKey={app.removeFailedDecryptionKey}
               navigateToBoard={app.navigateToBoard}
               onSetViewMode={app.setViewMode}
             />

@@ -1,7 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { ArrowLeft, Hash, Lock, Globe, Plus } from 'lucide-react';
+import { ArrowLeft, Hash, Lock, Globe, Plus, Shield, Key, Link2, Check, AlertTriangle, Unlock } from 'lucide-react';
 import type { Board } from '../types';
 import { ViewMode } from '../types';
+import { encryptedBoardService } from '../services/encryptedBoardService';
+import { toastService } from '../services/toastService';
+import { UIConfig } from '../config';
 
 interface BoardBrowserProps {
   topicBoards: Board[];
@@ -12,6 +15,48 @@ interface BoardBrowserProps {
 
 export function BoardBrowser({ topicBoards, onNavigateToBoard, onSetViewMode, onClose }: BoardBrowserProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [shareLinkInput, setShareLinkInput] = useState('');
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSuccess, setImportSuccess] = useState(false);
+
+  // Get IDs of boards we have keys for
+  const encryptedBoardIds = useMemo(() => new Set(encryptedBoardService.getEncryptedBoardIds()), []);
+
+  const handleImportShareLink = () => {
+    setImportError(null);
+    setImportSuccess(false);
+
+    if (!shareLinkInput.trim()) {
+      setImportError('Please enter a share link');
+      return;
+    }
+
+    try {
+      // Try to parse the share link
+      const result = encryptedBoardService.importFromShareLink(shareLinkInput.trim());
+      
+      if (result) {
+        setImportSuccess(true);
+        setShareLinkInput('');
+        toastService.push({
+          type: 'success',
+          message: 'Board access granted',
+          detail: `You can now decrypt content in board ${result.boardId.slice(0, 8)}...`,
+          durationMs: UIConfig.TOAST_DURATION_MS,
+          dedupeKey: 'share-link-imported',
+        });
+        
+        // Navigate to the board after a short delay
+        setTimeout(() => {
+          onNavigateToBoard(result.boardId);
+        }, 500);
+      } else {
+        setImportError('Invalid share link format');
+      }
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : 'Failed to import share link');
+    }
+  };
 
   // Filter boards based on search query
   const filteredBoards = useMemo(() => {
@@ -24,43 +69,83 @@ export function BoardBrowser({ topicBoards, onNavigateToBoard, onSetViewMode, on
     );
   }, [topicBoards, searchQuery]);
 
-  const publicBoards = filteredBoards.filter(b => b.isPublic);
-  const privateBoards = filteredBoards.filter(b => !b.isPublic);
+  const publicBoards = filteredBoards.filter(b => b.isPublic && !b.isEncrypted);
+  const privateBoards = filteredBoards.filter(b => !b.isPublic && !b.isEncrypted);
+  const encryptedBoards = filteredBoards.filter(b => b.isEncrypted);
 
-  const handleBoardClick = (boardId: string) => {
+  const handleBoardClick = (boardId: string, board: Board) => {
+    // Check if it's an encrypted board without key
+    if (board.isEncrypted && !encryptedBoardIds.has(boardId)) {
+      toastService.push({
+        type: 'error',
+        message: 'Access denied',
+        detail: 'You need a share link to access this encrypted board',
+        durationMs: UIConfig.TOAST_DURATION_MS,
+        dedupeKey: 'encrypted-no-key',
+      });
+      return;
+    }
     onNavigateToBoard(boardId);
   };
 
-  const BoardCard = ({ board }: { board: Board }) => (
-    <div
-      onClick={() => handleBoardClick(board.id)}
-      className="border border-terminal-dim p-4 bg-terminal-bg hover:border-terminal-text transition-all cursor-pointer group"
-    >
-      <div className="flex items-start justify-between mb-2">
-        <h3 className="font-bold text-terminal-text flex items-center gap-2">
-          {!board.isPublic && <Lock size={14} className="text-terminal-dim" />}
-          {board.isPublic && <Hash size={14} className="text-terminal-dim group-hover:text-terminal-text" />}
-          {board.name}
-        </h3>
-        <span className="text-[10px] text-terminal-dim uppercase">
-          {board.isPublic ? 'PUBLIC' : 'PRIVATE'}
-        </span>
-      </div>
+  const BoardCard = ({ board }: { board: Board }) => {
+    const hasKey = encryptedBoardIds.has(board.id);
+    const isLocked = board.isEncrypted && !hasKey;
 
-      <p className="text-sm text-terminal-dim mb-3 line-clamp-2">
-        {board.description}
-      </p>
+    return (
+      <div
+        onClick={() => handleBoardClick(board.id, board)}
+        className={`border p-4 bg-terminal-bg transition-all group ${
+          isLocked 
+            ? 'border-terminal-dim/50 cursor-not-allowed opacity-60' 
+            : 'border-terminal-dim hover:border-terminal-text cursor-pointer'
+        }`}
+      >
+        <div className="flex items-start justify-between mb-2">
+          <h3 className="font-bold text-terminal-text flex items-center gap-2">
+            {board.isEncrypted ? (
+              hasKey ? (
+                <Unlock size={14} className="text-terminal-text" />
+              ) : (
+                <Lock size={14} className="text-terminal-dim" />
+              )
+            ) : !board.isPublic ? (
+              <Lock size={14} className="text-terminal-dim" />
+            ) : (
+              <Hash size={14} className="text-terminal-dim group-hover:text-terminal-text" />
+            )}
+            {board.name}
+          </h3>
+          <div className="flex items-center gap-2">
+            {board.isEncrypted && (
+              <span className={`text-[10px] uppercase flex items-center gap-1 ${hasKey ? 'text-terminal-text' : 'text-terminal-dim'}`}>
+                <Shield size={10} />
+                {hasKey ? 'DECRYPTED' : 'ENCRYPTED'}
+              </span>
+            )}
+            {!board.isEncrypted && (
+              <span className="text-[10px] text-terminal-dim uppercase">
+                {board.isPublic ? 'PUBLIC' : 'PRIVATE'}
+              </span>
+            )}
+          </div>
+        </div>
 
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-terminal-dim">
-          MEMBERS: {board.memberCount}
-        </span>
-        <div className="text-xs text-terminal-text opacity-0 group-hover:opacity-100 transition-opacity">
-          ENTER →
+        <p className="text-sm text-terminal-dim mb-3 line-clamp-2">
+          {isLocked ? '[ENCRYPTED CONTENT - SHARE LINK REQUIRED]' : board.description}
+        </p>
+
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-terminal-dim">
+            MEMBERS: {board.memberCount}
+          </span>
+          <div className={`text-xs transition-opacity ${isLocked ? 'opacity-100 text-terminal-dim' : 'opacity-0 group-hover:opacity-100 text-terminal-text'}`}>
+            {isLocked ? 'LOCKED' : 'ENTER →'}
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="animate-fade-in">
@@ -106,6 +191,69 @@ export function BoardBrowser({ topicBoards, onNavigateToBoard, onSetViewMode, on
           />
         </div>
       </div>
+
+      {/* Import Share Link */}
+      <div className="mb-8 border border-terminal-dim p-4 bg-terminal-bg/50">
+        <h3 className="text-sm font-bold border-b border-terminal-dim mb-3 pb-1 text-terminal-text flex items-center gap-2">
+          <Link2 size={14} />
+          IMPORT_SHARE_LINK
+        </h3>
+        <p className="text-xs text-terminal-dim mb-3">
+          Have a share link for an encrypted board? Paste it below to gain access.
+        </p>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-2 text-terminal-dim text-sm">
+              <Key size={12} />
+            </span>
+            <input
+              type="text"
+              value={shareLinkInput}
+              onChange={(e) => {
+                setShareLinkInput(e.target.value);
+                setImportError(null);
+                setImportSuccess(false);
+              }}
+              placeholder="Paste share link here..."
+              className="w-full bg-terminal-bg border border-terminal-dim py-2 pl-8 pr-4 text-xs text-terminal-text font-mono focus:outline-none focus:border-terminal-text focus:ring-1 focus:ring-terminal-text/50 transition-all"
+            />
+          </div>
+          <button
+            onClick={handleImportShareLink}
+            className="px-4 py-2 border border-terminal-dim text-xs text-terminal-dim hover:bg-terminal-text hover:text-terminal-bg hover:border-terminal-text transition-all uppercase flex items-center gap-1"
+          >
+            <Key size={12} />
+            IMPORT
+          </button>
+        </div>
+        {importError && (
+          <div className="mt-2 text-xs text-terminal-alert flex items-center gap-1">
+            <AlertTriangle size={12} />
+            {importError}
+          </div>
+        )}
+        {importSuccess && (
+          <div className="mt-2 text-xs text-terminal-text flex items-center gap-1">
+            <Check size={12} />
+            Key imported successfully! Redirecting...
+          </div>
+        )}
+      </div>
+
+      {/* Encrypted Boards */}
+      {encryptedBoards.length > 0 && (
+        <div className="mb-8">
+          <h3 className="text-lg font-bold border-b border-terminal-dim mb-4 pb-1 text-terminal-text flex items-center gap-2">
+            <Shield size={16} />
+            ENCRYPTED_CHANNELS
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {encryptedBoards.map(board => (
+              <BoardCard key={board.id} board={board} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Public Boards */}
       {publicBoards.length > 0 && (

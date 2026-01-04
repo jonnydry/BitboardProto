@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useMemo } from 'react';
 import { BoardType, type Board } from '../../../types';
+import { INITIAL_BOARDS } from '../../../constants';
+import { StorageKeys } from '../../../config';
 
 interface BoardsContextType {
   // State
@@ -21,10 +23,50 @@ interface BoardsContextType {
 
 const BoardsContext = createContext<BoardsContextType | null>(null);
 
+/**
+ * Merge cached boards with INITIAL_BOARDS.
+ * - All INITIAL_BOARDS are always included (ensures updates propagate to users)
+ * - User-created boards from cache are preserved
+ */
+function mergeWithInitialBoards(cachedBoards: Board[]): Board[] {
+  const initialBoardIds = new Set(INITIAL_BOARDS.map(b => b.id));
+  
+  // Start with all default boards (ensures updates to defaults propagate)
+  const merged = [...INITIAL_BOARDS];
+  
+  // Add any user-created boards from cache (boards not in INITIAL_BOARDS)
+  for (const cached of cachedBoards) {
+    if (!initialBoardIds.has(cached.id)) {
+      merged.push(cached);
+    }
+  }
+  
+  return merged;
+}
+
 export const BoardsProvider: React.FC<{
   children: React.ReactNode;
 }> = ({ children }) => {
-  const [boards, setBoards] = useState<Board[]>([]);
+  const [boards, setBoards] = useState<Board[]>(() => {
+    try {
+      if (typeof localStorage === 'undefined') return INITIAL_BOARDS;
+      const raw = localStorage.getItem(StorageKeys.BOARDS_CACHE);
+      if (!raw) return INITIAL_BOARDS;
+      const parsed = JSON.parse(raw) as { savedAt?: number; boards?: unknown };
+      if (!parsed || !Array.isArray(parsed.boards)) return INITIAL_BOARDS;
+
+      const cachedBoards = parsed.boards.filter((b: unknown) =>
+        b && typeof b === 'object' && 'id' in b && 'name' in b &&
+        typeof (b as Board).id === 'string' && typeof (b as Board).name === 'string'
+      ) as Board[];
+      
+      // Merge cached boards with INITIAL_BOARDS to ensure new defaults appear
+      return mergeWithInitialBoards(cachedBoards);
+    } catch (error) {
+      console.error('[BoardsContext] Failed to load cached boards:', error);
+      return INITIAL_BOARDS;
+    }
+  });
   const [locationBoards, setLocationBoards] = useState<Board[]>([]);
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
 

@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { HelpCircle, Hash, Lock, Globe, Eye, Key, MapPin, Radio, Activity, User, ChevronDown, ChevronRight } from 'lucide-react';
+import React, { useEffect, useState, useMemo } from 'react';
+import { HelpCircle, Hash, Lock, Globe, Eye, Key, MapPin, Radio, Activity, User, ChevronDown, ChevronRight, Shield, AlertTriangle, Trash2 } from 'lucide-react';
 import type { Board, UserState } from '../../types';
 import { BoardType, ThemeId, ViewMode } from '../../types';
 import { geonetDiscoveryService, type GeoChannel } from '../../services/geonetDiscoveryService';
 import { geohashService } from '../../services/geohashService';
+import { encryptedBoardService } from '../../services/encryptedBoardService';
 
 // Collapsible section component for mobile
 function CollapsibleSection({
@@ -56,6 +57,9 @@ export function Sidebar(props: {
   setFeedFilter: (v: 'all' | 'topic' | 'location' | 'following') => void;
   topicBoards: Board[];
   geohashBoards: Board[];
+  boardsById: Map<string, Board>;
+  decryptionFailedBoardIds?: Set<string>;
+  removeFailedDecryptionKey?: (boardId: string) => void;
   navigateToBoard: (id: string | null) => void;
   onSetViewMode: (mode: ViewMode) => void;
 }) {
@@ -72,6 +76,9 @@ export function Sidebar(props: {
     setFeedFilter: setFeedFilterRaw,
     topicBoards,
     geohashBoards,
+    boardsById,
+    decryptionFailedBoardIds,
+    removeFailedDecryptionKey,
     navigateToBoard,
     onSetViewMode,
   } = props;
@@ -124,6 +131,14 @@ export function Sidebar(props: {
   // Board limits for mobile vs desktop
   const MOBILE_BOARD_LIMIT = 3;
   const DESKTOP_BOARD_LIMIT = 6;
+
+  // Get encrypted boards the user has keys for
+  const encryptedBoards = useMemo(() => {
+    const encryptedIds = encryptedBoardService.getEncryptedBoardIds();
+    return encryptedIds
+      .map(id => boardsById.get(id))
+      .filter((board): board is Board => board !== undefined && board.isEncrypted === true);
+  }, [boardsById]);
 
   return (
     <aside className="order-first md:order-none space-y-2 md:space-y-4">
@@ -313,6 +328,82 @@ export function Sidebar(props: {
           [+] Init_Board
         </button>
       </CollapsibleSection>
+
+      {/* Encrypted Boards - Show if user has any encrypted board keys */}
+      {encryptedBoards.length > 0 && (
+        <CollapsibleSection title="SECURE_NET" icon={Shield} defaultOpen={false}>
+          <div className="flex flex-col gap-1 max-h-[150px] md:max-h-[200px] overflow-y-auto pr-1">
+            {encryptedBoards.map((board) => (
+              <button
+                key={board.id}
+                onClick={() => navigateToBoard(board.id)}
+                style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                className={`text-left text-xs md:text-sm px-2 py-1.5 transition-all flex items-center gap-2 group w-full
+                  ${activeBoardId === board.id
+                    ? 'bg-terminal-text font-bold'
+                    : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
+                  }
+                `}
+              >
+                <Lock
+                  size={10}
+                  style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                />
+                <span
+                  style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                  className="truncate flex-1"
+                >
+                  {board.name}
+                </span>
+                <span
+                  style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                  className="text-[9px] opacity-60"
+                >
+                  [DECRYPTED]
+                </span>
+              </button>
+            ))}
+          </div>
+          <p className="text-[9px] md:text-[10px] text-terminal-dim mt-2 md:mt-3 leading-tight">
+            Boards with stored encryption keys. Content is decrypted locally.
+          </p>
+
+          {/* Show failed decryption boards */}
+          {decryptionFailedBoardIds && decryptionFailedBoardIds.size > 0 && (
+            <div className="mt-3 pt-2 border-t border-terminal-alert/30">
+              <div className="flex items-center gap-1 text-[10px] text-terminal-alert mb-2">
+                <AlertTriangle size={10} />
+                <span className="uppercase font-bold">Failed Keys</span>
+              </div>
+              {Array.from(decryptionFailedBoardIds).map(boardId => {
+                const board = boardsById.get(boardId);
+                return (
+                  <div
+                    key={boardId}
+                    className="flex items-center justify-between text-xs px-2 py-1.5 bg-terminal-alert/10 border border-terminal-alert/30 mb-1"
+                  >
+                    <span className="text-terminal-dim truncate flex-1">
+                      {board?.name || boardId.slice(0, 12) + '...'}
+                    </span>
+                    {removeFailedDecryptionKey && (
+                      <button
+                        onClick={() => removeFailedDecryptionKey(boardId)}
+                        className="ml-2 text-terminal-alert hover:text-terminal-text transition-colors p-1"
+                        title="Remove invalid key"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              <p className="text-[9px] text-terminal-dim mt-1">
+                These keys failed to decrypt. Remove and import a new share link.
+              </p>
+            </div>
+          )}
+        </CollapsibleSection>
+      )}
 
       {/* Location Channels - Collapsible on mobile */}
       <CollapsibleSection 

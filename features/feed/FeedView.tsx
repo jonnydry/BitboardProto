@@ -1,5 +1,5 @@
-import React, { useMemo, useCallback } from 'react';
-import { MapPin } from 'lucide-react';
+import React, { useMemo, useCallback, useState } from 'react';
+import { MapPin, Share2, Lock } from 'lucide-react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import type { Board, Post, SortMode, UserState } from '../../types';
 import { BoardType, ViewMode } from '../../types';
@@ -7,6 +7,8 @@ import { SearchBar } from '../../components/SearchBar';
 import { SortSelector } from '../../components/SortSelector';
 import { PostItem } from '../../components/PostItem';
 import { PostSkeleton, InlineLoadingSkeleton } from '../../components/PostSkeleton';
+import { ShareBoardLink } from '../../components/ShareBoardLink';
+import { encryptedBoardService } from '../../services/encryptedBoardService';
 
 const FEED_VIRTUALIZE_THRESHOLD = 25;
 
@@ -85,6 +87,11 @@ export function FeedView(props: {
     isInitialLoading = false,
     onRetryPost,
   } = props;
+
+  const [showShareModal, setShowShareModal] = useState(false);
+
+  // Check if this is an encrypted board that we can share (we have the key)
+  const canShareBoard = activeBoard?.isEncrypted && encryptedBoardService.hasBoardKey(activeBoard.id);
 
   const shouldVirtualizeFeed = viewMode === ViewMode.FEED && sortedPosts.length > FEED_VIRTUALIZE_THRESHOLD;
 
@@ -213,20 +220,33 @@ export function FeedView(props: {
       <div className="flex flex-col gap-4 mb-6 pb-2 border-b border-terminal-dim/30">
         <div className="flex justify-between items-end">
           <div>
-            <h2 className="text-2xl font-terminal uppercase tracking-widest text-terminal-text flex items-center gap-2">
-              {activeBoard?.type === BoardType.GEOHASH && <MapPin size={20} />}
-              {searchQuery
-                ? `SEARCH: "${searchQuery}"`
-                : activeBoard
-                  ? activeBoard.type === BoardType.GEOHASH
-                    ? `#${activeBoard.geohash}`
-                    : `// ${activeBoard.name}`
-                  : feedFilter === 'location'
-                    ? 'GEO_CHANNELS'
-                    : feedFilter === 'topic'
-                      ? 'TOPIC_BOARDS'
-                      : 'GLOBAL_FEED'}
-            </h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-terminal uppercase tracking-widest text-terminal-text flex items-center gap-2">
+                {activeBoard?.type === BoardType.GEOHASH && <MapPin size={20} />}
+                {activeBoard?.isEncrypted && <Lock size={18} className="text-terminal-text" />}
+                {searchQuery
+                  ? `SEARCH: "${searchQuery}"`
+                  : activeBoard
+                    ? activeBoard.type === BoardType.GEOHASH
+                      ? `#${activeBoard.geohash}`
+                      : `// ${activeBoard.name}`
+                    : feedFilter === 'location'
+                      ? 'GEO_CHANNELS'
+                      : feedFilter === 'topic'
+                        ? 'TOPIC_BOARDS'
+                        : 'GLOBAL_FEED'}
+              </h2>
+              {canShareBoard && (
+                <button
+                  onClick={() => setShowShareModal(true)}
+                  className="flex items-center gap-1 text-xs border border-terminal-dim px-2 py-1 text-terminal-dim hover:border-terminal-text hover:text-terminal-text transition-colors uppercase"
+                  title="Share this encrypted board"
+                >
+                  <Share2 size={12} />
+                  SHARE
+                </button>
+              )}
+            </div>
             <p className="text-xs text-terminal-dim mt-1">
               {searchQuery
                 ? `${sortedPosts.length} results found`
@@ -366,6 +386,14 @@ export function FeedView(props: {
             );
           })}
         </div>
+      )}
+
+      {/* Share encrypted board modal */}
+      {showShareModal && activeBoard && (
+        <ShareBoardLink
+          board={activeBoard}
+          onClose={() => setShowShareModal(false)}
+        />
       )}
     </div>
   );

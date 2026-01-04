@@ -34,14 +34,37 @@ export const INLINE_PREVIEW_COMMENT_COUNT = UIConfig.INLINE_PREVIEW_COMMENT_COUN
 // ============================================
 
 export const INITIAL_BOARDS: Board[] = [
+  // ============================================
+  // CORE / META
+  // ============================================
   {
     id: 'b-system',
     name: 'SYSTEM',
-    description: 'Official announcements and rules.',
+    description: 'Official announcements and platform rules.',
     isPublic: true,
     memberCount: 1204,
     type: BoardType.TOPIC,
   },
+  {
+    id: 'b-meta',
+    name: 'META',
+    description: 'BitBoard feedback, bugs, and feature requests.',
+    isPublic: true,
+    memberCount: 312,
+    type: BoardType.TOPIC,
+  },
+  {
+    id: 'b-random',
+    name: 'RANDOM',
+    description: 'Off-topic noise and general chaos.',
+    isPublic: true,
+    memberCount: 420,
+    type: BoardType.TOPIC,
+  },
+
+  // ============================================
+  // TECH / DECENTRALIZATION
+  // ============================================
   {
     id: 'b-tech',
     name: 'TECH',
@@ -51,21 +74,177 @@ export const INITIAL_BOARDS: Board[] = [
     type: BoardType.TOPIC,
   },
   {
-    id: 'b-random',
-    name: 'RANDOM',
-    description: 'Off-topic discussions and noise.',
+    id: 'b-dev',
+    name: 'DEV',
+    description: 'Programming, coding, and software engineering.',
     isPublic: true,
-    memberCount: 420,
+    memberCount: 756,
     type: BoardType.TOPIC,
   },
   {
-    id: 'b-private',
-    name: 'DARKNET',
-    description: 'Encrypted comms.',
-    isPublic: false,
-    memberCount: 5,
+    id: 'b-nostr',
+    name: 'NOSTR',
+    description: 'Protocol discussion and ecosystem development.',
+    isPublic: true,
+    memberCount: 534,
     type: BoardType.TOPIC,
-  }
+  },
+  {
+    id: 'b-crypto',
+    name: 'CRYPTO',
+    description: 'Cryptocurrency, DeFi, and blockchain tech.',
+    isPublic: true,
+    memberCount: 621,
+    type: BoardType.TOPIC,
+  },
+  {
+    id: 'b-security',
+    name: 'SECURITY',
+    description: 'InfoSec, privacy, and operational security.',
+    isPublic: true,
+    memberCount: 445,
+    type: BoardType.TOPIC,
+  },
+  {
+    id: 'b-opensource',
+    name: 'OPENSOURCE',
+    description: 'Free software and open source projects.',
+    isPublic: true,
+    memberCount: 389,
+    type: BoardType.TOPIC,
+  },
+  {
+    id: 'b-ai',
+    name: 'AI',
+    description: 'Artificial intelligence, ML, and automation.',
+    isPublic: true,
+    memberCount: 892,
+    type: BoardType.TOPIC,
+  },
+  {
+    id: 'b-selfhost',
+    name: 'SELFHOST',
+    description: 'Self-hosting, homelab, and infrastructure.',
+    isPublic: true,
+    memberCount: 267,
+    type: BoardType.TOPIC,
+  },
+
+  // ============================================
+  // ENTERTAINMENT / MEDIA
+  // ============================================
+  {
+    id: 'b-gaming',
+    name: 'GAMING',
+    description: 'Video games, tabletop, and game development.',
+    isPublic: true,
+    memberCount: 978,
+    type: BoardType.TOPIC,
+  },
+  {
+    id: 'b-music',
+    name: 'MUSIC',
+    description: 'Artists, genres, production, and discovery.',
+    isPublic: true,
+    memberCount: 654,
+    type: BoardType.TOPIC,
+  },
+  {
+    id: 'b-movies',
+    name: 'MOVIES',
+    description: 'Film discussion, reviews, and recommendations.',
+    isPublic: true,
+    memberCount: 512,
+    type: BoardType.TOPIC,
+  },
+  {
+    id: 'b-books',
+    name: 'BOOKS',
+    description: 'Literature, reading, and written works.',
+    isPublic: true,
+    memberCount: 298,
+    type: BoardType.TOPIC,
+  },
+  {
+    id: 'b-anime',
+    name: 'ANIME',
+    description: 'Anime, manga, and Japanese media.',
+    isPublic: true,
+    memberCount: 445,
+    type: BoardType.TOPIC,
+  },
+
+  // ============================================
+  // CREATIVE / LEARNING
+  // ============================================
+  {
+    id: 'b-art',
+    name: 'ART',
+    description: 'Digital art, design, and creative works.',
+    isPublic: true,
+    memberCount: 387,
+    type: BoardType.TOPIC,
+  },
+  {
+    id: 'b-science',
+    name: 'SCIENCE',
+    description: 'Research, discoveries, and academic discussion.',
+    isPublic: true,
+    memberCount: 423,
+    type: BoardType.TOPIC,
+  },
+  {
+    id: 'b-diy',
+    name: 'DIY',
+    description: 'Maker projects, crafts, and builds.',
+    isPublic: true,
+    memberCount: 334,
+    type: BoardType.TOPIC,
+  },
+  {
+    id: 'b-learn',
+    name: 'LEARN',
+    description: 'Education, tutorials, and skill development.',
+    isPublic: true,
+    memberCount: 276,
+    type: BoardType.TOPIC,
+  },
+
+  // ============================================
+  // LIFESTYLE / GENERAL
+  // ============================================
+  {
+    id: 'b-news',
+    name: 'NEWS',
+    description: 'Current events and world news.',
+    isPublic: true,
+    memberCount: 734,
+    type: BoardType.TOPIC,
+  },
+  {
+    id: 'b-finance',
+    name: 'FINANCE',
+    description: 'Markets, investing, and personal finance.',
+    isPublic: true,
+    memberCount: 456,
+    type: BoardType.TOPIC,
+  },
+  {
+    id: 'b-health',
+    name: 'HEALTH',
+    description: 'Fitness, wellness, and mental health.',
+    isPublic: true,
+    memberCount: 345,
+    type: BoardType.TOPIC,
+  },
+  {
+    id: 'b-food',
+    name: 'FOOD',
+    description: 'Cooking, recipes, and culinary discussion.',
+    isPublic: true,
+    memberCount: 289,
+    type: BoardType.TOPIC,
+  },
 ];
 
 export const INITIAL_POSTS: Post[] = [

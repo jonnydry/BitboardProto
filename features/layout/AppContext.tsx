@@ -17,6 +17,7 @@ import { useCommentsLoader } from '../../hooks/useCommentsLoader';
 import { useVoting } from '../../hooks/useVoting';
 import { useCommentVoting } from '../../hooks/useCommentVoting';
 import { useAppEventHandlers } from './useAppEventHandlers';
+import { usePostDecryption } from '../../hooks/usePostDecryption';
 import { votingService } from '../../services/votingService';
 import { rateLimiter } from '../../services/rateLimiter';
 import { nostrEventDeduplicator, voteDeduplicator } from '../../services/messageDeduplicator';
@@ -62,6 +63,10 @@ interface AppContextType {
   geohashBoards: Board[];
   bookmarkedIdSet: Set<string>;
   reportedPostIdSet: Set<string>;
+  decryptionFailedBoardIds: Set<string>;
+
+  // Encryption actions
+  removeFailedDecryptionKey: (boardId: string) => void;
 
   // Actions
   setPosts: React.Dispatch<React.SetStateAction<Post[]>>;
@@ -255,8 +260,11 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     return result;
   }, [postsCtx.posts, boardsCtx.activeBoardId, boardsCtx.boardsById, feedFilter, uiCtx.searchQuery, userCtx.userState.mutedPubkeys, workerSearchIds]);
 
+  // Decrypt encrypted posts/comments if we have the keys
+  const { posts: decryptedPosts, failedBoardIds: decryptionFailedBoardIds, removeFailedKey } = usePostDecryption(filteredPosts, boardsCtx.boardsById);
+
   const sortedPosts = useMemo(() => {
-    const sorted = [...filteredPosts];
+    const sorted = [...decryptedPosts];
 
     switch (uiCtx.sortMode) {
       case SortMode.NEWEST:
@@ -281,7 +289,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
       default:
         return sorted.sort((a, b) => b.score - a.score);
     }
-  }, [filteredPosts, uiCtx.sortMode]);
+  }, [decryptedPosts, uiCtx.sortMode]);
 
   const knownUsers = useMemo(() => {
     const users = new Set<string>();
@@ -549,6 +557,8 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     geohashBoards: boardsCtx.geohashBoards,
     bookmarkedIdSet,
     reportedPostIdSet,
+    decryptionFailedBoardIds,
+    removeFailedDecryptionKey: removeFailedKey,
 
     // Actions (delegated to focused contexts)
     setPosts: postsCtx.setPosts,
