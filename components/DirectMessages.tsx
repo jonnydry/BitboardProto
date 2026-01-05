@@ -95,9 +95,9 @@ const ConversationItem: React.FC<{
   onSelect: () => void;
   onDelete: () => void;
 }> = ({ conversation, isSelected, onSelect, onDelete }) => {
-  const displayName = conversation.participantName || 
-    `${conversation.participantPubkey.slice(0, 8)}...`;
-  
+  const displayName = conversation.participantName ||
+    (conversation.participantPubkey ? `${conversation.participantPubkey.slice(0, 8)}...` : 'Unknown');
+
   const lastMessagePreview = conversation.lastMessage?.content.slice(0, 40) || '';
   const lastMessageTime = conversation.lastMessage 
     ? formatTimestamp(conversation.lastMessage.timestamp)
@@ -190,8 +190,8 @@ const ChatView: React.FC<{
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const displayName = conversation.participantName || 
-    `${conversation.participantPubkey.slice(0, 8)}...`;
+  const displayName = conversation.participantName ||
+    (conversation.participantPubkey ? `${conversation.participantPubkey.slice(0, 8)}...` : 'Unknown');
 
   // Scroll to bottom when messages change
   useEffect(() => {

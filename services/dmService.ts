@@ -607,7 +607,10 @@ class DMService {
       // Reconstruct conversations map
       this.conversations.clear();
       for (const conv of data.conversations || []) {
-        this.conversations.set(conv.id, conv);
+        // Validate required fields exist
+        if (conv && typeof conv.id === 'string' && typeof conv.participantPubkey === 'string') {
+          this.conversations.set(conv.id, conv);
+        }
       }
 
       this.updateUnreadCount();
