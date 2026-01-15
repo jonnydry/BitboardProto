@@ -437,6 +437,10 @@ export const DirectMessages: React.FC<DirectMessagesProps> = ({
 
   // Initialize DM service
   useEffect(() => {
+    if (!userPubkey) {
+      console.warn('DirectMessages: userPubkey is required');
+      return;
+    }
     dmService.initialize(userPubkey);
     loadConversations();
     

@@ -446,15 +446,11 @@ const AppContent: React.FC = () => {
               </Suspense>
             )}
             {/* Direct Messages View */}
-            {app.viewMode === ViewMode.DIRECT_MESSAGES && (
+            {app.viewMode === ViewMode.DIRECT_MESSAGES && app.userState.identity?.pubkey && (
               <Suspense fallback={<LoadingFallback />}>
                 <DirectMessages
-                  currentUserPubkey={app.userState.identity?.pubkey || null}
-                  knownUsers={Object.fromEntries(
-                    Array.from(app.knownUsers).map(u => [u, { name: u }])
-                  )}
+                  userPubkey={app.userState.identity.pubkey}
                   onClose={() => app.setViewMode(ViewMode.FEED)}
-                  onViewProfile={(pubkey) => app.handleViewProfile('', pubkey)}
                 />
               </Suspense>
             )}
