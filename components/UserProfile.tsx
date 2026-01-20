@@ -10,6 +10,9 @@ import { toastService } from '../services/toastService';
 import { UIConfig } from '../config';
 import { ArrowLeft, User, FileText, MessageSquare, TrendingUp, RefreshCw, VolumeX, Edit, Globe, Zap, Mail, ExternalLink, Download, UserPlus, UserMinus } from 'lucide-react';
 import { FollowButton as _FollowButton, FollowStats as _FollowStats } from './FollowButton';
+import { ZapButton } from './ZapButton';
+import { BadgeDisplay } from './BadgeDisplay';
+import { TrustIndicator } from './TrustIndicator';
 
 interface UserProfileProps {
   username: string;
@@ -327,6 +330,15 @@ export const UserProfile: React.FC<UserProfileProps> = ({
                 </button>
               )}
 
+              {/* Zap Button */}
+              {!isOwnProfile && authorPubkey && (
+                <ZapButton
+                  authorPubkey={authorPubkey}
+                  authorName={username}
+                  compact={false}
+                />
+              )}
+
               {/* Edit Profile Button */}
               {isOwnProfile && onSetViewMode && (
                 <>
@@ -363,9 +375,12 @@ export const UserProfile: React.FC<UserProfileProps> = ({
             </div>
 
             {authorPubkey && (
-              <p className="text-xs text-terminal-dim font-mono mb-3 truncate max-w-md">
-                npub: {authorPubkey.slice(0, 16)}...{authorPubkey.slice(-8)}
-              </p>
+              <div className="flex items-center gap-3 mb-3">
+                <p className="text-xs text-terminal-dim font-mono truncate max-w-md">
+                  npub: {authorPubkey.slice(0, 16)}...{authorPubkey.slice(-8)}
+                </p>
+                <TrustIndicator pubkey={authorPubkey} compact={false} />
+              </div>
             )}
 
             {/* Bio/About */}
@@ -373,6 +388,13 @@ export const UserProfile: React.FC<UserProfileProps> = ({
               <p className="text-terminal-text mb-3 leading-relaxed">
                 {profileMetadata.about}
               </p>
+            )}
+
+            {/* Badges */}
+            {authorPubkey && (
+              <div className="mb-4">
+                <BadgeDisplay pubkey={authorPubkey} size="md" showLabel={true} />
+              </div>
             )}
 
             {/* Links */}

@@ -11,6 +11,10 @@ export interface NostrProfileMetadata {
   about?: string;
   picture?: string;
   nip05?: string;
+  banner?: string;
+  website?: string;
+  lud06?: string; // LNURL bech32 encoded
+  lud16?: string; // Lightning Address (user@domain.com)
   createdAt: number; // seconds
   cachedAt: number; // ms
 }
@@ -183,6 +187,10 @@ export class NostrProfileCache {
       const nip05 = getTrimmedString('nip05');
       const about = getTrimmedString('about');
       const picture = getTrimmedString('picture');
+      const banner = getTrimmedString('banner');
+      const website = getTrimmedString('website');
+      const lud06 = getTrimmedString('lud06');
+      const lud16 = getTrimmedString('lud16');
 
       const displayName =
         displayNameRaw || name || (nip05 ? nip05.split('@')[0] : '') || `${event.pubkey.slice(0, 8)}...`;
@@ -194,6 +202,10 @@ export class NostrProfileCache {
         about,
         picture,
         nip05,
+        banner,
+        website,
+        lud06,
+        lud16,
         createdAt: event.created_at,
         cachedAt: Date.now(),
       };

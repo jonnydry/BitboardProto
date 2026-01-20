@@ -1,6 +1,11 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import type { UserState, NostrIdentity } from '../../../types';
 import { MAX_DAILY_BITS } from '../../../constants';
+import { listService } from '../../../services/listService';
+import { identityService } from '../../../services/identityService';
+import { wotService } from '../../../services/wotService';
+import { logger } from '../../../services/loggingService';
+import { FeatureFlags } from '../../../config';
 
 interface UserContextType {
   // State
@@ -48,25 +53,60 @@ export const UserProvider: React.FC<{
 }> = ({ children }) => {
   const [userState, setUserState] = useState<UserState>(() => loadInitialUserState());
 
-  const toggleMute = useCallback((pubkey: string) => {
-    setUserState((prev) => {
-      const currentMuted = prev.mutedPubkeys || [];
-      const isMuted = currentMuted.includes(pubkey);
-      const newMuted = isMuted
-        ? currentMuted.filter((p) => p !== pubkey)
-        : [...currentMuted, pubkey];
-
-      try {
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem('bitboard_muted_users', JSON.stringify(newMuted));
+  // Initialize services with user pubkey
+  useEffect(() => {
+    const pubkey = userState.identity?.pubkey || null;
+    listService.setUserPubkey(pubkey);
+    wotService.setUserPubkey(pubkey);
+    
+    if (pubkey && FeatureFlags.ENABLE_LISTS) {
+      // Sync mute list from Nostr
+      listService.getMutedPubkeys().then(muted => {
+        if (muted.length > 0) {
+          setUserState(prev => ({ ...prev, mutedPubkeys: muted }));
         }
-      } catch {
-        // ignore
-      }
+      });
+    }
+  }, [userState.identity?.pubkey]);
 
-      return { ...prev, mutedPubkeys: newMuted };
-    });
-  }, []);
+  const toggleMute = useCallback(async (pubkey: string) => {
+    const currentMuted = userState.mutedPubkeys || [];
+    const isCurrentlyMuted = currentMuted.includes(pubkey);
+    const newMuted = isCurrentlyMuted
+      ? currentMuted.filter((p) => p !== pubkey)
+      : [...currentMuted, pubkey];
+
+    // 1. Update local state immediately
+    setUserState((prev) => ({ ...prev, mutedPubkeys: newMuted }));
+
+    // 2. Persist to localStorage
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('bitboard_muted_users', JSON.stringify(newMuted));
+      }
+    } catch (e) {
+      logger.warn('UserContext', 'Failed to save mute list to localStorage', e);
+    }
+
+    // 3. Persist to Nostr (NIP-51) if identity is available
+    if (userState.identity && FeatureFlags.ENABLE_LISTS) {
+      try {
+        const unsigned = listService.buildMuteList({
+          pubkeys: newMuted,
+          pubkey: userState.identity.pubkey,
+        });
+        const signed = await identityService.signEvent(unsigned);
+        // We don't need to wait for this to finish for the UI to be responsive
+        import('../../../services/nostr/NostrService').then(({ nostrService }) => {
+          nostrService.publishSignedEvent(signed).catch(err => {
+            logger.warn('UserContext', 'Failed to publish mute list to Nostr', err);
+          });
+        });
+      } catch (err) {
+        logger.warn('UserContext', 'Failed to sign mute list event', err);
+      }
+    }
+  }, [userState.identity, userState.mutedPubkeys]);
 
   const isMuted = useCallback((pubkey: string) => {
     return (userState.mutedPubkeys || []).includes(pubkey);

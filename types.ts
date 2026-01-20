@@ -129,6 +129,9 @@ export interface Post {
   // Sync status for optimistic updates
   syncStatus?: SyncStatus;
   syncError?: string;
+  // NIP-57 Zap fields (Layer 2 engagement)
+  zapCount?: number;          // Number of zaps received
+  zapTotal?: number;          // Total satoshis received
 }
 
 // ============================================
@@ -194,18 +197,32 @@ export enum ThemeId {
 // ============================================
 
 export const NOSTR_KINDS = {
+  METADATA: 0,              // NIP-01 profile metadata
   POST: 1,
-  CONTACT_LIST: 3,        // NIP-02 follow list
-  ENCRYPTED_DM: 4,        // NIP-04 encrypted direct messages (legacy)
+  CONTACT_LIST: 3,          // NIP-02 follow list
+  ENCRYPTED_DM: 4,          // NIP-04 encrypted direct messages (legacy)
   DELETE: 5,
   REACTION: 7,
-  SEAL: 13,               // NIP-17 seal (encrypted rumor)
-  PRIVATE_DM: 14,         // NIP-17 rumor (actual DM content)
-  GIFT_WRAP: 1059,        // NIP-17 gift wrap (most private DMs)
+  BADGE_AWARD: 8,           // NIP-58 badge award
+  SEAL: 13,                 // NIP-17 seal (encrypted rumor)
+  PRIVATE_DM: 14,           // NIP-17 rumor (actual DM content)
+  GIFT_WRAP: 1059,          // NIP-17 gift wrap (most private DMs)
   REPORT: 1984,
-  RELAY_LIST: 10002,
+  ZAP_REQUEST: 9734,        // NIP-57 zap request
+  ZAP_RECEIPT: 9735,        // NIP-57 zap receipt
+  MUTE_LIST: 10000,         // NIP-51 mute list
+  PIN_LIST: 10001,          // NIP-51 pin list
+  RELAY_LIST: 10002,        // NIP-65 relay list
+  BOOKMARKS: 10003,         // NIP-51 bookmarks
+  COMMUNITIES_LIST: 10004,  // NIP-51 communities list
+  BADGE_DEFINITION: 30009,  // NIP-58 badge definition
+  BADGE_PROFILE: 30008,     // NIP-58 profile badges
   BOARD_DEFINITION: 30001,
-  LONG_FORM: 30023,
+  LONG_FORM: 30023,         // NIP-23 long-form content
+  COMMUNITY_DEFINITION: 34550, // NIP-72 community definition
+  COMMUNITY_APPROVAL: 4550,    // NIP-72 community post approval
+  LIVE_EVENT: 30311,        // NIP-53 live activities
+  LIVE_CHAT: 1311,          // NIP-53 live chat message
 } as const;
 
 // ============================================
@@ -219,4 +236,152 @@ export enum ReportType {
   IMPERSONATION = 'impersonation',
   PROFANITY = 'profanity',
   OTHER = 'other',
+}
+
+// ============================================
+// NIP-57 ZAP TYPES
+// ============================================
+
+export interface ZapRequest {
+  recipientPubkey: string;
+  eventId?: string;           // Post/comment being zapped (optional for profile zaps)
+  amount: number;             // Amount in millisatoshis
+  relays: string[];           // Relays to publish receipt to
+  content?: string;           // Optional zap comment
+  lnurl: string;              // LNURL endpoint
+}
+
+export interface ZapReceipt {
+  id: string;                 // Event ID of the zap receipt
+  zapperPubkey: string;       // Who sent the zap
+  recipientPubkey: string;    // Who received the zap
+  eventId?: string;           // Post/comment that was zapped
+  amount: number;             // Amount in satoshis
+  content: string;            // Zap comment
+  timestamp: number;          // When the zap was received
+  bolt11?: string;            // Lightning invoice
+  preimage?: string;          // Payment preimage (proof of payment)
+}
+
+export interface ZapTally {
+  eventId: string;            // Post/comment ID
+  totalSats: number;          // Total satoshis received
+  zapCount: number;           // Number of zaps
+  topZappers: Array<{         // Top contributors
+    pubkey: string;
+    amount: number;
+    comment?: string;
+  }>;
+  lastUpdated: number;
+}
+
+export interface LNURLPayResponse {
+  callback: string;           // URL to get invoice from
+  maxSendable: number;        // Max amount in millisats
+  minSendable: number;        // Min amount in millisats
+  metadata: string;           // JSON metadata string
+  tag: string;                // Should be "payRequest"
+  allowsNostr?: boolean;      // Whether provider supports NIP-57
+  nostrPubkey?: string;       // Provider's pubkey for signing receipts
+}
+
+// ============================================
+// NIP-58 BADGE TYPES
+// ============================================
+
+export interface BadgeDefinition {
+  id: string;                 // Badge identifier (d tag)
+  creatorPubkey: string;      // Who created the badge
+  name: string;               // Badge name
+  description?: string;       // Badge description
+  image?: string;             // Badge image URL
+  thumbImage?: string;        // Thumbnail image URL
+  nostrEventId?: string;      // Event ID
+}
+
+export interface BadgeAward {
+  id: string;                 // Event ID
+  badgeId: string;            // Reference to badge definition
+  awardedTo: string[];        // Pubkeys who received this badge
+  awardedBy: string;          // Creator's pubkey
+  timestamp: number;
+}
+
+export interface ProfileBadge {
+  badgeId: string;            // Badge definition reference
+  awardEventId: string;       // Award event reference
+}
+
+// ============================================
+// NIP-51 LIST TYPES
+// ============================================
+
+export interface NostrList {
+  id: string;                 // d tag identifier
+  kind: number;               // List kind (10000, 10001, 30000, etc.)
+  name?: string;              // List name (for parameterized lists)
+  pubkeys: string[];          // p tags - pubkeys in the list
+  eventIds: string[];         // e tags - events in the list
+  addresses: string[];        // a tags - parameterized replaceable events
+  hashtags: string[];         // t tags - hashtags
+  createdAt: number;
+}
+
+// ============================================
+// NIP-72 COMMUNITY TYPES
+// ============================================
+
+export interface Community {
+  id: string;                 // d tag identifier
+  name: string;
+  description?: string;
+  image?: string;
+  creatorPubkey: string;
+  moderators: string[];       // Pubkeys of moderators
+  rules?: string;
+  relays?: string[];          // Preferred relays
+  nostrEventId?: string;
+}
+
+export interface CommunityApproval {
+  id: string;                 // Approval event ID
+  communityId: string;        // Community being approved for
+  postEventId: string;        // Post being approved
+  approverPubkey: string;     // Moderator who approved
+  timestamp: number;
+}
+
+// ============================================
+// NIP-53 LIVE EVENT TYPES
+// ============================================
+
+export interface LiveEvent {
+  id: string;                 // d tag identifier
+  title: string;
+  summary?: string;
+  image?: string;
+  streamingUrl?: string;
+  recordingUrl?: string;
+  status: 'planned' | 'live' | 'ended';
+  startsAt?: number;
+  endsAt?: number;
+  hostPubkey: string;
+  participants: Array<{
+    pubkey: string;
+    role: 'host' | 'speaker' | 'participant';
+    relay?: string;
+  }>;
+  hashtags: string[];
+  nostrEventId?: string;
+}
+
+// ============================================
+// WEB OF TRUST TYPES
+// ============================================
+
+export interface WoTScore {
+  pubkey: string;
+  distance: number;           // Hops from user (0 = self, 1 = direct follow, etc.)
+  score: number;              // Calculated trust score (0-1)
+  followedBy: string[];       // Which of your follows follow this person
 }

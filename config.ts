@@ -312,6 +312,54 @@ export const StorageKeys = {
 } as const;
 
 // ============================================
+// WEB OF TRUST CONFIGURATION
+// ============================================
+
+export const WoTConfig = {
+  /** Cache TTL for WoT calculations (5 minutes) */
+  CACHE_TTL_MS: 5 * 60 * 1000,
+  
+  /** Maximum graph depth to traverse */
+  MAX_GRAPH_DEPTH: 3,
+  
+  /** Maximum follows to process per user (prevent explosion) */
+  MAX_FOLLOWS_PER_LEVEL: 500,
+  
+  /** Trust decay factor per hop (0.5 = halves each hop) */
+  TRUST_DECAY_FACTOR: 0.5,
+  
+  /** Default max distance for "trusted" status */
+  DEFAULT_TRUST_DISTANCE: 2,
+  
+  /** Minimum score to show in feeds (0 = show all) */
+  MIN_FEED_SCORE: 0,
+} as const;
+
+// ============================================
+// ZAP CONFIGURATION (NIP-57)
+// ============================================
+
+export const ZapConfig = {
+  /** Cache TTL for zap tallies (1 minute) */
+  CACHE_TTL_MS: 60 * 1000,
+  
+  /** Maximum zap comment length */
+  MAX_COMMENT_LENGTH: 280,
+  
+  /** Suggested zap amounts in satoshis */
+  SUGGESTED_AMOUNTS: [21, 100, 500, 1000, 5000, 10000] as const,
+  
+  /** Default zap amount in satoshis */
+  DEFAULT_AMOUNT: 100,
+  
+  /** Timeout for LNURL requests */
+  LNURL_TIMEOUT_MS: 10000,
+  
+  /** Maximum number of top zappers to display */
+  MAX_TOP_ZAPPERS: 10,
+} as const;
+
+// ============================================
 // FEATURE FLAGS
 // ============================================
 
@@ -330,6 +378,27 @@ export const FeatureFlags = {
   
   /** Enable debug logging */
   ENABLE_DEBUG_LOGGING: import.meta.env.DEV,
+  
+  /** Enable NIP-57 Lightning Zaps (Layer 2 engagement) */
+  ENABLE_ZAPS: true,
+  
+  /** Enable NIP-58 Badges */
+  ENABLE_BADGES: true,
+  
+  /** Enable Web of Trust filtering */
+  ENABLE_WOT: true,
+  
+  /** Enable NIP-72 Moderated Communities */
+  ENABLE_COMMUNITIES: true,
+  
+  /** Enable NIP-51 Lists (bookmarks, etc.) */
+  ENABLE_LISTS: true,
+  
+  /** Enable NIP-23 Long-form content */
+  ENABLE_LONG_FORM: true,
+  
+  /** Enable NIP-53 Live Events */
+  ENABLE_LIVE_EVENTS: false, // Disabled by default until implemented
 } as const;
 
 // ============================================
@@ -347,6 +416,8 @@ export const Config = {
   Geohash: GeohashConfig,
   Storage: StorageKeys,
   Features: FeatureFlags,
+  Zap: ZapConfig,
+  WoT: WoTConfig,
 } as const;
 
 export default Config;

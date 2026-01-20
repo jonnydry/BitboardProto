@@ -15,6 +15,9 @@ const MarkdownRenderer = lazy(() => import('./MarkdownRenderer').then(module => 
 import { LinkPreviewList } from './LinkPreview';
 import { extractUrls } from '../services/linkPreviewService';
 import { ReactionBar } from './ReactionPicker';
+import { ZapButton } from './ZapButton';
+import { BadgeDisplay } from './BadgeDisplay';
+import { TrustIndicator } from './TrustIndicator';
 
 // Simple renderer for plain text content (no markdown)
 const PlainTextRenderer: React.FC<{ content: string }> = ({ content }) => (
@@ -166,17 +169,28 @@ const PostItemComponent: React.FC<PostItemProps> = ({
 
   // Load author profile metadata (only when visible)
   useEffect(() => {
-    if (isVisible && post.authorPubkey && !authorProfile) {
-      profileService.getProfileMetadata(post.authorPubkey)
-        .then(profile => {
-          if (profile) {
-            setAuthorProfile(profile);
-          }
-        })
-        .catch(error => {
-          console.error('[PostItem] Failed to load author profile:', error);
-        });
+    if (!isVisible || !post.authorPubkey || authorProfile) {
+      return;
     }
+
+    let cancelled = false;
+    const currentPubkey = post.authorPubkey;
+
+    profileService.getProfileMetadata(currentPubkey)
+      .then(profile => {
+        if (!cancelled && profile && post.authorPubkey === currentPubkey) {
+          setAuthorProfile(profile);
+        }
+      })
+      .catch(error => {
+        if (!cancelled) {
+          console.error('[PostItem] Failed to load author profile:', error);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [isVisible, post.authorPubkey, authorProfile]);
 
   const voteDirection = useMemo(() => userState.votedPosts[post.id], [userState.votedPosts, post.id]);
@@ -584,6 +598,8 @@ const PostItemComponent: React.FC<PostItemProps> = ({
               )}
               <span>{profileService.getDisplayName(post.author, authorProfile)}</span>
             </button>
+            <BadgeDisplay pubkey={post.authorPubkey || ''} size="sm" />
+            <TrustIndicator pubkey={post.authorPubkey || ''} compact={true} />
             <span>::</span>
             <span className="flex items-center gap-1"><Clock size={12} /> {formatTime(post.timestamp)}</span>
             {isOwnPost && onEditPost && (
@@ -701,6 +717,16 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 eventId={post.id}
                 nostrEventId={post.nostrEventId}
                 disabled={!userState.identity}
+                compact={true}
+              />
+
+              {/* Zap Button (NIP-57 Layer 2 engagement) */}
+              <ZapButton
+                authorPubkey={post.authorPubkey || ''}
+                authorName={post.author}
+                eventId={post.id}
+                initialZapTotal={post.zapTotal}
+                initialZapCount={post.zapCount}
                 compact={true}
               />
 

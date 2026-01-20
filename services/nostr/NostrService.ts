@@ -1581,6 +1581,656 @@ class NostrService {
   }
 
   // ----------------------------------------
+  // NIP-53 LIVE EVENTS
+  // ----------------------------------------
+
+  /**
+   * Fetch a live event by host and id
+   */
+  async fetchLiveEvent(hostPubkey: string, eventId: string): Promise<NostrEvent | null> {
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.LIVE_EVENT],
+      authors: [hostPubkey],
+      '#d': [eventId],
+      limit: 1,
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      if (events.length === 0) return null;
+      return events.sort((a, b) => b.created_at - a.created_at)[0];
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch live event', error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch live events by status
+   */
+  async fetchLiveEvents(opts: {
+    status?: 'planned' | 'live' | 'ended';
+    limit?: number;
+  } = {}): Promise<NostrEvent[]> {
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.LIVE_EVENT],
+      '#client': ['bitboard'],
+      limit: opts.limit || 50,
+    };
+
+    if (opts.status) {
+      filter['#status'] = [opts.status];
+    }
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      
+      // Dedupe by d tag (keep latest version)
+      const byDTag = new Map<string, NostrEvent>();
+      for (const event of events) {
+        const dTag = event.tags.find(t => t[0] === 'd')?.[1] || event.id;
+        const key = `${event.pubkey}:${dTag}`;
+        const existing = byDTag.get(key);
+        if (!existing || event.created_at > existing.created_at) {
+          byDTag.set(key, event);
+        }
+      }
+
+      return Array.from(byDTag.values()).sort((a, b) => b.created_at - a.created_at);
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch live events', error);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch live chat messages for an event
+   */
+  async fetchLiveChatMessages(liveEventAddress: string, opts: {
+    limit?: number;
+    since?: number;
+  } = {}): Promise<NostrEvent[]> {
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.LIVE_CHAT],
+      '#a': [liveEventAddress],
+      limit: opts.limit || 100,
+    };
+
+    if (opts.since) {
+      filter.since = opts.since;
+    }
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      return events.sort((a, b) => a.created_at - b.created_at); // Oldest first for chat
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch live chat messages', error);
+      return [];
+    }
+  }
+
+  /**
+   * Subscribe to live chat messages
+   */
+  subscribeToLiveChat(
+    liveEventAddress: string,
+    onEvent: (event: NostrEvent) => void
+  ): string {
+    const subscriptionId = `live-chat-${Date.now()}`;
+
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.LIVE_CHAT],
+      '#a': [liveEventAddress],
+      since: Math.floor(Date.now() / 1000),
+    };
+
+    const sub = this.pool.subscribeMany(
+      this.getReadRelays(),
+      [filter] as any,
+      {
+        onevent: (event) => {
+          if (nostrEventDeduplicator.isEventDuplicate(event.id)) return;
+          onEvent(event);
+        },
+        oneose: () => {
+          logger.debug('Nostr', `End of stored live chat for: ${subscriptionId}`);
+        },
+      }
+    );
+
+    this.subscriptions.set(subscriptionId, { unsub: () => sub.close() });
+    return subscriptionId;
+  }
+
+  // ----------------------------------------
+  // NIP-50 SEARCH
+  // ----------------------------------------
+
+  /**
+   * Search relays using NIP-50 full-text search
+   * Note: Not all relays support NIP-50
+   */
+  async searchRelays(query: string, opts: {
+    kinds?: number[];
+    limit?: number;
+    since?: number;
+    until?: number;
+    authors?: string[];
+  } = {}): Promise<NostrEvent[]> {
+    // NIP-50 search filter uses 'search' field
+    const filter: Filter & { search?: string } = {
+      kinds: opts.kinds || [NOSTR_KINDS.POST],
+      limit: opts.limit || 50,
+      search: query,
+    };
+
+    if (opts.since) filter.since = opts.since;
+    if (opts.until) filter.until = opts.until;
+    if (opts.authors) filter.authors = opts.authors;
+
+    try {
+      // Note: Only relays supporting NIP-50 will return results
+      // Others will ignore the search field
+      const events = await this.pool.querySync(this.getReadRelays(), filter as Filter);
+      return events.sort((a, b) => b.created_at - a.created_at);
+    } catch (error) {
+      logger.error('Nostr', 'Search failed', error);
+      return [];
+    }
+  }
+
+  /**
+   * Search by hashtag (works on all relays)
+   */
+  async searchByHashtag(hashtag: string, opts: {
+    kinds?: number[];
+    limit?: number;
+  } = {}): Promise<NostrEvent[]> {
+    const normalizedTag = hashtag.toLowerCase().replace(/^#/, '');
+    
+    const filter: Filter = {
+      kinds: opts.kinds || [NOSTR_KINDS.POST],
+      '#t': [normalizedTag],
+      limit: opts.limit || 50,
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      return events.sort((a, b) => b.created_at - a.created_at);
+    } catch (error) {
+      logger.error('Nostr', 'Hashtag search failed', error);
+      return [];
+    }
+  }
+
+  // ----------------------------------------
+  // NIP-23 LONG-FORM ARTICLES
+  // ----------------------------------------
+
+  /**
+   * Fetch an article by author and id (d tag)
+   */
+  async fetchArticle(authorPubkey: string, articleId: string): Promise<NostrEvent | null> {
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.LONG_FORM],
+      authors: [authorPubkey],
+      '#d': [articleId],
+      limit: 1,
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      if (events.length === 0) return null;
+      return events.sort((a, b) => b.created_at - a.created_at)[0];
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch article', error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch articles by author
+   */
+  async fetchArticlesByAuthor(authorPubkey: string, opts: { limit?: number } = {}): Promise<NostrEvent[]> {
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.LONG_FORM],
+      authors: [authorPubkey],
+      limit: opts.limit || 50,
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      
+      // Dedupe by d tag (keep latest version)
+      const byDTag = new Map<string, NostrEvent>();
+      for (const event of events) {
+        const dTag = event.tags.find(t => t[0] === 'd')?.[1] || event.id;
+        const existing = byDTag.get(dTag);
+        if (!existing || event.created_at > existing.created_at) {
+          byDTag.set(dTag, event);
+        }
+      }
+
+      return Array.from(byDTag.values()).sort((a, b) => b.created_at - a.created_at);
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch articles by author', error);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch articles for a board
+   */
+  async fetchArticlesForBoard(boardId: string, opts: { limit?: number } = {}): Promise<NostrEvent[]> {
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.LONG_FORM],
+      '#board': [boardId],
+      '#client': ['bitboard'],
+      limit: opts.limit || 50,
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      return events.sort((a, b) => b.created_at - a.created_at);
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch articles for board', error);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch recent BitBoard articles
+   */
+  async fetchRecentArticles(opts: { limit?: number; since?: number } = {}): Promise<NostrEvent[]> {
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.LONG_FORM],
+      '#client': ['bitboard'],
+      limit: opts.limit || 50,
+    };
+
+    if (opts.since) {
+      filter.since = opts.since;
+    }
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      return events.sort((a, b) => b.created_at - a.created_at);
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch recent articles', error);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch articles by hashtag
+   */
+  async fetchArticlesByHashtag(hashtag: string, opts: { limit?: number } = {}): Promise<NostrEvent[]> {
+    const normalizedTag = hashtag.toLowerCase().replace(/^#/, '');
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.LONG_FORM],
+      '#t': [normalizedTag],
+      limit: opts.limit || 50,
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      return events.sort((a, b) => b.created_at - a.created_at);
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch articles by hashtag', error);
+      return [];
+    }
+  }
+
+  // ----------------------------------------
+  // NIP-51 LISTS
+  // ----------------------------------------
+
+  /**
+   * Fetch a user's list by kind (non-parameterized lists like mute, bookmarks)
+   */
+  async fetchList(pubkey: string, kind: number): Promise<NostrEvent | null> {
+    const filter: Filter = {
+      kinds: [kind],
+      authors: [pubkey],
+      limit: 1,
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      if (events.length === 0) return null;
+      return events.sort((a, b) => b.created_at - a.created_at)[0];
+    } catch (error) {
+      logger.error('Nostr', `Failed to fetch list kind ${kind}`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch a named list (parameterized replaceable event)
+   */
+  async fetchNamedList(pubkey: string, kind: number, name: string): Promise<NostrEvent | null> {
+    const filter: Filter = {
+      kinds: [kind],
+      authors: [pubkey],
+      '#d': [name],
+      limit: 1,
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      if (events.length === 0) return null;
+      return events.sort((a, b) => b.created_at - a.created_at)[0];
+    } catch (error) {
+      logger.error('Nostr', `Failed to fetch named list ${kind}:${name}`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch all named lists of a kind for a user
+   */
+  async fetchAllNamedLists(pubkey: string, kind: number): Promise<NostrEvent[]> {
+    const filter: Filter = {
+      kinds: [kind],
+      authors: [pubkey],
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      
+      // Dedupe by d tag (keep latest version of each)
+      const byDTag = new Map<string, NostrEvent>();
+      for (const event of events) {
+        const dTag = event.tags.find(t => t[0] === 'd')?.[1] || event.id;
+        const existing = byDTag.get(dTag);
+        if (!existing || event.created_at > existing.created_at) {
+          byDTag.set(dTag, event);
+        }
+      }
+
+      return Array.from(byDTag.values()).sort((a, b) => b.created_at - a.created_at);
+    } catch (error) {
+      logger.error('Nostr', `Failed to fetch all named lists kind ${kind}`, error);
+      return [];
+    }
+  }
+
+  // ----------------------------------------
+  // NIP-72 MODERATED COMMUNITIES
+  // ----------------------------------------
+
+  /**
+   * Fetch a community definition (kind 34550)
+   */
+  async fetchCommunityDefinition(creatorPubkey: string, communityId: string): Promise<NostrEvent | null> {
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.COMMUNITY_DEFINITION],
+      authors: [creatorPubkey],
+      '#d': [communityId],
+      limit: 1,
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      if (events.length === 0) return null;
+      return events.sort((a, b) => b.created_at - a.created_at)[0];
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch community definition', error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch all BitBoard communities
+   */
+  async fetchCommunities(opts: { limit?: number } = {}): Promise<NostrEvent[]> {
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.COMMUNITY_DEFINITION],
+      '#client': ['bitboard'],
+      limit: opts.limit || 100,
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      return events.sort((a, b) => b.created_at - a.created_at);
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch communities', error);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch post approvals for a community (kind 4550)
+   */
+  async fetchCommunityApprovals(communityAddress: string): Promise<NostrEvent[]> {
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.COMMUNITY_APPROVAL],
+      '#a': [communityAddress],
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      return events;
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch community approvals', error);
+      return [];
+    }
+  }
+
+  /**
+   * Subscribe to community approvals (real-time updates)
+   */
+  subscribeToCommunityApprovals(
+    communityAddress: string,
+    onEvent: (event: NostrEvent) => void
+  ): string {
+    const subscriptionId = `community-approvals-${Date.now()}`;
+
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.COMMUNITY_APPROVAL],
+      '#a': [communityAddress],
+      since: Math.floor(Date.now() / 1000),
+    };
+
+    const sub = this.pool.subscribeMany(
+      this.getReadRelays(),
+      [filter] as any,
+      {
+        onevent: (event) => {
+          if (nostrEventDeduplicator.isEventDuplicate(event.id)) return;
+          onEvent(event);
+        },
+        oneose: () => {
+          logger.debug('Nostr', `End of stored community approvals for: ${subscriptionId}`);
+        },
+      }
+    );
+
+    this.subscriptions.set(subscriptionId, { unsub: () => sub.close() });
+    return subscriptionId;
+  }
+
+  // ----------------------------------------
+  // NIP-58 BADGES
+  // ----------------------------------------
+
+  /**
+   * Fetch badge definitions by creator
+   */
+  async fetchBadgeDefinitions(creatorPubkey: string): Promise<NostrEvent[]> {
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.BADGE_DEFINITION],
+      authors: [creatorPubkey],
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      return events;
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch badge definitions', error);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch a specific badge definition
+   */
+  async fetchBadgeDefinition(creatorPubkey: string, badgeId: string): Promise<NostrEvent | null> {
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.BADGE_DEFINITION],
+      authors: [creatorPubkey],
+      '#d': [badgeId],
+      limit: 1,
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      if (events.length === 0) return null;
+      return events.sort((a, b) => b.created_at - a.created_at)[0];
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch badge definition', error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch badge awards for a pubkey
+   */
+  async fetchBadgeAwards(pubkey: string): Promise<NostrEvent[]> {
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.BADGE_AWARD],
+      '#p': [pubkey],
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      return events;
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch badge awards', error);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch a user's profile badges (what they display)
+   */
+  async fetchProfileBadges(pubkey: string): Promise<NostrEvent | null> {
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.BADGE_PROFILE],
+      authors: [pubkey],
+      '#d': ['profile_badges'],
+      limit: 1,
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      if (events.length === 0) return null;
+      return events.sort((a, b) => b.created_at - a.created_at)[0];
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch profile badges', error);
+      return null;
+    }
+  }
+
+  // ----------------------------------------
+  // NIP-57 ZAPS (Layer 2 engagement)
+  // ----------------------------------------
+
+  /**
+   * Fetch zap receipts (kind 9735) for a specific event
+   */
+  async fetchZapReceipts(eventId: string): Promise<NostrEvent[]> {
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.ZAP_RECEIPT],
+      '#e': [eventId],
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      return events;
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch zap receipts', error);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch zap receipts for multiple events (batch)
+   */
+  async fetchZapReceiptsForEvents(eventIds: string[]): Promise<NostrEvent[]> {
+    if (eventIds.length === 0) return [];
+
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.ZAP_RECEIPT],
+      '#e': eventIds,
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      return events;
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch batch zap receipts', error);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch zap receipts received by a specific pubkey
+   */
+  async fetchZapsForPubkey(pubkey: string, opts: { limit?: number } = {}): Promise<NostrEvent[]> {
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.ZAP_RECEIPT],
+      '#p': [pubkey],
+      limit: opts.limit || 100,
+    };
+
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      return events.sort((a, b) => b.created_at - a.created_at);
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch zaps for pubkey', error);
+      return [];
+    }
+  }
+
+  /**
+   * Subscribe to zap receipts for specific events (real-time updates)
+   */
+  subscribeToZapReceipts(
+    eventIds: string[],
+    onEvent: (event: NostrEvent) => void
+  ): string {
+    const subscriptionId = `zaps-${Date.now()}`;
+
+    if (eventIds.length === 0) {
+      return subscriptionId;
+    }
+
+    const filter: Filter = {
+      kinds: [NOSTR_KINDS.ZAP_RECEIPT],
+      '#e': eventIds,
+      since: Math.floor(Date.now() / 1000),
+    };
+
+    const sub = this.pool.subscribeMany(
+      this.getReadRelays(),
+      [filter] as any,
+      {
+        onevent: (event) => {
+          if (nostrEventDeduplicator.isEventDuplicate(event.id)) return;
+          onEvent(event);
+        },
+        oneose: () => {
+          logger.debug('Nostr', `End of stored zap events for subscription: ${subscriptionId}`);
+        },
+      }
+    );
+
+    this.subscriptions.set(subscriptionId, { unsub: () => sub.close() });
+    return subscriptionId;
+  }
+
+  // ----------------------------------------
   // NIP-65 (optional): Relay list events
   // ----------------------------------------
 

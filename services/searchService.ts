@@ -1,16 +1,27 @@
 // ============================================
-// SEARCH SERVICE
+// SEARCH SERVICE (Enhanced with NIP-50)
 // ============================================
-// Manages the search Web Worker for offloading text search from main thread
-// Uses an "Index & Query" pattern to avoid serializing posts on every keystroke
+// Manages both local and relay-based search.
+//
+// Local search (Web Worker):
+//   - Offline-capable, instant results
+//   - Searches cached posts only
+//
+// Relay search (NIP-50):
+//   - Full-text search across relays
+//   - Discovers content not in local cache
+//   - Requires relay support for NIP-50
 //
 // Usage:
-//   searchService.updateIndex(posts) - Call when posts change
-//   searchService.search(query) - Returns Promise<string[]> of matching post IDs
+//   searchService.updateIndex(posts) - Update local index
+//   searchService.search(query) - Local search
+//   searchService.relaySearch(query) - NIP-50 relay search
 //
 // ============================================
 
-import type { Post } from '../types';
+import type { Post, NostrEvent } from '../types';
+import { NOSTR_KINDS } from '../types';
+import { nostrService } from './nostr/NostrService';
 import { logger } from './loggingService';
 
 type SearchWorkerMessage =
@@ -188,6 +199,141 @@ class SearchService {
       this.worker = null;
       this.workerReady = false;
     }
+  }
+
+  // ----------------------------------------
+  // NIP-50 RELAY SEARCH
+  // ----------------------------------------
+
+  /**
+   * Search relays using NIP-50 full-text search
+   * Note: Not all relays support NIP-50
+   */
+  async relaySearch(query: string, opts: {
+    kinds?: number[];
+    limit?: number;
+    since?: number;
+    until?: number;
+    authors?: string[];
+  } = {}): Promise<NostrEvent[]> {
+    if (!query || query.trim().length < 2) {
+      return [];
+    }
+
+    try {
+      const events = await nostrService.searchRelays(query, {
+        kinds: opts.kinds || [NOSTR_KINDS.POST, NOSTR_KINDS.LONG_FORM],
+        limit: opts.limit || 50,
+        since: opts.since,
+        until: opts.until,
+        authors: opts.authors,
+      });
+
+      logger.debug('SearchService', `Relay search found ${events.length} results for: ${query}`);
+      return events;
+    } catch (error) {
+      logger.error('SearchService', 'Relay search failed', error);
+      return [];
+    }
+  }
+
+  /**
+   * Search for posts using NIP-50
+   */
+  async searchPosts(query: string, opts: {
+    limit?: number;
+    boardId?: string;
+  } = {}): Promise<NostrEvent[]> {
+    return this.relaySearch(query, {
+      kinds: [NOSTR_KINDS.POST],
+      limit: opts.limit || 50,
+    });
+  }
+
+  /**
+   * Search for articles using NIP-50
+   */
+  async searchArticles(query: string, opts: {
+    limit?: number;
+  } = {}): Promise<NostrEvent[]> {
+    return this.relaySearch(query, {
+      kinds: [NOSTR_KINDS.LONG_FORM],
+      limit: opts.limit || 30,
+    });
+  }
+
+  /**
+   * Search for users/profiles by name
+   */
+  async searchProfiles(query: string, opts: {
+    limit?: number;
+  } = {}): Promise<NostrEvent[]> {
+    return this.relaySearch(query, {
+      kinds: [NOSTR_KINDS.METADATA],
+      limit: opts.limit || 20,
+    });
+  }
+
+  /**
+   * Hybrid search: combine local and relay results
+   * Returns post IDs from both sources
+   */
+  async hybridSearch(query: string, localPosts: Post[]): Promise<{
+    localIds: string[];
+    relayEvents: NostrEvent[];
+  }> {
+    // Run both searches in parallel
+    const [localIds, relayEvents] = await Promise.all([
+      this.search(query),
+      this.relaySearch(query, { kinds: [NOSTR_KINDS.POST], limit: 30 }),
+    ]);
+
+    return { localIds, relayEvents };
+  }
+
+  /**
+   * Search by hashtag (doesn't require NIP-50)
+   */
+  async searchByHashtag(hashtag: string, opts: {
+    kinds?: number[];
+    limit?: number;
+  } = {}): Promise<NostrEvent[]> {
+    try {
+      const events = await nostrService.searchByHashtag(hashtag, opts);
+      return events;
+    } catch (error) {
+      logger.error('SearchService', 'Hashtag search failed', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get trending hashtags (based on recent posts)
+   * This is a simple implementation - could be enhanced with relay aggregation
+   */
+  extractHashtagsFromPosts(posts: Post[]): Map<string, number> {
+    const tagCounts = new Map<string, number>();
+    
+    for (const post of posts) {
+      for (const tag of post.tags) {
+        const normalized = tag.toLowerCase();
+        tagCounts.set(normalized, (tagCounts.get(normalized) || 0) + 1);
+      }
+    }
+
+    return tagCounts;
+  }
+
+  /**
+   * Get top hashtags from posts
+   */
+  getTopHashtags(posts: Post[], limit: number = 10): Array<{ tag: string; count: number }> {
+    const tagCounts = this.extractHashtagsFromPosts(posts);
+    
+    return Array.from(tagCounts.entries())
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, limit);
   }
 }
 

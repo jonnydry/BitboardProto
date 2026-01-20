@@ -1,9 +1,14 @@
-import React, { useMemo, useRef, useCallback } from 'react';
+import React, { useMemo, useRef, useCallback, useState } from 'react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { Post, UserState } from '../types';
 import { PostItem } from './PostItem';
-import { ArrowLeft, Bookmark, Trash2 } from 'lucide-react';
+import { ArrowLeft, Bookmark, Trash2, RefreshCw, Globe, Loader2 } from 'lucide-react';
 import { bookmarkService } from '../services/bookmarkService';
+import { listService } from '../services/listService';
+import { identityService } from '../services/identityService';
+import { nostrService } from '../services/nostrService';
+import { toastService } from '../services/toastService';
+import { FeatureFlags, UIConfig } from '../config';
 
 interface BookmarksProps {
   posts: Post[];
@@ -48,6 +53,8 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
   onToggleMute,
   isMuted,
 }) => {
+  const [isSyncing, setIsSyncing] = useState(false);
+
   // Get bookmarked posts in order
   const bookmarkedPosts = useMemo(() => {
     const postsMap = new Map(posts.map(p => [p.id, p]));
@@ -61,6 +68,70 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
       bookmarkService.clearAll();
     }
   };
+
+  const handleSyncWithNostr = useCallback(async () => {
+    if (!userState.identity) return;
+    
+    setIsSyncing(true);
+    try {
+      // 1. Fetch bookmarks from Nostr
+      const remoteList = await listService.fetchBookmarks(userState.identity.pubkey);
+      
+      if (remoteList && remoteList.eventIds.length > 0) {
+        // 2. Merge with local bookmarks
+        const localIds = bookmarkService.getBookmarkedIds();
+        const mergedIds = Array.from(new Set([...localIds, ...remoteList.eventIds]));
+        
+        // 3. Update local service
+        mergedIds.forEach(id => {
+          if (!localIds.includes(id)) {
+            bookmarkService.toggleBookmark(id); // This will add it
+          }
+        });
+
+        // 4. If we added new ones from local, push back to Nostr
+        if (mergedIds.length > remoteList.eventIds.length) {
+          const unsigned = listService.buildBookmarksList({
+            eventIds: mergedIds,
+            pubkey: userState.identity.pubkey,
+          });
+          const signed = await identityService.signEvent(unsigned);
+          await nostrService.publishSignedEvent(signed);
+        }
+
+        toastService.push({
+          type: 'success',
+          message: 'Bookmarks synced with Nostr',
+          detail: `Found ${remoteList.eventIds.length} remote bookmarks.`,
+          durationMs: UIConfig.TOAST_DURATION_MS,
+        });
+      } else if (bookmarkedIds.length > 0) {
+        // No remote list, but we have local bookmarks - push them
+        const unsigned = listService.buildBookmarksList({
+          eventIds: bookmarkedIds,
+          pubkey: userState.identity.pubkey,
+        });
+        const signed = await identityService.signEvent(unsigned);
+        await nostrService.publishSignedEvent(signed);
+        
+        toastService.push({
+          type: 'success',
+          message: 'Bookmarks published to Nostr',
+          durationMs: UIConfig.TOAST_DURATION_MS,
+        });
+      }
+    } catch (error) {
+      console.error('[Bookmarks] Sync error:', error);
+      toastService.push({
+        type: 'error',
+        message: 'Failed to sync bookmarks',
+        detail: error instanceof Error ? error.message : String(error),
+        durationMs: UIConfig.TOAST_DURATION_MS,
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [userState.identity, bookmarkedIds]);
 
   // Stabilize callbacks to prevent PostItem re-renders
   const handleVote = useCallback((postId: string, direction: 'up' | 'down') => {
@@ -147,13 +218,30 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
         </div>
         
         {bookmarkedPosts.length > 0 && (
-          <button
-            onClick={handleClearAll}
-            className="flex items-center gap-2 text-xs text-terminal-dim hover:text-terminal-alert border border-terminal-dim hover:border-terminal-alert px-2 py-1 transition-colors"
-          >
-            <Trash2 size={12} />
-            CLEAR_ALL
-          </button>
+          <div className="flex items-center gap-2">
+            {userState.identity && FeatureFlags.ENABLE_LISTS && (
+              <button
+                onClick={handleSyncWithNostr}
+                disabled={isSyncing}
+                className="flex items-center gap-2 text-xs text-terminal-text hover:bg-terminal-text hover:text-black border border-terminal-text px-2 py-1 transition-colors uppercase font-bold"
+                title="Sync bookmarks with Nostr (NIP-51)"
+              >
+                {isSyncing ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  <Globe size={12} />
+                )}
+                {isSyncing ? 'SYNCING...' : 'SYNC_NOSTR'}
+              </button>
+            )}
+            <button
+              onClick={handleClearAll}
+              className="flex items-center gap-2 text-xs text-terminal-dim hover:text-terminal-alert border border-terminal-dim hover:border-terminal-alert px-2 py-1 transition-colors uppercase font-bold"
+            >
+              <Trash2 size={12} />
+              CLEAR_ALL
+            </button>
+          </div>
         )}
       </div>
 

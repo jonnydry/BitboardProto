@@ -3,6 +3,7 @@ import { Post, UserState, ViewMode, Board, ThemeId, BoardType, NostrIdentity, So
 import { nostrService } from '../../services/nostrService';
 import { identityService } from '../../services/identityService';
 import { bookmarkService } from '../../services/bookmarkService';
+import { listService } from '../../services/listService';
 import { reportService } from '../../services/reportService';
 import { toastService } from '../../services/toastService';
 import { encryptedBoardService } from '../../services/encryptedBoardService';
@@ -629,7 +630,27 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     handleTagClick: eventHandlers.handleTagClick,
     handleVote,
     handleCommentVote,
-    handleToggleBookmark: (postId: string) => bookmarkService.toggleBookmark(postId),
+    handleToggleBookmark: async (postId: string) => {
+      // 1. Update locally
+      bookmarkService.toggleBookmark(postId);
+      
+      // 2. Persist to Nostr (NIP-51) if identity is available
+      if (userCtx.userState.identity && FeatureFlags.ENABLE_LISTS) {
+        try {
+          const currentBookmarked = bookmarkService.getBookmarkedIds();
+          const unsigned = listService.buildBookmarksList({
+            eventIds: currentBookmarked,
+            pubkey: userCtx.userState.identity.pubkey,
+          });
+          const signed = await identityService.signEvent(unsigned);
+          nostrService.publishSignedEvent(signed).catch(err => {
+            logger.warn('AppContext', 'Failed to publish bookmarks to Nostr', err);
+          });
+        } catch (err) {
+          logger.warn('AppContext', 'Failed to sign bookmarks event', err);
+        }
+      }
+    },
     handleSearch: eventHandlers.handleSearch,
     loadMorePosts: eventHandlers.loadMorePosts,
     getThemeColor: (id: ThemeId) => themeColors.get(id) || '#fff',
