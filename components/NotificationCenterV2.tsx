@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Bell, BellOff, Check, CheckCheck, Trash2, Settings, 
   MessageCircle, AtSign, UserPlus, Heart, Repeat, 
@@ -33,16 +33,16 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
   const [showSettings, setShowSettings] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Load notifications
-  useEffect(() => {
-    loadNotifications();
-  }, [filter]);
-
-  const loadNotifications = () => {
+  const loadNotifications = useCallback(() => {
     const opts = filter === 'all' ? {} : { type: filter };
     setNotifications(notificationServiceV2.getAll({ ...opts, limit: 100 }));
     setUnreadCount(notificationServiceV2.getUnreadCount());
-  };
+  }, [filter]);
+
+  // Load notifications
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
 
   const handleMarkAsRead = (id: string) => {
     notificationServiceV2.markAsRead(id);

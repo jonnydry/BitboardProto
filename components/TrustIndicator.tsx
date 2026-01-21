@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Info, ShieldCheck, ShieldAlert, Shield } from 'lucide-react';
+import { Users, ShieldCheck, ShieldAlert, Shield } from 'lucide-react';
 import { wotService } from '../services/wotService';
 import { FeatureFlags } from '../config';
 

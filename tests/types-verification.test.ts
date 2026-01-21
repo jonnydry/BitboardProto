@@ -6,16 +6,9 @@ import { describe, it, expect } from 'vitest';
 // Import all types that services depend on
 import {
   // Core types
-  type NostrEvent,
-  type UnsignedNostrEvent,
-  type NostrIdentity,
-  type LocalNostrIdentity,
-  type Nip07NostrIdentity,
   type Post,
   type Comment,
   type Board,
-  type UserState,
-  type SyncStatus,
   BoardType,
   GeohashPrecision,
   ViewMode,
@@ -27,7 +20,6 @@ import {
   NOSTR_KINDS,
   
   // Zap types (NIP-57)
-  type ZapRequest,
   type ZapReceipt,
   type ZapTally,
   type LNURLPayResponse,

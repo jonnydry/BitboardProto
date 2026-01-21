@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Zap, Loader2, Copy, Check, ExternalLink, AlertTriangle } from 'lucide-react';
 import { zapService } from '../services/zapService';
 import { identityService } from '../services/identityService';
 import { toastService } from '../services/toastService';
-import { NostrConfig, UIConfig } from '../config';
+import { NostrConfig } from '../config';
 import type { NostrIdentity } from '../types';
 
 interface ZapModalProps {

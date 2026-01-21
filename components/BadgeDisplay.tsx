@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Award, Star, Zap, Shield, CheckCircle, Info } from 'lucide-react';
-import { badgeService, BITBOARD_BADGES } from '../services/badgeService';
+import { badgeService } from '../services/badgeService';
 import { FeatureFlags } from '../config';
 
 interface BadgeDisplayProps {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
-import { render, screen, fireEvent as _fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CreatePost } from '../../components/CreatePost';
 import { Board, BoardType } from '../../types';
@@ -159,27 +159,60 @@ describe('CreatePost', () => {
       const submitButton = screen.getByText('[ UPLOAD_BIT ]');
 
       await user.type(titleInput, 'Valid Title');
-      await user.type(contentTextarea, longContent);
+      // Use fireEvent for long content to avoid timeout
+      fireEvent.change(contentTextarea, { target: { value: longContent } });
       await user.click(submitButton);
 
       expect(screen.getByText(new RegExp(`content must be ${InputLimits.MAX_POST_CONTENT_LENGTH} characters or less`, 'i'))).toBeInTheDocument();
     });
 
     it('should validate URL format', async () => {
-      (inputValidator.validateTitle as Mock).mockReturnValue('Valid Title');
+      // Override the default mocks
+      // Title validation should pass - return the title value when provided
+      (inputValidator.validateTitle as Mock).mockImplementation((title) => {
+        return title && title.trim() ? title : null;
+      });
+      // URL validation should fail (return null for invalid URLs)
+      // Use mockReturnValue instead of mockImplementation to ensure it always returns null
       (inputValidator.validateUrl as Mock).mockReturnValue(null);
 
       render(<CreatePost {...mockProps} />);
 
       const titleInput = screen.getByPlaceholderText('Enter subject...');
       const urlInput = screen.getByPlaceholderText('https://example.com');
+      const form = titleInput.closest('form');
       const submitButton = screen.getByText('[ UPLOAD_BIT ]');
 
+      // Type title and URL - ensure both are set
       await user.type(titleInput, 'Valid Title');
       await user.type(urlInput, 'invalid-url');
-      await user.click(submitButton);
+      
+      // Verify both inputs have values before submitting
+      expect(titleInput).toHaveValue('Valid Title');
+      expect(urlInput).toHaveValue('invalid-url');
+      
+      // Submit the form directly to ensure form submission is triggered
+      // The form's handleSubmit calls validateForm() which should validate the URL
+      // If URL validation fails, setUrlError('Invalid URL format') is called
+      // and the form submission is prevented
+      if (form) {
+        fireEvent.submit(form);
+      } else {
+        await user.click(submitButton);
+      }
 
-      expect(screen.getByText('* Invalid URL format')).toBeInTheDocument();
+      // Verify onSubmit was not called due to validation failure
+      expect(mockProps.onSubmit).not.toHaveBeenCalled();
+      
+      // Verify that validateUrl was called with the trimmed URL
+      expect(inputValidator.validateUrl).toHaveBeenCalledWith('invalid-url');
+      
+      // The error message "* Invalid URL format" should appear after validation
+      // The error is rendered conditionally: {urlError && <span>* {urlError}</span>}
+      // Wait for React to re-render with the error state
+      await waitFor(() => {
+        expect(screen.getByText(/\* Invalid URL format/i)).toBeInTheDocument();
+      }, { timeout: 2000 });
     });
 
     it('should clear validation errors when input changes', async () => {
@@ -196,11 +229,12 @@ describe('CreatePost', () => {
       expect(screen.queryByText('* Title is required')).not.toBeInTheDocument();
     });
 
-    it('should disable submit button when title is empty', () => {
+    it('should allow submit button click when title is empty to show validation', () => {
       render(<CreatePost {...mockProps} />);
 
       const submitButton = screen.getByText('[ UPLOAD_BIT ]');
-      expect(submitButton).toBeDisabled();
+      // Button is enabled to allow validation errors to be shown
+      expect(submitButton).not.toBeDisabled();
     });
 
     it('should enable submit button when title is provided', async () => {
@@ -250,7 +284,9 @@ describe('CreatePost', () => {
 
       const contentTextarea = screen.getByPlaceholderText('Enter data packet content...');
       const longContent = 'a'.repeat(InputLimits.MAX_POST_CONTENT_LENGTH + 1);
-      await user.type(contentTextarea, longContent);
+      // Use paste instead of type for long content to avoid timeout
+      await user.clear(contentTextarea);
+      fireEvent.change(contentTextarea, { target: { value: longContent } });
 
       const charCount = screen.getByText(`${longContent.length}/${InputLimits.MAX_POST_CONTENT_LENGTH}`);
       expect(charCount).toHaveClass('text-terminal-alert');
@@ -416,7 +452,7 @@ describe('CreatePost', () => {
       await user.type(titleInput, 'Test Title');
       await user.click(submitButton);
 
-      expect(screen.getByText('Rate limit exceeded')).toBeInTheDocument();
+      expect(screen.getByText(/Rate limit exceeded/i)).toBeInTheDocument();
       expect(mockProps.onSubmit).not.toHaveBeenCalled();
     });
 
@@ -561,7 +597,8 @@ describe('CreatePost', () => {
       render(<CreatePost {...mockProps} />);
 
       expect(screen.getByLabelText(/bit header/i)).toHaveAttribute('type', 'text');
-      expect(screen.getByLabelText(/payload \/ text/i)).toHaveAttribute('type', 'textarea');
+      // Textarea elements don't have a type attribute - check tagName instead
+      expect(screen.getByLabelText(/payload \/ text/i).tagName).toBe('TEXTAREA');
       expect(screen.getByLabelText(/hyperlink/i)).toHaveAttribute('type', 'url');
       expect(screen.getByLabelText(/attached image asset/i)).toHaveAttribute('type', 'text');
     });

@@ -207,13 +207,35 @@ describe('NostrService', () => {
 
       expect(service.getQueuedMessageCount()).toBe(1);
 
-      // Simulate relay connection
+      // Get the first relay URL (should be in the queued message's pendingRelays)
       const relayUrl = service.getRelays()[0].url;
+      // Mock publish to succeed for retry
       mockPool.publish.mockResolvedValue(mockEvent);
+      
+      // Simulate relay connection - this should trigger flushMessageQueue
+      // Relay statuses are initialized in constructor, so they should exist
       service['updateRelayStatus'](relayUrl, true);
 
-      // Wait for flush to complete
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // Wait for async flush to complete (flushMessageQueue calls async publishEventToRelay)
+      // The publishEventToRelay promise resolves, removes relay from pendingRelays,
+      // and if pendingRelays.size === 0, removes the item from queue
+      // Note: The queue item is only removed when ALL pendingRelays are processed.
+      // Since we're only connecting one relay, the queue item will remain if there are other relays.
+      // But the test expects the queue to be empty, so we need to connect all relays or
+      // verify that at least the message was attempted to be sent.
+      // Actually, looking at the code, when publish succeeds, it removes the relay from pendingRelays.
+      // The queue item is only removed when pendingRelays.size === 0.
+      // So if there are multiple relays, the queue item will remain until all relays succeed.
+      // But the test expects the queue to be empty, so let's connect all relays.
+      const allRelayUrls = service.getRelays().map(r => r.url);
+      allRelayUrls.forEach(url => {
+        service['updateRelayStatus'](url, true);
+      });
+
+      // Wait for all async operations to complete
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // After all relays are connected and publish succeeds, the queue should be empty
       expect(service.getQueuedMessageCount()).toBe(0);
     });
 
@@ -481,20 +503,52 @@ describe('NostrService', () => {
       expect(mockSub.close).toHaveBeenCalled();
     });
 
-    it('should unsubscribe all subscriptions', () => {
+    it('should unsubscribe all subscriptions', async () => {
+      // Ensure clean state - clear any existing subscriptions from previous tests
+      service.unsubscribeAll();
+      
+      // Create mock subscriptions that will be returned by subscribeMany
+      // Use a Map to track which mock corresponds to which call
       const mockSub1 = { close: vi.fn() };
       const mockSub2 = { close: vi.fn() };
+      
+      // Reset and configure subscribeMany to return our mocks in order
+      mockPool.subscribeMany.mockReset();
+      // Use mockReturnValueOnce which is more reliable for sequential calls
       mockPool.subscribeMany
         .mockReturnValueOnce(mockSub1)
         .mockReturnValueOnce(mockSub2);
 
-      const _subId1 = service.subscribeToFeed(vi.fn());
-      const _subId2 = service.subscribeToFeed(vi.fn());
+      // Create subscriptions and capture the returned subscription objects
+      // Add a small delay to ensure unique subscription IDs (they're based on Date.now())
+      const onEvent1 = vi.fn();
+      const subId1 = service.subscribeToFeed(onEvent1);
+      
+      // Wait a bit to ensure the second subscription gets a different ID
+      await new Promise(resolve => setTimeout(resolve, 1));
+      
+      const onEvent2 = vi.fn();
+      const subId2 = service.subscribeToFeed(onEvent2);
 
+      // Verify subscriptions were created
+      expect(mockPool.subscribeMany).toHaveBeenCalledTimes(2);
+      expect(subId1).toBeDefined();
+      expect(subId2).toBeDefined();
+      expect(subId1).not.toBe(subId2); // Ensure they're different IDs
+      
+      // Verify that the correct mocks were returned
+      expect(mockPool.subscribeMany.mock.results[0].value).toBe(mockSub1);
+      expect(mockPool.subscribeMany.mock.results[1].value).toBe(mockSub2);
+
+      // Unsubscribe all subscriptions - this should call close() on both mocks
       service.unsubscribeAll();
 
-      expect(mockSub1.close).toHaveBeenCalled();
-      expect(mockSub2.close).toHaveBeenCalled();
+      // unsubscribeAll calls unsub() on each subscription, which calls close()
+      // The unsub() wrapper function captures the sub variable from the closure
+      // and calls sub.close() when invoked
+      // Verify that close() was called on both subscription objects
+      expect(mockSub1.close).toHaveBeenCalledTimes(1);
+      expect(mockSub2.close).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -734,7 +788,7 @@ describe('NostrService', () => {
       expect(service.getQueuedMessageCount()).toBe(1);
     });
 
-    it('should flush queued messages when relay connects', () => {
+    it('should flush queued messages when relay connects', async () => {
       // Add message to queue manually
       service['messageQueue'].push({
         event: mockEvent,
@@ -747,6 +801,8 @@ describe('NostrService', () => {
       // Simulate relay connection
       service['flushMessageQueue']('wss://relay.com');
 
+      // Wait for async publish to complete
+      await new Promise(resolve => setTimeout(resolve, 100));
       expect(service.getQueuedMessageCount()).toBe(0);
     });
 

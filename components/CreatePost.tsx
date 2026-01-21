@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Post, Board, BoardType } from '../types';
 import { scanLink } from '../services/geminiService';
 import { inputValidator, InputLimits } from '../services/inputValidator';
@@ -8,7 +8,7 @@ import { Loader, ImageIcon, AlertTriangle, Lock } from 'lucide-react';
 interface CreatePostProps {
   availableBoards: Board[];
   currentBoardId: string | null; // Pre-select if inside a board
-  onSubmit: (post: Omit<Post, 'id' | 'timestamp' | 'score' | 'commentCount' | 'comments' | 'nostrEventId'>) => void;
+  onSubmit: (post: Omit<Post, 'id' | 'timestamp' | 'score' | 'commentCount' | 'comments' | 'nostrEventId'>) => void | Promise<void>;
   onCancel: () => void;
   activeUser: string;
   userPubkey?: string;
@@ -31,13 +31,25 @@ export const CreatePost: React.FC<CreatePostProps> = ({ availableBoards, current
   const [urlError, setUrlError] = useState<string | null>(null);
   const [rateLimitError, setRateLimitError] = useState<string | null>(null);
 
+  // Handle Escape key to cancel
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onCancel();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onCancel]);
+
   const handleScanLink = async () => {
     if (!url.trim()) return;
     
     // Validate URL first
     const validatedUrl = inputValidator.validateUrl(url);
     if (!validatedUrl) {
-      setUrlError('Invalid URL format. Must be http:// or https://');
+      setUrlError('Invalid URL format');
       return;
     }
     setUrlError(null);
@@ -89,10 +101,12 @@ export const CreatePost: React.FC<CreatePostProps> = ({ availableBoards, current
     }
 
     // Validate URL (optional but must be valid if provided)
-    if (url.trim()) {
-      const validatedUrl = inputValidator.validateUrl(url);
+    // Use the current url state value
+    const currentUrl = url.trim();
+    if (currentUrl) {
+      const validatedUrl = inputValidator.validateUrl(currentUrl);
       if (!validatedUrl) {
-        setUrlError('Invalid URL format. Must be http:// or https://');
+        setUrlError('Invalid URL format');
         isValid = false;
       } else {
         setUrlError(null);
@@ -104,7 +118,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ availableBoards, current
     return isValid;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Clear previous rate limit error
@@ -126,31 +140,39 @@ export const CreatePost: React.FC<CreatePostProps> = ({ availableBoards, current
 
     setIsSubmitting(true);
     
-    // Sanitize inputs
-    const sanitizedTitle = inputValidator.validateTitle(title)!;
-    const sanitizedContent = content.trim() ? inputValidator.validatePostContent(content) || '' : '';
-    const sanitizedUrl = url.trim() ? inputValidator.validateUrl(url) : undefined;
-    const sanitizedImageUrl = imageUrl.trim() ? inputValidator.validateUrl(imageUrl) : undefined;
-    
-    // Parse and validate tags
-    const rawTags = tagsStr.split(',').map(t => t.trim()).filter(t => t.length > 0);
-    const sanitizedTags = inputValidator.validateTags(rawTags);
-    
-    // Submit immediately (no artificial delay!)
-    onSubmit({
-      boardId: selectedBoardId,
-      title: sanitizedTitle,
-      content: sanitizedContent,
-      url: sanitizedUrl,
-      imageUrl: sanitizedImageUrl,
-      linkDescription: linkDescription.trim() || undefined,
-      author: activeUser,
-      authorPubkey: userPubkey,
-      tags: sanitizedTags.length > 0 ? sanitizedTags : ['general'],
-      upvotes: 1,
-      downvotes: 0,
-    });
-    setIsSubmitting(false);
+    try {
+      // Sanitize inputs
+      const sanitizedTitle = inputValidator.validateTitle(title)!;
+      const sanitizedContent = content.trim() ? inputValidator.validatePostContent(content) || '' : '';
+      const sanitizedUrl = url.trim() ? inputValidator.validateUrl(url) : undefined;
+      const sanitizedImageUrl = imageUrl.trim() ? inputValidator.validateUrl(imageUrl) : undefined;
+      
+      // Parse and validate tags
+      const rawTags = tagsStr.split(',').map(t => t.trim()).filter(t => t.length > 0);
+      const sanitizedTags = inputValidator.validateTags(rawTags);
+      
+      // Submit (handle both sync and async onSubmit)
+      const result = onSubmit({
+        boardId: selectedBoardId,
+        title: sanitizedTitle,
+        content: sanitizedContent,
+        url: sanitizedUrl,
+        imageUrl: sanitizedImageUrl,
+        linkDescription: linkDescription.trim() || undefined,
+        author: activeUser,
+        authorPubkey: userPubkey,
+        tags: sanitizedTags.length > 0 ? sanitizedTags : ['general'],
+        upvotes: 1,
+        downvotes: 0,
+      });
+      
+      // If onSubmit returns a promise, wait for it
+      if (result && typeof result.then === 'function') {
+        await result;
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Character count helpers
@@ -206,9 +228,10 @@ export const CreatePost: React.FC<CreatePostProps> = ({ availableBoards, current
 
         {/* URL Input with Scanner */}
         <div className="flex flex-col gap-1">
-          <label className="text-sm text-terminal-dim uppercase font-bold">Hyperlink (Optional)</label>
+          <label htmlFor="url-input" className="text-sm text-terminal-dim uppercase font-bold">Hyperlink (Optional)</label>
           <div className="flex gap-2">
             <input 
+              id="url-input"
               type="url" 
               value={url}
               onChange={(e) => {
@@ -265,12 +288,13 @@ export const CreatePost: React.FC<CreatePostProps> = ({ availableBoards, current
         {/* Title */}
         <div className="flex flex-col gap-1">
           <div className="flex justify-between items-center">
-            <label className="text-sm text-terminal-dim uppercase font-bold">Bit Header (Title)</label>
+            <label htmlFor="title-input" className="text-sm text-terminal-dim uppercase font-bold">Bit Header (Title)</label>
             <span className={`text-xs ${titleOverLimit ? 'text-terminal-alert' : 'text-terminal-dim'}`}>
               {titleCharCount}/{InputLimits.MAX_TITLE_LENGTH}
             </span>
           </div>
           <input 
+            id="title-input"
             type="text" 
             value={title}
             onChange={(e) => {
@@ -288,12 +312,13 @@ export const CreatePost: React.FC<CreatePostProps> = ({ availableBoards, current
         {/* Content */}
         <div className="flex flex-col gap-1">
           <div className="flex justify-between items-center">
-            <label className="text-sm text-terminal-dim uppercase font-bold">Payload / Text</label>
+            <label htmlFor="content-textarea" className="text-sm text-terminal-dim uppercase font-bold">Payload / Text</label>
             <span className={`text-xs ${contentOverLimit ? 'text-terminal-alert' : 'text-terminal-dim'}`}>
               {contentCharCount}/{InputLimits.MAX_POST_CONTENT_LENGTH}
             </span>
           </div>
           <textarea 
+            id="content-textarea"
             value={content}
             onChange={(e) => {
               setContent(e.target.value);
@@ -309,10 +334,11 @@ export const CreatePost: React.FC<CreatePostProps> = ({ availableBoards, current
 
         {/* Image URL Manual Override */}
         <div className="flex flex-col gap-1">
-          <label className="text-sm text-terminal-dim uppercase font-bold flex items-center gap-2">
+          <label htmlFor="image-url-input" className="text-sm text-terminal-dim uppercase font-bold flex items-center gap-2">
             <ImageIcon size={14} /> Attached Image Asset (URL)
           </label>
           <input 
+            id="image-url-input"
             type="text" 
             value={imageUrl}
             onChange={(e) => setImageUrl(e.target.value)}
@@ -323,12 +349,13 @@ export const CreatePost: React.FC<CreatePostProps> = ({ availableBoards, current
 
         <div className="flex flex-col gap-1">
           <div className="flex justify-between items-center">
-            <label className="text-sm text-terminal-dim uppercase font-bold">Tags</label>
+            <label htmlFor="tags-input" className="text-sm text-terminal-dim uppercase font-bold">Tags</label>
             <span className="text-xs text-terminal-dim">
               Max {InputLimits.MAX_TAGS_COUNT} tags
             </span>
           </div>
           <input 
+            id="tags-input"
             type="text" 
             value={tagsStr}
             onChange={(e) => setTagsStr(e.target.value)}
@@ -340,7 +367,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ availableBoards, current
         <div className="flex gap-4 mt-4 pt-4 border-t border-terminal-dim/30">
           <button 
             type="submit"
-            disabled={isSubmitting || !title.trim()}
+            disabled={isSubmitting}
             className="bg-terminal-text text-black font-bold px-6 py-3 hover:bg-terminal-dim hover:text-white transition-colors uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? '> TRANSMITTING...' : '[ UPLOAD_BIT ]'}

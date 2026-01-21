@@ -278,7 +278,7 @@ class SearchService {
    * Hybrid search: combine local and relay results
    * Returns post IDs from both sources
    */
-  async hybridSearch(query: string, localPosts: Post[]): Promise<{
+  async hybridSearch(query: string, _localPosts: Post[]): Promise<{
     localIds: string[];
     relayEvents: NostrEvent[];
   }> {

@@ -347,7 +347,8 @@ class NostrService {
     const errorMessage = error.message.toLowerCase();
     if (errorMessage.includes('dns') || 
         errorMessage.includes('hostname') ||
-        errorMessage.includes('not found')) {
+        errorMessage.includes('not found') ||
+        errorMessage.includes('enotfound')) {
       logger.warn('Nostr', `Permanent failure for ${url} - not retrying`);
       diagnosticsService.error('nostr', `Relay permanent failure: ${url}`, error.message);
       status.reconnectAttempts = this.MAX_RECONNECT_ATTEMPTS;

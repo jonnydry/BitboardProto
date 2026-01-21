@@ -16,7 +16,6 @@
 
 import { type Event as NostrEvent } from 'nostr-tools';
 import {
-  NOSTR_KINDS,
   type NostrList,
   type UnsignedNostrEvent,
 } from '../types';

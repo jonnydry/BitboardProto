@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useCallback, useState } from 'react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { Post, UserState } from '../types';
 import { PostItem } from './PostItem';
-import { ArrowLeft, Bookmark, Trash2, RefreshCw, Globe, Loader2 } from 'lucide-react';
+import { ArrowLeft, Bookmark, Trash2, Globe, Loader2 } from 'lucide-react';
 import { bookmarkService } from '../services/bookmarkService';
 import { listService } from '../services/listService';
 import { identityService } from '../services/identityService';

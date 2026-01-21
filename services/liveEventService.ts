@@ -16,7 +16,7 @@
 // - streaming tag: URL to the stream
 // - p tags: Participants with roles (host, speaker, participant)
 
-import { type Event as NostrEvent, type Filter } from 'nostr-tools';
+import { type Event as NostrEvent } from 'nostr-tools';
 import {
   NOSTR_KINDS,
   type LiveEvent,

@@ -14,7 +14,7 @@
 // 3. Moderator publishes approval event (kind 4550)
 // 4. Clients show post only after approval exists
 
-import { type Event as NostrEvent, type Filter } from 'nostr-tools';
+import { type Event as NostrEvent } from 'nostr-tools';
 import {
   NOSTR_KINDS,
   type Community,

@@ -12,8 +12,7 @@
 //
 // Trust decays with distance - closer connections are more trusted.
 
-import { type Event as NostrEvent } from 'nostr-tools';
-import { type WoTScore, NOSTR_KINDS } from '../types';
+import { type WoTScore } from '../types';
 import { nostrService } from './nostr/NostrService';
 import { logger } from './loggingService';
 

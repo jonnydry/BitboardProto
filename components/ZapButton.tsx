@@ -65,7 +65,6 @@ export const ZapButton: React.FC<ZapButtonProps> = ({
     }
 
     let cancelled = false;
-    let unsubscribe: (() => void) | undefined;
 
     zapService.getZapTally(eventId)
       .then(tally => {
@@ -80,7 +79,7 @@ export const ZapButton: React.FC<ZapButtonProps> = ({
       });
 
     // Subscribe to real-time zaps
-    unsubscribe = zapService.subscribeToZaps([eventId], (receipt) => {
+    const unsubscribe = zapService.subscribeToZaps([eventId], (receipt) => {
       if (!cancelled) {
         setZapTally(prev => ({
           total: prev.total + receipt.amount,
