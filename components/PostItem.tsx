@@ -79,6 +79,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   const [showReportModal, setShowReportModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [authorProfile, setAuthorProfile] = useState<any>(null);
+  const [profileLoadState, setProfileLoadState] = useState<'idle' | 'loading' | 'loaded' | 'failed'>('idle');
   const [isVisible, setIsVisible] = useState(false);
   const postRef = useRef<HTMLDivElement>(null);
 
@@ -176,20 +177,41 @@ const PostItemComponent: React.FC<PostItemProps> = ({
     let cancelled = false;
     const currentPubkey = post.authorPubkey;
 
+    setProfileLoadState('loading');
+
+    // Set a timeout for profile loading (5 seconds)
+    // Use a ref-like pattern to track loading state without dependency cycle
+    let isLoading = true;
+    const timeoutId = setTimeout(() => {
+      if (!cancelled && isLoading) {
+        setProfileLoadState('failed');
+      }
+    }, 5000);
+
     profileService.getProfileMetadata(currentPubkey)
       .then(profile => {
-        if (!cancelled && profile && post.authorPubkey === currentPubkey) {
-          setAuthorProfile(profile);
+        isLoading = false;
+        if (!cancelled && post.authorPubkey === currentPubkey) {
+          if (profile) {
+            setAuthorProfile(profile);
+            setProfileLoadState('loaded');
+          } else {
+            setProfileLoadState('failed');
+          }
         }
       })
       .catch(error => {
+        isLoading = false;
         if (!cancelled) {
           console.error('[PostItem] Failed to load author profile:', error);
+          setProfileLoadState('failed');
         }
       });
 
     return () => {
       cancelled = true;
+      isLoading = false;
+      clearTimeout(timeoutId);
     };
   }, [isVisible, post.authorPubkey, authorProfile]);
 
@@ -586,17 +608,39 @@ const PostItemComponent: React.FC<PostItemProps> = ({
               className="flex items-center gap-1 font-bold text-terminal-dim hover:text-terminal-text hover:underline transition-colors cursor-pointer"
               title={`View ${profileService.getDisplayName(post.author, authorProfile)}'s profile`}
             >
-              {authorProfile?.picture && (
-                <img
-                  src={authorProfile.picture}
-                  alt={`${post.author}'s avatar`}
-                  className="w-4 h-4 rounded-full object-cover"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                  }}
-                />
-              )}
-              <span>{profileService.getDisplayName(post.author, authorProfile)}</span>
+              {/* Avatar with placeholder and fade-in */}
+              <div className="relative w-4 h-4 flex-shrink-0">
+                {profileLoadState === 'loading' && (
+                  <div className="absolute inset-0 rounded-full bg-terminal-dim/30 animate-pulse" />
+                )}
+                {profileLoadState === 'loaded' && authorProfile?.picture ? (
+                  <img
+                    src={authorProfile.picture}
+                    alt={`${post.author}'s avatar`}
+                    className="w-4 h-4 rounded-full object-cover transition-opacity duration-300"
+                    style={{ opacity: 1 }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                ) : profileLoadState !== 'loading' && (
+                  <div
+                    className="w-4 h-4 rounded-full bg-terminal-dim/20 flex items-center justify-center text-[8px] text-terminal-dim font-bold"
+                    title={post.authorPubkey ? `${post.authorPubkey.slice(0, 8)}...` : ''}
+                  >
+                    {post.author.charAt(0).toUpperCase()}
+                  </div>
+                )}
+              </div>
+              {/* Name with loading state */}
+              <span className={`transition-opacity duration-200 ${profileLoadState === 'loading' ? 'opacity-70' : 'opacity-100'}`}>
+                {profileLoadState === 'loaded'
+                  ? profileService.getDisplayName(post.author, authorProfile)
+                  : post.authorPubkey
+                    ? `${post.authorPubkey.slice(0, 8)}...`
+                    : post.author
+                }
+              </span>
             </button>
             <BadgeDisplay pubkey={post.authorPubkey || ''} size="sm" />
             <TrustIndicator pubkey={post.authorPubkey || ''} compact={true} />

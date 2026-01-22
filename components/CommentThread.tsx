@@ -29,6 +29,8 @@ interface CommentThreadProps {
 const MAX_VISUAL_DEPTH = 5; // Max indentation level for visual clarity
 const REPLIES_PAGE_SIZE = 3;
 const COLLAPSE_STORAGE_PREFIX = 'bitboard_comment_collapsed_v1:';
+const AUTO_COLLAPSE_DEPTH = 3; // Auto-collapse threads deeper than this
+const TOP_LEVEL_PAGE_SIZE = 10; // Number of top-level comments to show initially
 
 const CommentThreadComponent: React.FC<CommentThreadProps> = ({
   comment,
@@ -46,7 +48,18 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
   onToggleMute,
   isMuted,
 }) => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  // Auto-collapse deep threads by default
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    // Check localStorage first
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(`${COLLAPSE_STORAGE_PREFIX}${comment.id}`);
+        if (raw) return raw === '1';
+      }
+    } catch { /* ignore */ }
+    // Auto-collapse threads deeper than AUTO_COLLAPSE_DEPTH
+    return depth >= AUTO_COLLAPSE_DEPTH;
+  });
   const [isReplying, setIsReplying] = useState(false);
   const [replyContent, setReplyContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -57,18 +70,6 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
   const [editContent, setEditContent] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [authorProfile, setAuthorProfile] = useState<any>(null);
-
-  // Load persisted collapse state (local only)
-  useEffect(() => {
-    try {
-      if (typeof localStorage === 'undefined') return;
-      const raw = localStorage.getItem(`${COLLAPSE_STORAGE_PREFIX}${comment.id}`);
-      if (!raw) return;
-      setIsCollapsed(raw === '1');
-    } catch {
-      // ignore
-    }
-  }, [comment.id]);
 
   // Load author profile metadata from cache (profiles are pre-fetched at parent level)
   useEffect(() => {
@@ -336,9 +337,16 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
 
           {/* Collapsed indicator */}
           {isCollapsed && hasReplies && (
-            <span className="text-terminal-dim text-[10px] border border-terminal-dim px-1">
-              +{replyCount} {replyCount === 1 ? 'reply' : 'replies'}
-            </span>
+            <button
+              onClick={handleToggleCollapse}
+              className="text-terminal-dim hover:text-terminal-text text-[10px] border border-terminal-dim hover:border-terminal-text px-1 transition-colors flex items-center gap-1"
+            >
+              {depth >= AUTO_COLLAPSE_DEPTH ? (
+                <>Continue thread → ({replyCount})</>
+              ) : (
+                <>+{replyCount} {replyCount === 1 ? 'reply' : 'replies'}</>
+              )}
+            </button>
           )}
         </div>
 
@@ -623,3 +631,150 @@ export function buildCommentTree(comments: Comment[]): Comment[] {
 }
 
 export const CommentThread = React.memo(CommentThreadComponent);
+
+// Wrapper component for comment list with controls
+interface CommentListProps {
+  comments: Comment[];
+  userState: UserState;
+  onReply: (parentId: string, content: string) => void;
+  onEdit?: (commentId: string, content: string) => void;
+  onDelete?: (commentId: string) => void;
+  onViewProfile?: (author: string, authorPubkey?: string) => void;
+  onVote?: (postId: string, commentId: string, direction: 'up' | 'down') => void;
+  postId?: string;
+  formatTime: (timestamp: number) => string;
+  knownUsers?: Set<string>;
+  onToggleMute?: (pubkey: string) => void;
+  isMuted?: (pubkey: string) => boolean;
+}
+
+const CommentListComponent: React.FC<CommentListProps> = ({
+  comments,
+  userState,
+  onReply,
+  onEdit,
+  onDelete,
+  onViewProfile,
+  onVote,
+  postId,
+  formatTime,
+  knownUsers = new Set(),
+  onToggleMute,
+  isMuted,
+}) => {
+  const [visibleCount, setVisibleCount] = useState(TOP_LEVEL_PAGE_SIZE);
+  const [allCollapsed, setAllCollapsed] = useState(false);
+  const [collapseKey, setCollapseKey] = useState(0); // Force re-render on collapse all
+
+  const totalComments = useMemo(() => {
+    const countAll = (c: Comment): number => {
+      if (!c.replies) return 1;
+      return 1 + c.replies.reduce((sum, r) => sum + countAll(r), 0);
+    };
+    return comments.reduce((sum, c) => sum + countAll(c), 0);
+  }, [comments]);
+
+  const handleCollapseAll = useCallback(() => {
+    // Store collapse state for all comments
+    const collapseRecursive = (c: Comment) => {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(`${COLLAPSE_STORAGE_PREFIX}${c.id}`, '1');
+        }
+      } catch { /* ignore */ }
+      c.replies?.forEach(collapseRecursive);
+    };
+    comments.forEach(collapseRecursive);
+    setAllCollapsed(true);
+    setCollapseKey(k => k + 1);
+  }, [comments]);
+
+  const handleExpandAll = useCallback(() => {
+    // Clear collapse state for all comments
+    const expandRecursive = (c: Comment) => {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem(`${COLLAPSE_STORAGE_PREFIX}${c.id}`);
+        }
+      } catch { /* ignore */ }
+      c.replies?.forEach(expandRecursive);
+    };
+    comments.forEach(expandRecursive);
+    setAllCollapsed(false);
+    setCollapseKey(k => k + 1);
+  }, [comments]);
+
+  const visibleComments = comments.slice(0, visibleCount);
+  const hasMore = comments.length > visibleCount;
+
+  if (comments.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-2">
+      {/* Comment controls header */}
+      {totalComments > 3 && (
+        <div className="flex items-center justify-between text-xs text-terminal-dim border-b border-terminal-dim/30 pb-2 mb-2">
+          <span className="uppercase">
+            {totalComments} {totalComments === 1 ? 'comment' : 'comments'}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCollapseAll}
+              className="hover:text-terminal-text transition-colors uppercase"
+              title="Collapse all threads"
+            >
+              Collapse all
+            </button>
+            <span className="text-terminal-dim/50">|</span>
+            <button
+              onClick={handleExpandAll}
+              className="hover:text-terminal-text transition-colors uppercase"
+              title="Expand all threads"
+            >
+              Expand all
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Comments list */}
+      <div key={collapseKey}>
+        {visibleComments.map(comment => (
+          <CommentThread
+            key={comment.id}
+            comment={comment}
+            userState={userState}
+            onReply={onReply}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onViewProfile={onViewProfile}
+            onVote={onVote}
+            postId={postId}
+            formatTime={formatTime}
+            knownUsers={knownUsers}
+            depth={0}
+            onToggleMute={onToggleMute}
+            isMuted={isMuted}
+          />
+        ))}
+      </div>
+
+      {/* Load more comments */}
+      {hasMore && (
+        <button
+          onClick={() => setVisibleCount(v => Math.min(v + TOP_LEVEL_PAGE_SIZE, comments.length))}
+          className="w-full py-2 text-xs text-terminal-dim hover:text-terminal-text border border-terminal-dim/30 hover:border-terminal-text transition-colors uppercase"
+        >
+          Load {Math.min(TOP_LEVEL_PAGE_SIZE, comments.length - visibleCount)} more comments
+          <span className="ml-2 text-terminal-dim/50">
+            (showing {visibleCount} of {comments.length})
+          </span>
+        </button>
+      )}
+    </div>
+  );
+};
+
+export const CommentList = React.memo(CommentListComponent);

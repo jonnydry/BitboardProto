@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { HelpCircle, Hash, Lock, Globe, Eye, Key, MapPin, Radio, Activity, User, ChevronDown, ChevronRight, Shield, AlertTriangle, Trash2 } from 'lucide-react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { HelpCircle, Hash, Lock, Globe, Eye, Key, MapPin, Radio, Activity, User, ChevronDown, ChevronRight, Shield, AlertTriangle, Trash2, Wifi, WifiOff, RefreshCw, Search } from 'lucide-react';
 import type { Board, UserState } from '../../types';
 import { BoardType, ThemeId, ViewMode } from '../../types';
 import { geonetDiscoveryService, type GeoChannel } from '../../services/geonetDiscoveryService';
 import { geohashService } from '../../services/geohashService';
 import { encryptedBoardService } from '../../services/encryptedBoardService';
+import { nostrService, type RelayStatus } from '../../services/nostr/NostrService';
 
 // Collapsible section component for mobile
 function CollapsibleSection({
@@ -88,6 +89,44 @@ export function Sidebar(props: {
   const [isLoadingActivity, setIsLoadingActivity] = useState(false);
   // Mobile state: show more boards
   const [showAllBoards, setShowAllBoards] = useState(false);
+  // Board search filter
+  const [boardSearchQuery, setBoardSearchQuery] = useState('');
+  // Pagination for boards
+  const [visibleBoardCount, setVisibleBoardCount] = useState(10);
+  // Relay status state
+  const [relayStatuses, setRelayStatuses] = useState<RelayStatus[]>([]);
+  const [showRelayDetails, setShowRelayDetails] = useState(false);
+
+  // Update relay statuses periodically
+  useEffect(() => {
+    const updateRelayStatuses = () => {
+      setRelayStatuses(nostrService.getRelayStatuses());
+    };
+
+    // Initial load
+    updateRelayStatuses();
+
+    // Update every 5 seconds
+    const interval = setInterval(updateRelayStatuses, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Calculate relay health metrics
+  const relayMetrics = useMemo(() => {
+    const total = relayStatuses.length;
+    const connected = relayStatuses.filter(s => s.isConnected).length;
+    const errored = relayStatuses.filter(s => s.lastError && !s.isConnected).length;
+    const reconnecting = relayStatuses.filter(s => s.nextReconnectTime && !s.isConnected).length;
+
+    // Overall health: green if >50% connected, yellow if >0 connected, red if none
+    let healthStatus: 'good' | 'degraded' | 'offline' = 'offline';
+    if (connected > 0) {
+      healthStatus = connected >= total / 2 ? 'good' : 'degraded';
+    }
+
+    return { total, connected, errored, reconnecting, healthStatus };
+  }, [relayStatuses]);
 
   // Load cached discovery result on mount
   useEffect(() => {
@@ -148,18 +187,75 @@ export function Sidebar(props: {
         <div className="absolute inset-0 bg-terminal-dim/5 translate-x-[-100%] group-hover:translate-x-full transition-transform duration-1000 pointer-events-none" />
         <div className="flex items-center justify-between text-xs mb-1">
           <span className="text-terminal-dim font-bold text-[10px] md:text-xs">SYSTEM_STATUS</span>
-          <div className="flex gap-1">
-            <div className={`w-2 h-2 rounded-sm ${isNostrConnected ? 'bg-terminal-text animate-pulse' : 'bg-terminal-dim/30'}`} />
+          <div className="flex gap-1 items-center">
+            {/* Relay health indicator dots */}
+            {relayMetrics.healthStatus === 'good' && (
+              <div className="w-2 h-2 rounded-sm bg-terminal-text animate-pulse" title="Relays healthy" />
+            )}
+            {relayMetrics.healthStatus === 'degraded' && (
+              <div className="w-2 h-2 rounded-sm bg-yellow-500 animate-pulse" title="Some relays offline" />
+            )}
+            {relayMetrics.healthStatus === 'offline' && (
+              <div className="w-2 h-2 rounded-sm bg-terminal-alert" title="All relays offline" />
+            )}
             <div className={`w-2 h-2 rounded-sm ${userState.identity ? 'bg-terminal-text' : 'bg-terminal-dim/30'}`} />
           </div>
         </div>
         <div className="font-mono text-[10px] text-terminal-dim leading-tight">
-          <div className="flex justify-between">
-            <span>RELAY_LINK:</span>
-            <span className={isNostrConnected ? 'text-terminal-text' : 'text-terminal-alert'}>
-              {isNostrConnected ? '[CONNECTED]' : '[OFFLINE]'}
+          {/* Relay connection with click to expand */}
+          <button
+            onClick={() => setShowRelayDetails(!showRelayDetails)}
+            className="w-full flex justify-between items-center hover:text-terminal-text transition-colors"
+          >
+            <span className="flex items-center gap-1">
+              {relayMetrics.connected > 0 ? <Wifi size={10} /> : <WifiOff size={10} />}
+              RELAY_LINK:
             </span>
-          </div>
+            <span className={`flex items-center gap-1 ${
+              relayMetrics.healthStatus === 'good' ? 'text-terminal-text' :
+              relayMetrics.healthStatus === 'degraded' ? 'text-yellow-500' :
+              'text-terminal-alert'
+            }`}>
+              [{relayMetrics.connected}/{relayMetrics.total}]
+              <ChevronDown size={10} className={`transition-transform ${showRelayDetails ? 'rotate-180' : ''}`} />
+            </span>
+          </button>
+
+          {/* Expanded relay details */}
+          {showRelayDetails && (
+            <div className="mt-2 space-y-1 border-t border-terminal-dim/30 pt-2 max-h-[150px] overflow-y-auto">
+              {relayStatuses.map((relay) => {
+                const urlShort = relay.url.replace('wss://', '').replace('ws://', '').split('/')[0];
+                return (
+                  <div key={relay.url} className="flex items-center justify-between gap-2">
+                    <span className="truncate flex-1" title={relay.url}>{urlShort}</span>
+                    <span className="flex items-center gap-1 flex-shrink-0">
+                      {relay.isConnected ? (
+                        <span className="text-terminal-text flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-terminal-text" />
+                          OK
+                        </span>
+                      ) : relay.nextReconnectTime ? (
+                        <span className="text-yellow-500 flex items-center gap-1">
+                          <RefreshCw size={8} className="animate-spin" />
+                          RETRY
+                        </span>
+                      ) : (
+                        <span className="text-terminal-alert flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-terminal-alert" />
+                          ERR
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
+              {relayStatuses.length === 0 && (
+                <div className="text-terminal-dim/50 text-center py-1">No relays configured</div>
+              )}
+            </div>
+          )}
+
           <div className="flex justify-between mt-0.5">
             <span>USER_AUTH:</span>
             <span className={userState.identity ? 'text-terminal-text' : 'text-terminal-dim'}>
@@ -224,7 +320,25 @@ export function Sidebar(props: {
       )}
 
       {/* Topic Board Directory - Collapsible on mobile */}
-      <CollapsibleSection title="TOPIC_NET" icon={Hash} defaultOpen={false}>
+      <CollapsibleSection title="TOPIC_NET" icon={Hash} defaultOpen={false} badge={
+        <span className="text-[10px] text-terminal-dim">({topicBoards.length})</span>
+      }>
+        {/* Board search */}
+        {topicBoards.length > 5 && (
+          <div className="mb-2">
+            <input
+              type="text"
+              value={boardSearchQuery}
+              onChange={(e) => {
+                setBoardSearchQuery(e.target.value);
+                setVisibleBoardCount(10); // Reset pagination on search
+              }}
+              placeholder="Filter boards..."
+              className="w-full bg-terminal-bg border border-terminal-dim/50 px-2 py-1 text-xs focus:border-terminal-text focus:outline-none"
+            />
+          </div>
+        )}
+
         <div className="flex flex-col gap-1 max-h-[200px] md:max-h-[300px] overflow-y-auto pr-1">
           <button
             onClick={() => navigateToBoard(null)}
@@ -249,10 +363,13 @@ export function Sidebar(props: {
           </button>
           {(() => {
             const publicBoards = topicBoards.filter((b) => b.type === BoardType.TOPIC && b.isPublic);
-            // On mobile, show fewer boards unless expanded
-            const mobileLimit = showAllBoards ? DESKTOP_BOARD_LIMIT : MOBILE_BOARD_LIMIT;
-            const visibleBoards = publicBoards.slice(0, window.innerWidth < 768 ? mobileLimit : DESKTOP_BOARD_LIMIT);
-            const hiddenCount = Math.max(0, publicBoards.length - visibleBoards.length);
+            // Filter by search query
+            const filteredBoards = boardSearchQuery
+              ? publicBoards.filter(b => b.name.toLowerCase().includes(boardSearchQuery.toLowerCase()))
+              : publicBoards;
+            // Paginate
+            const visibleBoards = filteredBoards.slice(0, visibleBoardCount);
+            const hiddenCount = Math.max(0, filteredBoards.length - visibleBoards.length);
 
             return (
               <>
@@ -282,17 +399,17 @@ export function Sidebar(props: {
                     </span>
                   </button>
                 ))}
-                {/* Mobile: Show more toggle */}
-                {!showAllBoards && hiddenCount > 0 && (
+                {/* Show more toggle */}
+                {hiddenCount > 0 && (
                   <button
-                    onClick={() => setShowAllBoards(true)}
-                    className="md:hidden text-left text-xs px-2 py-1.5 text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10 transition-all flex items-center gap-2 group w-full"
+                    onClick={() => setVisibleBoardCount(v => v + 10)}
+                    className="text-left text-xs px-2 py-1.5 text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10 transition-all flex items-center gap-2 group w-full"
                   >
                     <span className="shrink-0 text-[10px] opacity-50 group-hover:opacity-100">
                       {'+'}
                     </span>
                     <span className="truncate">
-                      Show {hiddenCount} more
+                      Show {Math.min(10, hiddenCount)} more ({hiddenCount} remaining)
                     </span>
                   </button>
                 )}

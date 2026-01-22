@@ -274,6 +274,99 @@ export const LoadingText = memo<{ text?: string }>(({ text = 'Loading' }) => (
 ));
 LoadingText.displayName = 'LoadingText';
 
+/**
+ * Loading phase indicator for multi-step loading processes
+ */
+export type LoadingPhase = 'connecting' | 'posts' | 'reactions' | 'profiles' | 'complete';
+
+const PHASE_LABELS: Record<LoadingPhase, { label: string; description: string }> = {
+  connecting: { label: 'RELAY_LINK', description: 'Connecting to relays...' },
+  posts: { label: 'FETCH_POSTS', description: 'Loading posts...' },
+  reactions: { label: 'FETCH_VOTES', description: 'Fetching reactions...' },
+  profiles: { label: 'FETCH_META', description: 'Loading profiles...' },
+  complete: { label: 'READY', description: 'Feed loaded' },
+};
+
+const PHASE_ORDER: LoadingPhase[] = ['connecting', 'posts', 'reactions', 'profiles', 'complete'];
+
+export const LoadingPhaseIndicator = memo<{
+  currentPhase: LoadingPhase;
+  className?: string;
+}>(({ currentPhase, className = '' }) => {
+  const currentIndex = PHASE_ORDER.indexOf(currentPhase);
+  const progress = ((currentIndex + 1) / PHASE_ORDER.length) * 100;
+
+  return (
+    <div className={`border border-terminal-dim bg-terminal-bg p-4 ${className}`}>
+      {/* Terminal-style header */}
+      <div className="flex items-center gap-2 mb-3 text-xs text-terminal-dim">
+        <div className="w-2 h-2 rounded-full bg-terminal-text animate-pulse" />
+        <span className="uppercase tracking-wider">SYSTEM_INIT</span>
+      </div>
+
+      {/* Progress bar */}
+      <div className="h-1 bg-terminal-dim/20 mb-3 overflow-hidden">
+        <div
+          className="h-full bg-terminal-text transition-all duration-500 ease-out"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+
+      {/* Phase list */}
+      <div className="space-y-1 font-mono text-xs">
+        {PHASE_ORDER.slice(0, -1).map((phase, index) => {
+          const isActive = phase === currentPhase;
+          const isComplete = index < currentIndex;
+
+          return (
+            <div
+              key={phase}
+              className={`flex items-center gap-2 transition-colors ${
+                isComplete ? 'text-terminal-text' :
+                isActive ? 'text-terminal-text' :
+                'text-terminal-dim/50'
+              }`}
+            >
+              <span className="w-4 text-center">
+                {isComplete ? '✓' : isActive ? '>' : ' '}
+              </span>
+              <span className={isActive ? 'animate-pulse' : ''}>
+                {PHASE_LABELS[phase].label}
+              </span>
+              {isActive && (
+                <span className="text-terminal-dim ml-auto">
+                  {PHASE_LABELS[phase].description}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+LoadingPhaseIndicator.displayName = 'LoadingPhaseIndicator';
+
+/**
+ * Compact loading phase for inline display
+ */
+export const LoadingPhaseCompact = memo<{
+  currentPhase: LoadingPhase;
+}>(({ currentPhase }) => {
+  const phaseInfo = PHASE_LABELS[currentPhase];
+  const currentIndex = PHASE_ORDER.indexOf(currentPhase);
+  const progress = Math.round(((currentIndex + 1) / PHASE_ORDER.length) * 100);
+
+  return (
+    <div className="flex items-center gap-2 text-xs text-terminal-dim">
+      <InlineSpinner size={12} />
+      <span className="uppercase">{phaseInfo.label}</span>
+      <span className="text-terminal-dim/50">[{progress}%]</span>
+    </div>
+  );
+});
+LoadingPhaseCompact.displayName = 'LoadingPhaseCompact';
+
 export default {
   PostSkeleton,
   FeedSkeleton,
@@ -289,4 +382,6 @@ export default {
   PageSkeleton,
   InlineSpinner,
   LoadingText,
+  LoadingPhaseIndicator,
+  LoadingPhaseCompact,
 };

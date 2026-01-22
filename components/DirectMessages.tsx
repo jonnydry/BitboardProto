@@ -1,7 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { MessageCircle, Send, ArrowLeft, User, Trash2, Check, CheckCheck, Lock, Search, Plus } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { MessageCircle, Send, ArrowLeft, User, Trash2, Check, CheckCheck, Lock, Search, Plus, ChevronUp } from 'lucide-react';
 import { dmService, type Conversation, type DirectMessage } from '../services/dmService';
 import { nostrService as _nostrService } from '../services/nostr/NostrService';
+
+// Pagination constants
+const CONVERSATIONS_PAGE_SIZE = 20;
+const MESSAGES_PAGE_SIZE = 50;
 
 // ============================================
 // TYPES
@@ -26,11 +30,23 @@ const ConversationList: React.FC<{
   searchQuery: string;
   onSearchChange: (query: string) => void;
 }> = ({ conversations, selectedId, onSelect, onNewConversation, onDelete, searchQuery, onSearchChange }) => {
-  const filteredConversations = conversations.filter(conv => {
-    if (!searchQuery) return true;
-    const name = conv.participantName || conv.participantPubkey;
-    return name.toLowerCase().includes(searchQuery.toLowerCase());
-  });
+  const [visibleCount, setVisibleCount] = useState(CONVERSATIONS_PAGE_SIZE);
+
+  const filteredConversations = useMemo(() => {
+    return conversations.filter(conv => {
+      if (!searchQuery) return true;
+      const name = conv.participantName || conv.participantPubkey;
+      return name.toLowerCase().includes(searchQuery.toLowerCase());
+    });
+  }, [conversations, searchQuery]);
+
+  const visibleConversations = filteredConversations.slice(0, visibleCount);
+  const hasMore = filteredConversations.length > visibleCount;
+
+  // Reset pagination when search changes
+  useEffect(() => {
+    setVisibleCount(CONVERSATIONS_PAGE_SIZE);
+  }, [searchQuery]);
 
   return (
     <div className="flex flex-col h-full border-r border-terminal-dim">
@@ -40,6 +56,9 @@ const ConversationList: React.FC<{
           <h2 className="text-lg font-bold text-terminal-text flex items-center gap-2">
             <MessageCircle size={20} />
             MESSAGES
+            <span className="text-xs text-terminal-dim font-normal">
+              ({filteredConversations.length})
+            </span>
           </h2>
           <button
             onClick={onNewConversation}
@@ -49,7 +68,7 @@ const ConversationList: React.FC<{
             <Plus size={16} />
           </button>
         </div>
-        
+
         {/* Search */}
         <div className="relative">
           <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-terminal-dim" />
@@ -65,20 +84,32 @@ const ConversationList: React.FC<{
 
       {/* Conversation List */}
       <div className="flex-1 overflow-y-auto">
-        {filteredConversations.length === 0 ? (
+        {visibleConversations.length === 0 ? (
           <div className="p-4 text-center text-terminal-dim text-sm">
             {searchQuery ? 'No conversations found' : 'No messages yet'}
           </div>
         ) : (
-          filteredConversations.map(conv => (
-            <ConversationItem
-              key={conv.id}
-              conversation={conv}
-              isSelected={selectedId === conv.id}
-              onSelect={() => onSelect(conv.participantPubkey)}
-              onDelete={() => onDelete(conv.participantPubkey)}
-            />
-          ))
+          <>
+            {visibleConversations.map(conv => (
+              <ConversationItem
+                key={conv.id}
+                conversation={conv}
+                isSelected={selectedId === conv.id}
+                onSelect={() => onSelect(conv.participantPubkey)}
+                onDelete={() => onDelete(conv.participantPubkey)}
+              />
+            ))}
+
+            {/* Load more button */}
+            {hasMore && (
+              <button
+                onClick={() => setVisibleCount(v => v + CONVERSATIONS_PAGE_SIZE)}
+                className="w-full py-3 text-xs text-terminal-dim hover:text-terminal-text border-t border-terminal-dim/30 transition-colors uppercase"
+              >
+                Load {Math.min(CONVERSATIONS_PAGE_SIZE, filteredConversations.length - visibleCount)} older conversations
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -187,16 +218,68 @@ const ChatView: React.FC<{
 }> = ({ conversation, currentUserPubkey, onSendMessage, onBack }) => {
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(MESSAGES_PAGE_SIZE);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const scrollHeightBeforeRef = useRef<number | null>(null);
 
   const displayName = conversation.participantName ||
     (conversation.participantPubkey ? `${conversation.participantPubkey.slice(0, 8)}...` : 'Unknown');
 
-  // Scroll to bottom when messages change
+  // Get visible messages (most recent N)
+  const allMessages = conversation.messages;
+  const totalMessages = allMessages.length;
+  const visibleMessages = useMemo(() => {
+    // Show the most recent N messages
+    const startIndex = Math.max(0, totalMessages - visibleCount);
+    return allMessages.slice(startIndex);
+  }, [allMessages, totalMessages, visibleCount]);
+
+  const hasEarlierMessages = totalMessages > visibleCount;
+
+  // Handle loading earlier messages
+  const handleLoadEarlier = () => {
+    const container = messagesContainerRef.current;
+    if (container) {
+      // Store scroll height before state update
+      scrollHeightBeforeRef.current = container.scrollHeight;
+    }
+    setVisibleCount(v => v + MESSAGES_PAGE_SIZE);
+  };
+
+  // Preserve scroll position after loading earlier messages
+  // This runs after React commits DOM updates
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [conversation.messages]);
+    if (scrollHeightBeforeRef.current !== null) {
+      const container = messagesContainerRef.current;
+      if (container) {
+        // Use double requestAnimationFrame to ensure DOM is fully updated
+        // First RAF: wait for React to commit
+        requestAnimationFrame(() => {
+          // Second RAF: wait for browser to paint
+          requestAnimationFrame(() => {
+            const scrollHeightAfter = container.scrollHeight;
+            const scrollHeightBefore = scrollHeightBeforeRef.current!;
+            container.scrollTop = scrollHeightAfter - scrollHeightBefore;
+            scrollHeightBeforeRef.current = null;
+          });
+        });
+      }
+    }
+  }, [visibleCount]);
+
+  // Scroll to bottom when new messages arrive (but not when loading earlier)
+  useEffect(() => {
+    // Only auto-scroll if we're near the bottom
+    const container = messagesContainerRef.current;
+    if (container) {
+      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+      if (isNearBottom) {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+  }, [conversation.messages.length]);
 
   // Focus input on mount
   useEffect(() => {
@@ -255,14 +338,28 @@ const ChatView: React.FC<{
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {conversation.messages.length === 0 ? (
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+        {/* Load earlier messages button */}
+        {hasEarlierMessages && (
+          <button
+            onClick={handleLoadEarlier}
+            className="w-full py-2 mb-3 text-xs text-terminal-dim hover:text-terminal-text border border-terminal-dim/30 hover:border-terminal-text transition-colors uppercase flex items-center justify-center gap-2"
+          >
+            <ChevronUp size={14} />
+            Load {Math.min(MESSAGES_PAGE_SIZE, totalMessages - visibleCount)} earlier messages
+            <span className="text-terminal-dim/50">
+              (showing {visibleMessages.length} of {totalMessages})
+            </span>
+          </button>
+        )}
+
+        {visibleMessages.length === 0 ? (
           <div className="text-center text-terminal-dim py-8">
             <Lock size={32} className="mx-auto mb-2 opacity-50" />
             <p>Start an encrypted conversation with {displayName}</p>
           </div>
         ) : (
-          conversation.messages.map((msg) => (
+          visibleMessages.map((msg) => (
             <MessageBubble
               key={msg.id}
               message={msg}

@@ -2324,3 +2324,6 @@ export const nostrService = new NostrService();
 
 // Export class for testing
 export { NostrService };
+
+// Export types
+export type { RelayStatus };

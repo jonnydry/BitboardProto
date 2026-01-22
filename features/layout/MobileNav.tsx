@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Home, PlusSquare, Bookmark, Bell, Wifi, WifiOff } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Home, PlusSquare, Bookmark, Bell, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import { ViewMode } from '../../types';
 import type { NostrIdentity } from '../../types';
 import { notificationService } from '../../services/notificationService';
@@ -20,6 +20,8 @@ export function MobileNav({
   bookmarkedCount,
 }: MobileNavProps) {
   const [unreadCount, setUnreadCount] = useState(0);
+  const [lastHomeTap, setLastHomeTap] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     const unsubscribe = notificationService.subscribe(() => {
@@ -29,14 +31,31 @@ export function MobileNav({
     return unsubscribe;
   }, []);
 
+  // Double-tap on HOME to scroll to top
+  const handleHomeTap = useCallback(() => {
+    const now = Date.now();
+    if (viewMode === ViewMode.FEED && now - lastHomeTap < 300) {
+      // Double tap detected - scroll to top with animation
+      setIsRefreshing(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      // Briefly show refreshing animation
+      setTimeout(() => setIsRefreshing(false), 500);
+    } else {
+      onNavigateGlobal();
+    }
+    setLastHomeTap(now);
+  }, [viewMode, lastHomeTap, onNavigateGlobal]);
+
   const navItems = [
     {
       id: 'home',
-      icon: Home,
+      icon: isRefreshing ? RefreshCw : Home,
       label: 'HOME',
       isActive: viewMode === ViewMode.FEED,
-      onClick: onNavigateGlobal,
+      onClick: handleHomeTap,
       badge: null,
+      isRefreshing,
     },
     {
       id: 'create',
@@ -91,12 +110,12 @@ export function MobileNav({
               aria-current={item.isActive ? 'page' : undefined}
             >
               <div className="relative">
-                <Icon 
-                  size={22} 
-                  className={item.isActive ? 'drop-shadow-[0_0_4px_rgb(var(--color-terminal-text))]' : ''} 
+                <Icon
+                  size={22}
+                  className={`transition-transform ${item.isActive ? 'drop-shadow-[0_0_4px_rgb(var(--color-terminal-text))]' : ''} ${(item as any).isRefreshing ? 'animate-spin' : ''}`}
                 />
                 {item.badge !== null && (
-                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 flex items-center justify-center text-[10px] font-bold bg-terminal-alert text-white rounded-sm">
+                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 flex items-center justify-center text-[10px] font-bold bg-terminal-alert text-white rounded-sm animate-pulse">
                     {item.badge > 99 ? '99+' : item.badge}
                   </span>
                 )}

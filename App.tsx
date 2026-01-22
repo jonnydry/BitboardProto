@@ -3,6 +3,7 @@ import { ToastHost } from './components/ToastHost';
 import { SEOHead } from './components/SEOHead';
 import { KeyboardShortcutsHelp } from './components/KeyboardShortcutsHelp';
 import { OnboardingFlow } from './components/OnboardingFlow';
+import { OfflineBanner } from './components/OfflineBanner';
 import { AppProvider, useApp } from './features/layout/AppContext';
 import { AppHeader } from './features/layout/AppHeader';
 import { Sidebar } from './features/layout/Sidebar';
@@ -182,10 +183,13 @@ const AppContent: React.FC = () => {
         isOpen={showOnboarding}
         onComplete={handleOnboardingComplete}
         onSkip={handleOnboardingSkip}
+        onIdentityChange={app.handleIdentityChange}
       />
 
       <div className="min-h-screen bg-terminal-bg text-terminal-text font-mono selection:bg-terminal-text selection:text-black relative overflow-x-hidden">
         <ToastHost />
+        {/* Offline Status Banner */}
+        <OfflineBanner isNostrConnected={app.isNostrConnected} />
         {/* Scanline Overlay */}
         <div className="scanlines fixed inset-0 pointer-events-none z-50"></div>
 
