@@ -543,7 +543,7 @@ export function FeedView(props: {
       {showJumpToTop && (
         <button
           onClick={handleJumpToTop}
-          className="fixed bottom-24 md:bottom-8 right-4 md:right-8 z-30 w-12 h-12 bg-terminal-text text-black rounded-sm shadow-hard flex items-center justify-center hover:bg-terminal-highlight transition-colors"
+          className="fixed bottom-24 md:bottom-8 right-4 md:right-8 z-30 w-12 h-12 bg-terminal-text text-black rounded-sm shadow-hard flex items-center justify-center hover:brightness-110 hover:scale-110 transition-all"
           aria-label="Jump to top"
           title="Jump to top"
         >

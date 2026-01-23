@@ -1,19 +1,21 @@
 import React, { useState, useMemo } from 'react';
 import { ArrowLeft, Hash, Lock, Globe, Plus, Shield, Key, Link2, Check, AlertTriangle, Unlock } from 'lucide-react';
-import type { Board } from '../types';
+import type { Board, Post } from '../types';
 import { ViewMode } from '../types';
 import { encryptedBoardService } from '../services/encryptedBoardService';
 import { toastService } from '../services/toastService';
 import { UIConfig } from '../config';
+import { enrichBoardsWithMemberCounts } from '../services/boardMemberService';
 
 interface BoardBrowserProps {
   topicBoards: Board[];
+  posts: Post[];
   onNavigateToBoard: (id: string | null) => void;
   onSetViewMode: (mode: ViewMode) => void;
   onClose: () => void;
 }
 
-export function BoardBrowser({ topicBoards, onNavigateToBoard, onSetViewMode, onClose }: BoardBrowserProps) {
+export function BoardBrowser({ topicBoards, posts, onNavigateToBoard, onSetViewMode, onClose }: BoardBrowserProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [shareLinkInput, setShareLinkInput] = useState('');
   const [importError, setImportError] = useState<string | null>(null);
@@ -21,6 +23,11 @@ export function BoardBrowser({ topicBoards, onNavigateToBoard, onSetViewMode, on
 
   // Get IDs of boards we have keys for
   const encryptedBoardIds = useMemo(() => new Set(encryptedBoardService.getEncryptedBoardIds()), []);
+
+  // Calculate real member counts from posts and comments
+  const boardsWithRealMemberCounts = useMemo(() => {
+    return enrichBoardsWithMemberCounts(topicBoards, posts);
+  }, [topicBoards, posts]);
 
   const handleImportShareLink = () => {
     setImportError(null);
@@ -60,14 +67,14 @@ export function BoardBrowser({ topicBoards, onNavigateToBoard, onSetViewMode, on
 
   // Filter boards based on search query
   const filteredBoards = useMemo(() => {
-    if (!searchQuery.trim()) return topicBoards;
+    if (!searchQuery.trim()) return boardsWithRealMemberCounts;
 
     const query = searchQuery.toLowerCase().trim();
-    return topicBoards.filter(board =>
+    return boardsWithRealMemberCounts.filter(board =>
       board.name.toLowerCase().includes(query) ||
       board.description.toLowerCase().includes(query)
     );
-  }, [topicBoards, searchQuery]);
+  }, [boardsWithRealMemberCounts, searchQuery]);
 
   const publicBoards = filteredBoards.filter(b => b.isPublic && !b.isEncrypted);
   const privateBoards = filteredBoards.filter(b => !b.isPublic && !b.isEncrypted);

@@ -336,6 +336,7 @@ const AppContent: React.FC = () => {
               <Suspense fallback={<LoadingFallback />}>
                 <BoardBrowser
                   topicBoards={app.topicBoards}
+                  posts={app.posts}
                   onNavigateToBoard={app.navigateToBoard}
                   onSetViewMode={app.setViewMode}
                   onClose={() => app.setViewMode(ViewMode.FEED)}
