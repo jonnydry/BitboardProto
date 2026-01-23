@@ -10,7 +10,7 @@
   --color-terminal-alert: 224 91 18; /* #e05b12 */
   --color-terminal-highlight: 18 12 0; /* #0c0800 */
   --scanline-color: rgba(255, 176, 0, 0.03);
-  --text-shadow-val: 0 0 2px rgb(var(--color-terminal-text) / 0.3);
+  --text-shadow-val: 0 0 1px rgb(var(--color-terminal-text) / 0.5);
   --shadow-glow: 0 0 15px rgb(var(--color-terminal-text) / 0.1);
   --scanline-display: block;
 }
@@ -88,12 +88,22 @@
   --scanline-display: none;
 }
 
+/* Reset font smoothing for light theme (subpixel is better on white backgrounds) */
+[data-theme="bitboring"] body {
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
+}
+
 body {
   background-color: rgb(var(--color-terminal-bg));
   color: rgb(var(--color-terminal-text));
   overflow-x: hidden;
   text-shadow: var(--text-shadow-val);
   transition: background-color 0.3s, color 0.3s;
+  /* Font smoothing for sharper text on dark backgrounds */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 /* CRT Scanline effect - Dynamic */

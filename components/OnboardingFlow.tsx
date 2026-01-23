@@ -1033,7 +1033,7 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
                   You're In
                 </h2>
                 <p className="text-terminal-dim mb-8 max-w-md mx-auto">
-                  Your connection to the decentralized network is established. Welcome to the uncensorable frontier.
+                  Welcome to Bitboard. Powered by Nostr. Decentralized, encrypted, uncensorable. Discuss anything. Vote with your bits to get the best content on the board.
                 </p>
 
                 {/* Status summary */}
