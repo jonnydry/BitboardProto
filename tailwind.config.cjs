@@ -35,6 +35,9 @@ module.exports = {
         'glitch-1': 'glitch1 2s infinite linear alternate-reverse',
         'glitch-2': 'glitch2 3s infinite linear alternate-reverse',
         'scanline': 'scanline 8s linear infinite',
+        'spin-slow': 'spin 20s linear infinite',
+        'border-flow': 'borderFlow 3s linear infinite',
+        'border-flow-v': 'borderFlowV 4s linear infinite',
       },
       keyframes: {
         cursor: {
@@ -94,6 +97,14 @@ module.exports = {
         scanline: {
           '0%': { transform: 'translateY(-100%)' },
           '100%': { transform: 'translateY(1000%)' },
+        },
+        borderFlow: {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(100%)' },
+        },
+        borderFlowV: {
+          '0%': { transform: 'translateY(-100%)' },
+          '100%': { transform: 'translateY(100%)' },
         },
       },
     },
