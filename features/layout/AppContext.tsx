@@ -27,11 +27,10 @@ import { followServiceV2 } from '../../services/followServiceV2';
 import { notificationServiceV2 } from '../../services/notificationServiceV2';
 import { advancedSearchService } from '../../services/advancedSearchService';
 
-// Import new focused contexts
-import { PostsProvider, usePosts } from './contexts/PostsContext';
-import { BoardsProvider, useBoards } from './contexts/BoardsContext';
-import { UserProvider, useUser } from './contexts/UserContext';
-import { UIProvider, useUI } from './contexts/UIContext';
+// Import Zustand stores via compatibility layer (backward compatible API)
+import { usePosts, useBoards, useUser, useUI } from '../../hooks/useLegacyContext';
+// Import store effects hook for user store
+import { useUserStoreEffects } from '../../stores/userStore';
 
 const MAX_CACHED_POSTS = 200;
 
@@ -125,21 +124,12 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | null>(null);
 
-// AppProvider now wraps focused contexts for backward compatibility
+// AppProvider now uses Zustand stores directly (no Context providers needed)
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  return (
-    <UIProvider>
-      <UserProvider>
-        <BoardsProvider>
-          <PostsProvider>
-            <AppProviderInternal>
-              {children}
-            </AppProviderInternal>
-          </PostsProvider>
-        </BoardsProvider>
-      </UserProvider>
-    </UIProvider>
-  );
+  // Initialize user store effects (replaces useEffect from UserProvider)
+  useUserStoreEffects();
+  
+  return <AppProviderInternal>{children}</AppProviderInternal>;
 };
 
 // Internal provider that aggregates from focused contexts
@@ -207,6 +197,12 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [uiCtx.searchQuery]);
 
+  // Stabilize mutedPubkeys Set to prevent unnecessary recalculations
+  const mutedPubkeysSet = useMemo(() => {
+    const mutedPubkeys = userCtx.userState.mutedPubkeys || [];
+    return new Set(mutedPubkeys);
+  }, [userCtx.userState.mutedPubkeys?.join(',')]); // Compare content, not reference
+
   // Computed values (aggregated from focused contexts)
   const filteredPosts = useMemo(() => {
     let result = postsCtx.posts;
@@ -225,10 +221,9 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
       });
     }
 
-    // Filter muted users
-    if (userCtx.userState.mutedPubkeys && userCtx.userState.mutedPubkeys.length > 0) {
-      const mutedSet = new Set(userCtx.userState.mutedPubkeys);
-      result = result.filter(p => !p.authorPubkey || !mutedSet.has(p.authorPubkey));
+    // Filter muted users (using stable Set)
+    if (mutedPubkeysSet.size > 0) {
+      result = result.filter(p => !p.authorPubkey || !mutedPubkeysSet.has(p.authorPubkey));
     }
 
     // Apply search filter
@@ -263,7 +258,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     return result;
-  }, [postsCtx.posts, boardsCtx.activeBoardId, boardsCtx.boardsById, feedFilter, uiCtx.searchQuery, userCtx.userState.mutedPubkeys, workerSearchIds]);
+  }, [postsCtx.posts, boardsCtx.activeBoardId, boardsCtx.boardsById, feedFilter, uiCtx.searchQuery, mutedPubkeysSet, workerSearchIds]);
 
   // Decrypt encrypted posts/comments if we have the keys
   const { posts: decryptedPosts, failedBoardIds: decryptionFailedBoardIds, removeFailedKey } = usePostDecryption(filteredPosts, boardsCtx.boardsById);
@@ -362,16 +357,10 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
 
   const { handleVote } = useVoting({
     postsById: postsCtx.postsById,
-    userState: userCtx.userState,
-    setUserState: userCtx.setUserState,
-    setPosts: postsCtx.setPosts
   });
 
   const { handleCommentVote } = useCommentVoting({
     postsById: postsCtx.postsById,
-    userState: userCtx.userState,
-    setUserState: userCtx.setUserState,
-    setPosts: postsCtx.setPosts
   });
 
   // Event handlers (imported from separate file with updated context access)

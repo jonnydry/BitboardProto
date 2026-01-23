@@ -1,29 +1,41 @@
 import React, { useCallback } from 'react';
-import type { Post, UserState } from '../types';
+import type { Post } from '../types';
 import { votingService, computeOptimisticUpdate, computeRollback } from '../services/votingService';
 import { logger } from '../services/loggingService';
+import { useUserStore } from '../stores/userStore';
+import { usePostStore } from '../stores/postStore';
 
 export function useVoting(args: {
   postsById: Map<string, Post>;
-  userState: UserState;
-  setUserState: React.Dispatch<React.SetStateAction<UserState>>;
-  setPosts: React.Dispatch<React.SetStateAction<Post[]>>;
 }) {
-  const { postsById, userState, setUserState, setPosts } = args;
+  const { postsById } = args;
+
+  // Use selective Zustand selectors instead of full userState object
+  const userBits = useUserStore((state) => state.userState.bits);
+  const userIdentity = useUserStore((state) => state.userState.identity);
+  const votedPosts = useUserStore((state) => state.userState.votedPosts);
+  const setUserState = useUserStore((state) => state.setUserState);
+  
+  // Use targeted post update instead of array mapping
+  const updatePost = usePostStore((state) => state.updatePost);
+  const getPost = usePostStore((state) => (id: string) => state.posts.find(p => p.id === id));
 
   const handleVote = useCallback(
     async (postId: string, direction: 'up' | 'down') => {
       const post = postsById.get(postId);
+      if (!post) {
+        logger.warn('Vote', 'Post not found');
+        return;
+      }
 
-      const currentUserState = userState;
-      const currentVote = currentUserState.votedPosts[postId];
+      const currentVote = votedPosts[postId];
 
-      if (!currentUserState.identity) {
+      if (!userIdentity) {
         logger.warn('Vote', 'No identity - connect an identity to vote.');
         return;
       }
 
-      if (!currentVote && currentUserState.bits <= 0) {
+      if (!currentVote && userBits <= 0) {
         logger.warn('Vote', 'Insufficient bits');
         return;
       }
@@ -31,8 +43,8 @@ export function useVoting(args: {
       const optimisticUpdate = computeOptimisticUpdate(
         currentVote ?? null,
         direction,
-        currentUserState.bits,
-        currentUserState.votedPosts,
+        userBits,
+        votedPosts,
         postId
       );
 
@@ -42,63 +54,64 @@ export function useVoting(args: {
         votedPosts: optimisticUpdate.newVotedPosts,
       }));
 
-      setPosts((currentPosts) =>
-        currentPosts.map((p) => (p.id === postId ? { ...p, score: p.score + optimisticUpdate.scoreDelta } : p))
-      );
+      // Use targeted update instead of array mapping
+      updatePost(postId, {
+        score: post.score + optimisticUpdate.scoreDelta,
+      });
 
-      if (currentUserState.identity && post?.nostrEventId) {
+      if (userIdentity && post?.nostrEventId) {
         try {
           const result = await votingService.castVote(
             post.nostrEventId,
             direction,
-            currentUserState.identity,
+            userIdentity,
             post.authorPubkey
           );
 
           if (result.success && result.newTally) {
-            setPosts((currentPosts) =>
-              currentPosts.map((p) =>
-                p.id === postId
-                  ? {
-                      ...p,
-                      upvotes: result.newTally!.upvotes,
-                      downvotes: result.newTally!.downvotes,
-                      score: result.newTally!.score,
-                      uniqueVoters: result.newTally!.uniqueVoters,
-                      votesVerified: true,
-                    }
-                  : p
-              )
-            );
+            // Use targeted update instead of array mapping
+            updatePost(postId, {
+              upvotes: result.newTally.upvotes,
+              downvotes: result.newTally.downvotes,
+              score: result.newTally.score,
+              uniqueVoters: result.newTally.uniqueVoters,
+              votesVerified: true,
+            });
             logger.debug('Vote', `Verified: ${result.newTally.uniqueVoters} unique voters`);
           } else if (result.error) {
             logger.error('Vote', `Failed: ${result.error}`);
-            const rollback = computeRollback(optimisticUpdate, currentUserState.votedPosts, postId);
+            const rollback = computeRollback(optimisticUpdate, votedPosts, postId);
             setUserState((prev) => ({
               ...prev,
               bits: prev.bits + rollback.bitAdjustment,
               votedPosts: rollback.previousVotedPosts,
             }));
-            setPosts((currentPosts) =>
-              currentPosts.map((p) => (p.id === postId ? { ...p, score: p.score + rollback.scoreDelta } : p))
-            );
+            // Get latest post from store for rollback
+            const currentPost = getPost(postId) || post;
+            // Use targeted update for rollback
+            updatePost(postId, {
+              score: currentPost.score + rollback.scoreDelta,
+            });
           }
         } catch (error) {
           logger.error('Vote', 'Error publishing', error);
           // Best-effort rollback for publish exceptions
-          const rollback = computeRollback(optimisticUpdate, currentUserState.votedPosts, postId);
+          const rollback = computeRollback(optimisticUpdate, votedPosts, postId);
           setUserState((prev) => ({
             ...prev,
             bits: prev.bits + rollback.bitAdjustment,
             votedPosts: rollback.previousVotedPosts,
           }));
-          setPosts((currentPosts) =>
-            currentPosts.map((p) => (p.id === postId ? { ...p, score: p.score + rollback.scoreDelta } : p))
-          );
+          // Get latest post from store for rollback
+          const currentPost = getPost(postId) || post;
+          // Use targeted update for rollback
+          updatePost(postId, {
+            score: currentPost.score + rollback.scoreDelta,
+          });
         }
       }
     },
-    [postsById, setPosts, setUserState, userState]
+    [postsById, updatePost, setUserState, votedPosts, userBits, userIdentity, getPost]
   );
 
   return { handleVote };

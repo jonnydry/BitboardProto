@@ -1,14 +1,23 @@
 import React, { useCallback } from 'react';
-import type { Post, UserState, Comment } from '../types';
+import type { Post, Comment } from '../types';
 import { votingService, computeOptimisticUpdate, computeRollback } from '../services/votingService';
+import { useUserStore } from '../stores/userStore';
+import { usePostStore } from '../stores/postStore';
 
 export function useCommentVoting(args: {
   postsById: Map<string, Post>;
-  userState: UserState;
-  setUserState: React.Dispatch<React.SetStateAction<UserState>>;
-  setPosts: React.Dispatch<React.SetStateAction<Post[]>>;
 }) {
-  const { postsById, userState, setUserState, setPosts } = args;
+  const { postsById } = args;
+
+  // Use selective Zustand selectors instead of full userState object
+  const userBits = useUserStore((state) => state.userState.bits);
+  const userIdentity = useUserStore((state) => state.userState.identity);
+  const votedComments = useUserStore((state) => state.userState.votedComments ?? {});
+  const setUserState = useUserStore((state) => state.setUserState);
+  
+  // Use targeted post update instead of array mapping
+  const updatePost = usePostStore((state) => state.updatePost);
+  const getPost = usePostStore((state) => (id: string) => state.posts.find(p => p.id === id));
 
   const handleCommentVote = useCallback(
     async (postId: string, commentId: string, direction: 'up' | 'down') => {
@@ -30,23 +39,22 @@ export function useCommentVoting(args: {
       const comment = findComment(post.comments, commentId);
       if (!comment) return;
 
-      const currentUserState = userState;
-      const currentVote = currentUserState.votedComments?.[commentId];
+      const currentVote = votedComments[commentId];
 
-      if (!currentUserState.identity) {
+      if (!userIdentity) {
         console.warn('[CommentVote] No identity - connect an identity to vote.');
         return;
       }
 
-      if (!currentVote && currentUserState.bits <= 0) {
+      if (!currentVote && userBits <= 0) {
         return;
       }
 
       const optimisticUpdate = computeOptimisticUpdate(
         currentVote ?? null,
         direction,
-        currentUserState.bits,
-        currentUserState.votedComments ?? {},
+        userBits,
+        votedComments,
         commentId
       );
 
@@ -56,7 +64,7 @@ export function useCommentVoting(args: {
         votedComments: optimisticUpdate.newVotedPosts ?? {}, // Reusing newVotedPosts field
       }));
 
-      // Update comment score optimistically
+      // Update comment score optimistically - use targeted update
       const updateCommentInTree = (comments: Comment[]): Comment[] => {
         return comments.map((c) => {
           if (c.id === commentId) {
@@ -75,27 +83,25 @@ export function useCommentVoting(args: {
         });
       };
 
-      setPosts((currentPosts) =>
-        currentPosts.map((p) =>
-          p.id === postId
-            ? {
-                ...p,
-                comments: updateCommentInTree(p.comments),
-              }
-            : p
-        )
-      );
+      // Use targeted update instead of array mapping
+      const updatedComments = updateCommentInTree(post.comments);
+      updatePost(postId, {
+        comments: updatedComments,
+      });
 
-      if (currentUserState.identity && comment.nostrEventId) {
+      if (userIdentity && comment.nostrEventId) {
         try {
           const result = await votingService.castVote(
             comment.nostrEventId,
             direction,
-            currentUserState.identity,
+            userIdentity,
             comment.authorPubkey
           );
 
           if (result.success && result.newTally) {
+            // Get latest post from store to ensure we have current comments
+            const currentPost = getPost(postId) || post;
+            
             // Update comment with verified vote data
             const updateCommentWithTally = (comments: Comment[]): Comment[] => {
               return comments.map((c) => {
@@ -119,19 +125,14 @@ export function useCommentVoting(args: {
               });
             };
 
-            setPosts((currentPosts) =>
-              currentPosts.map((p) =>
-                p.id === postId
-                  ? {
-                      ...p,
-                      comments: updateCommentWithTally(p.comments),
-                    }
-                  : p
-              )
-            );
+            // Use targeted update instead of array mapping
+            const updatedCommentsWithTally = updateCommentWithTally(currentPost.comments);
+            updatePost(postId, {
+              comments: updatedCommentsWithTally,
+            });
           } else if (result.error) {
             console.error('[CommentVote] Failed:', result.error);
-            const rollback = computeRollback(optimisticUpdate, currentUserState.votedComments ?? {}, commentId);
+            const rollback = computeRollback(optimisticUpdate, votedComments, commentId);
             setUserState((prev) => ({
               ...prev,
               bits: prev.bits + rollback.bitAdjustment,
@@ -157,21 +158,18 @@ export function useCommentVoting(args: {
               });
             };
 
-            setPosts((currentPosts) =>
-              currentPosts.map((p) =>
-                p.id === postId
-                  ? {
-                      ...p,
-                      comments: rollbackCommentScore(p.comments),
-                    }
-                  : p
-              )
-            );
+            // Get latest post from store for rollback
+            const currentPostForRollback = getPost(postId) || post;
+            // Use targeted update for rollback
+            const rolledBackComments = rollbackCommentScore(currentPostForRollback.comments);
+            updatePost(postId, {
+              comments: rolledBackComments,
+            });
           }
         } catch (error) {
           console.error('[CommentVote] Error publishing:', error);
           // Best-effort rollback for publish exceptions
-          const rollback = computeRollback(optimisticUpdate, currentUserState.votedComments ?? {}, commentId);
+          const rollback = computeRollback(optimisticUpdate, votedComments, commentId);
           setUserState((prev) => ({
             ...prev,
             bits: prev.bits + rollback.bitAdjustment,
@@ -196,20 +194,17 @@ export function useCommentVoting(args: {
             });
           };
 
-          setPosts((currentPosts) =>
-            currentPosts.map((p) =>
-              p.id === postId
-                ? {
-                    ...p,
-                    comments: rollbackCommentScore(p.comments),
-                  }
-                : p
-            )
-          );
+          // Get latest post from store for rollback
+          const currentPostForRollback = getPost(postId) || post;
+          // Use targeted update for rollback
+          const rolledBackComments = rollbackCommentScore(currentPostForRollback.comments);
+          updatePost(postId, {
+            comments: rolledBackComments,
+          });
         }
       }
     },
-    [postsById, setPosts, setUserState, userState]
+    [postsById, updatePost, setUserState, votedComments, userBits, userIdentity, getPost]
   );
 
   return { handleCommentVote };

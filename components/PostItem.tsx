@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Post, UserState, Comment } from '../types';
+import { useUserState, useIsMuted } from '../stores/userStore';
 import { EXPANSION_THRESHOLD, INLINE_PREVIEW_COMMENT_COUNT } from '../constants';
 import { ArrowBigUp, ArrowBigDown, MessageSquare, Clock, Hash, ExternalLink, CornerDownRight, Maximize2, Image as ImageIcon, Shield, Users, UserX, Bookmark, Edit3, Flag, Lock, VolumeX, Trash2, RefreshCw, AlertTriangle, Loader2 } from 'lucide-react';
 import { profileService } from '../services/profileService';
@@ -27,7 +28,6 @@ const PlainTextRenderer: React.FC<{ content: string }> = ({ content }) => (
 interface PostItemProps {
   post: Post;
   boardName?: string;
-  userState: UserState;
   knownUsers?: Set<string>;
   onVote: (postId: string, direction: 'up' | 'down') => void;
   onComment: (postId: string, content: string, parentCommentId?: string) => void;
@@ -52,7 +52,6 @@ interface PostItemProps {
 const PostItemComponent: React.FC<PostItemProps> = ({
   post,
   boardName,
-  userState,
   knownUsers = new Set(),
   onVote,
   onComment,
@@ -70,9 +69,13 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   isFullPage = false,
   isNostrConnected = false,
   onToggleMute,
-  isMuted,
+  isMuted: isMutedProp,
   onRetryPost,
 }) => {
+  // Get userState from store instead of props
+  const userState = useUserState();
+  const isMutedStore = useIsMuted(post.authorPubkey || '');
+  const isMuted = isMutedProp ?? (post.authorPubkey ? isMutedStore : false);
   const [isExpanded, setIsExpanded] = useState(isFullPage);
   const [newComment, setNewComment] = useState('');
   const [isTransmitting, setIsTransmitting] = useState(false);
@@ -276,12 +279,15 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   }, [onDeleteComment, post.id]);
 
   // Build comment tree for threaded display
-  // Memoize based on comment array identity (reference) to avoid recomputing when posts update
-  const commentsIdentity = useMemo(() => post.comments, [post.comments]);
+  // Memoize based on comment IDs/content instead of post reference to avoid unnecessary rebuilds
+  const commentIdsKey = useMemo(() => {
+    // Create a stable key from comment IDs and timestamps
+    return post.comments.map(c => `${c.id}:${c.timestamp}:${c.content.length}`).join(',');
+  }, [post.comments]);
   
   const commentTree = useMemo(() => {
-    return buildCommentTree(commentsIdentity);
-  }, [commentsIdentity]);
+    return buildCommentTree(post.comments);
+  }, [commentIdsKey, post.comments]);
 
   // Build preview comment tree for inline preview (not full page)
   const previewCommentTree = useMemo(() => {
@@ -999,22 +1005,29 @@ const PostItemComponent: React.FC<PostItemProps> = ({
 
 // Memoize PostItem to prevent unnecessary re-renders
 export const PostItem = React.memo(PostItemComponent, (prevProps, nextProps) => {
-  // Custom comparison function for better performance
+  // Simplified comparison - check post object reference first (should be stable with Zustand)
+  if (prevProps.post !== nextProps.post) {
+    // Post changed - check only fields that affect rendering
+    return (
+      prevProps.post.id === nextProps.post.id &&
+      prevProps.post.score === nextProps.post.score &&
+      prevProps.post.commentCount === nextProps.post.commentCount &&
+      prevProps.post.comments.length === nextProps.post.comments.length
+    );
+  }
+  
+  // Post object is same - check user state and UI state only
+  const prevVote = prevProps.userState.votedPosts[prevProps.post.id];
+  const nextVote = nextProps.userState.votedPosts[nextProps.post.id];
+  
   return (
-    prevProps.post.id === nextProps.post.id &&
-    prevProps.post.score === nextProps.post.score &&
-    prevProps.post.commentCount === nextProps.post.commentCount &&
-    prevProps.post.comments.length === nextProps.post.comments.length &&
-    prevProps.post.title === nextProps.post.title &&
-    prevProps.post.content === nextProps.post.content &&
     prevProps.userState.bits === nextProps.userState.bits &&
-    prevProps.userState.votedPosts[prevProps.post.id] === nextProps.userState.votedPosts[nextProps.post.id] &&
+    prevVote === nextVote &&
     prevProps.userState.identity?.pubkey === nextProps.userState.identity?.pubkey &&
-    prevProps.userState.username === nextProps.userState.username &&
-    prevProps.boardName === nextProps.boardName &&
     prevProps.isBookmarked === nextProps.isBookmarked &&
     prevProps.hasReported === nextProps.hasReported &&
     prevProps.isNostrConnected === nextProps.isNostrConnected &&
     prevProps.isFullPage === nextProps.isFullPage
+    // Removed: boardName, userState.username, post.title, post.content - these rarely change independently
   );
 });

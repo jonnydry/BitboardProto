@@ -1,6 +1,7 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Comment, UserState } from '../types';
 import { ChevronDown, ChevronRight, CornerDownRight, Clock, Flag, Edit3, Trash2, Lock, ArrowBigUp, ArrowBigDown, UserX, VolumeX } from 'lucide-react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 // MentionText is used via MarkdownRenderer
 import { MentionInput } from './MentionInput';
 import { ReportModal } from './ReportModal';
@@ -31,6 +32,7 @@ const REPLIES_PAGE_SIZE = 3;
 const COLLAPSE_STORAGE_PREFIX = 'bitboard_comment_collapsed_v1:';
 const AUTO_COLLAPSE_DEPTH = 3; // Auto-collapse threads deeper than this
 const TOP_LEVEL_PAGE_SIZE = 10; // Number of top-level comments to show initially
+const VIRTUALIZE_THRESHOLD = 50; // Virtualize when there are 50+ top-level comments
 
 const CommentThreadComponent: React.FC<CommentThreadProps> = ({
   comment,
@@ -704,8 +706,32 @@ const CommentListComponent: React.FC<CommentListProps> = ({
     setCollapseKey(k => k + 1);
   }, [comments]);
 
-  const visibleComments = comments.slice(0, visibleCount);
-  const hasMore = comments.length > visibleCount;
+  const shouldVirtualize = comments.length > VIRTUALIZE_THRESHOLD;
+  const parentRef = useRef<HTMLDivElement>(null);
+  
+  // Track measured comment heights for dynamic sizing
+  const commentHeights = useRef<Map<number, number>>(new Map());
+  const averageHeight = useRef<number>(200); // Fallback initial estimate for comments
+
+  const virtualizer = useVirtualizer({
+    count: shouldVirtualize ? comments.length : 0,
+    getScrollElement: () => parentRef.current,
+    estimateSize: (index) => {
+      const measured = commentHeights.current.get(index);
+      if (measured) {
+        const currentAvg = averageHeight.current;
+        averageHeight.current = (currentAvg * 0.9) + (measured * 0.1);
+        return measured;
+      }
+      return averageHeight.current;
+    },
+    overscan: 5,
+  });
+
+  const visibleComments = shouldVirtualize 
+    ? virtualizer.getVirtualItems().map(virtualItem => comments[virtualItem.index])
+    : comments.slice(0, visibleCount);
+  const hasMore = !shouldVirtualize && comments.length > visibleCount;
 
   if (comments.length === 0) {
     return null;
@@ -718,6 +744,7 @@ const CommentListComponent: React.FC<CommentListProps> = ({
         <div className="flex items-center justify-between text-xs text-terminal-dim border-b border-terminal-dim/30 pb-2 mb-2">
           <span className="uppercase">
             {totalComments} {totalComments === 1 ? 'comment' : 'comments'}
+            {shouldVirtualize && ` (virtualized)`}
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -740,28 +767,84 @@ const CommentListComponent: React.FC<CommentListProps> = ({
       )}
 
       {/* Comments list */}
-      <div key={collapseKey}>
-        {visibleComments.map(comment => (
-          <CommentThread
-            key={comment.id}
-            comment={comment}
-            userState={userState}
-            onReply={onReply}
-            onEdit={onEdit}
-            onDelete={onDelete}
-            onViewProfile={onViewProfile}
-            onVote={onVote}
-            postId={postId}
-            formatTime={formatTime}
-            knownUsers={knownUsers}
-            depth={0}
-            onToggleMute={onToggleMute}
-            isMuted={isMuted}
-          />
-        ))}
+      <div 
+        key={collapseKey}
+        ref={parentRef}
+        className={shouldVirtualize ? "h-[600px] overflow-auto" : ""}
+      >
+        {shouldVirtualize ? (
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+            }}
+          >
+            {virtualizer.getVirtualItems().map((virtualItem) => {
+              const comment = comments[virtualItem.index];
+              return (
+                <div
+                  key={virtualItem.key}
+                  data-index={virtualItem.index}
+                  ref={(el) => {
+                    if (el) {
+                      virtualizer.measureElement(el);
+                      const height = el.getBoundingClientRect().height;
+                      if (height > 0) {
+                        commentHeights.current.set(virtualItem.index, height);
+                      }
+                    }
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                >
+                  <CommentThread
+                    comment={comment}
+                    userState={userState}
+                    onReply={onReply}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    onViewProfile={onViewProfile}
+                    onVote={onVote}
+                    postId={postId}
+                    formatTime={formatTime}
+                    knownUsers={knownUsers}
+                    depth={0}
+                    onToggleMute={onToggleMute}
+                    isMuted={isMuted}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          visibleComments.map(comment => (
+            <CommentThread
+              key={comment.id}
+              comment={comment}
+              userState={userState}
+              onReply={onReply}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onViewProfile={onViewProfile}
+              onVote={onVote}
+              postId={postId}
+              formatTime={formatTime}
+              knownUsers={knownUsers}
+              depth={0}
+              onToggleMute={onToggleMute}
+              isMuted={isMuted}
+            />
+          ))
+        )}
       </div>
 
-      {/* Load more comments */}
+      {/* Load more comments (only when not virtualized) */}
       {hasMore && (
         <button
           onClick={() => setVisibleCount(v => Math.min(v + TOP_LEVEL_PAGE_SIZE, comments.length))}

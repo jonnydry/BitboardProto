@@ -1,7 +1,7 @@
 import React, { useMemo, useCallback, useState, useEffect } from 'react';
 import { MapPin, Share2, Lock, ChevronUp, Calendar } from 'lucide-react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
-import type { Board, Post, SortMode, UserState } from '../../types';
+import type { Board, Post, SortMode } from '../../types';
 import { BoardType, ViewMode } from '../../types';
 import { SearchBar } from '../../components/SearchBar';
 import { SortSelector } from '../../components/SortSelector';
@@ -10,6 +10,11 @@ import { PostSkeleton, InlineLoadingSkeleton } from '../../components/PostSkelet
 import { LoadingPhaseIndicator, type LoadingPhase } from '../../components/LoadingSkeletons';
 import { ShareBoardLink } from '../../components/ShareBoardLink';
 import { encryptedBoardService } from '../../services/encryptedBoardService';
+// Import Zustand store selectors
+import { usePostStore } from '../../stores/postStore';
+import { useUIStore, useViewMode, useSearchQuery, useSortMode } from '../../stores/uiStore';
+import { useUserState } from '../../stores/userStore';
+import { useActiveBoard, useBoardsById } from '../../stores/boardStore';
 
 const FEED_VIRTUALIZE_THRESHOLD = 25;
 
@@ -45,17 +50,9 @@ function getTimeChunk(timestamp: number): TimeChunk {
 
 export function FeedView(props: {
   sortedPosts: Post[];
-  searchQuery: string;
-  sortMode: SortMode;
-  setSortMode: (m: SortMode) => void;
-  activeBoard: Board | null;
   feedFilter?: 'all' | 'topic' | 'location';
-  viewMode: ViewMode;
-  onSetViewMode: (m: ViewMode) => void;
-  onSearch: (q: string) => void;
 
   getBoardName: (postId: string) => string | undefined;
-  userState: UserState;
   knownUsers: Set<string>;
 
   onVote: (postId: string, direction: 'up' | 'down') => void;
@@ -83,19 +80,30 @@ export function FeedView(props: {
   isInitialLoading?: boolean;
   onRetryPost?: (postId: string) => void;
 }) {
+  // Get data from Zustand stores instead of props
+  const viewMode = useViewMode();
+  const searchQuery = useSearchQuery();
+  const sortMode = useSortMode();
+  const activeBoard = useActiveBoard();
+  const userState = useUserState();
+  const boardsById = useBoardsById();
+  const setSortModeStore = useUIStore((state) => state.setSortMode);
+  const setSearchQueryStore = useUIStore((state) => state.setSearchQuery);
+  
   const {
     sortedPosts,
-    searchQuery,
-    sortMode,
-    setSortMode,
-    activeBoard,
     feedFilter,
-    viewMode,
+    getBoardName,
+    knownUsers,
+    bookmarkedIdSet,
+    reportedPostIdSet,
+    isNostrConnected,
+    loaderRef,
+    isLoadingMore,
+    hasMorePosts,
+    isInitialLoading = false,
     onSetViewMode,
     onSearch,
-    getBoardName,
-    userState,
-    knownUsers,
     onVote,
     onComment,
     onEditComment,
@@ -106,18 +114,22 @@ export function FeedView(props: {
     onEditPost,
     onDeletePost,
     onTagClick,
-    bookmarkedIdSet,
-    reportedPostIdSet,
     onToggleBookmark,
-    isNostrConnected,
-    loaderRef,
-    isLoadingMore,
-    hasMorePosts,
     onToggleMute,
     isMuted,
-    isInitialLoading = false,
     onRetryPost,
   } = props;
+  
+  // Use store setters when available, fallback to props
+  const handleSetSortMode = useCallback((m: SortMode) => {
+    setSortModeStore(m);
+    props.setSortMode(m);
+  }, [setSortModeStore, props]);
+  
+  const handleSearch = useCallback((q: string) => {
+    setSearchQueryStore(q);
+    onSearch(q);
+  }, [setSearchQueryStore, onSearch]);
 
   const [showShareModal, setShowShareModal] = useState(false);
   const [showJumpToTop, setShowJumpToTop] = useState(false);
@@ -126,13 +138,17 @@ export function FeedView(props: {
   // Check if this is an encrypted board that we can share (we have the key)
   const canShareBoard = activeBoard?.isEncrypted && encryptedBoardService.hasBoardKey(activeBoard.id);
 
-  // Track scroll position for "Jump to top" button
+  // Track scroll position for "Jump to top" button (throttled)
   useEffect(() => {
+    let lastExecTime = 0;
+    let timeoutId: NodeJS.Timeout | null = null;
+    const throttleDelay = 100; // Throttle to 100ms
+
     const handleScroll = () => {
       const scrollY = window.scrollY;
       setShowJumpToTop(scrollY > 800);
 
-      // Determine which time chunk is currently in view
+      // Determine which time chunk is currently in view (throttled DOM queries)
       const timeHeaders = document.querySelectorAll('[data-time-chunk]');
       let lastVisibleChunk: TimeChunk | null = null;
       timeHeaders.forEach((header) => {
@@ -144,8 +160,27 @@ export function FeedView(props: {
       setActiveTimeChunk(lastVisibleChunk);
     };
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    // Throttled scroll handler
+    const throttledHandleScroll = () => {
+      const currentTime = Date.now();
+      
+      if (currentTime - lastExecTime > throttleDelay) {
+        handleScroll();
+        lastExecTime = currentTime;
+      } else {
+        if (timeoutId) clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          handleScroll();
+          lastExecTime = Date.now();
+        }, throttleDelay - (currentTime - lastExecTime));
+      }
+    };
+    
+    window.addEventListener('scroll', throttledHandleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', throttledHandleScroll);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, []);
 
   const handleJumpToTop = useCallback(() => {
@@ -191,11 +226,51 @@ export function FeedView(props: {
 
   const shouldVirtualizeFeed = viewMode === ViewMode.FEED && sortedPosts.length > FEED_VIRTUALIZE_THRESHOLD;
 
+  // Track measured post heights for dynamic sizing
+  const postHeights = React.useRef<Map<number, number>>(new Map());
+  const averageHeight = React.useRef<number>(520); // Fallback initial estimate
+
   const feedVirtualizer = useWindowVirtualizer({
     count: shouldVirtualizeFeed ? sortedPosts.length + 1 : 0,
-    estimateSize: () => 520,
+    estimateSize: (index) => {
+      // Use measured height if available
+      const measured = postHeights.current.get(index);
+      if (measured) {
+        // Update running average for better future estimates
+        const currentAvg = averageHeight.current;
+        averageHeight.current = (currentAvg * 0.9) + (measured * 0.1); // Exponential moving average
+        return measured;
+      }
+      
+      // Use running average if we have measurements, otherwise fallback
+      return averageHeight.current;
+    },
     overscan: 6,
+    measureElement: (element) => {
+      if (!element) return;
+      
+      // Find the index of this element in the virtual items
+      const virtualItems = feedVirtualizer.getVirtualItems();
+      const item = virtualItems.find(item => item.element === element);
+      
+      if (item && item.index >= 0) {
+        const height = element.getBoundingClientRect().height;
+        postHeights.current.set(item.index, height);
+        
+        // Update running average
+        const currentAvg = averageHeight.current;
+        averageHeight.current = (currentAvg * 0.9) + (height * 0.1);
+      }
+    },
   });
+  
+  // Clear height cache when posts change significantly
+  React.useEffect(() => {
+    if (sortedPosts.length === 0) {
+      postHeights.current.clear();
+      averageHeight.current = 520; // Reset to default
+    }
+  }, [sortedPosts.length]);
 
   // Stabilize callbacks to prevent PostItem re-renders
   const handleVote = useCallback((postId: string, direction: 'up' | 'down') => {
@@ -310,7 +385,7 @@ export function FeedView(props: {
   return (
     <div className="space-y-2">
       <div className="mb-4">
-        <SearchBar onSearch={onSearch} placeholder="Search posts, users, tags..." />
+        <SearchBar onSearch={handleSearch} placeholder="Search posts, users, tags..." />
       </div>
 
       <div className="flex flex-col gap-4 mb-6 pb-2 border-b border-terminal-dim/30">
@@ -358,7 +433,7 @@ export function FeedView(props: {
           <span className="text-xs border border-terminal-dim px-2 py-1">SIGNAL_COUNT: {sortedPosts.length}</span>
         </div>
 
-        <SortSelector currentSort={sortMode} onSortChange={setSortMode} />
+        <SortSelector currentSort={sortMode} onSortChange={handleSetSortMode} />
 
         {/* Time Chunk Navigation */}
         {sortedPosts.length > 10 && availableChunks.length > 1 && (
@@ -421,7 +496,6 @@ export function FeedView(props: {
                 <PostItem
                   post={post}
                   boardName={getBoardName(post.id)}
-                  userState={userState}
                   knownUsers={knownUsers}
                   onVote={handleVote}
                   onComment={handleComment}
@@ -506,7 +580,6 @@ export function FeedView(props: {
                 <PostItem
                   post={post}
                   boardName={getBoardName(post.id)}
-                  userState={userState}
                   knownUsers={knownUsers}
                   onVote={handleVote}
                   onComment={handleComment}
@@ -553,6 +626,32 @@ export function FeedView(props: {
     </div>
   );
 }
+
+// Memoize FeedView to prevent unnecessary re-renders
+// Only re-render when essential props change (sortedPosts, loading states)
+export const MemoizedFeedView = React.memo(FeedView, (prevProps, nextProps) => {
+  // Compare sortedPosts array reference (should be stable with Zustand)
+  if (prevProps.sortedPosts !== nextProps.sortedPosts) return false;
+  
+  // Compare loading states
+  if (prevProps.isLoadingMore !== nextProps.isLoadingMore) return false;
+  if (prevProps.hasMorePosts !== nextProps.hasMorePosts) return false;
+  if (prevProps.isInitialLoading !== nextProps.isInitialLoading) return false;
+  
+  // Compare sets (bookmarkedIdSet, reportedPostIdSet, knownUsers)
+  if (prevProps.bookmarkedIdSet !== nextProps.bookmarkedIdSet) return false;
+  if (prevProps.reportedPostIdSet !== nextProps.reportedPostIdSet) return false;
+  if (prevProps.knownUsers !== nextProps.knownUsers) return false;
+  
+  // Compare other essential props
+  if (prevProps.feedFilter !== nextProps.feedFilter) return false;
+  if (prevProps.isNostrConnected !== nextProps.isNostrConnected) return false;
+  
+  // Ignore handler props - they should be stable callbacks
+  // Ignore viewMode, searchQuery, sortMode, activeBoard, userState - now from stores
+  
+  return true; // Props are equal, skip re-render
+});
 
 
 

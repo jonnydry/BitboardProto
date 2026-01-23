@@ -191,16 +191,10 @@ export const PostsProvider: React.FC<PostsProviderProps> = ({
 
   const { handleVote } = useVoting({
     postsById: new Map(posts.map(p => [p.id, p])),
-    userState,
-    setUserState: () => {}, // This will be passed down from parent
-    setPosts
   });
 
   const { handleCommentVote } = useCommentVoting({
     postsById: new Map(posts.map(p => [p.id, p])),
-    userState,
-    setUserState: () => {}, // This will be passed down from parent
-    setPosts
   });
 
   // Event handlers placeholder - will be implemented when we split useAppEventHandlers

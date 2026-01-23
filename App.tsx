@@ -9,7 +9,7 @@ import { AppHeader } from './features/layout/AppHeader';
 import { Sidebar } from './features/layout/Sidebar';
 import { MobileNav } from './features/layout/MobileNav';
 import { MobileDrawer } from './features/layout/MobileDrawer';
-import { FeedView } from './features/feed/FeedView';
+import { MemoizedFeedView as FeedView } from './features/feed/FeedView';
 import { PostItem } from './components/PostItem';
 import { ArrowLeft } from 'lucide-react';
 import { ViewMode, BoardType } from './types';
@@ -227,17 +227,18 @@ const AppContent: React.FC = () => {
             {app.viewMode === ViewMode.FEED && (
               <FeedView
                 sortedPosts={app.sortedPosts}
-                searchQuery={app.searchQuery}
-                sortMode={app.sortMode}
-                setSortMode={app.setSortMode}
-                activeBoard={app.activeBoard}
                 feedFilter={app.feedFilter}
-                viewMode={app.viewMode}
+                getBoardName={app.getBoardName}
+                knownUsers={app.knownUsers}
+                bookmarkedIdSet={app.bookmarkedIdSet}
+                reportedPostIdSet={app.reportedPostIdSet}
+                isNostrConnected={app.isNostrConnected}
+                loaderRef={app.loaderRef}
+                isLoadingMore={app.isLoadingMore}
+                hasMorePosts={app.hasMorePosts}
+                setSortMode={app.setSortMode}
                 onSetViewMode={app.setViewMode}
                 onSearch={app.handleSearch}
-                getBoardName={app.getBoardName}
-                userState={app.userState}
-                knownUsers={app.knownUsers}
                 onVote={app.handleVote}
                 onComment={app.handleComment}
                 onEditComment={app.handleEditComment}
@@ -248,13 +249,7 @@ const AppContent: React.FC = () => {
                 onEditPost={app.handleEditPost}
                 onDeletePost={app.handleDeletePost}
                 onTagClick={app.handleTagClick}
-                bookmarkedIdSet={app.bookmarkedIdSet}
-                reportedPostIdSet={app.reportedPostIdSet}
                 onToggleBookmark={app.handleToggleBookmark}
-                isNostrConnected={app.isNostrConnected}
-                loaderRef={app.loaderRef}
-                isLoadingMore={app.isLoadingMore}
-                hasMorePosts={app.hasMorePosts}
                 onToggleMute={app.toggleMute}
                 isMuted={app.isMuted}
                 onRetryPost={app.handleRetryPost}
