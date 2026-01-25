@@ -61,6 +61,7 @@
     "@vitejs/plugin-react": "^5.0.0",
     "@vitest/coverage-v8": "^2.1.9",
     "autoprefixer": "^10.4.21",
+    "baseline-browser-mapping": "^2.9.17",
     "cross-env": "^7.0.3",
     "eslint": "^9.17.0",
     "eslint-plugin-jsx-a11y": "^6.8.0",

@@ -295,7 +295,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
       return commentTree;
     }
 
-    const allComments = commentsIdentity;
+    const allComments = post.comments;
     
     // Early return if no comments or very few comments
     if (allComments.length === 0) {
@@ -388,7 +388,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
     };
     
     return filterTree(commentTree);
-  }, [commentsIdentity, userState.identity?.pubkey, isFullPage, commentTree]);
+  }, [post.comments, userState.identity?.pubkey, isFullPage, commentTree]);
 
   const handleInteraction = useCallback(() => {
     if (isFullPage) return; // Already expanded in full view
