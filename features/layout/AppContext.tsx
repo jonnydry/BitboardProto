@@ -1,38 +1,39 @@
-import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { Post, UserState, ViewMode, Board, ThemeId, BoardType, NostrIdentity, SortMode } from '../../types';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import {
+  Post,
+  UserState,
+  ViewMode,
+  Board,
+  ThemeId,
+  NostrIdentity,
+  SortMode,
+  BoardType,
+} from '../../types';
 import { nostrService } from '../../services/nostrService';
 import { identityService } from '../../services/identityService';
 import { bookmarkService } from '../../services/bookmarkService';
 import { listService } from '../../services/listService';
 import { reportService } from '../../services/reportService';
-import { toastService } from '../../services/toastService';
-import { encryptedBoardService } from '../../services/encryptedBoardService';
-import { searchService } from '../../services/searchService';
 import { logger } from '../../services/loggingService';
 import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
-import { FeatureFlags, StorageKeys, UIConfig } from '../../config';
+import { FeatureFlags } from '../../config';
 import { useTheme } from '../../hooks/useTheme';
 import { useUrlPostRouting } from '../../hooks/useUrlPostRouting';
 import { useNostrFeed } from '../../hooks/useNostrFeed';
 import { useCommentsLoader } from '../../hooks/useCommentsLoader';
 import { useVoting } from '../../hooks/useVoting';
 import { useCommentVoting } from '../../hooks/useCommentVoting';
+import { useAppDerivedData } from './useAppDerivedData';
 import { useAppEventHandlers } from './useAppEventHandlers';
+import { useAppLifecycle } from './useAppLifecycle';
 import { usePostDecryption } from '../../hooks/usePostDecryption';
-import { votingService } from '../../services/votingService';
-import { rateLimiter } from '../../services/rateLimiter';
-import { nostrEventDeduplicator, voteDeduplicator } from '../../services/messageDeduplicator';
-import { dmService } from '../../services/dmService';
+import { usePhaseTwoServices } from './usePhaseTwoServices';
 import { followServiceV2 } from '../../services/followServiceV2';
-import { notificationServiceV2 } from '../../services/notificationServiceV2';
-import { advancedSearchService } from '../../services/advancedSearchService';
 
-// Import Zustand stores via compatibility layer (backward compatible API)
-import { usePosts, useBoards, useUser, useUI } from '../../hooks/useLegacyContext';
-// Import store effects hook for user store
-import { useUserStoreEffects } from '../../stores/userStore';
-
-const MAX_CACHED_POSTS = 200;
+import { usePostStore } from '../../stores/postStore';
+import { useBoardStore } from '../../stores/boardStore';
+import { useUIStore } from '../../stores/uiStore';
+import { useUserStoreEffects, useUserStore } from '../../stores/userStore';
 
 interface AppContextType {
   // State
@@ -44,7 +45,7 @@ interface AppContextType {
   theme: ThemeId;
   isNostrConnected: boolean;
   locationBoards: Board[];
-  feedFilter: 'all' | 'topic' | 'location';
+  feedFilter: 'all' | 'topic' | 'location' | 'following';
   searchQuery: string;
   sortMode: SortMode;
   profileUser: { username: string; pubkey?: string } | null;
@@ -80,7 +81,7 @@ interface AppContextType {
   setActiveBoardId: (id: string | null) => void;
   setTheme: (theme: ThemeId) => void;
   setLocationBoards: React.Dispatch<React.SetStateAction<Board[]>>;
-  setFeedFilter: (filter: 'all' | 'topic' | 'location') => void;
+  setFeedFilter: (filter: 'all' | 'topic' | 'location' | 'following') => void;
   setSearchQuery: (query: string) => void;
   setSortMode: (mode: SortMode) => void;
   setProfileUser: (user: { username: string; pubkey?: string } | null) => void;
@@ -90,8 +91,22 @@ interface AppContextType {
   setOldestTimestamp: (timestamp: number | null) => void;
 
   // Event handlers
-  handleCreatePost: (newPostData: Omit<Post, 'id' | 'timestamp' | 'score' | 'commentCount' | 'comments' | 'nostrEventId' | 'upvotes' | 'downvotes'>) => Promise<void>;
-  handleCreateBoard: (newBoardData: Omit<Board, 'id' | 'memberCount' | 'nostrEventId'>) => Promise<void>;
+  handleCreatePost: (
+    newPostData: Omit<
+      Post,
+      | 'id'
+      | 'timestamp'
+      | 'score'
+      | 'commentCount'
+      | 'comments'
+      | 'nostrEventId'
+      | 'upvotes'
+      | 'downvotes'
+    >,
+  ) => Promise<void>;
+  handleCreateBoard: (
+    newBoardData: Omit<Board, 'id' | 'memberCount' | 'nostrEventId'>,
+  ) => Promise<void>;
   handleComment: (postId: string, content: string, parentCommentId?: string) => Promise<void>;
   handleEditComment: (postId: string, commentId: string, nextContent: string) => Promise<void>;
   handleDeleteComment: (postId: string, commentId: string) => Promise<void>;
@@ -128,7 +143,7 @@ const AppContext = createContext<AppContextType | null>(null);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Initialize user store effects (replaces useEffect from UserProvider)
   useUserStoreEffects();
-  
+
   return <AppProviderInternal>{children}</AppProviderInternal>;
 };
 
@@ -136,20 +151,125 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // State for things not handled by focused contexts
   const [selectedBitId, setSelectedBitId] = useState<string | null>(null);
-  const [feedFilter, setFeedFilter] = useState<'all' | 'topic' | 'location'>('all');
-  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>(() => bookmarkService.getBookmarkedIds());
+  const [feedFilter, setFeedFilter] = useState<'all' | 'topic' | 'location' | 'following'>('all');
+  const [followingPubkeys, setFollowingPubkeys] = useState<string[]>(() =>
+    followServiceV2.getFollowingPubkeys(),
+  );
+  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>(() =>
+    bookmarkService.getBookmarkedIds(),
+  );
   const [reportedPostIds, setReportedPostIds] = useState<string[]>(() =>
-    reportService.getReportsByType('post').map(r => r.targetId)
+    reportService.getReportsByType('post').map((r) => r.targetId),
   );
   const [isNostrConnected, setIsNostrConnected] = useState(false);
   const [hasMorePosts, setHasMorePosts] = useState(true);
   const [oldestTimestamp, setOldestTimestamp] = useState<number | null>(null);
 
-  // Access focused contexts
-  const postsCtx = usePosts();
-  const boardsCtx = useBoards();
-  const userCtx = useUser();
-  const uiCtx = useUI();
+  const posts = usePostStore((state) => state.posts);
+  const setPosts = usePostStore((state) => state.setPosts);
+  const markPostAccessed = usePostStore((state) => state.markPostAccessed);
+  const setSelectedPostId = usePostStore((state) => state.setSelectedPostId);
+
+  const boards = useBoardStore((state) => state.boards);
+  const locationBoards = useBoardStore((state) => state.locationBoards);
+  const activeBoardId = useBoardStore((state) => state.activeBoardId);
+  const setBoards = useBoardStore((state) => state.setBoards);
+  const setLocationBoards = useBoardStore((state) => state.setLocationBoards);
+  const setActiveBoardId = useBoardStore((state) => state.setActiveBoardId);
+
+  const viewMode = useUIStore((state) => state.viewMode);
+  const theme = useUIStore((state) => state.theme);
+  const searchQuery = useUIStore((state) => state.searchQuery);
+  const sortMode = useUIStore((state) => state.sortMode);
+  const profileUser = useUIStore((state) => state.profileUser);
+  const editingPostId = useUIStore((state) => state.editingPostId);
+  const setViewMode = useUIStore((state) => state.setViewMode);
+  const setTheme = useUIStore((state) => state.setTheme);
+  const setSearchQuery = useUIStore((state) => state.setSearchQuery);
+  const setSortMode = useUIStore((state) => state.setSortMode);
+  const setProfileUser = useUIStore((state) => state.setProfileUser);
+  const setEditingPostId = useUIStore((state) => state.setEditingPostId);
+
+  const userState = useUserStore((state) => state.userState);
+  const setUserState = useUserStore((state) => state.setUserState);
+  const toggleMute = useUserStore((state) => state.toggleMute);
+  const isMuted = useUserStore((state) => state.isMuted);
+  const handleIdentityChange = useUserStore((state) => state.handleIdentityChange);
+
+  const postsById = useMemo(() => {
+    const map = new Map<string, Post>();
+    posts.forEach((post) => map.set(post.id, post));
+    return map;
+  }, [posts]);
+
+  const boardsById = useMemo(() => {
+    const map = new Map<string, Board>();
+    boards.forEach((board) => map.set(board.id, board));
+    locationBoards.forEach((board) => map.set(board.id, board));
+    return map;
+  }, [boards, locationBoards]);
+
+  const activeBoard = useMemo(() => {
+    if (!activeBoardId) return null;
+    return boardsById.get(activeBoardId) || null;
+  }, [activeBoardId, boardsById]);
+
+  const topicBoards = useMemo(() => {
+    return boards.filter((board) => board.type === BoardType.TOPIC);
+  }, [boards]);
+
+  const geohashBoards = useMemo(() => {
+    const geohashMap = new Map<string, Board>();
+    boards
+      .filter((board) => board.type === BoardType.GEOHASH)
+      .forEach((board) => geohashMap.set(board.id, board));
+    locationBoards.forEach((board) => geohashMap.set(board.id, board));
+    return Array.from(geohashMap.values());
+  }, [boards, locationBoards]);
+
+  const postsCtx = {
+    posts,
+    postsById,
+    setPosts,
+    markPostAccessed,
+    setSelectedPostId,
+  };
+
+  const boardsCtx = {
+    boards,
+    locationBoards,
+    activeBoardId,
+    boardsById,
+    topicBoards,
+    geohashBoards,
+    activeBoard,
+    setBoards,
+    setLocationBoards,
+    setActiveBoardId,
+  };
+
+  const uiCtx = {
+    viewMode,
+    theme,
+    searchQuery,
+    sortMode,
+    profileUser,
+    editingPostId,
+    setViewMode,
+    setTheme,
+    setSearchQuery,
+    setSortMode,
+    setProfileUser,
+    setEditingPostId,
+  };
+
+  const userCtx = {
+    userState,
+    setUserState,
+    toggleMute,
+    isMuted,
+    handleIdentityChange,
+  };
 
   // Get relay hint helper
   const getRelayHint = useCallback(() => {
@@ -159,111 +279,46 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     return `${state} Relays: ${connected}/${total}. Open RELAYS to adjust/retry.`;
   }, []);
 
-  // Track search worker results
-  const [workerSearchIds, setWorkerSearchIds] = useState<Set<string> | null>(null);
-  const lastSearchQuery = useRef<string>('');
-
-  // Update search worker index when posts change
-  useEffect(() => {
-    searchService.updateIndex(postsCtx.posts);
-  }, [postsCtx.posts]);
-
-  // Perform search using worker (async, non-blocking)
-  useEffect(() => {
-    const query = uiCtx.searchQuery.trim();
-    
-    // Skip if query hasn't changed
-    if (query === lastSearchQuery.current) return;
-    lastSearchQuery.current = query;
-
-    if (!query) {
-      // Clear worker results when no query
-      setWorkerSearchIds(null);
-      return;
-    }
-
-    // Use worker for search (non-blocking)
-    if (searchService.isWorkerReady()) {
-      searchService.search(query).then(ids => {
-        // Only update if this is still the current query
-        if (lastSearchQuery.current === query) {
-          setWorkerSearchIds(new Set(ids));
-        }
-      }).catch((error) => {
-        // Fallback to null (will use main thread)
-        logger.warn('AppContext', 'Search worker failed, falling back to main thread', error);
-        setWorkerSearchIds(null);
-      });
-    }
-  }, [uiCtx.searchQuery]);
-
-  // Stabilize mutedPubkeys Set to prevent unnecessary recalculations
-  const mutedPubkeysSet = useMemo(() => {
-    const mutedPubkeys = userCtx.userState.mutedPubkeys || [];
-    return new Set(mutedPubkeys);
-  }, [userCtx.userState.mutedPubkeys?.join(',')]); // Compare content, not reference
-
-  // Computed values (aggregated from focused contexts)
-  const filteredPosts = useMemo(() => {
-    let result = postsCtx.posts;
-
-    // Filter by board
-    if (boardsCtx.activeBoardId) {
-      result = result.filter(p => p.boardId === boardsCtx.activeBoardId);
-    } else {
-      result = result.filter(p => {
-        const board = boardsCtx.boardsById.get(p.boardId);
-        if (!board?.isPublic) return false;
-
-        if (feedFilter === 'topic') return board.type === BoardType.TOPIC;
-        if (feedFilter === 'location') return board.type === BoardType.GEOHASH;
-        return true;
-      });
-    }
-
-    // Filter muted users (using stable Set)
-    if (mutedPubkeysSet.size > 0) {
-      result = result.filter(p => !p.authorPubkey || !mutedPubkeysSet.has(p.authorPubkey));
-    }
-
-    // Apply search filter
-    if (uiCtx.searchQuery.trim()) {
-      // Use worker results if available, otherwise fallback to main thread
-      if (workerSearchIds) {
-        result = result.filter(p => workerSearchIds.has(p.id));
-      } else {
-        // Fallback: main thread search (only if worker not ready)
-        const query = uiCtx.searchQuery.toLowerCase().trim();
-        result = result.filter((p) => {
-          const board = boardsCtx.boardsById.get(p.boardId);
-          const boardName = board?.name?.toLowerCase() ?? '';
-
-          const inPost =
-            p.title.toLowerCase().includes(query) ||
-            p.content.toLowerCase().includes(query) ||
-            p.author.toLowerCase().includes(query) ||
-            boardName.includes(query) ||
-            p.tags.some((tag) => tag.toLowerCase().includes(query));
-
-          if (inPost) return true;
-
-          // Also search comments (author + content)
-          return p.comments.some(
-            (c) =>
-              c.author.toLowerCase().includes(query) ||
-              c.content.toLowerCase().includes(query)
-          );
-        });
-      }
-    }
-
-    return result;
-  }, [postsCtx.posts, boardsCtx.activeBoardId, boardsCtx.boardsById, feedFilter, uiCtx.searchQuery, mutedPubkeysSet, workerSearchIds]);
+  const mutedPubkeys = useMemo(
+    () => userCtx.userState.mutedPubkeys || [],
+    [userCtx.userState.mutedPubkeys],
+  );
+  const {
+    filteredPosts,
+    sortedPosts: derivedSortedPosts,
+    knownUsers,
+    selectedPost,
+    bookmarkedIdSet,
+    reportedPostIdSet,
+  } = useAppDerivedData({
+    posts: postsCtx.posts,
+    postsById: postsCtx.postsById,
+    boardsById: boardsCtx.boardsById,
+    activeBoardId: boardsCtx.activeBoardId,
+    feedFilter,
+    followingPubkeys,
+    mutedPubkeys,
+    searchQuery: uiCtx.searchQuery,
+    sortMode: uiCtx.sortMode,
+    selectedBitId,
+    bookmarkedIds,
+    reportedPostIds,
+    markPostAccessed: postsCtx.markPostAccessed,
+    setSelectedPostId: postsCtx.setSelectedPostId,
+  });
 
   // Decrypt encrypted posts/comments if we have the keys
-  const { posts: decryptedPosts, failedBoardIds: decryptionFailedBoardIds, removeFailedKey } = usePostDecryption(filteredPosts, boardsCtx.boardsById);
+  const {
+    posts: decryptedPosts,
+    failedBoardIds: decryptionFailedBoardIds,
+    removeFailedKey,
+  } = usePostDecryption(filteredPosts, boardsCtx.boardsById);
 
   const sortedPosts = useMemo(() => {
+    if (decryptedPosts === filteredPosts) {
+      return derivedSortedPosts;
+    }
+
     const sorted = [...decryptedPosts];
 
     switch (uiCtx.sortMode) {
@@ -272,12 +327,11 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
       case SortMode.OLDEST:
         return sorted.sort((a, b) => a.timestamp - b.timestamp);
       case SortMode.TRENDING: {
-        // Trending = recent posts with high engagement (score + comments weighted by recency)
         const now = Date.now();
-        const HOUR = 1000 * 60 * 60;
+        const hour = 1000 * 60 * 60;
         return sorted.sort((a, b) => {
-          const ageA = (now - a.timestamp) / HOUR;
-          const ageB = (now - b.timestamp) / HOUR;
+          const ageA = (now - a.timestamp) / hour;
+          const ageB = (now - b.timestamp) / hour;
           const trendA = (a.score + a.commentCount * 2) / Math.pow(ageA + 2, 1.5);
           const trendB = (b.score + b.commentCount * 2) / Math.pow(ageB + 2, 1.5);
           return trendB - trendA;
@@ -289,33 +343,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
       default:
         return sorted.sort((a, b) => b.score - a.score);
     }
-  }, [decryptedPosts, uiCtx.sortMode]);
-
-  const knownUsers = useMemo(() => {
-    const users = new Set<string>();
-    postsCtx.posts.forEach(post => {
-      users.add(post.author);
-      post.comments.forEach(comment => {
-        users.add(comment.author);
-      });
-    });
-    return users;
-  }, [postsCtx.posts]);
-
-  const selectedPost = useMemo(() => {
-    const post = selectedBitId ? postsCtx.postsById.get(selectedBitId) || null : null;
-    
-    // Mark post as accessed for LRU cache
-    if (post && selectedBitId) {
-      postsCtx.markPostAccessed(selectedBitId);
-      postsCtx.setSelectedPostId(selectedBitId);
-    }
-    
-    return post;
-  }, [selectedBitId, postsCtx]);
-
-  const bookmarkedIdSet = useMemo(() => new Set(bookmarkedIds), [bookmarkedIds]);
-  const reportedPostIdSet = useMemo(() => new Set(reportedPostIds), [reportedPostIds]);
+  }, [decryptedPosts, derivedSortedPosts, filteredPosts, uiCtx.sortMode]);
 
   // Theme colors map
   const themeColors = useMemo(() => {
@@ -337,7 +365,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     viewMode: uiCtx.viewMode,
     selectedBitId,
     setViewMode: uiCtx.setViewMode,
-    setSelectedBitId
+    setSelectedBitId,
   });
 
   // Nostr feed hook with focused context setters
@@ -346,13 +374,13 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     setBoards: boardsCtx.setBoards,
     setIsNostrConnected,
     setOldestTimestamp,
-    setHasMorePosts
+    setHasMorePosts,
   });
 
   useCommentsLoader({
     selectedBitId,
     postsById: postsCtx.postsById,
-    setPosts: postsCtx.setPosts
+    setPosts: postsCtx.setPosts,
   });
 
   const { handleVote } = useVoting({
@@ -392,160 +420,21 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
   const { loaderRef, isLoading: isLoadingMore } = useInfiniteScroll(
     eventHandlers.loadMorePosts,
     hasMorePosts && uiCtx.viewMode === ViewMode.FEED,
-    { threshold: 300 }
+    { threshold: 300 },
   );
 
   // Effects
-  useEffect(() => {
-    // Subscribe to bookmark changes
-    const unsubscribe = bookmarkService.subscribe(() => {
-      setBookmarkedIds(bookmarkService.getBookmarkedIds());
-    });
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
-    // Subscribe to report changes
-    const unsubscribe = reportService.subscribe(() => {
-      setReportedPostIds(reportService.getReportsByType('post').map(r => r.targetId));
-    });
-    return unsubscribe;
-  }, []);
-
-  // Initialize Phase 2 services when identity changes
-  useEffect(() => {
-    const pubkey = userCtx.userState.identity?.pubkey;
-    if (!pubkey) return;
-
-    // Initialize all Phase 2 services with user context
-    const initServices = async () => {
-      try {
-        await dmService.initialize(pubkey);
-        await followServiceV2.initialize(pubkey);
-        await notificationServiceV2.initialize(pubkey);
-        advancedSearchService.initialize(pubkey);
-        logger.info('App', `Initialized Phase 2 services for ${pubkey.slice(0, 8)}...`);
-      } catch (err) {
-        logger.warn('App', 'Failed to initialize some Phase 2 services', err);
-      }
-    };
-    initServices();
-
-    // Cleanup on unmount or identity change
-    return () => {
-      dmService.cleanup();
-      followServiceV2.cleanup();
-      notificationServiceV2.cleanup();
-      advancedSearchService.cleanup();
-    };
-  }, [userCtx.userState.identity?.pubkey]);
-
-  // Ensure identity is loaded
-  useEffect(() => {
-    let cancelled = false;
-
-    identityService
-      .getIdentityAsync()
-      .then((identity) => {
-        if (cancelled) return;
-        if (!identity) return;
-
-        userCtx.setUserState((prev) => {
-          // If user already has an identity in state, don't override it.
-          if (prev.hasIdentity || prev.identity) return prev;
-
-          const isGuestHandle = prev.username.startsWith('u/guest_');
-          return {
-            ...prev,
-            identity,
-            hasIdentity: true,
-            username: identity.displayName && isGuestHandle ? identity.displayName : prev.username,
-          };
-        });
-      })
-      .catch((err) => {
-        // Non-fatal: app can run in guest mode
-        logger.warn('App', 'Failed to load identity', err);
-        toastService.push({
-          type: 'error',
-          message: 'Failed to load identity (guest mode)',
-          detail: err instanceof Error ? err.message : String(err),
-          durationMs: UIConfig.TOAST_DURATION_MS,
-          dedupeKey: 'identity-load-failed',
-        });
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [userCtx]);
-
-  // Handle encrypted board share links (URL fragment contains key)
-  useEffect(() => {
-    const shareData = encryptedBoardService.handleShareLink();
-    if (shareData) {
-      logger.info('App', `Received encrypted board share link: ${shareData.boardId}`);
-
-      // Navigate to the board
-      boardsCtx.setActiveBoardId(shareData.boardId);
-      uiCtx.setViewMode(ViewMode.FEED);
-
-      // Show success toast
-      toastService.push({
-        type: 'success',
-        message: 'Encrypted board access granted',
-        detail: `You now have access to board ${shareData.boardId}`,
-        durationMs: UIConfig.TOAST_DURATION_MS,
-        dedupeKey: 'encrypted-board-access',
-      });
-    }
-  }, [boardsCtx, uiCtx]);
-
-  // Cleanup on unmount and beforeunload
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      nostrService.cleanup();
-      votingService.cleanup();
-      rateLimiter.stopCleanup();
-      nostrEventDeduplicator.stopCleanup();
-      voteDeduplicator.stopCleanup();
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      nostrService.cleanup();
-      votingService.cleanup();
-      rateLimiter.stopCleanup();
-      nostrEventDeduplicator.stopCleanup();
-      voteDeduplicator.stopCleanup();
-    };
-  }, []);
-
-  // Offline persistence
-  useEffect(() => {
-    if (!FeatureFlags.ENABLE_OFFLINE_MODE) return;
-    if (typeof localStorage === 'undefined') return;
-
-    const id = window.setTimeout(() => {
-      try {
-        const postsToStore = postsCtx.posts.slice(0, MAX_CACHED_POSTS);
-        localStorage.setItem(
-          StorageKeys.POSTS_CACHE,
-          JSON.stringify({ savedAt: Date.now(), posts: postsToStore })
-        );
-        localStorage.setItem(
-          StorageKeys.BOARDS_CACHE,
-          JSON.stringify({ savedAt: Date.now(), boards: boardsCtx.boards })
-        );
-      } catch {
-        // Ignore quota / serialization errors
-      }
-    }, 500);
-
-    return () => window.clearTimeout(id);
-  }, [boardsCtx.boards, postsCtx.posts]);
+  usePhaseTwoServices({ pubkey: userCtx.userState.identity?.pubkey });
+  useAppLifecycle({
+    boards: boardsCtx.boards,
+    posts: postsCtx.posts,
+    setBookmarkedIds,
+    setReportedPostIds,
+    setFollowingPubkeys,
+    setUserState: userCtx.setUserState,
+    setActiveBoardId: boardsCtx.setActiveBoardId,
+    setViewMode: uiCtx.setViewMode,
+  });
 
   // Create aggregated context value from focused contexts
   const contextValue: AppContextType = {
@@ -622,7 +511,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     handleToggleBookmark: async (postId: string) => {
       // 1. Update locally
       bookmarkService.toggleBookmark(postId);
-      
+
       // 2. Persist to Nostr (NIP-51) if identity is available
       if (userCtx.userState.identity && FeatureFlags.ENABLE_LISTS) {
         try {
@@ -632,7 +521,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
             pubkey: userCtx.userState.identity.pubkey,
           });
           const signed = await identityService.signEvent(unsigned);
-          nostrService.publishSignedEvent(signed).catch(err => {
+          nostrService.publishSignedEvent(signed).catch((err) => {
             logger.warn('AppContext', 'Failed to publish bookmarks to Nostr', err);
           });
         } catch (err) {
@@ -654,11 +543,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     isLoadingMore,
   };
 
-  return (
-    <AppContext.Provider value={contextValue}>
-      {children}
-    </AppContext.Provider>
-  );
+  return <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>;
 };
 
 export const useApp = () => {

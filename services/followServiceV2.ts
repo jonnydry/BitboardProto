@@ -6,14 +6,16 @@
 
 import { type Event as NostrEvent, type Filter } from 'nostr-tools';
 import { nostrService } from './nostr/NostrService';
+import { identityService } from './identityService';
 import { logger } from './loggingService';
+import type { UnsignedNostrEvent } from '../types';
 
 // ============================================
 // CONSTANTS
 // ============================================
 
 const NOSTR_KINDS = {
-  CONTACT_LIST: 3,  // NIP-02 follow list
+  CONTACT_LIST: 3, // NIP-02 follow list
 } as const;
 
 // ============================================
@@ -22,8 +24,8 @@ const NOSTR_KINDS = {
 
 export interface FollowedUser {
   pubkey: string;
-  relay?: string;      // Preferred relay for this user
-  petname?: string;    // Local nickname (optional)
+  relay?: string; // Preferred relay for this user
+  petname?: string; // Local nickname (optional)
   followedAt?: number; // When they were followed
 }
 
@@ -47,6 +49,7 @@ class FollowServiceV2 {
   private currentUserPubkey: string | null = null;
   private contactListEventId: string | null = null;
   private isInitialized = false;
+  private listeners = new Set<() => void>();
 
   // ----------------------------------------
   // INITIALIZATION
@@ -58,15 +61,33 @@ class FollowServiceV2 {
   async initialize(userPubkey: string): Promise<void> {
     this.currentUserPubkey = userPubkey;
     this.loadFromStorage();
-    
+
     // Fetch latest contact list from relays
     await this.fetchContactList(userPubkey);
-    
+
     // Optionally fetch followers (can be expensive)
     // await this.fetchFollowers(userPubkey);
-    
+
     this.isInitialized = true;
+    this.notifyListeners();
     logger.info('Follow', `Initialized for ${userPubkey.slice(0, 8)}...`);
+  }
+
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notifyListeners() {
+    this.listeners.forEach((listener) => {
+      try {
+        listener();
+      } catch (error) {
+        logger.warn('Follow', 'Listener failed', error);
+      }
+    });
   }
 
   // ----------------------------------------
@@ -127,14 +148,16 @@ class FollowServiceV2 {
 
     // Publish updated contact list to Nostr
     const success = await this.publishContactList();
-    
+
     if (success) {
       logger.info('Follow', `Now following ${pubkey.slice(0, 8)}...`);
+      this.notifyListeners();
     } else {
       // Rollback on failure
       this.following.delete(pubkey);
       this.saveToStorage();
       logger.error('Follow', `Failed to follow ${pubkey.slice(0, 8)}...`);
+      this.notifyListeners();
     }
 
     return success;
@@ -163,9 +186,10 @@ class FollowServiceV2 {
 
     // Publish updated contact list to Nostr
     const success = await this.publishContactList();
-    
+
     if (success) {
       logger.info('Follow', `Unfollowed ${pubkey.slice(0, 8)}...`);
+      this.notifyListeners();
     } else {
       // Rollback on failure
       if (removed) {
@@ -173,6 +197,7 @@ class FollowServiceV2 {
         this.saveToStorage();
       }
       logger.error('Follow', `Failed to unfollow ${pubkey.slice(0, 8)}...`);
+      this.notifyListeners();
     }
 
     return success;
@@ -232,32 +257,23 @@ class FollowServiceV2 {
    */
   async fetchContactList(pubkey: string): Promise<FollowedUser[]> {
     try {
-      const filter: Filter = {
-        kinds: [NOSTR_KINDS.CONTACT_LIST],
-        authors: [pubkey],
-        limit: 1,
-      };
+      const latestEvent = await nostrService.fetchContactListEvent(pubkey);
 
-      // Query relays for the latest contact list
-      const events = await this.queryRelays(filter);
-      
-      if (events.length === 0) {
+      if (!latestEvent) {
         logger.debug('Follow', `No contact list found for ${pubkey.slice(0, 8)}...`);
         return [];
       }
 
-      // Get the most recent contact list
-      const latestEvent = events.sort((a, b) => b.created_at - a.created_at)[0];
-      
       // Parse the contact list
       const following = this.parseContactList(latestEvent);
 
       // If this is the current user, update local state
       if (pubkey === this.currentUserPubkey) {
         this.following.clear();
-        following.forEach(f => this.following.set(f.pubkey, f));
+        following.forEach((f) => this.following.set(f.pubkey, f));
         this.contactListEventId = latestEvent.id;
         this.saveToStorage();
+        this.notifyListeners();
       }
 
       logger.info('Follow', `Loaded ${following.length} follows for ${pubkey.slice(0, 8)}...`);
@@ -275,7 +291,7 @@ class FollowServiceV2 {
   async fetchFollowers(pubkey: string, opts: { limit?: number } = {}): Promise<FollowerInfo[]> {
     try {
       const limit = opts.limit || 500;
-      
+
       const filter: Filter = {
         kinds: [NOSTR_KINDS.CONTACT_LIST],
         '#p': [pubkey],
@@ -283,10 +299,10 @@ class FollowServiceV2 {
       };
 
       const events = await this.queryRelays(filter);
-      
+
       // Dedupe by author (keep most recent)
       const byAuthor = new Map<string, NostrEvent>();
-      events.forEach(e => {
+      events.forEach((e) => {
         const existing = byAuthor.get(e.pubkey);
         if (!existing || e.created_at > existing.created_at) {
           byAuthor.set(e.pubkey, e);
@@ -297,8 +313,8 @@ class FollowServiceV2 {
       const followers: FollowerInfo[] = [];
       byAuthor.forEach((event, authorPubkey) => {
         // Verify the contact list still contains the target
-        const pTags = event.tags.filter(t => t[0] === 'p');
-        if (pTags.some(t => t[1] === pubkey)) {
+        const pTags = event.tags.filter((t) => t[0] === 'p');
+        if (pTags.some((t) => t[1] === pubkey)) {
           followers.push({
             pubkey: authorPubkey,
             followedAt: event.created_at * 1000,
@@ -309,7 +325,7 @@ class FollowServiceV2 {
       // If this is the current user, update local state
       if (pubkey === this.currentUserPubkey) {
         this.followers.clear();
-        followers.forEach(f => this.followers.set(f.pubkey, f));
+        followers.forEach((f) => this.followers.set(f.pubkey, f));
         this.saveToStorage();
       }
 
@@ -326,7 +342,7 @@ class FollowServiceV2 {
    */
   private parseContactList(event: NostrEvent): FollowedUser[] {
     const following: FollowedUser[] = [];
-    
+
     for (const tag of event.tags) {
       if (tag[0] === 'p' && tag[1]) {
         following.push({
@@ -373,17 +389,14 @@ class FollowServiceV2 {
    */
   private async publishContactList(): Promise<boolean> {
     try {
-      const _event = this.buildContactListEvent();
+      const event = this.buildContactListEvent();
+      const signedEvent = await identityService.signEvent(event as UnsignedNostrEvent);
+      const publishedEvent = await nostrService.publishSignedEvent(signedEvent);
+      this.contactListEventId = publishedEvent.id;
+      this.saveToStorage();
 
-      // Sign and publish via nostrService
-      // This would integrate with identity service for signing
-      // For now, return success optimistically
-      
       logger.debug('Follow', `Publishing contact list with ${this.following.size} follows`);
-      
-      // TODO: Actually publish to relays
-      // await nostrService.publishEvent(signedEvent);
-      
+
       return true;
     } catch (error) {
       logger.error('Follow', 'Failed to publish contact list', error);
@@ -397,11 +410,7 @@ class FollowServiceV2 {
 
   private async queryRelays(_filter: Filter): Promise<NostrEvent[]> {
     try {
-      // This would use nostrService's pool
-      // For now, return empty array
-      const _relays = nostrService.getRelayUrls();
-      // return await nostrService.pool.querySync(relays, filter);
-      return [];
+      return await nostrService.queryEvents(_filter);
     } catch {
       return [];
     }
@@ -423,7 +432,7 @@ class FollowServiceV2 {
    */
   createFollowingFeedFilter(opts: { since?: number; limit?: number } = {}): Filter {
     const pubkeys = this.getFollowingPubkeys();
-    
+
     return {
       kinds: [1], // Short text notes
       authors: pubkeys.length > 0 ? pubkeys : undefined,
@@ -452,10 +461,10 @@ class FollowServiceV2 {
   async getStatsForUser(pubkey: string): Promise<FollowStats> {
     // Fetch contact list to get following count
     const following = await this.fetchContactList(pubkey);
-    
+
     // Followers count would require fetching all contact lists
     // This is expensive, so we might want to use a count estimate or cache
-    
+
     return {
       followingCount: following.length,
       followersCount: 0, // Would need separate query
@@ -491,7 +500,10 @@ class FollowServiceV2 {
       }
 
       this.contactListEventId = data.contactListEventId;
-      logger.debug('Follow', `Loaded ${this.following.size} following, ${this.followers.size} followers from storage`);
+      logger.debug(
+        'Follow',
+        `Loaded ${this.following.size} following, ${this.followers.size} followers from storage`,
+      );
     } catch (error) {
       logger.warn('Follow', 'Failed to load from storage', error);
     }
@@ -522,6 +534,7 @@ class FollowServiceV2 {
     this.followers.clear();
     this.currentUserPubkey = null;
     this.isInitialized = false;
+    this.listeners.clear();
     logger.info('Follow', 'Service cleaned up');
   }
 }

@@ -1,13 +1,11 @@
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 import type { Post } from '../types';
 import { votingService, computeOptimisticUpdate, computeRollback } from '../services/votingService';
 import { logger } from '../services/loggingService';
 import { useUserStore } from '../stores/userStore';
 import { usePostStore } from '../stores/postStore';
 
-export function useVoting(args: {
-  postsById: Map<string, Post>;
-}) {
+export function useVoting(args: { postsById: Map<string, Post> }) {
   const { postsById } = args;
 
   // Use selective Zustand selectors instead of full userState object
@@ -15,10 +13,10 @@ export function useVoting(args: {
   const userIdentity = useUserStore((state) => state.userState.identity);
   const votedPosts = useUserStore((state) => state.userState.votedPosts);
   const setUserState = useUserStore((state) => state.setUserState);
-  
+
   // Use targeted post update instead of array mapping
   const updatePost = usePostStore((state) => state.updatePost);
-  const getPost = usePostStore((state) => (id: string) => state.posts.find(p => p.id === id));
+  const getPost = usePostStore((state) => (id: string) => state.posts.find((p) => p.id === id));
 
   const handleVote = useCallback(
     async (postId: string, direction: 'up' | 'down') => {
@@ -45,7 +43,7 @@ export function useVoting(args: {
         direction,
         userBits,
         votedPosts,
-        postId
+        postId,
       );
 
       setUserState((prev) => ({
@@ -65,7 +63,7 @@ export function useVoting(args: {
             post.nostrEventId,
             direction,
             userIdentity,
-            post.authorPubkey
+            post.authorPubkey,
           );
 
           if (result.success && result.newTally) {
@@ -111,10 +109,8 @@ export function useVoting(args: {
         }
       }
     },
-    [postsById, updatePost, setUserState, votedPosts, userBits, userIdentity, getPost]
+    [postsById, updatePost, setUserState, votedPosts, userBits, userIdentity, getPost],
   );
 
   return { handleVote };
 }
-
-

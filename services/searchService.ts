@@ -32,10 +32,14 @@ type SearchWorkerMessage =
 class SearchService {
   private worker: Worker | null = null;
   private workerReady = false;
-  private pendingSearches = new Map<string, { resolve: (ids: string[]) => void; reject: (error: Error) => void }>();
+  private pendingSearches = new Map<
+    string,
+    { resolve: (ids: string[]) => void; reject: (error: Error) => void }
+  >();
   private requestId = 0;
   private lastIndexedPostCount = 0;
   private indexUpdateDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private cachedPosts: Post[] = [];
 
   constructor() {
     this.initWorker();
@@ -51,10 +55,9 @@ class SearchService {
     }
 
     try {
-      this.worker = new Worker(
-        new URL('./workers/search.worker.ts', import.meta.url),
-        { type: 'module' }
-      );
+      this.worker = new Worker(new URL('./workers/search.worker.ts', import.meta.url), {
+        type: 'module',
+      });
 
       this.worker.onmessage = (e: MessageEvent<SearchWorkerMessage>) => {
         const { type } = e.data;
@@ -62,6 +65,7 @@ class SearchService {
         switch (type) {
           case 'READY':
             this.workerReady = true;
+            this.updateIndexImmediate(this.cachedPosts);
             logger.debug('SearchService', 'Worker ready');
             break;
 
@@ -101,6 +105,8 @@ class SearchService {
    * Debounced to avoid excessive updates
    */
   updateIndex(posts: Post[]): void {
+    this.cachedPosts = posts;
+
     if (this.indexUpdateDebounceTimer) {
       clearTimeout(this.indexUpdateDebounceTimer);
     }
@@ -120,7 +126,7 @@ class SearchService {
     }
 
     // Serialize posts for worker (only searchable fields)
-    const serializedPosts = posts.map(post => ({
+    const serializedPosts = posts.map((post) => ({
       id: post.id,
       boardId: post.boardId,
       title: post.title,
@@ -128,7 +134,7 @@ class SearchService {
       authorPubkey: post.authorPubkey,
       content: post.content,
       tags: post.tags,
-      comments: post.comments.map(c => ({
+      comments: post.comments.map((c) => ({
         author: c.author,
         content: c.content,
       })),
@@ -141,10 +147,10 @@ class SearchService {
    * Search posts by query
    * Returns array of matching post IDs
    */
-  async search(query: string): Promise<string[]> {
+  async search(query: string, opts: { boardId?: string } = {}): Promise<string[]> {
     if (!this.worker || !this.workerReady) {
       // Fallback to main thread search
-      return this.searchMainThread(query);
+      return this.searchMainThread(query, opts);
     }
 
     const requestId = `search-${this.requestId++}`;
@@ -167,10 +173,33 @@ class SearchService {
   /**
    * Fallback main-thread search (used when worker unavailable)
    */
-  private searchMainThread(_query: string): string[] {
+  private searchMainThread(query: string, opts: { boardId?: string } = {}): string[] {
     logger.warn('SearchService', 'Using main thread search fallback');
-    // Return empty array - caller should implement fallback
-    return [];
+    const queryLower = query.trim().toLowerCase();
+
+    return this.cachedPosts
+      .filter((post) => {
+        if (opts.boardId && post.boardId !== opts.boardId) {
+          return false;
+        }
+
+        if (!queryLower) {
+          return true;
+        }
+
+        return (
+          post.title.toLowerCase().includes(queryLower) ||
+          post.author.toLowerCase().includes(queryLower) ||
+          post.content.toLowerCase().includes(queryLower) ||
+          post.tags.some((tag) => tag.toLowerCase().includes(queryLower)) ||
+          post.comments.some(
+            (comment) =>
+              comment.author.toLowerCase().includes(queryLower) ||
+              comment.content.toLowerCase().includes(queryLower),
+          )
+        );
+      })
+      .map((post) => post.id);
   }
 
   /**
@@ -209,13 +238,16 @@ class SearchService {
    * Search relays using NIP-50 full-text search
    * Note: Not all relays support NIP-50
    */
-  async relaySearch(query: string, opts: {
-    kinds?: number[];
-    limit?: number;
-    since?: number;
-    until?: number;
-    authors?: string[];
-  } = {}): Promise<NostrEvent[]> {
+  async relaySearch(
+    query: string,
+    opts: {
+      kinds?: number[];
+      limit?: number;
+      since?: number;
+      until?: number;
+      authors?: string[];
+    } = {},
+  ): Promise<NostrEvent[]> {
     if (!query || query.trim().length < 2) {
       return [];
     }
@@ -240,22 +272,36 @@ class SearchService {
   /**
    * Search for posts using NIP-50
    */
-  async searchPosts(query: string, opts: {
-    limit?: number;
-    boardId?: string;
-  } = {}): Promise<NostrEvent[]> {
-    return this.relaySearch(query, {
+  async searchPosts(
+    query: string,
+    opts: {
+      limit?: number;
+      boardId?: string;
+    } = {},
+  ): Promise<NostrEvent[]> {
+    const events = await this.relaySearch(query, {
       kinds: [NOSTR_KINDS.POST],
       limit: opts.limit || 50,
     });
+
+    if (!opts.boardId) {
+      return events;
+    }
+
+    return events.filter((event) =>
+      event.tags.some((tag) => tag[0] === 'board' && tag[1] === opts.boardId),
+    );
   }
 
   /**
    * Search for articles using NIP-50
    */
-  async searchArticles(query: string, opts: {
-    limit?: number;
-  } = {}): Promise<NostrEvent[]> {
+  async searchArticles(
+    query: string,
+    opts: {
+      limit?: number;
+    } = {},
+  ): Promise<NostrEvent[]> {
     return this.relaySearch(query, {
       kinds: [NOSTR_KINDS.LONG_FORM],
       limit: opts.limit || 30,
@@ -265,9 +311,12 @@ class SearchService {
   /**
    * Search for users/profiles by name
    */
-  async searchProfiles(query: string, opts: {
-    limit?: number;
-  } = {}): Promise<NostrEvent[]> {
+  async searchProfiles(
+    query: string,
+    opts: {
+      limit?: number;
+    } = {},
+  ): Promise<NostrEvent[]> {
     return this.relaySearch(query, {
       kinds: [NOSTR_KINDS.METADATA],
       limit: opts.limit || 20,
@@ -278,7 +327,10 @@ class SearchService {
    * Hybrid search: combine local and relay results
    * Returns post IDs from both sources
    */
-  async hybridSearch(query: string, _localPosts: Post[]): Promise<{
+  async hybridSearch(
+    query: string,
+    _localPosts: Post[],
+  ): Promise<{
     localIds: string[];
     relayEvents: NostrEvent[];
   }> {
@@ -294,10 +346,13 @@ class SearchService {
   /**
    * Search by hashtag (doesn't require NIP-50)
    */
-  async searchByHashtag(hashtag: string, opts: {
-    kinds?: number[];
-    limit?: number;
-  } = {}): Promise<NostrEvent[]> {
+  async searchByHashtag(
+    hashtag: string,
+    opts: {
+      kinds?: number[];
+      limit?: number;
+    } = {},
+  ): Promise<NostrEvent[]> {
     try {
       const events = await nostrService.searchByHashtag(hashtag, opts);
       return events;
@@ -313,7 +368,7 @@ class SearchService {
    */
   extractHashtagsFromPosts(posts: Post[]): Map<string, number> {
     const tagCounts = new Map<string, number>();
-    
+
     for (const post of posts) {
       for (const tag of post.tags) {
         const normalized = tag.toLowerCase();
@@ -329,7 +384,7 @@ class SearchService {
    */
   getTopHashtags(posts: Post[], limit: number = 10): Array<{ tag: string; count: number }> {
     const tagCounts = this.extractHashtagsFromPosts(posts);
-    
+
     return Array.from(tagCounts.entries())
       .map(([tag, count]) => ({ tag, count }))
       .sort((a, b) => b.count - a.count)

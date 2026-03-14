@@ -1,12 +1,10 @@
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 import type { Post, Comment } from '../types';
 import { votingService, computeOptimisticUpdate, computeRollback } from '../services/votingService';
 import { useUserStore } from '../stores/userStore';
 import { usePostStore } from '../stores/postStore';
 
-export function useCommentVoting(args: {
-  postsById: Map<string, Post>;
-}) {
+export function useCommentVoting(args: { postsById: Map<string, Post> }) {
   const { postsById } = args;
 
   // Use selective Zustand selectors instead of full userState object
@@ -14,10 +12,10 @@ export function useCommentVoting(args: {
   const userIdentity = useUserStore((state) => state.userState.identity);
   const votedComments = useUserStore((state) => state.userState.votedComments ?? {});
   const setUserState = useUserStore((state) => state.setUserState);
-  
+
   // Use targeted post update instead of array mapping
   const updatePost = usePostStore((state) => state.updatePost);
-  const getPost = usePostStore((state) => (id: string) => state.posts.find(p => p.id === id));
+  const getPost = usePostStore((state) => (id: string) => state.posts.find((p) => p.id === id));
 
   const handleCommentVote = useCallback(
     async (postId: string, commentId: string, direction: 'up' | 'down') => {
@@ -55,7 +53,7 @@ export function useCommentVoting(args: {
         direction,
         userBits,
         votedComments,
-        commentId
+        commentId,
       );
 
       setUserState((prev) => ({
@@ -95,13 +93,13 @@ export function useCommentVoting(args: {
             comment.nostrEventId,
             direction,
             userIdentity,
-            comment.authorPubkey
+            comment.authorPubkey,
           );
 
           if (result.success && result.newTally) {
             // Get latest post from store to ensure we have current comments
             const currentPost = getPost(postId) || post;
-            
+
             // Update comment with verified vote data
             const updateCommentWithTally = (comments: Comment[]): Comment[] => {
               return comments.map((c) => {
@@ -204,9 +202,8 @@ export function useCommentVoting(args: {
         }
       }
     },
-    [postsById, updatePost, setUserState, votedComments, userBits, userIdentity, getPost]
+    [postsById, updatePost, setUserState, votedComments, userBits, userIdentity, getPost],
   );
 
   return { handleCommentVote };
 }
-

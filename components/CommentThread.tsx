@@ -1,6 +1,19 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Comment, UserState } from '../types';
-import { ChevronDown, ChevronRight, CornerDownRight, Clock, Flag, Edit3, Trash2, Lock, ArrowBigUp, ArrowBigDown, UserX, VolumeX } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  CornerDownRight,
+  Clock,
+  Flag,
+  Edit3,
+  Trash2,
+  Lock,
+  ArrowBigUp,
+  ArrowBigDown,
+  UserX,
+  VolumeX,
+} from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 // MentionText is used via MarkdownRenderer
 import { MentionInput } from './MentionInput';
@@ -58,7 +71,9 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
         const raw = localStorage.getItem(`${COLLAPSE_STORAGE_PREFIX}${comment.id}`);
         if (raw) return raw === '1';
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     // Auto-collapse threads deeper than AUTO_COLLAPSE_DEPTH
     return depth >= AUTO_COLLAPSE_DEPTH;
   });
@@ -66,7 +81,9 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
   const [replyContent, setReplyContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [hasReported, setHasReported] = useState(() => reportService.hasReported('comment', comment.id));
+  const [hasReported, setHasReported] = useState(() =>
+    reportService.hasReported('comment', comment.id),
+  );
   const [visibleReplies, setVisibleReplies] = useState(REPLIES_PAGE_SIZE);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
@@ -82,13 +99,14 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
         setAuthorProfile(cachedProfile);
       } else {
         // Fallback: async fetch if not in cache (e.g., for real-time new comments)
-        profileService.getProfileMetadata(comment.authorPubkey)
-          .then(profile => {
+        profileService
+          .getProfileMetadata(comment.authorPubkey)
+          .then((profile) => {
             if (profile) {
               setAuthorProfile(profile);
             }
           })
-          .catch(error => {
+          .catch((error) => {
             console.error('[CommentThread] Failed to load author profile:', error);
           });
       }
@@ -98,7 +116,9 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
   // Check if this is the user's own comment
   const isOwnComment = useMemo(() => {
     if (!userState.identity) return comment.author === userState.username;
-    return comment.authorPubkey === userState.identity.pubkey || comment.author === userState.username;
+    return (
+      comment.authorPubkey === userState.identity.pubkey || comment.author === userState.username
+    );
   }, [comment.authorPubkey, comment.author, userState.identity, userState.username]);
 
   const isDeleted = !!comment.isDeleted || comment.author === '[deleted]';
@@ -108,26 +128,32 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
     if (!userState.identity || !postId) return null;
     return userState.votedComments?.[comment.id] || null;
   }, [userState.votedComments, comment.id, userState.identity, postId]);
-  
+
   const isUpvoted = useMemo(() => voteDirection === 'up', [voteDirection]);
   const isDownvoted = useMemo(() => voteDirection === 'down', [voteDirection]);
   const hasInvested = useMemo(() => isUpvoted || isDownvoted, [isUpvoted, isDownvoted]);
-  
+
   const commentScore = comment.score ?? 0;
 
-  const handleVoteUp = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onVote && postId) {
-      onVote(postId, comment.id, 'up');
-    }
-  }, [onVote, postId, comment.id]);
+  const handleVoteUp = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (onVote && postId) {
+        onVote(postId, comment.id, 'up');
+      }
+    },
+    [onVote, postId, comment.id],
+  );
 
-  const handleVoteDown = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onVote && postId) {
-      onVote(postId, comment.id, 'down');
-    }
-  }, [onVote, postId, comment.id]);
+  const handleVoteDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (onVote && postId) {
+        onVote(postId, comment.id, 'down');
+      }
+    },
+    [onVote, postId, comment.id],
+  );
 
   // Subscribe to report changes
   useEffect(() => {
@@ -176,7 +202,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
   }, [comment.id]);
 
   const handleReplyClick = useCallback(() => {
-    setIsReplying(prev => !prev);
+    setIsReplying((prev) => !prev);
     setReplyContent('');
   }, []);
 
@@ -204,19 +230,22 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
     setIsEditing(false);
   };
 
-  const handleSubmitReply = useCallback((e: React.FormEvent) => {
-    e.preventDefault();
-    if (!replyContent.trim()) return;
+  const handleSubmitReply = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!replyContent.trim()) return;
 
-    setIsSubmitting(true);
-    // Simulate slight delay for UX
-    setTimeout(() => {
-      onReply(comment.id, replyContent.trim());
-      setReplyContent('');
-      setIsReplying(false);
-      setIsSubmitting(false);
-    }, 300);
-  }, [replyContent, comment.id, onReply]);
+      setIsSubmitting(true);
+      // Simulate slight delay for UX
+      setTimeout(() => {
+        onReply(comment.id, replyContent.trim());
+        setReplyContent('');
+        setIsReplying(false);
+        setIsSubmitting(false);
+      }, 300);
+    },
+    [replyContent, comment.id, onReply],
+  );
 
   const handleAuthorClick = useCallback(() => {
     if (onViewProfile) {
@@ -225,73 +254,78 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
   }, [onViewProfile, comment.author, comment.authorPubkey]);
 
   return (
-    <div 
-      className="relative"
-      style={{ marginLeft: depth > 0 ? `${indentPx}px` : 0 }}
-    >
+    <div className="relative" style={{ marginLeft: depth > 0 ? `${indentPx}px` : 0 }}>
       {/* Thread line connector */}
       {depth > 0 && (
-        <div 
+        <div
           className="absolute left-0 top-0 bottom-0 w-px bg-terminal-dim/30 -ml-4"
           style={{ height: '100%' }}
         />
       )}
 
       {/* Comment container */}
-      <div className={`
+      <div
+        className={`
         border-l-2 pl-3 py-2 mb-2 transition-colors
         ${isCollapsed ? 'border-terminal-dim/30' : 'border-terminal-dim hover:border-terminal-text'}
-      `}>
+      `}
+      >
         <div className="flex gap-2">
           {/* Voting Column (compact) */}
           {onVote && postId && (
             <div className="flex flex-col items-center min-w-[2rem] gap-0.5 pt-0.5">
               {!userState.identity && (
-                <div className="mb-0.5 flex items-center gap-0.5 px-1 py-0.5 border border-terminal-dim/50 bg-terminal-dim/10 rounded" title="Guest mode: Connect identity to cast verified votes">
+                <div
+                  className="mb-0.5 flex items-center gap-0.5 px-1 py-0.5 border border-terminal-dim/50 bg-terminal-dim/10 rounded"
+                  title="Guest mode: Connect identity to cast verified votes"
+                >
                   <UserX size={8} className="text-terminal-dim" />
                   <span className="text-[7px] text-terminal-dim uppercase">G</span>
                 </div>
               )}
-              <button 
+              <button
                 onClick={handleVoteUp}
                 className={`p-1 hover:bg-terminal-dim transition-colors ${isUpvoted ? 'text-terminal-text font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
-                disabled={(!userState.identity) || (userState.bits <= 0 && !hasInvested)}
+                disabled={!userState.identity || (userState.bits <= 0 && !hasInvested)}
                 aria-label="Upvote comment"
                 aria-pressed={isUpvoted}
                 title={
                   !userState.identity
-                    ? "CONNECT IDENTITY TO VOTE"
+                    ? 'CONNECT IDENTITY TO VOTE'
                     : isUpvoted
-                      ? "RETRACT BIT (+1 REFUND)"
+                      ? 'RETRACT BIT (+1 REFUND)'
                       : hasInvested
-                        ? "SWITCH VOTE (0 COST)"
-                        : "INVEST 1 BIT (-1)"
+                        ? 'SWITCH VOTE (0 COST)'
+                        : 'INVEST 1 BIT (-1)'
                 }
               >
-                <ArrowBigUp size={14} fill={isUpvoted ? "currentColor" : "none"} />
+                <ArrowBigUp size={14} fill={isUpvoted ? 'currentColor' : 'none'} />
               </button>
-              
-              <span className={`text-xs font-bold ${commentScore > 0 ? 'text-terminal-text' : commentScore < 0 ? 'text-terminal-alert' : 'text-terminal-dim/50'}`}>
-                {commentScore > 0 ? '+' : ''}{commentScore}
+
+              <span
+                className={`text-xs font-bold ${commentScore > 0 ? 'text-terminal-text' : commentScore < 0 ? 'text-terminal-alert' : 'text-terminal-dim/50'}`}
+              >
+                {commentScore > 0 ? '+' : ''}
+                {commentScore}
               </span>
 
-              <button 
+              <button
                 onClick={handleVoteDown}
                 className={`p-1 hover:bg-terminal-dim transition-colors ${isDownvoted ? 'text-terminal-alert font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
-                disabled={(!userState.identity) || (userState.bits <= 0 && !hasInvested)}
+                disabled={!userState.identity || (userState.bits <= 0 && !hasInvested)}
                 aria-label="Downvote comment"
                 aria-pressed={isDownvoted}
                 title={
                   !userState.identity
-                    ? "CONNECT IDENTITY TO VOTE"
+                    ? 'CONNECT IDENTITY TO VOTE'
                     : isDownvoted
-                      ? "RETRACT BIT (+1 REFUND)"
+                      ? 'RETRACT BIT (+1 REFUND)'
                       : hasInvested
-                        ? "SWITCH VOTE (0 COST)"
-                        : "INVEST 1 BIT (-1)"
+                        ? 'SWITCH VOTE (0 COST)'
+                        : 'INVEST 1 BIT (-1)'
                 }
               >
-                <ArrowBigDown size={14} fill={isDownvoted ? "currentColor" : "none"} />
+                <ArrowBigDown size={14} fill={isDownvoted ? 'currentColor' : 'none'} />
               </button>
             </div>
           )}
@@ -299,242 +333,245 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
           <div className="flex-1">
             {/* Comment header */}
             <div className="flex items-center gap-2 text-xs mb-1">
-          {/* Collapse toggle */}
-          {hasReplies && (
-            <button
-              onClick={handleToggleCollapse}
-              className="text-terminal-dim hover:text-terminal-text transition-colors p-0.5"
-              title={isCollapsed ? `Expand ${replyCount} replies` : 'Collapse thread'}
-              aria-label={isCollapsed ? `Expand ${replyCount} replies` : 'Collapse thread'}
-            >
-              {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
-            </button>
-          )}
-
-          {/* Author */}
-          <button
-            onClick={handleAuthorClick}
-            className="flex items-center gap-1 text-terminal-text font-bold hover:underline cursor-pointer"
-          >
-            {authorProfile?.picture && (
-              <img
-                src={authorProfile.picture}
-                alt={`${comment.author}'s avatar`}
-                className="w-4 h-4 rounded-full object-cover"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-            )}
-            <span>{profileService.getDisplayName(comment.author, authorProfile)}</span>
-          </button>
-          
-          <span className="text-terminal-dim">::</span>
-          
-          {/* Timestamp */}
-          <span className="text-terminal-dim flex items-center gap-1">
-            <Clock size={10} />
-            {formatTime(comment.timestamp)}
-          </span>
-
-          {/* Collapsed indicator */}
-          {isCollapsed && hasReplies && (
-            <button
-              onClick={handleToggleCollapse}
-              className="text-terminal-dim hover:text-terminal-text text-[10px] border border-terminal-dim hover:border-terminal-text px-1 transition-colors flex items-center gap-1"
-            >
-              {depth >= AUTO_COLLAPSE_DEPTH ? (
-                <>Continue thread → ({replyCount})</>
-              ) : (
-                <>+{replyCount} {replyCount === 1 ? 'reply' : 'replies'}</>
-              )}
-            </button>
-          )}
-        </div>
-
-        {/* Comment content (hidden when collapsed) */}
-        {!isCollapsed && (
-          <>
-            {!isEditing ? (
-              <p className="text-terminal-text/80 text-sm leading-relaxed break-words mb-2">
-                {isDeleted ? (
-                  <span className="italic text-terminal-dim">[deleted]</span>
-                ) : comment.isEncrypted && comment.encryptedContent ? (
-                  <div className="flex items-center gap-2 text-terminal-dim p-2 border border-terminal-dim/50 bg-terminal-dim/10">
-                    <Lock size={14} />
-                    <span className="text-xs">[Encrypted - Access Required]</span>
-                  </div>
-                ) : (
-                  <MarkdownRenderer content={comment.content} />
-                )}
-                {!isDeleted && comment.editedAt && (
-                  <span className="ml-2 text-[10px] text-terminal-dim uppercase">(edited)</span>
-                )}
-              </p>
-            ) : (
-              <div className="mb-2 border border-terminal-dim/30 bg-terminal-bg/40 p-2">
-                <MentionInput
-                  value={editContent}
-                  onChange={setEditContent}
-                  knownUsers={knownUsers}
-                  placeholder="Edit comment..."
-                  autoFocus
-                  minHeight="60px"
-                />
-                <div className="mt-2 flex items-center gap-2 justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setIsEditing(false)}
-                    className="px-3 py-1 border border-terminal-dim text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors text-xs uppercase"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveEdit}
-                    disabled={!editContent.trim()}
-                    className="px-3 py-1 border border-terminal-text text-terminal-text hover:bg-terminal-text hover:text-black transition-colors text-xs uppercase disabled:opacity-50"
-                  >
-                    Save
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className="flex items-center gap-3">
-              {/* Reactions (FREE - social signals) */}
-              <ReactionBar
-                eventId={comment.id}
-                nostrEventId={comment.nostrEventId}
-                disabled={!userState.identity}
-                compact={true}
-              />
-
-              <button
-                onClick={handleReplyClick}
-                className={`text-xs flex items-center gap-1 transition-colors
-                  ${isReplying 
-                    ? 'text-terminal-text' 
-                    : 'text-terminal-dim hover:text-terminal-text'
-                  }`}
-                disabled={isDeleted}
-              >
-                <CornerDownRight size={10} />
-                {isReplying ? 'CANCEL' : 'REPLY'}
-              </button>
-
-              {/* Edit / Delete for own comment */}
-              {isOwnComment && !isDeleted && (onEdit || onDelete) && (
-                <>
-                  {onEdit && (
-                    <button
-                      type="button"
-                      onClick={handleEditClick}
-                      className="text-xs flex items-center gap-1 text-terminal-dim hover:text-terminal-text transition-colors"
-                      title="Edit comment"
-                    >
-                      <Edit3 size={10} />
-                      EDIT
-                    </button>
-                  )}
-                  {onDelete && (
-                    <>
-                      {!showDeleteConfirm ? (
-                        <button
-                          type="button"
-                          onClick={() => setShowDeleteConfirm(true)}
-                          className="text-xs flex items-center gap-1 text-terminal-dim hover:text-terminal-alert transition-colors"
-                          title="Delete comment"
-                        >
-                          <Trash2 size={10} />
-                          DELETE
-                        </button>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-terminal-alert">Delete?</span>
-                          <button
-                            type="button"
-                            onClick={handleDelete}
-                            className="text-xs border border-terminal-alert px-2 py-0.5 text-terminal-alert hover:bg-terminal-alert hover:text-black transition-colors"
-                          >
-                            YES
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setShowDeleteConfirm(false)}
-                            className="text-xs border border-terminal-dim px-2 py-0.5 text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors"
-                          >
-                            NO
-                          </button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </>
-              )}
-
-              {/* Report button */}
-              {!isOwnComment && (
+              {/* Collapse toggle */}
+              {hasReplies && (
                 <button
-                  onClick={handleReportClick}
-                  className={`text-xs flex items-center gap-1 transition-colors
-                    ${hasReported 
-                      ? 'text-terminal-alert' 
-                      : 'text-terminal-dim hover:text-terminal-alert'
-                    }`}
-                  title={hasReported ? 'Already reported' : 'Report this comment'}
-                  disabled={hasReported}
+                  onClick={handleToggleCollapse}
+                  className="text-terminal-dim hover:text-terminal-text transition-colors p-0.5"
+                  title={isCollapsed ? `Expand ${replyCount} replies` : 'Collapse thread'}
+                  aria-label={isCollapsed ? `Expand ${replyCount} replies` : 'Collapse thread'}
                 >
-                  <Flag size={10} fill={hasReported ? 'currentColor' : 'none'} />
-                  {hasReported ? 'REPORTED' : 'REPORT'}
+                  {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
                 </button>
               )}
 
-              {/* Mute button */}
-              {!isOwnComment && comment.authorPubkey && onToggleMute && (
+              {/* Author */}
+              <button
+                onClick={handleAuthorClick}
+                className="flex items-center gap-1 text-terminal-text font-bold hover:underline cursor-pointer"
+              >
+                {authorProfile?.picture && (
+                  <img
+                    src={authorProfile.picture}
+                    alt={`${comment.author}'s avatar`}
+                    className="w-4 h-4 rounded-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                )}
+                <span>{profileService.getDisplayName(comment.author, authorProfile)}</span>
+              </button>
+
+              <span className="text-terminal-dim">::</span>
+
+              {/* Timestamp */}
+              <span className="text-terminal-dim flex items-center gap-1">
+                <Clock size={10} />
+                {formatTime(comment.timestamp)}
+              </span>
+
+              {/* Collapsed indicator */}
+              {isCollapsed && hasReplies && (
                 <button
-                  onClick={() => onToggleMute(comment.authorPubkey!)}
-                  className={`text-xs flex items-center gap-1 transition-colors
-                    ${isMuted?.(comment.authorPubkey!) 
-                      ? 'text-terminal-alert' 
-                      : 'text-terminal-dim hover:text-terminal-alert'
-                    }`}
-                  title={isMuted?.(comment.authorPubkey!) ? 'Unmute user' : 'Mute user'}
+                  onClick={handleToggleCollapse}
+                  className="text-terminal-dim hover:text-terminal-text text-[10px] border border-terminal-dim hover:border-terminal-text px-1 transition-colors flex items-center gap-1"
                 >
-                  <VolumeX size={10} />
-                  {isMuted?.(comment.authorPubkey!) ? 'UNMUTE' : 'MUTE'}
+                  {depth >= AUTO_COLLAPSE_DEPTH ? (
+                    <>Continue thread → ({replyCount})</>
+                  ) : (
+                    <>
+                      +{replyCount} {replyCount === 1 ? 'reply' : 'replies'}
+                    </>
+                  )}
                 </button>
               )}
             </div>
 
-            {/* Reply form */}
-            {isReplying && (
-              <form 
-                onSubmit={handleSubmitReply}
-                className="mt-3 flex gap-2 items-start bg-terminal-bg/40 p-2 border border-terminal-dim/30"
-              >
-                <div className="flex-1">
-                  <MentionInput
-                    value={replyContent}
-                    onChange={setReplyContent}
-                    knownUsers={knownUsers}
-                    placeholder={`Reply to ${comment.author}... (use @ to mention)`}
-                    autoFocus
-                    minHeight="50px"
+            {/* Comment content (hidden when collapsed) */}
+            {!isCollapsed && (
+              <>
+                {!isEditing ? (
+                  <p className="text-terminal-text/80 text-sm leading-relaxed break-words mb-2">
+                    {isDeleted ? (
+                      <span className="italic text-terminal-dim">[deleted]</span>
+                    ) : comment.isEncrypted && comment.encryptedContent ? (
+                      <div className="flex items-center gap-2 text-terminal-dim p-2 border border-terminal-dim/50 bg-terminal-dim/10">
+                        <Lock size={14} />
+                        <span className="text-xs">[Encrypted - Access Required]</span>
+                      </div>
+                    ) : (
+                      <MarkdownRenderer content={comment.content} />
+                    )}
+                    {!isDeleted && comment.editedAt && (
+                      <span className="ml-2 text-[10px] text-terminal-dim uppercase">(edited)</span>
+                    )}
+                  </p>
+                ) : (
+                  <div className="mb-2 border border-terminal-dim/30 bg-terminal-bg/40 p-2">
+                    <MentionInput
+                      value={editContent}
+                      onChange={setEditContent}
+                      knownUsers={knownUsers}
+                      placeholder="Edit comment..."
+                      autoFocus
+                      minHeight="60px"
+                    />
+                    <div className="mt-2 flex items-center gap-2 justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setIsEditing(false)}
+                        className="px-3 py-1 border border-terminal-dim text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors text-xs uppercase"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveEdit}
+                        disabled={!editContent.trim()}
+                        className="px-3 py-1 border border-terminal-text text-terminal-text hover:bg-terminal-text hover:text-black transition-colors text-xs uppercase disabled:opacity-50"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex items-center gap-3">
+                  {/* Reactions (FREE - social signals) */}
+                  <ReactionBar
+                    eventId={comment.id}
+                    nostrEventId={comment.nostrEventId}
+                    disabled={!userState.identity}
+                    compact={true}
                   />
+
+                  <button
+                    onClick={handleReplyClick}
+                    className={`text-xs flex items-center gap-1 transition-colors
+                  ${
+                    isReplying ? 'text-terminal-text' : 'text-terminal-dim hover:text-terminal-text'
+                  }`}
+                    disabled={isDeleted}
+                  >
+                    <CornerDownRight size={10} />
+                    {isReplying ? 'CANCEL' : 'REPLY'}
+                  </button>
+
+                  {/* Edit / Delete for own comment */}
+                  {isOwnComment && !isDeleted && (onEdit || onDelete) && (
+                    <>
+                      {onEdit && (
+                        <button
+                          type="button"
+                          onClick={handleEditClick}
+                          className="text-xs flex items-center gap-1 text-terminal-dim hover:text-terminal-text transition-colors"
+                          title="Edit comment"
+                        >
+                          <Edit3 size={10} />
+                          EDIT
+                        </button>
+                      )}
+                      {onDelete && (
+                        <>
+                          {!showDeleteConfirm ? (
+                            <button
+                              type="button"
+                              onClick={() => setShowDeleteConfirm(true)}
+                              className="text-xs flex items-center gap-1 text-terminal-dim hover:text-terminal-alert transition-colors"
+                              title="Delete comment"
+                            >
+                              <Trash2 size={10} />
+                              DELETE
+                            </button>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-terminal-alert">Delete?</span>
+                              <button
+                                type="button"
+                                onClick={handleDelete}
+                                className="text-xs border border-terminal-alert px-2 py-0.5 text-terminal-alert hover:bg-terminal-alert hover:text-black transition-colors"
+                              >
+                                YES
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setShowDeleteConfirm(false)}
+                                className="text-xs border border-terminal-dim px-2 py-0.5 text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors"
+                              >
+                                NO
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </>
+                  )}
+
+                  {/* Report button */}
+                  {!isOwnComment && (
+                    <button
+                      onClick={handleReportClick}
+                      className={`text-xs flex items-center gap-1 transition-colors
+                    ${
+                      hasReported
+                        ? 'text-terminal-alert'
+                        : 'text-terminal-dim hover:text-terminal-alert'
+                    }`}
+                      title={hasReported ? 'Already reported' : 'Report this comment'}
+                      disabled={hasReported}
+                    >
+                      <Flag size={10} fill={hasReported ? 'currentColor' : 'none'} />
+                      {hasReported ? 'REPORTED' : 'REPORT'}
+                    </button>
+                  )}
+
+                  {/* Mute button */}
+                  {!isOwnComment && comment.authorPubkey && onToggleMute && (
+                    <button
+                      onClick={() => onToggleMute(comment.authorPubkey!)}
+                      className={`text-xs flex items-center gap-1 transition-colors
+                    ${
+                      isMuted?.(comment.authorPubkey!)
+                        ? 'text-terminal-alert'
+                        : 'text-terminal-dim hover:text-terminal-alert'
+                    }`}
+                      title={isMuted?.(comment.authorPubkey!) ? 'Unmute user' : 'Mute user'}
+                    >
+                      <VolumeX size={10} />
+                      {isMuted?.(comment.authorPubkey!) ? 'UNMUTE' : 'MUTE'}
+                    </button>
+                  )}
                 </div>
-                <button
-                  type="submit"
-                  disabled={!replyContent.trim() || isSubmitting}
-                  className="border border-terminal-dim px-3 py-1 text-xs hover:bg-terminal-text hover:text-black disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-terminal-dim transition-all uppercase font-bold"
-                >
-                  {isSubmitting ? '...' : 'TX'}
-                </button>
-              </form>
+
+                {/* Reply form */}
+                {isReplying && (
+                  <form
+                    onSubmit={handleSubmitReply}
+                    className="mt-3 flex gap-2 items-start bg-terminal-bg/40 p-2 border border-terminal-dim/30"
+                  >
+                    <div className="flex-1">
+                      <MentionInput
+                        value={replyContent}
+                        onChange={setReplyContent}
+                        knownUsers={knownUsers}
+                        placeholder={`Reply to ${comment.author}... (use @ to mention)`}
+                        autoFocus
+                        minHeight="50px"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={!replyContent.trim() || isSubmitting}
+                      className="border border-terminal-dim px-3 py-1 text-xs hover:bg-terminal-text hover:text-black disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-terminal-dim transition-all uppercase font-bold"
+                    >
+                      {isSubmitting ? '...' : 'TX'}
+                    </button>
+                  </form>
+                )}
+              </>
             )}
-          </>
-        )}
           </div>
         </div>
       </div>
@@ -542,7 +579,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
       {/* Nested replies */}
       {!isCollapsed && hasReplies && (
         <div className="mt-1">
-          {comment.replies!.slice(0, visibleReplies).map(reply => (
+          {comment.replies!.slice(0, visibleReplies).map((reply) => (
             <CommentThreadComponent
               key={reply.id}
               comment={reply}
@@ -596,14 +633,14 @@ export function buildCommentTree(comments: Comment[]): Comment[] {
   const rootComments: Comment[] = [];
 
   // First pass: create map and initialize replies array
-  comments.forEach(comment => {
+  comments.forEach((comment) => {
     commentMap.set(comment.id, { ...comment, replies: [], depth: 0 });
   });
 
   // Second pass: build tree structure
-  comments.forEach(comment => {
+  comments.forEach((comment) => {
     const node = commentMap.get(comment.id)!;
-    
+
     if (comment.parentId && commentMap.has(comment.parentId)) {
       const parent = commentMap.get(comment.parentId)!;
       node.depth = (parent.depth || 0) + 1;
@@ -617,7 +654,7 @@ export function buildCommentTree(comments: Comment[]): Comment[] {
 
   // Sort by timestamp (oldest first for conversation flow)
   const sortByTimestamp = (a: Comment, b: Comment) => a.timestamp - b.timestamp;
-  
+
   const sortReplies = (comment: Comment): Comment => {
     if (comment.replies && comment.replies.length > 0) {
       comment.replies.sort(sortByTimestamp);
@@ -665,7 +702,6 @@ const CommentListComponent: React.FC<CommentListProps> = ({
   isMuted,
 }) => {
   const [visibleCount, setVisibleCount] = useState(TOP_LEVEL_PAGE_SIZE);
-  const [allCollapsed, setAllCollapsed] = useState(false);
   const [collapseKey, setCollapseKey] = useState(0); // Force re-render on collapse all
 
   const totalComments = useMemo(() => {
@@ -683,12 +719,13 @@ const CommentListComponent: React.FC<CommentListProps> = ({
         if (typeof localStorage !== 'undefined') {
           localStorage.setItem(`${COLLAPSE_STORAGE_PREFIX}${c.id}`, '1');
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       c.replies?.forEach(collapseRecursive);
     };
     comments.forEach(collapseRecursive);
-    setAllCollapsed(true);
-    setCollapseKey(k => k + 1);
+    setCollapseKey((k) => k + 1);
   }, [comments]);
 
   const handleExpandAll = useCallback(() => {
@@ -698,17 +735,18 @@ const CommentListComponent: React.FC<CommentListProps> = ({
         if (typeof localStorage !== 'undefined') {
           localStorage.removeItem(`${COLLAPSE_STORAGE_PREFIX}${c.id}`);
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       c.replies?.forEach(expandRecursive);
     };
     comments.forEach(expandRecursive);
-    setAllCollapsed(false);
-    setCollapseKey(k => k + 1);
+    setCollapseKey((k) => k + 1);
   }, [comments]);
 
   const shouldVirtualize = comments.length > VIRTUALIZE_THRESHOLD;
   const parentRef = useRef<HTMLDivElement>(null);
-  
+
   // Track measured comment heights for dynamic sizing
   const commentHeights = useRef<Map<number, number>>(new Map());
   const averageHeight = useRef<number>(200); // Fallback initial estimate for comments
@@ -720,7 +758,7 @@ const CommentListComponent: React.FC<CommentListProps> = ({
       const measured = commentHeights.current.get(index);
       if (measured) {
         const currentAvg = averageHeight.current;
-        averageHeight.current = (currentAvg * 0.9) + (measured * 0.1);
+        averageHeight.current = currentAvg * 0.9 + measured * 0.1;
         return measured;
       }
       return averageHeight.current;
@@ -728,8 +766,8 @@ const CommentListComponent: React.FC<CommentListProps> = ({
     overscan: 5,
   });
 
-  const visibleComments = shouldVirtualize 
-    ? virtualizer.getVirtualItems().map(virtualItem => comments[virtualItem.index])
+  const visibleComments = shouldVirtualize
+    ? virtualizer.getVirtualItems().map((virtualItem) => comments[virtualItem.index])
     : comments.slice(0, visibleCount);
   const hasMore = !shouldVirtualize && comments.length > visibleCount;
 
@@ -767,10 +805,10 @@ const CommentListComponent: React.FC<CommentListProps> = ({
       )}
 
       {/* Comments list */}
-      <div 
+      <div
         key={collapseKey}
         ref={parentRef}
-        className={shouldVirtualize ? "h-[600px] overflow-auto" : ""}
+        className={shouldVirtualize ? 'h-[600px] overflow-auto' : ''}
       >
         {shouldVirtualize ? (
           <div
@@ -823,7 +861,7 @@ const CommentListComponent: React.FC<CommentListProps> = ({
             })}
           </div>
         ) : (
-          visibleComments.map(comment => (
+          visibleComments.map((comment) => (
             <CommentThread
               key={comment.id}
               comment={comment}
@@ -847,7 +885,7 @@ const CommentListComponent: React.FC<CommentListProps> = ({
       {/* Load more comments (only when not virtualized) */}
       {hasMore && (
         <button
-          onClick={() => setVisibleCount(v => Math.min(v + TOP_LEVEL_PAGE_SIZE, comments.length))}
+          onClick={() => setVisibleCount((v) => Math.min(v + TOP_LEVEL_PAGE_SIZE, comments.length))}
           className="w-full py-2 text-xs text-terminal-dim hover:text-terminal-text border border-terminal-dim/30 hover:border-terminal-text transition-colors uppercase"
         >
           Load {Math.min(TOP_LEVEL_PAGE_SIZE, comments.length - visibleCount)} more comments

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Search, X, Loader2, Clock, ArrowUpRight } from 'lucide-react';
 import { UIConfig } from '../config';
 
@@ -12,7 +12,7 @@ interface SearchBarProps {
 
 export const SearchBar: React.FC<SearchBarProps> = ({
   onSearch,
-  placeholder = 'Search posts, users, tags...'
+  placeholder = 'Search posts, users, tags...',
 }) => {
   const [query, setQuery] = useState('');
   const [isFocused, setIsFocused] = useState(false);
@@ -30,19 +30,23 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       if (stored) {
         setRecentSearches(JSON.parse(stored));
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   // Save recent search
   const saveRecentSearch = useCallback((searchQuery: string) => {
     if (!searchQuery.trim()) return;
 
-    setRecentSearches(prev => {
-      const filtered = prev.filter(s => s !== searchQuery);
+    setRecentSearches((prev) => {
+      const filtered = prev.filter((s) => s !== searchQuery);
       const updated = [searchQuery, ...filtered].slice(0, MAX_RECENT_SEARCHES);
       try {
         localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       return updated;
     });
   }, []);
@@ -92,16 +96,19 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     inputRef.current?.focus();
   }, [onSearch]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      handleClear();
-      inputRef.current?.blur();
-      setShowDropdown(false);
-    }
-    if (e.key === 'Enter') {
-      setShowDropdown(false);
-    }
-  }, [handleClear]);
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleClear();
+        inputRef.current?.blur();
+        setShowDropdown(false);
+      }
+      if (e.key === 'Enter') {
+        setShowDropdown(false);
+      }
+    },
+    [handleClear],
+  );
 
   const handleRecentSearchClick = useCallback((search: string) => {
     setQuery(search);
@@ -126,18 +133,16 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     <div className="relative" ref={dropdownRef}>
       <div
         className={`relative flex items-center border transition-all duration-200 bg-terminal-bg
-          ${isFocused
-            ? 'border-terminal-text shadow-glow'
-            : 'border-terminal-dim hover:border-terminal-text/50'
+          ${
+            isFocused
+              ? 'border-terminal-text shadow-glow'
+              : 'border-terminal-dim hover:border-terminal-text/50'
           }
         `}
       >
         {/* Search icon or loading spinner */}
         {isSearching ? (
-          <Loader2
-            size={16}
-            className="absolute left-3 text-terminal-text animate-spin"
-          />
+          <Loader2 size={16} className="absolute left-3 text-terminal-text animate-spin" />
         ) : (
           <Search
             size={16}
@@ -148,6 +153,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         <input
           ref={inputRef}
           type="text"
+          data-search-input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={handleFocus}
@@ -177,9 +183,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             </button>
           )}
           {!query && !isFocused && (
-            <span className="text-[10px] text-terminal-dim/50 hidden md:block">
-              Press /
-            </span>
+            <span className="text-[10px] text-terminal-dim/50 hidden md:block">Press /</span>
           )}
         </div>
       </div>
@@ -198,7 +202,10 @@ export const SearchBar: React.FC<SearchBarProps> = ({
               className="w-full text-left px-3 py-2 text-sm text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10 transition-colors flex items-center justify-between group"
             >
               <span className="truncate">{search}</span>
-              <ArrowUpRight size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+              <ArrowUpRight
+                size={12}
+                className="opacity-0 group-hover:opacity-100 transition-opacity"
+              />
             </button>
           ))}
         </div>

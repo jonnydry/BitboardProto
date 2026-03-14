@@ -5,9 +5,10 @@
 // Provides encrypted 1-on-1 messaging between users
 
 import { type Event as NostrEvent, type Filter } from 'nostr-tools';
-import { NOSTR_KINDS } from '../types';
+import { NOSTR_KINDS, type UnsignedNostrEvent } from '../types';
 import { nostrService } from './nostr/NostrService';
 import { cryptoService } from './cryptoService';
+import { identityService } from './identityService';
 import { logger } from './loggingService';
 
 // ============================================
@@ -19,17 +20,17 @@ export interface DirectMessage {
   nostrEventId: string;
   senderPubkey: string;
   recipientPubkey: string;
-  content: string;          // Decrypted content
+  content: string; // Decrypted content
   encryptedContent: string; // Original encrypted content
   timestamp: number;
   isRead: boolean;
-  isSent: boolean;          // true if current user sent this message
-  isDecrypted: boolean;     // false if decryption failed
-  replyToId?: string;       // For threaded conversations
+  isSent: boolean; // true if current user sent this message
+  isDecrypted: boolean; // false if decryption failed
+  replyToId?: string; // For threaded conversations
 }
 
 export interface Conversation {
-  id: string;               // Counter-party pubkey
+  id: string; // Counter-party pubkey
   participantPubkey: string;
   participantName?: string;
   participantAvatar?: string;
@@ -43,7 +44,7 @@ export interface DMNotification {
   conversationId: string;
   messageId: string;
   senderPubkey: string;
-  preview: string;          // First ~50 chars of decrypted message
+  preview: string; // First ~50 chars of decrypted message
   timestamp: number;
 }
 
@@ -57,6 +58,7 @@ class DMService {
   private onNewMessage: ((notification: DMNotification) => void) | null = null;
   private currentUserPubkey: string | null = null;
   private _unreadCount = 0;
+  private listeners = new Set<() => void>();
 
   // ----------------------------------------
   // INITIALIZATION
@@ -85,6 +87,23 @@ class DMService {
     return this._unreadCount;
   }
 
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notifyListeners() {
+    this.listeners.forEach((listener) => {
+      try {
+        listener();
+      } catch (error) {
+        logger.warn('DM', 'Listener failed', error);
+      }
+    });
+  }
+
   // ----------------------------------------
   // CONVERSATION MANAGEMENT
   // ----------------------------------------
@@ -93,8 +112,9 @@ class DMService {
    * Get all conversations sorted by last message time
    */
   getConversations(): Conversation[] {
-    return Array.from(this.conversations.values())
-      .sort((a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp);
+    return Array.from(this.conversations.values()).sort(
+      (a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp,
+    );
   }
 
   /**
@@ -109,7 +129,7 @@ class DMService {
    */
   startConversation(participantPubkey: string): Conversation {
     let conversation = this.conversations.get(participantPubkey);
-    
+
     if (!conversation) {
       conversation = {
         id: participantPubkey,
@@ -133,8 +153,11 @@ class DMService {
     if (conversation) {
       this._unreadCount -= conversation.unreadCount;
       conversation.unreadCount = 0;
-      conversation.messages.forEach(m => { m.isRead = true; });
+      conversation.messages.forEach((m) => {
+        m.isRead = true;
+      });
       this.saveConversationsToStorage();
+      this.notifyListeners();
     }
   }
 
@@ -147,6 +170,7 @@ class DMService {
       this._unreadCount -= conversation.unreadCount;
       this.conversations.delete(participantPubkey);
       this.saveConversationsToStorage();
+      this.notifyListeners();
     }
   }
 
@@ -164,9 +188,7 @@ class DMService {
     encryptedContent: string;
     replyToId?: string;
   }): Partial<NostrEvent> {
-    const tags: string[][] = [
-      ['p', args.recipientPubkey],
-    ];
+    const tags: string[][] = [['p', args.recipientPubkey]];
 
     // Add reply reference if this is a threaded reply
     if (args.replyToId) {
@@ -183,15 +205,13 @@ class DMService {
   }
 
   /**
-   * Send a direct message using NIP-17 (gift-wrapped, most private)
-   * Falls back to NIP-44 if gift wrapping fails
+   * Send a direct message using NIP-04 for compatibility and history sync.
    */
   async sendMessage(args: {
     recipientPubkey: string;
     content: string;
-    privateKey: string;  // Sender's private key for encryption
+    privateKey: string; // Sender's private key for encryption
     replyToId?: string;
-    useLegacy?: boolean; // Force NIP-04 (legacy) mode
   }): Promise<DirectMessage | null> {
     if (!this.currentUserPubkey) {
       logger.error('DM', 'Cannot send message: DM service not initialized');
@@ -199,61 +219,33 @@ class DMService {
     }
 
     try {
-      let encryptedContent: string;
-      let nostrEventId = '';
-      let encryptionMethod: 'nip17' | 'nip44' | 'nip04' = 'nip17';
+      const encryptedContent = await cryptoService.encryptNIP04(
+        args.content,
+        args.privateKey,
+        args.recipientPubkey,
+      );
+      if (!encryptedContent) throw new Error('NIP-04 encryption failed');
 
-      if (args.useLegacy) {
-        // Use NIP-04 (legacy) for backward compatibility
-        const encrypted = await cryptoService.encryptNIP04(
-          args.content,
-          args.privateKey,
-          args.recipientPubkey
-        );
-        if (!encrypted) throw new Error('NIP-04 encryption failed');
-        encryptedContent = encrypted;
-        encryptionMethod = 'nip04';
-        logger.debug('DM', 'Using NIP-04 (legacy) encryption');
-      } else {
-        // Try NIP-17 first (most private)
-        const giftWrap = await cryptoService.createGiftWrap({
-          content: args.content,
-          senderPrivkey: args.privateKey,
-          senderPubkey: this.currentUserPubkey,
-          recipientPubkey: args.recipientPubkey,
-          replyToId: args.replyToId,
-        });
+      const unsignedEvent = this.buildDMEvent({
+        recipientPubkey: args.recipientPubkey,
+        content: args.content,
+        senderPubkey: this.currentUserPubkey,
+        encryptedContent,
+        replyToId: args.replyToId,
+      });
 
-        if (giftWrap) {
-          encryptedContent = giftWrap.giftWrap.content;
-          nostrEventId = giftWrap.giftWrap.id;
-          encryptionMethod = 'nip17';
-          logger.debug('DM', 'Using NIP-17 (gift-wrapped) encryption');
-          
-          // TODO: Publish giftWrap.giftWrap to relays
-          // await nostrService.publishEvent(giftWrap.giftWrap);
-        } else {
-          // Fallback to NIP-44 (still modern, but metadata visible)
-          const encrypted = await cryptoService.encryptNIP44(
-            args.content,
-            args.privateKey,
-            args.recipientPubkey
-          );
-          if (!encrypted) throw new Error('NIP-44 encryption failed');
-          encryptedContent = encrypted;
-          encryptionMethod = 'nip44';
-          logger.debug('DM', 'Falling back to NIP-44 encryption');
-        }
-      }
+      const signedEvent = await identityService.signEvent(unsignedEvent as UnsignedNostrEvent);
+      const publishedEvent = await nostrService.publishSignedEvent(signedEvent);
+      const encryptionMethod: 'nip17' | 'nip44' | 'nip04' = 'nip04';
 
       const message: DirectMessage = {
-        id: nostrEventId || `pending-${Date.now()}`,
-        nostrEventId,
+        id: publishedEvent.id,
+        nostrEventId: publishedEvent.id,
         senderPubkey: this.currentUserPubkey,
         recipientPubkey: args.recipientPubkey,
         content: args.content,
-        encryptedContent,
-        timestamp: Date.now(),
+        encryptedContent: publishedEvent.content,
+        timestamp: publishedEvent.created_at * 1000,
         isRead: true,
         isSent: true,
         isDecrypted: true,
@@ -262,8 +254,13 @@ class DMService {
 
       // Add to local conversation
       this.addMessageToConversation(args.recipientPubkey, message);
+      this.saveConversationsToStorage();
+      this.notifyListeners();
 
-      logger.info('DM', `Sent message via ${encryptionMethod} to ${args.recipientPubkey.slice(0, 8)}...`);
+      logger.info(
+        'DM',
+        `Sent message via ${encryptionMethod} to ${args.recipientPubkey.slice(0, 8)}...`,
+      );
       return message;
     } catch (error) {
       logger.error('DM', 'Failed to send message', error);
@@ -315,7 +312,7 @@ class DMService {
         const decrypted = await cryptoService.decryptNIP04(
           args.event.content,
           args.recipientPrivkey,
-          senderPubkey
+          senderPubkey,
         );
 
         if (decrypted) {
@@ -351,17 +348,19 @@ class DMService {
   /**
    * Fetch DM history for current user
    */
-  async fetchMessages(opts: { since?: number; limit?: number } = {}): Promise<DirectMessage[]> {
+  async fetchMessages(
+    opts: { since?: number; limit?: number; privateKey?: string } = {},
+  ): Promise<DirectMessage[]> {
     if (!this.currentUserPubkey) {
       return [];
     }
 
-    const since = opts.since || Math.floor(Date.now() / 1000) - (30 * 24 * 60 * 60); // 30 days
+    const since = opts.since || Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60; // 30 days
     const limit = opts.limit || 500;
 
     // Fetch messages where user is sender OR recipient
     const filter: Filter = {
-      kinds: [NOSTR_KINDS.ENCRYPTED_DM],
+      kinds: [NOSTR_KINDS.ENCRYPTED_DM, NOSTR_KINDS.GIFT_WRAP],
       limit,
       since,
     };
@@ -379,26 +378,35 @@ class DMService {
       // Combine and dedupe
       const allEvents = [...sentEvents, ...receivedEvents];
       const uniqueEvents = new Map<string, NostrEvent>();
-      allEvents.forEach(e => uniqueEvents.set(e.id, e));
+      allEvents.forEach((e) => uniqueEvents.set(e.id, e));
 
       // Convert to DirectMessage objects
-      const messages = Array.from(uniqueEvents.values())
-        .map(event => this.eventToDirectMessage(event))
+      const messages = (
+        await Promise.all(
+          Array.from(uniqueEvents.values()).map((event) =>
+            opts.privateKey
+              ? this.eventToDirectMessageAsync(event, opts.privateKey)
+              : Promise.resolve(this.eventToDirectMessage(event)),
+          ),
+        )
+      )
         .filter((m): m is DirectMessage => m !== null)
         .sort((a, b) => a.timestamp - b.timestamp);
 
       // Organize into conversations
-      messages.forEach(message => {
-        const counterparty = message.isSent 
-          ? message.recipientPubkey 
-          : message.senderPubkey;
+      messages.forEach((message) => {
+        const counterparty = message.isSent ? message.recipientPubkey : message.senderPubkey;
         this.addMessageToConversation(counterparty, message, false);
       });
 
       this.saveConversationsToStorage();
       this.updateUnreadCount();
+      this.notifyListeners();
 
-      logger.info('DM', `Fetched ${messages.length} messages across ${this.conversations.size} conversations`);
+      logger.info(
+        'DM',
+        `Fetched ${messages.length} messages across ${this.conversations.size} conversations`,
+      );
       return messages;
     } catch (error) {
       logger.error('DM', 'Failed to fetch messages', error);
@@ -406,13 +414,9 @@ class DMService {
     }
   }
 
-  private async fetchDMEvents(_filter: Filter): Promise<NostrEvent[]> {
+  private async fetchDMEvents(filter: Filter): Promise<NostrEvent[]> {
     try {
-      // Use nostrService's internal pool to query
-      const _relays = nostrService.getRelayUrls();
-      // Direct query would require exposing pool - for now use a placeholder
-      // In production, this would use nostrService.pool.querySync(relays, filter)
-      return [];
+      return await nostrService.queryEvents(filter);
     } catch {
       return [];
     }
@@ -421,17 +425,49 @@ class DMService {
   /**
    * Subscribe to incoming DMs in real-time
    */
-  subscribeToMessages(): string | null {
+  subscribeToMessages(privateKey?: string): string | null {
     if (!this.currentUserPubkey || this.messageSubscription) {
       return this.messageSubscription;
     }
 
-    // Subscribe to messages where current user is tagged
-    // This would use nostrService's subscription system
-    // Placeholder for now - actual implementation would hook into nostrService
+    const since = Math.floor(Date.now() / 1000);
+    this.messageSubscription = nostrService.subscribeToFilters(
+      [
+        {
+          kinds: [NOSTR_KINDS.ENCRYPTED_DM, NOSTR_KINDS.GIFT_WRAP],
+          '#p': [this.currentUserPubkey],
+          since,
+        },
+        {
+          kinds: [NOSTR_KINDS.ENCRYPTED_DM],
+          authors: [this.currentUserPubkey],
+          since,
+        },
+      ],
+      {
+        onEvent: (event) => {
+          void this.handleIncomingEvent(event, privateKey);
+        },
+      },
+    );
 
     logger.info('DM', 'Subscribed to incoming messages');
-    return null;
+    return this.messageSubscription;
+  }
+
+  private async handleIncomingEvent(event: NostrEvent, privateKey?: string): Promise<void> {
+    const message = privateKey
+      ? await this.eventToDirectMessageAsync(event, privateKey)
+      : this.eventToDirectMessage(event);
+
+    if (!message) {
+      return;
+    }
+
+    const counterparty = message.isSent ? message.recipientPubkey : message.senderPubkey;
+    this.addMessageToConversation(counterparty, message);
+    this.saveConversationsToStorage();
+    this.notifyListeners();
   }
 
   /**
@@ -457,13 +493,13 @@ class DMService {
       return null;
     }
 
-    const recipientPubkey = event.tags.find(t => t[0] === 'p')?.[1];
+    const recipientPubkey = event.tags.find((t) => t[0] === 'p')?.[1];
     if (!recipientPubkey) {
       return null;
     }
 
     const isSent = event.pubkey === this.currentUserPubkey;
-    const replyToId = event.tags.find(t => t[0] === 'e' && t[3] === 'reply')?.[1];
+    const replyToId = event.tags.find((t) => t[0] === 'e' && t[3] === 'reply')?.[1];
 
     return {
       id: event.id,
@@ -483,18 +519,21 @@ class DMService {
   /**
    * Convert and decrypt a Nostr DM event (async version)
    */
-  async eventToDirectMessageAsync(event: NostrEvent, privateKey: string): Promise<DirectMessage | null> {
+  async eventToDirectMessageAsync(
+    event: NostrEvent,
+    privateKey: string,
+  ): Promise<DirectMessage | null> {
     if (event.kind !== NOSTR_KINDS.ENCRYPTED_DM && event.kind !== NOSTR_KINDS.GIFT_WRAP) {
       return null;
     }
 
-    const recipientPubkey = event.tags.find(t => t[0] === 'p')?.[1];
+    const recipientPubkey = event.tags.find((t) => t[0] === 'p')?.[1];
     if (!recipientPubkey) {
       return null;
     }
 
     const isSent = event.pubkey === this.currentUserPubkey;
-    const replyToId = event.tags.find(t => t[0] === 'e' && t[3] === 'reply')?.[1];
+    const replyToId = event.tags.find((t) => t[0] === 'e' && t[3] === 'reply')?.[1];
 
     // Try to decrypt
     let content = '[Encrypted Message]';
@@ -502,11 +541,15 @@ class DMService {
 
     try {
       const counterpartyPubkey = isSent ? recipientPubkey : event.pubkey;
-      const decrypted = await cryptoService.decryptNIP04(
-        event.content,
-        privateKey,
-        counterpartyPubkey
-      );
+      const decrypted =
+        event.kind === NOSTR_KINDS.GIFT_WRAP
+          ? ((
+              await cryptoService.unwrapGiftWrap({
+                giftWrapEvent: event,
+                recipientPrivkey: privateKey,
+              })
+            )?.content ?? null)
+          : await cryptoService.decryptNIP04(event.content, privateKey, counterpartyPubkey);
       if (decrypted) {
         content = decrypted;
         isDecrypted = true;
@@ -535,12 +578,12 @@ class DMService {
   // ----------------------------------------
 
   private addMessageToConversation(
-    counterpartyPubkey: string, 
+    counterpartyPubkey: string,
     message: DirectMessage,
-    incrementUnread = true
+    incrementUnread = true,
   ) {
     let conversation = this.conversations.get(counterpartyPubkey);
-    
+
     if (!conversation) {
       conversation = {
         id: counterpartyPubkey,
@@ -553,7 +596,7 @@ class DMService {
     }
 
     // Check if message already exists
-    if (!conversation.messages.some(m => m.id === message.id)) {
+    if (!conversation.messages.some((m) => m.id === message.id)) {
       conversation.messages.push(message);
       conversation.messages.sort((a, b) => a.timestamp - b.timestamp);
 
@@ -583,8 +626,10 @@ class DMService {
   }
 
   private updateUnreadCount() {
-    this._unreadCount = Array.from(this.conversations.values())
-      .reduce((sum, conv) => sum + conv.unreadCount, 0);
+    this._unreadCount = Array.from(this.conversations.values()).reduce(
+      (sum, conv) => sum + conv.unreadCount,
+      0,
+    );
   }
 
   // ----------------------------------------
@@ -643,6 +688,7 @@ class DMService {
     this.conversations.clear();
     this.currentUserPubkey = null;
     this._unreadCount = 0;
+    this.listeners.clear();
     logger.info('DM', 'DM service cleaned up');
   }
 }

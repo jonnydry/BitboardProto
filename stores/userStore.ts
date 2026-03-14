@@ -5,6 +5,7 @@ import type { UserState, NostrIdentity } from '../types';
 import { MAX_DAILY_BITS } from '../constants';
 import { listService } from '../services/listService';
 import { identityService } from '../services/identityService';
+import { nostrService } from '../services/nostr/NostrService';
 import { wotService } from '../services/wotService';
 import { logger } from '../services/loggingService';
 import { FeatureFlags } from '../config';
@@ -87,11 +88,8 @@ export const useUserStore = create<UserStoreState>()(
             pubkey: updatedState.identity.pubkey,
           });
           const signed = await identityService.signEvent(unsigned);
-          // We don't need to wait for this to finish for the UI to be responsive
-          import('../services/nostr/NostrService').then(({ nostrService }) => {
-            nostrService.publishSignedEvent(signed).catch((err) => {
-              logger.warn('userStore', 'Failed to publish mute list to Nostr', err);
-            });
+          nostrService.publishSignedEvent(signed).catch((err) => {
+            logger.warn('userStore', 'Failed to publish mute list to Nostr', err);
           });
         } catch (err) {
           logger.warn('userStore', 'Failed to sign mute list event', err);
@@ -114,7 +112,7 @@ export const useUserStore = create<UserStoreState>()(
       const state = get().userState;
       return (state.mutedPubkeys || []).includes(pubkey);
     },
-  }))
+  })),
 );
 
 // Hook to initialize services when identity changes
@@ -141,5 +139,4 @@ export function useUserStoreEffects() {
 // Selective selectors prevent unnecessary re-renders
 export const useUserState = () => useUserStore((state) => state.userState);
 export const useIdentity = () => useUserStore((state) => state.userState.identity);
-export const useIsMuted = (pubkey: string) =>
-  useUserStore((state) => state.isMuted(pubkey));
+export const useIsMuted = (pubkey: string) => useUserStore((state) => state.isMuted(pubkey));

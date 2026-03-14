@@ -1,14 +1,25 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Bell, BellOff, Check, CheckCheck, Trash2, Settings, 
-  MessageCircle, AtSign, UserPlus, Heart, Repeat, 
-  Megaphone, X, Filter as _Filter
+import {
+  Bell,
+  BellOff,
+  Check,
+  CheckCheck,
+  Trash2,
+  Settings,
+  MessageCircle,
+  AtSign,
+  UserPlus,
+  Heart,
+  Repeat,
+  Megaphone,
+  X,
+  Filter as _Filter,
 } from 'lucide-react';
-import { 
-  notificationServiceV2, 
-  type Notification, 
+import {
+  notificationServiceV2,
+  type Notification,
   type NotificationPreferences,
-  NotificationType 
+  NotificationType,
 } from '../services/notificationServiceV2';
 
 // ============================================
@@ -42,6 +53,8 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
   // Load notifications
   useEffect(() => {
     loadNotifications();
+    const unsubscribe = notificationServiceV2.subscribe(loadNotifications);
+    return unsubscribe;
   }, [loadNotifications]);
 
   const handleMarkAsRead = (id: string) => {
@@ -72,7 +85,7 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
       notificationServiceV2.markAsRead(notification.id);
       loadNotifications();
     }
-    
+
     // Navigate if deep link exists
     if (notification.deepLink && onNavigate) {
       onNavigate(notification.deepLink);
@@ -114,15 +127,16 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
 
           {/* Filter tabs */}
           <div className="flex gap-1 overflow-x-auto pb-1 text-xs">
-            {(['all', ...Object.values(NotificationType)] as const).map(type => (
+            {(['all', ...Object.values(NotificationType)] as const).map((type) => (
               <button
                 key={type}
                 onClick={() => setFilter(type)}
                 className={`
                   px-2 py-1 whitespace-nowrap transition-colors
-                  ${filter === type 
-                    ? 'bg-terminal-text text-black' 
-                    : 'border border-terminal-dim hover:border-terminal-text'
+                  ${
+                    filter === type
+                      ? 'bg-terminal-text text-black'
+                      : 'border border-terminal-dim hover:border-terminal-text'
                   }
                 `}
               >
@@ -133,9 +147,7 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
         </div>
 
         {/* Settings Panel */}
-        {showSettings && (
-          <NotificationSettings onClose={() => setShowSettings(false)} />
-        )}
+        {showSettings && <NotificationSettings onClose={() => setShowSettings(false)} />}
 
         {/* Actions */}
         {notifications.length > 0 && (
@@ -165,7 +177,7 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
               <p>No notifications</p>
             </div>
           ) : (
-            notifications.map(notification => (
+            notifications.map((notification) => (
               <NotificationItem
                 key={notification.id}
                 notification={notification}
@@ -205,11 +217,16 @@ const NotificationItem: React.FC<{
     >
       <div className="flex gap-3">
         {/* Icon */}
-        <div className={`
+        <div
+          className={`
           w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0
           ${!notification.isRead ? 'bg-terminal-text/20' : 'bg-terminal-dim/20'}
-        `}>
-          <Icon size={16} className={!notification.isRead ? 'text-terminal-text' : 'text-terminal-dim'} />
+        `}
+        >
+          <Icon
+            size={16}
+            className={!notification.isRead ? 'text-terminal-text' : 'text-terminal-dim'}
+          />
         </div>
 
         {/* Content */}
@@ -218,15 +235,11 @@ const NotificationItem: React.FC<{
             <p className={`text-sm ${!notification.isRead ? 'font-bold' : ''}`}>
               {getNotificationTitle(notification)}
             </p>
-            <span className="text-xs text-terminal-dim flex-shrink-0">
-              {timeAgo}
-            </span>
+            <span className="text-xs text-terminal-dim flex-shrink-0">{timeAgo}</span>
           </div>
-          
+
           {notification.preview && (
-            <p className="text-xs text-terminal-dim mt-1 truncate">
-              {notification.preview}
-            </p>
+            <p className="text-xs text-terminal-dim mt-1 truncate">{notification.preview}</p>
           )}
         </div>
 
@@ -266,7 +279,7 @@ const NotificationItem: React.FC<{
 
 const NotificationSettings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [prefs, setPrefs] = useState<NotificationPreferences>(
-    notificationServiceV2.getPreferences()
+    notificationServiceV2.getPreferences(),
   );
   const [_isSaving, setIsSaving] = useState(false);
 
@@ -274,7 +287,7 @@ const NotificationSettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     const newValue = !prefs[key];
     const newPrefs = { ...prefs, [key]: newValue };
     setPrefs(newPrefs);
-    
+
     setIsSaving(true);
     await notificationServiceV2.updatePreferences({ [key]: newValue });
     setIsSaving(false);
@@ -315,7 +328,7 @@ const NotificationSettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
           enabled={prefs.enableVotes}
           onToggle={() => handleToggle('enableVotes')}
         />
-        
+
         <div className="border-t border-terminal-dim/50 pt-2 mt-2">
           <SettingToggle
             label="Push notifications"
@@ -376,15 +389,14 @@ export const NotificationBadge: React.FC<{
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    // Update count periodically
     const updateCount = () => {
       setUnreadCount(notificationServiceV2.getUnreadCount());
     };
-    
+
     updateCount();
-    const interval = setInterval(updateCount, 5000);
-    
-    return () => clearInterval(interval);
+    const unsubscribe = notificationServiceV2.subscribe(updateCount);
+
+    return unsubscribe;
   }, []);
 
   return (
@@ -454,9 +466,8 @@ function getTypeLabel(type: NotificationType): string {
 }
 
 function getNotificationTitle(notification: Notification): string {
-  const fromName = notification.fromDisplayName || 
-    notification.fromPubkey?.slice(0, 8) || 
-    'Someone';
+  const fromName =
+    notification.fromDisplayName || notification.fromPubkey?.slice(0, 8) || 'Someone';
 
   switch (notification.type) {
     case NotificationType.MENTION:
@@ -482,12 +493,12 @@ function getNotificationTitle(notification: Notification): string {
 
 function formatTimeAgo(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
-  
+
   if (seconds < 60) return 'now';
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
   if (seconds < 604800) return `${Math.floor(seconds / 86400)}d`;
-  
+
   return new Date(timestamp).toLocaleDateString();
 }
 

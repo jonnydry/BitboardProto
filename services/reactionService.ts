@@ -4,11 +4,16 @@
 // Handles emoji reactions to posts and comments
 // Reactions are FREE (no bit cost) - social signals only
 
-import { type Event as NostrEvent, type Filter, finalizeEvent, type UnsignedEvent, SimplePool } from 'nostr-tools';
+import {
+  type Event as NostrEvent,
+  type Filter,
+  finalizeEvent,
+  type UnsignedEvent,
+  SimplePool,
+} from 'nostr-tools';
 import { logger } from './loggingService';
-
-// Get nostr service dynamically to avoid circular deps
-const getNostrService = () => import('./nostrService').then(m => m.nostrService);
+import { nostrService } from './nostrService';
+import { identityService } from './identityService';
 
 // ============================================
 // TYPES
@@ -18,7 +23,7 @@ export type ReactionEmoji = '👍' | '🔥' | '💡' | '🎯' | '😂' | '❤️
 
 export interface Reaction {
   id: string;
-  eventId: string;          // The post/comment being reacted to
+  eventId: string; // The post/comment being reacted to
   emoji: ReactionEmoji;
   pubkey: string;
   timestamp: number;
@@ -37,7 +42,7 @@ export interface ReactionCounts {
 
 export interface ReactionState {
   counts: ReactionCounts;
-  userReaction: ReactionEmoji | null;  // Current user's reaction (only one allowed)
+  userReaction: ReactionEmoji | null; // Current user's reaction (only one allowed)
   reactions: Reaction[];
 }
 
@@ -116,33 +121,31 @@ class ReactionService {
       };
 
       // Get nostr service
-      const nostrSvc = await getNostrService();
-      const relayList = nostrSvc.getRelays();
+      const relayList = nostrService.getRelays();
       const relays = relayList.map((r: { url: string }) => r.url);
       if (relays.length === 0) return new Map();
-      
+
       const events: NostrEvent[] = [];
-      
+
       // Create a temporary pool for querying
       const pool = new SimplePool();
-      
+
       // Query relays for reactions using type assertion to handle nostr-tools API
       try {
-         
         const sub = (pool as any).subscribeMany(relays, [filter], {
           onevent: (event: NostrEvent) => events.push(event),
         });
-        
+
         // Wait for initial results
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 2000));
         sub.close();
       } catch {
         // Ignore query errors
       }
-      
+
       // Process events into reaction states
       const stateMap = new Map<string, ReactionState>();
-      
+
       // Initialize empty states for all requested IDs
       for (const id of eventIds) {
         stateMap.set(id, this.createEmptyState());
@@ -157,18 +160,18 @@ class ReactionService {
         if (!emoji) continue;
 
         const state = stateMap.get(targetId)!;
-        
+
         // Check for duplicate reactions from same user
-        const existingFromUser = state.reactions.find(r => r.pubkey === event.pubkey);
+        const existingFromUser = state.reactions.find((r) => r.pubkey === event.pubkey);
         if (existingFromUser) {
           // Keep only the latest reaction from each user
           if (event.created_at * 1000 > existingFromUser.timestamp) {
             // Remove old reaction counts
             state.counts[existingFromUser.emoji]--;
             state.counts.total--;
-            
+
             // Remove from reactions array
-            state.reactions = state.reactions.filter(r => r.pubkey !== event.pubkey);
+            state.reactions = state.reactions.filter((r) => r.pubkey !== event.pubkey);
           } else {
             continue; // Skip older reaction
           }
@@ -255,20 +258,19 @@ class ReactionService {
 
       // Sign and publish
       const signedEvent = finalizeEvent(unsignedEvent, identity.privkey as unknown as Uint8Array);
-      const nostrSvc = await getNostrService();
-      const relayList = nostrSvc.getRelays();
+      const relayList = nostrService.getRelays();
       const relays = relayList.map((r: { url: string }) => r.url);
       const pool = new SimplePool();
       await Promise.all(pool.publish(relays, signedEvent));
 
       // Update local state
       const newState = this.getReactionState(eventId);
-      
+
       // Remove old reaction if exists
       if (hadDifferentReaction && newState.userReaction) {
         newState.counts[newState.userReaction]--;
         newState.counts.total--;
-        newState.reactions = newState.reactions.filter(r => r.pubkey !== this.currentUserPubkey);
+        newState.reactions = newState.reactions.filter((r) => r.pubkey !== this.currentUserPubkey);
       }
 
       // Add new reaction
@@ -306,13 +308,13 @@ class ReactionService {
 
     // In NIP-25, you can't really "delete" a reaction
     // We just update local state and optionally publish a NIP-09 deletion
-    
+
     // Update local state
     const emoji = state.userReaction;
     state.counts[emoji]--;
     state.counts.total--;
     state.userReaction = null;
-    state.reactions = state.reactions.filter(r => r.pubkey !== this.currentUserPubkey);
+    state.reactions = state.reactions.filter((r) => r.pubkey !== this.currentUserPubkey);
 
     this.reactionCache.set(eventId, state);
     this.notifyListeners();
@@ -342,7 +344,7 @@ class ReactionService {
   }
 
   private getTargetEventId(event: NostrEvent): string | null {
-    const eTag = event.tags.find(t => t[0] === 'e');
+    const eTag = event.tags.find((t) => t[0] === 'e');
     return eTag?.[1] || null;
   }
 
@@ -350,10 +352,10 @@ class ReactionService {
     // NIP-25 allows '+', '-', or emoji
     // We only care about our supported emojis
     const trimmed = content.trim();
-    
+
     // Map '+' to thumbs up
     if (trimmed === '+') return '👍';
-    
+
     // Check if it's one of our supported emojis
     if (AVAILABLE_REACTIONS.includes(trimmed as ReactionEmoji)) {
       return trimmed as ReactionEmoji;
@@ -363,8 +365,6 @@ class ReactionService {
   }
 
   private async getIdentity(): Promise<{ pubkey: string; privkey?: string } | null> {
-    // Get identity from identity service
-    const { identityService } = await import('./identityService');
     return identityService.getIdentity();
   }
 
@@ -378,7 +378,7 @@ class ReactionService {
   }
 
   private notifyListeners(): void {
-    this.listeners.forEach(fn => fn());
+    this.listeners.forEach((fn) => fn());
   }
 
   // ----------------------------------------

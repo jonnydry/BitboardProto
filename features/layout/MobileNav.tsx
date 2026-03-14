@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Home, PlusSquare, Bookmark, Bell, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import { ViewMode } from '../../types';
 import type { NostrIdentity } from '../../types';
-import { notificationService } from '../../services/notificationService';
+import { notificationServiceV2 } from '../../services/notificationServiceV2';
 
 interface MobileNavProps {
   viewMode: ViewMode;
@@ -24,10 +24,10 @@ export function MobileNav({
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = notificationService.subscribe(() => {
-      setUnreadCount(notificationService.getUnreadCount());
+    const unsubscribe = notificationServiceV2.subscribe(() => {
+      setUnreadCount(notificationServiceV2.getUnreadCount());
     });
-    setUnreadCount(notificationService.getUnreadCount());
+    setUnreadCount(notificationServiceV2.getUnreadCount());
     return unsubscribe;
   }, []);
 
@@ -101,9 +101,10 @@ export function MobileNav({
               key={item.id}
               onClick={item.onClick}
               className={`flex-1 flex flex-col items-center justify-center py-3 px-2 transition-colors relative
-                ${item.isActive 
-                  ? 'text-terminal-text bg-terminal-dim/20' 
-                  : 'text-terminal-dim active:bg-terminal-dim/10'
+                ${
+                  item.isActive
+                    ? 'text-terminal-text bg-terminal-dim/20'
+                    : 'text-terminal-dim active:bg-terminal-dim/10'
                 }
               `}
               aria-label={item.label}
@@ -133,4 +134,3 @@ export function MobileNav({
     </nav>
   );
 }
-

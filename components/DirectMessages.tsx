@@ -1,7 +1,25 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { MessageCircle, Send, ArrowLeft, User, Trash2, Check, CheckCheck, Lock, Search, Plus, ChevronUp } from 'lucide-react';
-import { dmService, type Conversation, type DirectMessage } from '../services/dmService';
-import { nostrService as _nostrService } from '../services/nostr/NostrService';
+import {
+  MessageCircle,
+  Send,
+  ArrowLeft,
+  User,
+  Trash2,
+  Check,
+  CheckCheck,
+  Lock,
+  Search,
+  Plus,
+  ChevronUp,
+} from 'lucide-react';
+import { type Conversation, type DirectMessage } from '../services/dmService';
+import {
+  filterConversations,
+  formatDirectMessageTimestamp,
+  getConversationDisplayName,
+} from './directMessagesUtils';
+import { useDirectMessagesController } from './useDirectMessagesController';
+import { useVisibleMessages } from './useVisibleMessages';
 
 // Pagination constants
 const CONVERSATIONS_PAGE_SIZE = 20;
@@ -29,15 +47,19 @@ const ConversationList: React.FC<{
   onDelete: (pubkey: string) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
-}> = ({ conversations, selectedId, onSelect, onNewConversation, onDelete, searchQuery, onSearchChange }) => {
+}> = ({
+  conversations,
+  selectedId,
+  onSelect,
+  onNewConversation,
+  onDelete,
+  searchQuery,
+  onSearchChange,
+}) => {
   const [visibleCount, setVisibleCount] = useState(CONVERSATIONS_PAGE_SIZE);
 
   const filteredConversations = useMemo(() => {
-    return conversations.filter(conv => {
-      if (!searchQuery) return true;
-      const name = conv.participantName || conv.participantPubkey;
-      return name.toLowerCase().includes(searchQuery.toLowerCase());
-    });
+    return filterConversations(conversations, searchQuery);
   }, [conversations, searchQuery]);
 
   const visibleConversations = filteredConversations.slice(0, visibleCount);
@@ -71,7 +93,10 @@ const ConversationList: React.FC<{
 
         {/* Search */}
         <div className="relative">
-          <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-terminal-dim" />
+          <Search
+            size={14}
+            className="absolute left-2 top-1/2 -translate-y-1/2 text-terminal-dim"
+          />
           <input
             type="text"
             value={searchQuery}
@@ -90,7 +115,7 @@ const ConversationList: React.FC<{
           </div>
         ) : (
           <>
-            {visibleConversations.map(conv => (
+            {visibleConversations.map((conv) => (
               <ConversationItem
                 key={conv.id}
                 conversation={conv}
@@ -103,10 +128,12 @@ const ConversationList: React.FC<{
             {/* Load more button */}
             {hasMore && (
               <button
-                onClick={() => setVisibleCount(v => v + CONVERSATIONS_PAGE_SIZE)}
+                onClick={() => setVisibleCount((v) => v + CONVERSATIONS_PAGE_SIZE)}
                 className="w-full py-3 text-xs text-terminal-dim hover:text-terminal-text border-t border-terminal-dim/30 transition-colors uppercase"
               >
-                Load {Math.min(CONVERSATIONS_PAGE_SIZE, filteredConversations.length - visibleCount)} older conversations
+                Load{' '}
+                {Math.min(CONVERSATIONS_PAGE_SIZE, filteredConversations.length - visibleCount)}{' '}
+                older conversations
               </button>
             )}
           </>
@@ -126,12 +153,11 @@ const ConversationItem: React.FC<{
   onSelect: () => void;
   onDelete: () => void;
 }> = ({ conversation, isSelected, onSelect, onDelete }) => {
-  const displayName = conversation.participantName ||
-    (conversation.participantPubkey ? `${conversation.participantPubkey.slice(0, 8)}...` : 'Unknown');
+  const displayName = getConversationDisplayName(conversation);
 
   const lastMessagePreview = conversation.lastMessage?.content.slice(0, 40) || '';
-  const lastMessageTime = conversation.lastMessage 
-    ? formatTimestamp(conversation.lastMessage.timestamp)
+  const lastMessageTime = conversation.lastMessage
+    ? formatDirectMessageTimestamp(conversation.lastMessage.timestamp)
     : '';
 
   return (
@@ -146,8 +172,8 @@ const ConversationItem: React.FC<{
         {/* Avatar */}
         <div className="w-10 h-10 rounded-full border border-terminal-dim flex items-center justify-center bg-terminal-dim/20 flex-shrink-0">
           {conversation.participantAvatar ? (
-            <img 
-              src={conversation.participantAvatar} 
+            <img
+              src={conversation.participantAvatar}
               alt={displayName}
               className="w-full h-full rounded-full object-cover"
             />
@@ -159,14 +185,10 @@ const ConversationItem: React.FC<{
         {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
-            <span className="font-bold text-terminal-text truncate">
-              {displayName}
-            </span>
-            <span className="text-xs text-terminal-dim flex-shrink-0">
-              {lastMessageTime}
-            </span>
+            <span className="font-bold text-terminal-text truncate">{displayName}</span>
+            <span className="text-xs text-terminal-dim flex-shrink-0">{lastMessageTime}</span>
           </div>
-          
+
           <div className="flex items-center justify-between mt-1">
             <p className="text-sm text-terminal-dim truncate">
               {conversation.lastMessage?.isSent && (
@@ -181,7 +203,7 @@ const ConversationItem: React.FC<{
               {lastMessagePreview}
               {lastMessagePreview.length < (conversation.lastMessage?.content.length || 0) && '...'}
             </p>
-            
+
             {conversation.unreadCount > 0 && (
               <span className="ml-2 px-2 py-0.5 bg-terminal-text text-black text-xs font-bold rounded-full">
                 {conversation.unreadCount}
@@ -213,73 +235,27 @@ const ConversationItem: React.FC<{
 const ChatView: React.FC<{
   conversation: Conversation;
   currentUserPubkey: string;
-  onSendMessage: (content: string) => void;
+  onSendMessage: (content: string) => Promise<void>;
   onBack: () => void;
-}> = ({ conversation, currentUserPubkey, onSendMessage, onBack }) => {
+  canSend: boolean;
+}> = ({ conversation, currentUserPubkey, onSendMessage, onBack, canSend }) => {
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(MESSAGES_PAGE_SIZE);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const scrollHeightBeforeRef = useRef<number | null>(null);
-
-  const displayName = conversation.participantName ||
-    (conversation.participantPubkey ? `${conversation.participantPubkey.slice(0, 8)}...` : 'Unknown');
-
-  // Get visible messages (most recent N)
-  const allMessages = conversation.messages;
-  const totalMessages = allMessages.length;
-  const visibleMessages = useMemo(() => {
-    // Show the most recent N messages
-    const startIndex = Math.max(0, totalMessages - visibleCount);
-    return allMessages.slice(startIndex);
-  }, [allMessages, totalMessages, visibleCount]);
-
-  const hasEarlierMessages = totalMessages > visibleCount;
-
-  // Handle loading earlier messages
-  const handleLoadEarlier = () => {
-    const container = messagesContainerRef.current;
-    if (container) {
-      // Store scroll height before state update
-      scrollHeightBeforeRef.current = container.scrollHeight;
-    }
-    setVisibleCount(v => v + MESSAGES_PAGE_SIZE);
-  };
-
-  // Preserve scroll position after loading earlier messages
-  // This runs after React commits DOM updates
-  useEffect(() => {
-    if (scrollHeightBeforeRef.current !== null) {
-      const container = messagesContainerRef.current;
-      if (container) {
-        // Use double requestAnimationFrame to ensure DOM is fully updated
-        // First RAF: wait for React to commit
-        requestAnimationFrame(() => {
-          // Second RAF: wait for browser to paint
-          requestAnimationFrame(() => {
-            const scrollHeightAfter = container.scrollHeight;
-            const scrollHeightBefore = scrollHeightBeforeRef.current!;
-            container.scrollTop = scrollHeightAfter - scrollHeightBefore;
-            scrollHeightBeforeRef.current = null;
-          });
-        });
-      }
-    }
-  }, [visibleCount]);
-
-  // Scroll to bottom when new messages arrive (but not when loading earlier)
-  useEffect(() => {
-    // Only auto-scroll if we're near the bottom
-    const container = messagesContainerRef.current;
-    if (container) {
-      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
-      if (isNearBottom) {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }
-    }
-  }, [conversation.messages.length]);
+  const displayName = getConversationDisplayName(conversation);
+  const {
+    visibleMessages,
+    hasEarlierMessages,
+    totalMessages,
+    visibleCount,
+    messagesEndRef,
+    messagesContainerRef,
+    handleLoadEarlier,
+  } = useVisibleMessages({
+    messages: conversation.messages,
+    pageSize: MESSAGES_PAGE_SIZE,
+    resetKey: conversation.id,
+  });
 
   // Focus input on mount
   useEffect(() => {
@@ -288,10 +264,10 @@ const ChatView: React.FC<{
 
   const handleSend = async () => {
     if (!message.trim() || isSending) return;
-    
+
     setIsSending(true);
     try {
-      onSendMessage(message.trim());
+      await onSendMessage(message.trim());
       setMessage('');
     } finally {
       setIsSending(false);
@@ -315,11 +291,11 @@ const ChatView: React.FC<{
         >
           <ArrowLeft size={20} />
         </button>
-        
+
         <div className="w-10 h-10 rounded-full border border-terminal-dim flex items-center justify-center bg-terminal-dim/20">
           {conversation.participantAvatar ? (
-            <img 
-              src={conversation.participantAvatar} 
+            <img
+              src={conversation.participantAvatar}
               alt={displayName}
               className="w-full h-full rounded-full object-cover"
             />
@@ -327,7 +303,7 @@ const ChatView: React.FC<{
             <User size={18} className="text-terminal-dim" />
           )}
         </div>
-        
+
         <div className="flex-1">
           <h3 className="font-bold text-terminal-text">{displayName}</h3>
           <p className="text-xs text-terminal-dim flex items-center gap-1">
@@ -378,20 +354,23 @@ const ChatView: React.FC<{
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
+            placeholder={canSend ? 'Type a message...' : 'Local identity required to send DMs'}
             rows={1}
+            disabled={!canSend}
             className="flex-1 bg-terminal-bg border border-terminal-dim p-3 text-terminal-text focus:border-terminal-text focus:outline-none resize-none"
           />
           <button
             onClick={handleSend}
-            disabled={!message.trim() || isSending}
+            disabled={!canSend || !message.trim() || isSending}
             className="px-4 bg-terminal-text text-black font-bold hover:bg-terminal-dim hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Send size={18} />
           </button>
         </div>
         <p className="text-xs text-terminal-dim mt-2">
-          Press Enter to send, Shift+Enter for new line
+          {canSend
+            ? 'Press Enter to send, Shift+Enter for new line'
+            : 'DM sending currently supports local identities with stored private keys.'}
         </p>
       </div>
     </div>
@@ -411,32 +390,31 @@ const MessageBubble: React.FC<{
       <div
         className={`
           max-w-[75%] p-3 rounded-lg
-          ${isSent 
-            ? 'bg-terminal-text text-black rounded-br-none' 
-            : 'bg-terminal-dim/30 border border-terminal-dim rounded-bl-none'
+          ${
+            isSent
+              ? 'bg-terminal-text text-black rounded-br-none'
+              : 'bg-terminal-dim/30 border border-terminal-dim rounded-bl-none'
           }
         `}
       >
         <p className="whitespace-pre-wrap break-words">
-          {message.isDecrypted ? message.content : (
+          {message.isDecrypted ? (
+            message.content
+          ) : (
             <span className="italic opacity-70 flex items-center gap-1">
               <Lock size={12} />
               {message.content}
             </span>
           )}
         </p>
-        <div className={`
+        <div
+          className={`
           flex items-center gap-1 mt-1 text-xs
           ${isSent ? 'text-black/60 justify-end' : 'text-terminal-dim'}
-        `}>
-          <span>{formatTimestamp(message.timestamp)}</span>
-          {isSent && (
-            message.isRead ? (
-              <CheckCheck size={12} />
-            ) : (
-              <Check size={12} />
-            )
-          )}
+        `}
+        >
+          <span>{formatDirectMessageTimestamp(message.timestamp)}</span>
+          {isSent && (message.isRead ? <CheckCheck size={12} /> : <Check size={12} />)}
         </div>
       </div>
     </div>
@@ -456,7 +434,7 @@ const NewConversationModal: React.FC<{
 
   const handleStart = () => {
     const trimmed = pubkey.trim();
-    
+
     // Basic validation - should be 64 hex chars
     if (!/^[a-fA-F0-9]{64}$/.test(trimmed)) {
       setError('Invalid public key. Must be 64 hex characters.');
@@ -489,9 +467,7 @@ const NewConversationModal: React.FC<{
               placeholder="64-character hex public key..."
               className="w-full bg-terminal-bg border border-terminal-dim p-3 text-terminal-text focus:border-terminal-text focus:outline-none font-mono text-sm"
             />
-            {error && (
-              <p className="text-terminal-alert text-xs mt-1">* {error}</p>
-            )}
+            {error && <p className="text-terminal-alert text-xs mt-1">* {error}</p>}
           </div>
 
           <div className="flex gap-3">
@@ -524,80 +500,25 @@ export const DirectMessages: React.FC<DirectMessagesProps> = ({
   onClose,
   initialConversationPubkey,
 }) => {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [selectedPubkey, setSelectedPubkey] = useState<string | null>(
-    initialConversationPubkey || null
-  );
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showNewModal, setShowNewModal] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Initialize DM service
-  useEffect(() => {
-    if (!userPubkey) {
-      console.warn('DirectMessages: userPubkey is required');
-      return;
-    }
-    dmService.initialize(userPubkey);
-    loadConversations();
-    
-    return () => {
-      // Don't cleanup on unmount - keep conversations cached
-    };
-  }, [userPubkey]);
-
-  const loadConversations = async () => {
-    setIsLoading(true);
-    try {
-      await dmService.fetchMessages();
-      setConversations(dmService.getConversations());
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSelectConversation = (pubkey: string) => {
-    setSelectedPubkey(pubkey);
-    dmService.markConversationAsRead(pubkey);
-    setConversations(dmService.getConversations());
-  };
-
-  const handleDeleteConversation = (pubkey: string) => {
-    if (confirm('Delete this conversation? Messages cannot be recovered.')) {
-      dmService.deleteConversation(pubkey);
-      setConversations(dmService.getConversations());
-      if (selectedPubkey === pubkey) {
-        setSelectedPubkey(null);
-      }
-    }
-  };
-
-  const handleNewConversation = (pubkey: string) => {
-    dmService.startConversation(pubkey);
-    setConversations(dmService.getConversations());
-    setSelectedPubkey(pubkey);
-    setShowNewModal(false);
-  };
-
-  const handleSendMessage = async (content: string) => {
-    if (!selectedPubkey) return;
-    
-    // For now, just add to local state
-    // Full implementation would require signing with private key
-    const message = await dmService.sendMessage({
-      recipientPubkey: selectedPubkey,
-      content,
-      privateKey: '', // Would be provided by identityService
-    });
-    
-    if (message) {
-      setConversations(dmService.getConversations());
-    }
-  };
-
-  const selectedConversation = selectedPubkey 
-    ? dmService.getConversation(selectedPubkey)
-    : null;
+  const {
+    conversations,
+    selectedPubkey,
+    selectedConversation,
+    searchQuery,
+    showNewModal,
+    isLoading,
+    localPrivateKey,
+    setSearchQuery,
+    setSelectedPubkey,
+    setShowNewModal,
+    handleSelectConversation,
+    handleDeleteConversation,
+    handleNewConversation,
+    handleSendMessage,
+  } = useDirectMessagesController({
+    userPubkey,
+    initialConversationPubkey,
+  });
 
   return (
     <div className="fixed inset-0 bg-terminal-bg z-50 flex flex-col">
@@ -618,11 +539,13 @@ export const DirectMessages: React.FC<DirectMessagesProps> = ({
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Conversation List - hidden on mobile when chat is open */}
-        <div className={`
+        <div
+          className={`
           w-full md:w-80 lg:w-96 flex-shrink-0
           ${selectedConversation ? 'hidden md:flex' : 'flex'}
           flex-col
-        `}>
+        `}
+        >
           <ConversationList
             conversations={conversations}
             selectedId={selectedPubkey}
@@ -635,16 +558,19 @@ export const DirectMessages: React.FC<DirectMessagesProps> = ({
         </div>
 
         {/* Chat View */}
-        <div className={`
+        <div
+          className={`
           flex-1 flex flex-col
           ${selectedConversation ? 'flex' : 'hidden md:flex'}
-        `}>
+        `}
+        >
           {selectedConversation ? (
             <ChatView
               conversation={selectedConversation}
               currentUserPubkey={userPubkey}
               onSendMessage={handleSendMessage}
               onBack={() => setSelectedPubkey(null)}
+              canSend={!!localPrivateKey}
             />
           ) : (
             <div className="flex-1 flex items-center justify-center text-terminal-dim">
@@ -681,31 +607,5 @@ export const DirectMessages: React.FC<DirectMessagesProps> = ({
 // ============================================
 // HELPER FUNCTIONS
 // ============================================
-
-function formatTimestamp(timestamp: number): string {
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  
-  // Today - show time only
-  if (date.toDateString() === now.toDateString()) {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  }
-  
-  // Yesterday
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  if (date.toDateString() === yesterday.toDateString()) {
-    return 'Yesterday';
-  }
-  
-  // Within a week - show day name
-  if (diff < 7 * 24 * 60 * 60 * 1000) {
-    return date.toLocaleDateString([], { weekday: 'short' });
-  }
-  
-  // Older - show date
-  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-}
 
 export default DirectMessages;

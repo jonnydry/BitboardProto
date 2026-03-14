@@ -1,5 +1,19 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ChevronRight, ChevronLeft, Key, Upload, Wifi, AlertTriangle, RefreshCw, CheckCircle, Copy, Zap, Shield, Globe, Radio } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  ChevronRight,
+  ChevronLeft,
+  Key,
+  Upload,
+  Wifi,
+  AlertTriangle,
+  RefreshCw,
+  CheckCircle,
+  Copy,
+  Zap,
+  Shield,
+  Globe,
+  Radio,
+} from 'lucide-react';
 import { nip19 } from 'nostr-tools';
 import { identityService } from '../services/identityService';
 import { listService, LIST_KINDS } from '../services/listService';
@@ -19,7 +33,16 @@ type IdentityMode = 'select' | 'generate' | 'import' | 'nip07' | 'success';
 
 // Board categories for organization
 const BOARD_CATEGORIES = {
-  'TECH / DECENTRALIZATION': ['b-tech', 'b-dev', 'b-nostr', 'b-crypto', 'b-security', 'b-opensource', 'b-ai', 'b-selfhost'],
+  'TECH / DECENTRALIZATION': [
+    'b-tech',
+    'b-dev',
+    'b-nostr',
+    'b-crypto',
+    'b-security',
+    'b-opensource',
+    'b-ai',
+    'b-selfhost',
+  ],
   'ENTERTAINMENT / MEDIA': ['b-gaming', 'b-music', 'b-movies', 'b-books', 'b-anime'],
   'CREATIVE / LEARNING': ['b-art', 'b-science', 'b-diy', 'b-learn'],
   'LIFESTYLE / GENERAL': ['b-news', 'b-finance', 'b-health', 'b-food'],
@@ -49,7 +72,15 @@ function SignalBars({ strength, className = '' }: { strength: number; className?
 }
 
 // Glitchy text reveal component
-function GlitchReveal({ text, delay = 0, className = '' }: { text: string; delay?: number; className?: string }) {
+function GlitchReveal({
+  text,
+  delay = 0,
+  className = '',
+}: {
+  text: string;
+  delay?: number;
+  className?: string;
+}) {
   const [revealed, setRevealed] = useState(false);
   const [displayText, setDisplayText] = useState('');
   const chars = '!@#$%^&*()_+-=[]{}|;:,.<>?/~`0123456789ABCDEF';
@@ -68,7 +99,7 @@ function GlitchReveal({ text, delay = 0, className = '' }: { text: string; delay
               if (i < iterations / 3) return char;
               return chars[Math.floor(Math.random() * chars.length)];
             })
-            .join('')
+            .join(''),
         );
 
         iterations++;
@@ -99,24 +130,12 @@ function GlitchReveal({ text, delay = 0, className = '' }: { text: string; delay
   );
 }
 
-// Animated border component
-function PulsingBorder({ children, active = true }: { children: React.ReactNode; active?: boolean }) {
-  return (
-    <div className="relative">
-      {active && (
-        <>
-          <div className="absolute -inset-[1px] bg-gradient-to-r from-transparent via-terminal-text to-transparent opacity-50 animate-border-flow" />
-          <div className="absolute -inset-[1px] bg-gradient-to-b from-transparent via-terminal-text to-transparent opacity-30 animate-border-flow-v" />
-        </>
-      )}
-      <div className="relative bg-terminal-bg">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }: OnboardingFlowProps) {
+export function OnboardingFlow({
+  isOpen,
+  onComplete,
+  onSkip,
+  onIdentityChange,
+}: OnboardingFlowProps) {
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('signal');
   const [signalPhase, setSignalPhase] = useState(0);
   const [signalStrength, setSignalStrength] = useState(0);
@@ -133,11 +152,9 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
   const [copied, setCopied] = useState(false);
 
   // Board selection state
-  const [selectedBoards, setSelectedBoards] = useState<Set<string>>(new Set(DEFAULT_SELECTED_BOARDS));
-  const [hoveredBoard, setHoveredBoard] = useState<string | null>(null);
-
-  // Audio context for optional sound effects
-  const audioContextRef = useRef<AudioContext | null>(null);
+  const [selectedBoards, setSelectedBoards] = useState<Set<string>>(
+    new Set(DEFAULT_SELECTED_BOARDS),
+  );
 
   // Check for NIP-07 extension on mount
   useEffect(() => {
@@ -197,7 +214,7 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
     setError(null);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise((resolve) => setTimeout(resolve, 800));
       const newIdentity = await identityService.generateIdentity(displayName || undefined);
       setIdentity(newIdentity);
       setIdentityMode('success');
@@ -224,9 +241,15 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
       let newIdentity: NostrIdentity | null = null;
 
       if (importKey.trim().startsWith('nsec')) {
-        newIdentity = await identityService.importFromNsec(importKey.trim(), displayName || undefined);
+        newIdentity = await identityService.importFromNsec(
+          importKey.trim(),
+          displayName || undefined,
+        );
       } else {
-        newIdentity = await identityService.importFromHex(importKey.trim(), displayName || undefined);
+        newIdentity = await identityService.importFromHex(
+          importKey.trim(),
+          displayName || undefined,
+        );
       }
 
       if (newIdentity) {
@@ -286,7 +309,7 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
   };
 
   const toggleBoardSelection = (boardId: string) => {
-    setSelectedBoards(prev => {
+    setSelectedBoards((prev) => {
       const next = new Set(prev);
       if (next.has(boardId)) {
         next.delete(boardId);
@@ -301,9 +324,7 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
     if (!identity || selectedBoards.size === 0) return;
 
     try {
-      const addresses = Array.from(selectedBoards).map(boardId =>
-        `30001:bitboard:${boardId}`
-      );
+      const addresses = Array.from(selectedBoards).map((boardId) => `30001:bitboard:${boardId}`);
 
       const listEvent = listService.buildListEvent({
         kind: LIST_KINDS.COMMUNITIES,
@@ -313,7 +334,7 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
 
       const signedEvent = await identityService.signEvent(listEvent);
       if (signedEvent) {
-        await nostrService.publish(signedEvent);
+        await nostrService.publishSignedEvent(signedEvent);
         console.log('[Onboarding] Published board follows:', selectedBoards.size);
       }
     } catch (err) {
@@ -324,9 +345,8 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
   if (!isOpen) return null;
 
   const steps: OnboardingStep[] = ['signal', 'welcome', 'identity', 'boards', 'complete'];
-  const visibleSteps = steps.filter(s => s !== 'signal');
+  const visibleSteps = steps.filter((s) => s !== 'signal');
   const visibleStepIndex = visibleSteps.indexOf(currentStep);
-  const totalVisibleSteps = visibleSteps.length;
 
   const handleNext = async () => {
     const currentIndex = steps.indexOf(currentStep);
@@ -340,7 +360,8 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
 
   const handleBack = () => {
     const currentIndex = steps.indexOf(currentStep);
-    if (currentIndex > 1) { // Don't go back to signal
+    if (currentIndex > 1) {
+      // Don't go back to signal
       setCurrentStep(steps[currentIndex - 1]);
     }
   };
@@ -355,7 +376,7 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
           style={{
             opacity: noiseLevel / 100,
             backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
-            mixBlendMode: 'overlay'
+            mixBlendMode: 'overlay',
           }}
         />
 
@@ -395,7 +416,9 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
             {/* Rotating outer ring */}
             <div
               className={`absolute inset-0 m-auto w-48 h-48 md:w-64 md:h-64 rounded-full border-2 border-dashed transition-all duration-1000 ${
-                signalPhase >= 2 ? 'border-terminal-text/50 animate-spin-slow' : 'border-terminal-dim/20'
+                signalPhase >= 2
+                  ? 'border-terminal-text/50 animate-spin-slow'
+                  : 'border-terminal-dim/20'
               }`}
               style={{ animationDuration: '20s' }}
             />
@@ -403,7 +426,9 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
             {/* Inner ring */}
             <div
               className={`absolute inset-0 m-auto w-36 h-36 md:w-48 md:h-48 rounded-full border transition-all duration-700 ${
-                signalPhase >= 3 ? 'border-terminal-text shadow-[0_0_30px_rgba(var(--color-terminal-text),0.5)]' : 'border-terminal-dim/30'
+                signalPhase >= 3
+                  ? 'border-terminal-text shadow-[0_0_30px_rgba(var(--color-terminal-text),0.5)]'
+                  : 'border-terminal-dim/30'
               }`}
             />
 
@@ -416,9 +441,10 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
                     : 'text-terminal-dim/50 scale-90 opacity-50'
                 }`}
                 style={{
-                  textShadow: signalPhase >= 3
-                    ? '0 0 20px rgba(var(--color-terminal-text), 0.8), 0 0 40px rgba(var(--color-terminal-text), 0.4)'
-                    : 'none'
+                  textShadow:
+                    signalPhase >= 3
+                      ? '0 0 20px rgba(var(--color-terminal-text), 0.8), 0 0 40px rgba(var(--color-terminal-text), 0.4)'
+                      : 'none',
                 }}
               >
                 B
@@ -460,7 +486,11 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
                         : 'bg-terminal-dim/30'
                     }`}
                   />
-                  <span className={signalStrength > i + 2 ? 'text-terminal-text' : 'text-terminal-dim/50'}>
+                  <span
+                    className={
+                      signalStrength > i + 2 ? 'text-terminal-text' : 'text-terminal-dim/50'
+                    }
+                  >
                     {relay}
                   </span>
                 </div>
@@ -501,7 +531,7 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
               linear-gradient(rgba(var(--color-terminal-text), 0.1) 1px, transparent 1px),
               linear-gradient(90deg, rgba(var(--color-terminal-text), 0.1) 1px, transparent 1px)
             `,
-            backgroundSize: '50px 50px'
+            backgroundSize: '50px 50px',
           }}
         />
       </div>
@@ -510,7 +540,6 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
       <div className="scanlines fixed inset-0 pointer-events-none z-[60]" />
 
       <div className="relative w-full max-w-4xl flex flex-col max-h-[90vh]">
-
         {/* Header bar */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-terminal-dim/30 bg-terminal-bg/80 backdrop-blur-sm">
           <div className="flex items-center gap-4">
@@ -531,9 +560,11 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
                     }`}
                   />
                   {i < visibleSteps.length - 1 && (
-                    <div className={`w-8 h-[1px] transition-all duration-300 ${
-                      i < visibleStepIndex ? 'bg-terminal-text' : 'bg-terminal-dim/30'
-                    }`} />
+                    <div
+                      className={`w-8 h-[1px] transition-all duration-300 ${
+                        i < visibleStepIndex ? 'bg-terminal-text' : 'bg-terminal-dim/30'
+                      }`}
+                    />
                   )}
                 </React.Fragment>
               ))}
@@ -556,7 +587,6 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto bg-terminal-bg/60 backdrop-blur-sm border-x border-terminal-dim/30">
           <div className="p-6 md:p-10 min-h-[500px] flex flex-col justify-center">
-
             {/* Welcome Screen */}
             {currentStep === 'welcome' && (
               <div className="animate-fade-in text-center space-y-10">
@@ -572,8 +602,12 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
                     <h1 className="text-5xl md:text-7xl font-terminal font-bold text-terminal-text tracking-tight px-8 py-4">
                       <span className="relative">
                         BITBOARD
-                        <span className="absolute -top-1 -left-1 text-[#00f0ff]/30 blur-[1px]">BITBOARD</span>
-                        <span className="absolute top-1 left-1 text-[#ff4646]/30 blur-[1px]">BITBOARD</span>
+                        <span className="absolute -top-1 -left-1 text-[#00f0ff]/30 blur-[1px]">
+                          BITBOARD
+                        </span>
+                        <span className="absolute top-1 left-1 text-[#ff4646]/30 blur-[1px]">
+                          BITBOARD
+                        </span>
                       </span>
                     </h1>
                   </div>
@@ -588,14 +622,20 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
                   <p className="text-xl md:text-2xl leading-relaxed text-terminal-text/90 font-light">
                     Access the global information commons.
                     <br />
-                    <span className="text-terminal-dim">No gatekeepers. No algorithms. No surveillance.</span>
+                    <span className="text-terminal-dim">
+                      No gatekeepers. No algorithms. No surveillance.
+                    </span>
                   </p>
                 </div>
 
                 {/* Feature cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
                   {[
-                    { icon: Shield, label: 'CRYPTOGRAPHIC', desc: 'Every post signed with your keys' },
+                    {
+                      icon: Shield,
+                      label: 'CRYPTOGRAPHIC',
+                      desc: 'Every post signed with your keys',
+                    },
                     { icon: Globe, label: 'DECENTRALIZED', desc: 'No single point of failure' },
                     { icon: Zap, label: 'INSTANT', desc: 'Real-time global propagation' },
                   ].map(({ icon: Icon, label, desc }, i) => (
@@ -607,8 +647,13 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
                       {/* Hover glow */}
                       <div className="absolute inset-0 bg-terminal-text/0 group-hover:bg-terminal-text/5 transition-colors" />
 
-                      <Icon size={24} className="text-terminal-text mb-3 group-hover:scale-110 transition-transform" />
-                      <div className="text-terminal-text font-bold text-sm tracking-wider mb-1">{label}</div>
+                      <Icon
+                        size={24}
+                        className="text-terminal-text mb-3 group-hover:scale-110 transition-transform"
+                      />
+                      <div className="text-terminal-text font-bold text-sm tracking-wider mb-1">
+                        {label}
+                      </div>
                       <div className="text-terminal-dim text-xs">{desc}</div>
                     </div>
                   ))}
@@ -632,7 +677,8 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
                     Your Identity
                   </h2>
                   <p className="text-terminal-dim text-sm">
-                    {identityMode === 'select' && 'Choose how to establish your cryptographic identity'}
+                    {identityMode === 'select' &&
+                      'Choose how to establish your cryptographic identity'}
                     {identityMode === 'generate' && 'Generate a fresh keypair'}
                     {identityMode === 'import' && 'Import your existing Nostr key'}
                     {identityMode === 'nip07' && 'Connect your browser extension'}
@@ -680,10 +726,14 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
                               Generate New Keys
                             </div>
                             <div className="text-terminal-dim text-sm">
-                              Create a fresh cryptographic identity. We'll generate secure keys for you.
+                              Create a fresh cryptographic identity. We'll generate secure keys for
+                              you.
                             </div>
                           </div>
-                          <ChevronRight size={20} className="text-terminal-dim group-hover:text-terminal-text group-hover:translate-x-1 transition-all" />
+                          <ChevronRight
+                            size={20}
+                            className="text-terminal-dim group-hover:text-terminal-text group-hover:translate-x-1 transition-all"
+                          />
                         </div>
                       </button>
 
@@ -702,10 +752,14 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
                               Import Existing Key
                             </div>
                             <div className="text-terminal-dim text-sm">
-                              Already on Nostr? Paste your nsec private key to use your existing identity.
+                              Already on Nostr? Paste your nsec private key to use your existing
+                              identity.
                             </div>
                           </div>
-                          <ChevronRight size={20} className="text-terminal-dim group-hover:text-terminal-text group-hover:translate-x-1 transition-all" />
+                          <ChevronRight
+                            size={20}
+                            className="text-terminal-dim group-hover:text-terminal-text group-hover:translate-x-1 transition-all"
+                          />
                         </div>
                       </button>
 
@@ -725,10 +779,14 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
                                 Browser Extension
                               </div>
                               <div className="text-terminal-dim text-sm">
-                                Connect via Alby, nos2x, or other NIP-07 extension. Your key stays secure.
+                                Connect via Alby, nos2x, or other NIP-07 extension. Your key stays
+                                secure.
                               </div>
                             </div>
-                            <ChevronRight size={20} className="text-terminal-dim group-hover:text-terminal-text group-hover:translate-x-1 transition-all" />
+                            <ChevronRight
+                              size={20}
+                              className="text-terminal-dim group-hover:text-terminal-text group-hover:translate-x-1 transition-all"
+                            />
                           </div>
                         </button>
                       )}
@@ -736,9 +794,14 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
 
                     <div className="mt-8 p-4 border border-terminal-alert/30 bg-terminal-alert/5 text-sm">
                       <div className="flex items-start gap-3">
-                        <AlertTriangle size={18} className="text-terminal-alert flex-shrink-0 mt-0.5" />
+                        <AlertTriangle
+                          size={18}
+                          className="text-terminal-alert flex-shrink-0 mt-0.5"
+                        />
                         <div className="text-terminal-dim">
-                          <span className="text-terminal-alert font-bold">Important:</span> Your private key is the only way to access your account. BitBoard cannot recover lost keys.
+                          <span className="text-terminal-alert font-bold">Important:</span> Your
+                          private key is the only way to access your account. BitBoard cannot
+                          recover lost keys.
                         </div>
                       </div>
                     </div>
@@ -750,16 +813,29 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
                   <div className="space-y-6 animate-fade-in">
                     <div className="p-6 border border-terminal-dim/30 bg-terminal-dim/5">
                       <div className="font-mono text-sm space-y-2 text-terminal-dim">
-                        <div><span className="text-terminal-text">&gt;</span> Algorithm: Schnorr signatures (BIP-340)</div>
-                        <div><span className="text-terminal-text">&gt;</span> Curve: secp256k1</div>
-                        <div><span className="text-terminal-text">&gt;</span> Key size: 256 bits</div>
-                        <div><span className="text-terminal-text">&gt;</span> Storage: AES-256-GCM encrypted</div>
+                        <div>
+                          <span className="text-terminal-text">&gt;</span> Algorithm: Schnorr
+                          signatures (BIP-340)
+                        </div>
+                        <div>
+                          <span className="text-terminal-text">&gt;</span> Curve: secp256k1
+                        </div>
+                        <div>
+                          <span className="text-terminal-text">&gt;</span> Key size: 256 bits
+                        </div>
+                        <div>
+                          <span className="text-terminal-text">&gt;</span> Storage: AES-256-GCM
+                          encrypted
+                        </div>
                       </div>
                     </div>
 
                     <div className="flex gap-3">
                       <button
-                        onClick={() => { setIdentityMode('select'); setError(null); }}
+                        onClick={() => {
+                          setIdentityMode('select');
+                          setError(null);
+                        }}
                         className="px-6 py-3 border border-terminal-dim hover:border-terminal-text transition-colors text-sm"
                       >
                         Back
@@ -806,7 +882,11 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
 
                     <div className="flex gap-3">
                       <button
-                        onClick={() => { setIdentityMode('select'); setError(null); setImportKey(''); }}
+                        onClick={() => {
+                          setIdentityMode('select');
+                          setError(null);
+                          setImportKey('');
+                        }}
                         className="px-6 py-3 border border-terminal-dim hover:border-terminal-text transition-colors text-sm"
                       >
                         Back
@@ -837,15 +917,27 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
                   <div className="space-y-6 animate-fade-in">
                     <div className="p-6 border border-terminal-dim/30 bg-terminal-dim/5">
                       <div className="font-mono text-sm space-y-2 text-terminal-dim">
-                        <div><span className="text-terminal-text">&gt;</span> Protocol: NIP-07 (window.nostr)</div>
-                        <div><span className="text-terminal-text">&gt;</span> Compatible: Alby, nos2x, Flamingo</div>
-                        <div><span className="text-terminal-text">&gt;</span> Security: Private key never exposed</div>
+                        <div>
+                          <span className="text-terminal-text">&gt;</span> Protocol: NIP-07
+                          (window.nostr)
+                        </div>
+                        <div>
+                          <span className="text-terminal-text">&gt;</span> Compatible: Alby, nos2x,
+                          Flamingo
+                        </div>
+                        <div>
+                          <span className="text-terminal-text">&gt;</span> Security: Private key
+                          never exposed
+                        </div>
                       </div>
                     </div>
 
                     <div className="flex gap-3">
                       <button
-                        onClick={() => { setIdentityMode('select'); setError(null); }}
+                        onClick={() => {
+                          setIdentityMode('select');
+                          setError(null);
+                        }}
                         className="px-6 py-3 border border-terminal-dim hover:border-terminal-text transition-colors text-sm"
                       >
                         Back
@@ -882,7 +974,9 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
 
                       <div className="space-y-4">
                         <div>
-                          <label className="text-xs text-terminal-dim uppercase tracking-wider mb-2 block">Public Key</label>
+                          <label className="text-xs text-terminal-dim uppercase tracking-wider mb-2 block">
+                            Public Key
+                          </label>
                           <div className="flex items-center gap-2">
                             <code className="flex-1 bg-terminal-bg border border-terminal-dim p-3 text-xs font-mono break-all text-terminal-text/80">
                               {identity.npub}
@@ -891,14 +985,20 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
                               onClick={handleCopyNpub}
                               className="p-3 border border-terminal-dim hover:border-terminal-text transition-colors"
                             >
-                              {copied ? <CheckCircle size={16} className="text-terminal-text" /> : <Copy size={16} />}
+                              {copied ? (
+                                <CheckCircle size={16} className="text-terminal-text" />
+                              ) : (
+                                <Copy size={16} />
+                              )}
                             </button>
                           </div>
                         </div>
 
                         {identity.displayName && (
                           <div>
-                            <label className="text-xs text-terminal-dim uppercase tracking-wider mb-1 block">Display Name</label>
+                            <label className="text-xs text-terminal-dim uppercase tracking-wider mb-1 block">
+                              Display Name
+                            </label>
                             <div className="text-terminal-text">{identity.displayName}</div>
                           </div>
                         )}
@@ -912,9 +1012,13 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
                     {identity.kind === 'local' && (
                       <div className="p-4 border border-terminal-alert/30 bg-terminal-alert/5 text-sm">
                         <div className="flex items-start gap-3">
-                          <AlertTriangle size={18} className="text-terminal-alert flex-shrink-0 mt-0.5" />
+                          <AlertTriangle
+                            size={18}
+                            className="text-terminal-alert flex-shrink-0 mt-0.5"
+                          />
                           <div className="text-terminal-dim">
-                            <span className="text-terminal-alert font-bold">Back up your key!</span> Go to Identity settings after setup to export your nsec.
+                            <span className="text-terminal-alert font-bold">Back up your key!</span>{' '}
+                            Go to Identity settings after setup to export your nsec.
                           </div>
                         </div>
                       </div>
@@ -939,7 +1043,7 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
                 <div className="space-y-6 max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-track-terminal-dim/10 scrollbar-thumb-terminal-text/30">
                   {Object.entries(BOARD_CATEGORIES).map(([category, boardIds]) => {
                     const categoryBoards = boardIds
-                      .map(id => INITIAL_BOARDS.find(b => b.id === id))
+                      .map((id) => INITIAL_BOARDS.find((b) => b.id === id))
                       .filter((b): b is Board => b !== undefined);
 
                     if (categoryBoards.length === 0) return null;
@@ -952,34 +1056,39 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
                           <span className="flex-1 h-[1px] bg-terminal-dim/30" />
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                          {categoryBoards.map(board => {
+                          {categoryBoards.map((board) => {
                             const isSelected = selectedBoards.has(board.id);
-                            const isHovered = hoveredBoard === board.id;
                             return (
                               <button
                                 key={board.id}
                                 onClick={() => toggleBoardSelection(board.id)}
-                                onMouseEnter={() => setHoveredBoard(board.id)}
-                                onMouseLeave={() => setHoveredBoard(null)}
                                 className={`
                                   relative p-3 border text-left transition-all duration-200
-                                  ${isSelected
-                                    ? 'border-terminal-text bg-terminal-text/10'
-                                    : 'border-terminal-dim/30 hover:border-terminal-dim'}
+                                  ${
+                                    isSelected
+                                      ? 'border-terminal-text bg-terminal-text/10'
+                                      : 'border-terminal-dim/30 hover:border-terminal-dim'
+                                  }
                                 `}
                               >
                                 {/* Selection indicator */}
-                                <div className={`
+                                <div
+                                  className={`
                                   absolute top-2 right-2 w-4 h-4 border flex items-center justify-center text-[10px] font-bold transition-all
-                                  ${isSelected
-                                    ? 'border-terminal-text bg-terminal-text text-terminal-bg'
-                                    : 'border-terminal-dim/50'}
-                                `}>
+                                  ${
+                                    isSelected
+                                      ? 'border-terminal-text bg-terminal-text text-terminal-bg'
+                                      : 'border-terminal-dim/50'
+                                  }
+                                `}
+                                >
                                   {isSelected && '✓'}
                                 </div>
 
                                 <div className="pr-6">
-                                  <div className={`font-bold text-sm mb-1 transition-colors ${isSelected ? 'text-terminal-text' : 'text-terminal-dim'}`}>
+                                  <div
+                                    className={`font-bold text-sm mb-1 transition-colors ${isSelected ? 'text-terminal-text' : 'text-terminal-dim'}`}
+                                  >
                                     /{board.name.toLowerCase()}
                                   </div>
                                   <div className="text-xs text-terminal-dim/70 line-clamp-2">
@@ -1003,7 +1112,7 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
                     Clear All
                   </button>
                   <button
-                    onClick={() => setSelectedBoards(new Set(INITIAL_BOARDS.map(b => b.id)))}
+                    onClick={() => setSelectedBoards(new Set(INITIAL_BOARDS.map((b) => b.id)))}
                     className="px-4 py-2 text-xs border border-terminal-dim/50 hover:border-terminal-text transition-colors uppercase tracking-wider"
                   >
                     Select All
@@ -1018,8 +1127,14 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
                 {/* Success animation */}
                 <div className="relative w-32 h-32 mx-auto mb-8">
                   {/* Rings */}
-                  <div className="absolute inset-0 border-2 border-terminal-text/20 rounded-full animate-ping" style={{ animationDuration: '2s' }} />
-                  <div className="absolute inset-4 border border-terminal-text/40 rounded-full animate-ping" style={{ animationDuration: '2s', animationDelay: '0.5s' }} />
+                  <div
+                    className="absolute inset-0 border-2 border-terminal-text/20 rounded-full animate-ping"
+                    style={{ animationDuration: '2s' }}
+                  />
+                  <div
+                    className="absolute inset-4 border border-terminal-text/40 rounded-full animate-ping"
+                    style={{ animationDuration: '2s', animationDelay: '0.5s' }}
+                  />
 
                   {/* Center circle */}
                   <div className="absolute inset-0 flex items-center justify-center">
@@ -1033,7 +1148,8 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
                   You're In
                 </h2>
                 <p className="text-terminal-dim mb-8 max-w-md mx-auto">
-                  Welcome to Bitboard. Powered by Nostr. Decentralized, encrypted, uncensorable. Discuss anything. Vote with your bits to get the best content on the board.
+                  Welcome to Bitboard. Powered by Nostr. Decentralized, encrypted, uncensorable.
+                  Discuss anything. Vote with your bits to get the best content on the board.
                 </p>
 
                 {/* Status summary */}
@@ -1042,13 +1158,17 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
                     <div className="flex items-center gap-3">
                       <span className="w-2 h-2 bg-terminal-text rounded-full" />
                       <span className="text-terminal-dim">Identity:</span>
-                      <span className="text-terminal-text">{identity ? 'AUTHENTICATED' : 'ANONYMOUS'}</span>
+                      <span className="text-terminal-text">
+                        {identity ? 'AUTHENTICATED' : 'ANONYMOUS'}
+                      </span>
                     </div>
                     {identity && (
                       <div className="flex items-center gap-3">
                         <span className="w-2 h-2 bg-terminal-text rounded-full" />
                         <span className="text-terminal-dim">Type:</span>
-                        <span className="text-terminal-text">{identity.kind === 'nip07' ? 'EXTENSION' : 'LOCAL'}</span>
+                        <span className="text-terminal-text">
+                          {identity.kind === 'nip07' ? 'EXTENSION' : 'LOCAL'}
+                        </span>
                       </div>
                     )}
                     <div className="flex items-center gap-3">
@@ -1081,9 +1201,11 @@ export function OnboardingFlow({ isOpen, onComplete, onSkip, onIdentityChange }:
             disabled={currentStep === 'welcome'}
             className={`
               flex items-center gap-2 px-4 py-2 text-sm transition-all
-              ${currentStep === 'welcome'
-                ? 'opacity-0 pointer-events-none'
-                : 'text-terminal-dim hover:text-terminal-text'}
+              ${
+                currentStep === 'welcome'
+                  ? 'opacity-0 pointer-events-none'
+                  : 'text-terminal-dim hover:text-terminal-text'
+              }
             `}
           >
             <ChevronLeft size={18} />

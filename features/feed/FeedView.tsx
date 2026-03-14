@@ -1,33 +1,25 @@
 import React, { useMemo, useCallback, useState, useEffect } from 'react';
 import { MapPin, Share2, Lock, ChevronUp, Calendar } from 'lucide-react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
-import type { Board, Post, SortMode } from '../../types';
+import type { Post, SortMode } from '../../types';
 import { BoardType, ViewMode } from '../../types';
 import { SearchBar } from '../../components/SearchBar';
 import { SortSelector } from '../../components/SortSelector';
-import { PostItem } from '../../components/PostItem';
-import { PostSkeleton, InlineLoadingSkeleton } from '../../components/PostSkeleton';
-import { LoadingPhaseIndicator, type LoadingPhase } from '../../components/LoadingSkeletons';
+import { PostSkeleton } from '../../components/PostSkeleton';
+import { LoadingPhaseIndicator } from '../../components/LoadingSkeletons';
 import { ShareBoardLink } from '../../components/ShareBoardLink';
 import { encryptedBoardService } from '../../services/encryptedBoardService';
-// Import Zustand store selectors
-import { usePostStore } from '../../stores/postStore';
 import { useUIStore, useViewMode, useSearchQuery, useSortMode } from '../../stores/uiStore';
-import { useUserState } from '../../stores/userStore';
-import { useActiveBoard, useBoardsById } from '../../stores/boardStore';
+import { useActiveBoard } from '../../stores/boardStore';
+import {
+  FeedLoaderRow,
+  FeedPostCard,
+  TIME_CHUNK_LABELS,
+  TimeChunk,
+  TimeChunkHeader,
+} from './feedParts';
 
 const FEED_VIRTUALIZE_THRESHOLD = 25;
-
-// Time chunk definitions
-type TimeChunk = 'today' | 'yesterday' | 'this_week' | 'this_month' | 'earlier';
-
-const TIME_CHUNK_LABELS: Record<TimeChunk, string> = {
-  today: 'TODAY',
-  yesterday: 'YESTERDAY',
-  this_week: 'THIS WEEK',
-  this_month: 'THIS MONTH',
-  earlier: 'EARLIER',
-};
 
 function getTimeChunk(timestamp: number): TimeChunk {
   const now = new Date();
@@ -50,7 +42,7 @@ function getTimeChunk(timestamp: number): TimeChunk {
 
 export function FeedView(props: {
   sortedPosts: Post[];
-  feedFilter?: 'all' | 'topic' | 'location';
+  feedFilter?: 'all' | 'topic' | 'location' | 'following';
 
   getBoardName: (postId: string) => string | undefined;
   knownUsers: Set<string>;
@@ -75,6 +67,9 @@ export function FeedView(props: {
   loaderRef: React.RefObject<HTMLDivElement>;
   isLoadingMore: boolean;
   hasMorePosts: boolean;
+  setSortMode: (mode: SortMode) => void;
+  onSetViewMode: (mode: ViewMode) => void;
+  onSearch: (query: string) => void;
   onToggleMute?: (pubkey: string) => void;
   isMuted?: (pubkey: string) => boolean;
   isInitialLoading?: boolean;
@@ -85,11 +80,9 @@ export function FeedView(props: {
   const searchQuery = useSearchQuery();
   const sortMode = useSortMode();
   const activeBoard = useActiveBoard();
-  const userState = useUserState();
-  const boardsById = useBoardsById();
   const setSortModeStore = useUIStore((state) => state.setSortMode);
   const setSearchQueryStore = useUIStore((state) => state.setSearchQuery);
-  
+
   const {
     sortedPosts,
     feedFilter,
@@ -102,6 +95,7 @@ export function FeedView(props: {
     isLoadingMore,
     hasMorePosts,
     isInitialLoading = false,
+    setSortMode,
     onSetViewMode,
     onSearch,
     onVote,
@@ -119,24 +113,31 @@ export function FeedView(props: {
     isMuted,
     onRetryPost,
   } = props;
-  
+
   // Use store setters when available, fallback to props
-  const handleSetSortMode = useCallback((m: SortMode) => {
-    setSortModeStore(m);
-    props.setSortMode(m);
-  }, [setSortModeStore, props]);
-  
-  const handleSearch = useCallback((q: string) => {
-    setSearchQueryStore(q);
-    onSearch(q);
-  }, [setSearchQueryStore, onSearch]);
+  const handleSetSortMode = useCallback(
+    (m: SortMode) => {
+      setSortModeStore(m);
+      setSortMode(m);
+    },
+    [setSortModeStore, setSortMode],
+  );
+
+  const handleSearch = useCallback(
+    (q: string) => {
+      setSearchQueryStore(q);
+      onSearch(q);
+    },
+    [setSearchQueryStore, onSearch],
+  );
 
   const [showShareModal, setShowShareModal] = useState(false);
   const [showJumpToTop, setShowJumpToTop] = useState(false);
   const [activeTimeChunk, setActiveTimeChunk] = useState<TimeChunk | null>(null);
 
   // Check if this is an encrypted board that we can share (we have the key)
-  const canShareBoard = activeBoard?.isEncrypted && encryptedBoardService.hasBoardKey(activeBoard.id);
+  const canShareBoard =
+    activeBoard?.isEncrypted && encryptedBoardService.hasBoardKey(activeBoard.id);
 
   // Track scroll position for "Jump to top" button (throttled)
   useEffect(() => {
@@ -163,19 +164,22 @@ export function FeedView(props: {
     // Throttled scroll handler
     const throttledHandleScroll = () => {
       const currentTime = Date.now();
-      
+
       if (currentTime - lastExecTime > throttleDelay) {
         handleScroll();
         lastExecTime = currentTime;
       } else {
         if (timeoutId) clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => {
-          handleScroll();
-          lastExecTime = Date.now();
-        }, throttleDelay - (currentTime - lastExecTime));
+        timeoutId = setTimeout(
+          () => {
+            handleScroll();
+            lastExecTime = Date.now();
+          },
+          throttleDelay - (currentTime - lastExecTime),
+        );
       }
     };
-    
+
     window.addEventListener('scroll', throttledHandleScroll, { passive: true });
     return () => {
       window.removeEventListener('scroll', throttledHandleScroll);
@@ -185,6 +189,13 @@ export function FeedView(props: {
 
   const handleJumpToTop = useCallback(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const handleJumpToChunk = useCallback((chunk: TimeChunk) => {
+    const header = document.querySelector(`[data-time-chunk="${chunk}"]`);
+    if (header) {
+      header.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }, []);
 
   // Group posts by time chunks for navigation
@@ -211,119 +222,122 @@ export function FeedView(props: {
   // Available time chunks (non-empty ones)
   const availableChunks = useMemo(() => {
     return (Object.keys(postsByTimeChunk) as TimeChunk[]).filter(
-      (chunk) => postsByTimeChunk[chunk].posts.length > 0
+      (chunk) => postsByTimeChunk[chunk].posts.length > 0,
     );
   }, [postsByTimeChunk]);
 
   // Check if we should show a time header before this post
-  const shouldShowTimeHeader = useCallback((post: Post, index: number): TimeChunk | null => {
-    const chunk = getTimeChunk(post.timestamp);
-    if (postsByTimeChunk[chunk].firstIndex === index) {
-      return chunk;
-    }
-    return null;
-  }, [postsByTimeChunk]);
+  const shouldShowTimeHeader = useCallback(
+    (post: Post, index: number): TimeChunk | null => {
+      const chunk = getTimeChunk(post.timestamp);
+      if (postsByTimeChunk[chunk].firstIndex === index) {
+        return chunk;
+      }
+      return null;
+    },
+    [postsByTimeChunk],
+  );
 
-  const shouldVirtualizeFeed = viewMode === ViewMode.FEED && sortedPosts.length > FEED_VIRTUALIZE_THRESHOLD;
-
-  // Track measured post heights for dynamic sizing
-  const postHeights = React.useRef<Map<number, number>>(new Map());
-  const averageHeight = React.useRef<number>(520); // Fallback initial estimate
+  const shouldVirtualizeFeed =
+    viewMode === ViewMode.FEED && sortedPosts.length > FEED_VIRTUALIZE_THRESHOLD;
 
   const feedVirtualizer = useWindowVirtualizer({
     count: shouldVirtualizeFeed ? sortedPosts.length + 1 : 0,
-    estimateSize: (index) => {
-      // Use measured height if available
-      const measured = postHeights.current.get(index);
-      if (measured) {
-        // Update running average for better future estimates
-        const currentAvg = averageHeight.current;
-        averageHeight.current = (currentAvg * 0.9) + (measured * 0.1); // Exponential moving average
-        return measured;
-      }
-      
-      // Use running average if we have measurements, otherwise fallback
-      return averageHeight.current;
-    },
+    estimateSize: () => 520,
     overscan: 6,
-    measureElement: (element) => {
-      if (!element) return;
-      
-      // Find the index of this element in the virtual items
-      const virtualItems = feedVirtualizer.getVirtualItems();
-      const item = virtualItems.find(item => item.element === element);
-      
-      if (item && item.index >= 0) {
-        const height = element.getBoundingClientRect().height;
-        postHeights.current.set(item.index, height);
-        
-        // Update running average
-        const currentAvg = averageHeight.current;
-        averageHeight.current = (currentAvg * 0.9) + (height * 0.1);
-      }
-    },
   });
-  
-  // Clear height cache when posts change significantly
-  React.useEffect(() => {
-    if (sortedPosts.length === 0) {
-      postHeights.current.clear();
-      averageHeight.current = 520; // Reset to default
-    }
-  }, [sortedPosts.length]);
 
   // Stabilize callbacks to prevent PostItem re-renders
-  const handleVote = useCallback((postId: string, direction: 'up' | 'down') => {
-    onVote(postId, direction);
-  }, [onVote]);
+  const handleVote = useCallback(
+    (postId: string, direction: 'up' | 'down') => {
+      onVote(postId, direction);
+    },
+    [onVote],
+  );
 
-  const handleComment = useCallback((postId: string, content: string, parentCommentId?: string) => {
-    onComment(postId, content, parentCommentId);
-  }, [onComment]);
+  const handleComment = useCallback(
+    (postId: string, content: string, parentCommentId?: string) => {
+      onComment(postId, content, parentCommentId);
+    },
+    [onComment],
+  );
 
-  const handleEditComment = useCallback((postId: string, commentId: string, content: string) => {
-    onEditComment(postId, commentId, content);
-  }, [onEditComment]);
+  const handleEditComment = useCallback(
+    (postId: string, commentId: string, content: string) => {
+      onEditComment(postId, commentId, content);
+    },
+    [onEditComment],
+  );
 
-  const handleDeleteComment = useCallback((postId: string, commentId: string) => {
-    onDeleteComment(postId, commentId);
-  }, [onDeleteComment]);
+  const handleDeleteComment = useCallback(
+    (postId: string, commentId: string) => {
+      onDeleteComment(postId, commentId);
+    },
+    [onDeleteComment],
+  );
 
-  const handleCommentVote = useCallback((postId: string, commentId: string, direction: 'up' | 'down') => {
-    onCommentVote?.(postId, commentId, direction);
-  }, [onCommentVote]);
+  const handleCommentVote = useCallback(
+    (postId: string, commentId: string, direction: 'up' | 'down') => {
+      onCommentVote?.(postId, commentId, direction);
+    },
+    [onCommentVote],
+  );
 
-  const handleViewBit = useCallback((postId: string) => {
-    onViewBit(postId);
-  }, [onViewBit]);
+  const handleViewBit = useCallback(
+    (postId: string) => {
+      onViewBit(postId);
+    },
+    [onViewBit],
+  );
 
-  const handleViewProfile = useCallback((username: string, pubkey?: string) => {
-    onViewProfile(username, pubkey);
-  }, [onViewProfile]);
+  const handleViewProfile = useCallback(
+    (username: string, pubkey?: string) => {
+      onViewProfile(username, pubkey);
+    },
+    [onViewProfile],
+  );
 
-  const handleEditPost = useCallback((postId: string) => {
-    onEditPost(postId);
-  }, [onEditPost]);
+  const handleEditPost = useCallback(
+    (postId: string) => {
+      onEditPost(postId);
+    },
+    [onEditPost],
+  );
 
-  const handleDeletePost = useCallback((postId: string) => {
-    onDeletePost(postId);
-  }, [onDeletePost]);
+  const handleDeletePost = useCallback(
+    (postId: string) => {
+      onDeletePost(postId);
+    },
+    [onDeletePost],
+  );
 
-  const handleTagClick = useCallback((tag: string) => {
-    onTagClick(tag);
-  }, [onTagClick]);
+  const handleTagClick = useCallback(
+    (tag: string) => {
+      onTagClick(tag);
+    },
+    [onTagClick],
+  );
 
-  const handleToggleBookmark = useCallback((id: string) => {
-    onToggleBookmark(id);
-  }, [onToggleBookmark]);
+  const handleToggleBookmark = useCallback(
+    (id: string) => {
+      onToggleBookmark(id);
+    },
+    [onToggleBookmark],
+  );
 
-  const handleToggleMute = useCallback((pubkey: string) => {
-    onToggleMute?.(pubkey);
-  }, [onToggleMute]);
+  const handleToggleMute = useCallback(
+    (pubkey: string) => {
+      onToggleMute?.(pubkey);
+    },
+    [onToggleMute],
+  );
 
-  const handleRetryPost = useCallback((postId: string) => {
-    onRetryPost?.(postId);
-  }, [onRetryPost]);
+  const handleRetryPost = useCallback(
+    (postId: string) => {
+      onRetryPost?.(postId);
+    },
+    [onRetryPost],
+  );
 
   const emptyState = useMemo(() => {
     // Location-specific empty state
@@ -430,7 +444,9 @@ export function FeedView(props: {
                       : 'AGGREGATING TOP SIGNALS FROM PUBLIC SECTORS'}
             </p>
           </div>
-          <span className="text-xs border border-terminal-dim px-2 py-1">SIGNAL_COUNT: {sortedPosts.length}</span>
+          <span className="text-xs border border-terminal-dim px-2 py-1">
+            SIGNAL_COUNT: {sortedPosts.length}
+          </span>
         </div>
 
         <SortSelector currentSort={sortMode} onSortChange={handleSetSortMode} />
@@ -442,12 +458,7 @@ export function FeedView(props: {
             {availableChunks.map((chunk) => (
               <button
                 key={chunk}
-                onClick={() => {
-                  const header = document.querySelector(`[data-time-chunk="${chunk}"]`);
-                  if (header) {
-                    header.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  }
-                }}
+                onClick={() => handleJumpToChunk(chunk)}
                 className={`text-[10px] px-2 py-0.5 border transition-colors whitespace-nowrap flex-shrink-0 ${
                   activeTimeChunk === chunk
                     ? 'border-terminal-text text-terminal-text bg-terminal-text/10'
@@ -480,22 +491,14 @@ export function FeedView(props: {
               <React.Fragment key={post.id}>
                 {/* Time chunk header */}
                 {timeHeader && (
-                  <div
-                    data-time-chunk={timeHeader}
-                    className="flex items-center gap-2 py-2 mt-4 first:mt-0 border-b border-terminal-dim/30 mb-2"
-                  >
-                    <Calendar size={14} className="text-terminal-dim" />
-                    <span className="text-xs text-terminal-dim uppercase tracking-wider font-bold">
-                      {TIME_CHUNK_LABELS[timeHeader]}
-                    </span>
-                    <span className="text-[10px] text-terminal-dim/50">
-                      ({postsByTimeChunk[timeHeader].posts.length} posts)
-                    </span>
-                  </div>
+                  <TimeChunkHeader
+                    chunk={timeHeader}
+                    postCount={postsByTimeChunk[timeHeader].posts.length}
+                  />
                 )}
-                <PostItem
+                <FeedPostCard
                   post={post}
-                  boardName={getBoardName(post.id)}
+                  getBoardName={getBoardName}
                   knownUsers={knownUsers}
                   onVote={handleVote}
                   onComment={handleComment}
@@ -507,28 +510,24 @@ export function FeedView(props: {
                   onEditPost={handleEditPost}
                   onDeletePost={handleDeletePost}
                   onTagClick={handleTagClick}
-                  isBookmarked={bookmarkedIdSet.has(post.id)}
+                  bookmarkedIdSet={bookmarkedIdSet}
                   onToggleBookmark={handleToggleBookmark}
-                  hasReported={reportedPostIdSet.has(post.id)}
+                  reportedPostIdSet={reportedPostIdSet}
                   isNostrConnected={isNostrConnected}
                   onToggleMute={handleToggleMute}
-              isMuted={isMuted}
-              onRetryPost={handleRetryPost}
-            />
+                  isMuted={isMuted}
+                  onRetryPost={handleRetryPost}
+                />
               </React.Fragment>
             );
           })}
 
-          <div ref={loaderRef} className="py-4">
-            {isLoadingMore && <InlineLoadingSkeleton />}
-            {!hasMorePosts && sortedPosts.length > 0 && (
-              <div className="text-center py-4">
-                <div className="text-xs text-terminal-dim uppercase tracking-wider border border-terminal-dim/30 inline-block px-4 py-2">
-                  END_OF_FEED // All signals loaded
-                </div>
-              </div>
-            )}
-          </div>
+          <FeedLoaderRow
+            loaderRef={loaderRef}
+            isLoadingMore={isLoadingMore}
+            hasMorePosts={hasMorePosts}
+            postCount={sortedPosts.length}
+          />
         </>
       )}
 
@@ -539,9 +538,12 @@ export function FeedView(props: {
 
             if (isLoaderRow) {
               return (
-                <div
+                <FeedLoaderRow
                   key="feed-loader-row"
-                  ref={loaderRef}
+                  loaderRef={loaderRef}
+                  isLoadingMore={isLoadingMore}
+                  hasMorePosts={hasMorePosts}
+                  postCount={sortedPosts.length}
                   style={{
                     position: 'absolute',
                     top: 0,
@@ -549,21 +551,12 @@ export function FeedView(props: {
                     width: '100%',
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
-                  className="py-4"
-                >
-                  {isLoadingMore && <InlineLoadingSkeleton />}
-                  {!hasMorePosts && sortedPosts.length > 0 && (
-                    <div className="text-center py-4">
-                      <div className="text-xs text-terminal-dim uppercase tracking-wider border border-terminal-dim/30 inline-block px-4 py-2">
-                        END_OF_FEED // All signals loaded
-                      </div>
-                    </div>
-                  )}
-                </div>
+                />
               );
             }
 
             const post = sortedPosts[virtualRow.index];
+            const timeHeader = shouldShowTimeHeader(post, virtualRow.index);
 
             return (
               <div
@@ -577,9 +570,15 @@ export function FeedView(props: {
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
               >
-                <PostItem
+                {timeHeader && (
+                  <TimeChunkHeader
+                    chunk={timeHeader}
+                    postCount={postsByTimeChunk[timeHeader].posts.length}
+                  />
+                )}
+                <FeedPostCard
                   post={post}
-                  boardName={getBoardName(post.id)}
+                  getBoardName={getBoardName}
                   knownUsers={knownUsers}
                   onVote={handleVote}
                   onComment={handleComment}
@@ -589,10 +588,11 @@ export function FeedView(props: {
                   onViewBit={handleViewBit}
                   onViewProfile={handleViewProfile}
                   onEditPost={handleEditPost}
+                  onDeletePost={handleDeletePost}
                   onTagClick={handleTagClick}
-                  isBookmarked={bookmarkedIdSet.has(post.id)}
+                  bookmarkedIdSet={bookmarkedIdSet}
                   onToggleBookmark={handleToggleBookmark}
-                  hasReported={reportedPostIdSet.has(post.id)}
+                  reportedPostIdSet={reportedPostIdSet}
                   isNostrConnected={isNostrConnected}
                   onToggleMute={handleToggleMute}
                   isMuted={isMuted}
@@ -606,10 +606,7 @@ export function FeedView(props: {
 
       {/* Share encrypted board modal */}
       {showShareModal && activeBoard && (
-        <ShareBoardLink
-          board={activeBoard}
-          onClose={() => setShowShareModal(false)}
-        />
+        <ShareBoardLink board={activeBoard} onClose={() => setShowShareModal(false)} />
       )}
 
       {/* Jump to top FAB */}
@@ -632,30 +629,23 @@ export function FeedView(props: {
 export const MemoizedFeedView = React.memo(FeedView, (prevProps, nextProps) => {
   // Compare sortedPosts array reference (should be stable with Zustand)
   if (prevProps.sortedPosts !== nextProps.sortedPosts) return false;
-  
+
   // Compare loading states
   if (prevProps.isLoadingMore !== nextProps.isLoadingMore) return false;
   if (prevProps.hasMorePosts !== nextProps.hasMorePosts) return false;
   if (prevProps.isInitialLoading !== nextProps.isInitialLoading) return false;
-  
+
   // Compare sets (bookmarkedIdSet, reportedPostIdSet, knownUsers)
   if (prevProps.bookmarkedIdSet !== nextProps.bookmarkedIdSet) return false;
   if (prevProps.reportedPostIdSet !== nextProps.reportedPostIdSet) return false;
   if (prevProps.knownUsers !== nextProps.knownUsers) return false;
-  
+
   // Compare other essential props
   if (prevProps.feedFilter !== nextProps.feedFilter) return false;
   if (prevProps.isNostrConnected !== nextProps.isNostrConnected) return false;
-  
+
   // Ignore handler props - they should be stable callbacks
   // Ignore viewMode, searchQuery, sortMode, activeBoard, userState - now from stores
-  
+
   return true; // Props are equal, skip re-render
 });
-
-
-
-
-
-
-

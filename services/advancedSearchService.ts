@@ -6,6 +6,7 @@
 
 import { type Event as NostrEvent, type Filter } from 'nostr-tools';
 import { logger } from './loggingService';
+import { nostrService } from './nostr/NostrService';
 
 // ============================================
 // TYPES
@@ -13,26 +14,26 @@ import { logger } from './loggingService';
 
 export interface SearchFilters {
   query: string;
-  
+
   // Content filters
-  boards?: string[];           // Specific boards to search
-  authors?: string[];          // Specific pubkeys
-  tags?: string[];             // Hashtags
-  
+  boards?: string[]; // Specific boards to search
+  authors?: string[]; // Specific pubkeys
+  tags?: string[]; // Hashtags
+
   // Date filters
   dateFrom?: Date | null;
   dateTo?: Date | null;
-  dateRange?: DateRange;       // Preset ranges
-  
+  dateRange?: DateRange; // Preset ranges
+
   // Content type
   contentType?: ContentType;
   hasImage?: boolean;
   hasLink?: boolean;
-  
+
   // Engagement filters
   minScore?: number;
   minComments?: number;
-  
+
   // Sort
   sortBy: SearchSortBy;
 }
@@ -75,7 +76,7 @@ export interface SearchResult {
   timestamp: number;
   score: number;
   commentCount: number;
-  matchedOn: MatchType[];      // What matched the search
+  matchedOn: MatchType[]; // What matched the search
   highlightedContent?: string; // Content with highlights
   nostrEventId?: string;
 }
@@ -142,7 +143,7 @@ class AdvancedSearchService {
    */
   async search(filters: Partial<SearchFilters>): Promise<SearchResult[]> {
     const fullFilters = { ...DEFAULT_FILTERS, ...filters };
-    
+
     // Add to history
     if (fullFilters.query.trim()) {
       this.addToHistory(fullFilters.query, 0);
@@ -150,22 +151,22 @@ class AdvancedSearchService {
 
     // Build Nostr filter
     const nostrFilter = this.buildNostrFilter(fullFilters);
-    
+
     // Fetch events from relays
     const events = await this.fetchEvents(nostrFilter);
-    
+
     // Process and filter results
     let results = this.processEvents(events, fullFilters);
-    
+
     // Apply client-side filters
     results = this.applyClientFilters(results, fullFilters);
-    
+
     // Sort results
     results = this.sortResults(results, fullFilters.sortBy);
-    
+
     // Update history with result count
     this.updateHistoryCount(fullFilters.query, results.length);
-    
+
     logger.info('Search', `Found ${results.length} results for "${fullFilters.query}"`);
     return results;
   }
@@ -174,7 +175,7 @@ class AdvancedSearchService {
    * Quick search (just query, no filters)
    */
   async quickSearch(query: string, limit = 20): Promise<SearchResult[]> {
-    return this.search({ query, sortBy: SearchSortBy.RELEVANCE }).then(r => r.slice(0, limit));
+    return this.search({ query, sortBy: SearchSortBy.RELEVANCE }).then((r) => r.slice(0, limit));
   }
 
   /**
@@ -188,17 +189,17 @@ class AdvancedSearchService {
 
     // Add matching history entries
     this.searchHistory
-      .filter(h => h.query.toLowerCase().includes(queryLower))
+      .filter((h) => h.query.toLowerCase().includes(queryLower))
       .sort((a, b) => b.timestamp - a.timestamp)
       .slice(0, limit / 2)
-      .forEach(h => {
+      .forEach((h) => {
         if (!suggestions.includes(h.query)) {
           suggestions.push(h.query);
         }
       });
 
     // Add matching saved searches
-    this.savedSearches.forEach(s => {
+    this.savedSearches.forEach((s) => {
       if (s.filters.query.toLowerCase().includes(queryLower)) {
         if (!suggestions.includes(s.filters.query)) {
           suggestions.push(s.filters.query);
@@ -252,31 +253,31 @@ class AdvancedSearchService {
     switch (filters.dateRange) {
       case DateRange.TODAY:
         return { from: startOfDay, to: now };
-      
+
       case DateRange.YESTERDAY: {
         const yesterday = new Date(startOfDay);
         yesterday.setDate(yesterday.getDate() - 1);
         return { from: yesterday, to: startOfDay };
       }
-      
+
       case DateRange.PAST_WEEK: {
         const weekAgo = new Date(now);
         weekAgo.setDate(weekAgo.getDate() - 7);
         return { from: weekAgo, to: now };
       }
-      
+
       case DateRange.PAST_MONTH: {
         const monthAgo = new Date(now);
         monthAgo.setMonth(monthAgo.getMonth() - 1);
         return { from: monthAgo, to: now };
       }
-      
+
       case DateRange.PAST_YEAR: {
         const yearAgo = new Date(now);
         yearAgo.setFullYear(yearAgo.getFullYear() - 1);
         return { from: yearAgo, to: now };
       }
-      
+
       case DateRange.ALL_TIME:
       default:
         return { from: null, to: null };
@@ -289,10 +290,10 @@ class AdvancedSearchService {
 
   private processEvents(events: NostrEvent[], filters: SearchFilters): SearchResult[] {
     const query = filters.query.toLowerCase().trim();
-    const queryTerms = query.split(/\s+/).filter(t => t.length > 0);
+    const queryTerms = query.split(/\s+/).filter((t) => t.length > 0);
 
     return events
-      .map(event => this.eventToResult(event, queryTerms))
+      .map((event) => this.eventToResult(event, queryTerms))
       .filter((r): r is SearchResult => r !== null);
   }
 
@@ -301,16 +302,16 @@ class AdvancedSearchService {
     const matchedOn: MatchType[] = [];
 
     // Check for matches
-    const titleMatch = queryTerms.some(term => 
-      event.tags.some(t => t[0] === 'title' && t[1]?.toLowerCase().includes(term))
+    const titleMatch = queryTerms.some((term) =>
+      event.tags.some((t) => t[0] === 'title' && t[1]?.toLowerCase().includes(term)),
     );
     if (titleMatch) matchedOn.push(MatchType.TITLE);
 
-    const contentMatch = queryTerms.some(term => content.includes(term));
+    const contentMatch = queryTerms.some((term) => content.includes(term));
     if (contentMatch) matchedOn.push(MatchType.CONTENT);
 
-    const tagMatch = queryTerms.some(term =>
-      event.tags.some(t => t[0] === 't' && t[1]?.toLowerCase().includes(term))
+    const tagMatch = queryTerms.some((term) =>
+      event.tags.some((t) => t[0] === 't' && t[1]?.toLowerCase().includes(term)),
     );
     if (tagMatch) matchedOn.push(MatchType.TAG);
 
@@ -320,8 +321,8 @@ class AdvancedSearchService {
     }
 
     // Extract metadata
-    const titleTag = event.tags.find(t => t[0] === 'title');
-    const boardTag = event.tags.find(t => t[0] === 'd' || t[0] === 'a');
+    const titleTag = event.tags.find((t) => t[0] === 'title');
+    const boardTag = event.tags.find((t) => t[0] === 'd' || t[0] === 'a');
 
     return {
       id: event.id,
@@ -344,41 +345,41 @@ class AdvancedSearchService {
 
     // Board filter
     if (filters.boards && filters.boards.length > 0) {
-      filtered = filtered.filter(r => r.boardId && filters.boards!.includes(r.boardId));
+      filtered = filtered.filter((r) => r.boardId && filters.boards!.includes(r.boardId));
     }
 
     // Content type filter
     switch (filters.contentType) {
       case ContentType.POSTS:
-        filtered = filtered.filter(r => r.type === 'post');
+        filtered = filtered.filter((r) => r.type === 'post');
         break;
       case ContentType.COMMENTS:
-        filtered = filtered.filter(r => r.type === 'comment');
+        filtered = filtered.filter((r) => r.type === 'comment');
         break;
       case ContentType.LINKS:
-        filtered = filtered.filter(r => this.hasLink(r.content));
+        filtered = filtered.filter((r) => this.hasLink(r.content));
         break;
       case ContentType.IMAGES:
-        filtered = filtered.filter(r => this.hasImage(r.content));
+        filtered = filtered.filter((r) => this.hasImage(r.content));
         break;
     }
 
     // Has image filter
     if (filters.hasImage) {
-      filtered = filtered.filter(r => this.hasImage(r.content));
+      filtered = filtered.filter((r) => this.hasImage(r.content));
     }
 
     // Has link filter
     if (filters.hasLink) {
-      filtered = filtered.filter(r => this.hasLink(r.content));
+      filtered = filtered.filter((r) => this.hasLink(r.content));
     }
 
     // Engagement filters
     if (filters.minScore !== undefined) {
-      filtered = filtered.filter(r => r.score >= filters.minScore!);
+      filtered = filtered.filter((r) => r.score >= filters.minScore!);
     }
     if (filters.minComments !== undefined) {
-      filtered = filtered.filter(r => r.commentCount >= filters.minComments!);
+      filtered = filtered.filter((r) => r.commentCount >= filters.minComments!);
     }
 
     return filtered;
@@ -388,16 +389,16 @@ class AdvancedSearchService {
     switch (sortBy) {
       case SearchSortBy.NEWEST:
         return results.sort((a, b) => b.timestamp - a.timestamp);
-      
+
       case SearchSortBy.OLDEST:
         return results.sort((a, b) => a.timestamp - b.timestamp);
-      
+
       case SearchSortBy.TOP_SCORE:
         return results.sort((a, b) => b.score - a.score);
-      
+
       case SearchSortBy.MOST_COMMENTS:
         return results.sort((a, b) => b.commentCount - a.commentCount);
-      
+
       case SearchSortBy.RELEVANCE:
       default:
         // Sort by number of match types, then by recency
@@ -413,7 +414,7 @@ class AdvancedSearchService {
     if (terms.length === 0) return content;
 
     let highlighted = content;
-    terms.forEach(term => {
+    terms.forEach((term) => {
       const regex = new RegExp(`(${this.escapeRegex(term)})`, 'gi');
       highlighted = highlighted.replace(regex, '**$1**');
     });
@@ -453,7 +454,7 @@ class AdvancedSearchService {
 
     this.savedSearches.set(id, savedSearch);
     this.saveToStorage();
-    
+
     logger.info('Search', `Saved search "${name}"`);
     return savedSearch;
   }
@@ -462,8 +463,9 @@ class AdvancedSearchService {
    * Get all saved searches
    */
   getSavedSearches(): SavedSearch[] {
-    return Array.from(this.savedSearches.values())
-      .sort((a, b) => (b.lastUsedAt || b.createdAt) - (a.lastUsedAt || a.createdAt));
+    return Array.from(this.savedSearches.values()).sort(
+      (a, b) => (b.lastUsedAt || b.createdAt) - (a.lastUsedAt || a.createdAt),
+    );
   }
 
   /**
@@ -513,8 +515,8 @@ class AdvancedSearchService {
 
   private addToHistory(query: string, resultCount: number): void {
     // Remove existing entry for same query
-    this.searchHistory = this.searchHistory.filter(h => h.query !== query);
-    
+    this.searchHistory = this.searchHistory.filter((h) => h.query !== query);
+
     // Add new entry
     this.searchHistory.unshift({
       query,
@@ -528,7 +530,7 @@ class AdvancedSearchService {
   }
 
   private updateHistoryCount(query: string, count: number): void {
-    const entry = this.searchHistory.find(h => h.query === query);
+    const entry = this.searchHistory.find((h) => h.query === query);
     if (entry) {
       entry.resultCount = count;
       this.saveToStorage();
@@ -544,8 +546,10 @@ class AdvancedSearchService {
   }
 
   private hasImage(content: string): boolean {
-    return /\.(jpg|jpeg|png|gif|webp|svg)(\?[^\s]*)?$/i.test(content) ||
-           /https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp|svg)/i.test(content);
+    return (
+      /\.(jpg|jpeg|png|gif|webp|svg)(\?[^\s]*)?$/i.test(content) ||
+      /https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp|svg)/i.test(content)
+    );
   }
 
   private escapeRegex(str: string): string {
@@ -554,9 +558,7 @@ class AdvancedSearchService {
 
   private async fetchEvents(_filter: Filter): Promise<NostrEvent[]> {
     try {
-      // TODO: Implement relay queries using nostrService's pool
-      // For now, return empty array as placeholder
-      return [];
+      return await nostrService.queryEvents(_filter);
     } catch {
       return [];
     }

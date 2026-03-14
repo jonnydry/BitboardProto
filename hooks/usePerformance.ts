@@ -24,7 +24,7 @@ export function useDebounce<T>(value: T, delay: number): T {
  */
 export function useDebouncedCallback<T extends (...args: unknown[]) => void>(
   callback: T,
-  delay: number
+  delay: number,
 ): T {
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const callbackRef = useRef(callback);
@@ -41,7 +41,7 @@ export function useDebouncedCallback<T extends (...args: unknown[]) => void>(
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => callbackRef.current(...args), delay);
     }) as T,
-    [delay]
+    [delay],
   );
 }
 
@@ -53,12 +53,15 @@ export function useThrottle<T>(value: T, limit: number): T {
   const lastRan = useRef(Date.now());
 
   useEffect(() => {
-    const handler = setTimeout(() => {
-      if (Date.now() - lastRan.current >= limit) {
-        setThrottledValue(value);
-        lastRan.current = Date.now();
-      }
-    }, limit - (Date.now() - lastRan.current));
+    const handler = setTimeout(
+      () => {
+        if (Date.now() - lastRan.current >= limit) {
+          setThrottledValue(value);
+          lastRan.current = Date.now();
+        }
+      },
+      limit - (Date.now() - lastRan.current),
+    );
 
     return () => clearTimeout(handler);
   }, [value, limit]);
@@ -71,7 +74,7 @@ export function useThrottle<T>(value: T, limit: number): T {
  */
 export function useThrottledCallback<T extends (...args: unknown[]) => void>(
   callback: T,
-  limit: number
+  limit: number,
 ): T {
   const lastRan = useRef(0);
   const callbackRef = useRef(callback);
@@ -85,7 +88,7 @@ export function useThrottledCallback<T extends (...args: unknown[]) => void>(
         callbackRef.current(...args);
       }
     }) as T,
-    [limit]
+    [limit],
   );
 }
 
@@ -93,22 +96,25 @@ export function useThrottledCallback<T extends (...args: unknown[]) => void>(
  * Intersection Observer hook for visibility tracking
  */
 export function useIntersectionObserver(
-  options: IntersectionObserverInit = {}
+  options: IntersectionObserverInit = {},
 ): [React.RefObject<HTMLDivElement>, boolean] {
   const [isIntersecting, setIsIntersecting] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const { root, rootMargin, threshold } = options;
 
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
 
+    const observerOptions: IntersectionObserverInit = { root, rootMargin, threshold };
+
     const observer = new IntersectionObserver(([entry]) => {
       setIsIntersecting(entry.isIntersecting);
-    }, options);
+    }, observerOptions);
 
     observer.observe(element);
     return () => observer.disconnect();
-  }, [options.threshold, options.root, options.rootMargin]);
+  }, [root, rootMargin, threshold]);
 
   return [ref, isIntersecting];
 }
@@ -129,11 +135,11 @@ export function usePrevious<T>(value: T): T | undefined {
  */
 export function useShallowMemo<T extends object>(value: T): T {
   const ref = useRef<T>(value);
-  
+
   if (!shallowEqual(ref.current, value)) {
     ref.current = value;
   }
-  
+
   return ref.current;
 }
 
@@ -151,41 +157,47 @@ function shallowEqual<T extends object>(a: T, b: T): boolean {
 /**
  * Request idle callback hook - execute when browser is idle
  */
-export function useIdleCallback(
-  callback: () => void,
-  options?: { timeout?: number }
-): void {
+export function useIdleCallback(callback: () => void, options?: { timeout?: number }): void {
+  const timeout = options?.timeout;
+
   useEffect(() => {
-    const handle = 'requestIdleCallback' in window
-      ? (window as Window & { requestIdleCallback: (cb: () => void, opts?: { timeout?: number }) => number })
-          .requestIdleCallback(callback, options)
-      : setTimeout(callback, 1);
+    const idleOptions = timeout === undefined ? undefined : { timeout };
+    const handle =
+      'requestIdleCallback' in window
+        ? (
+            window as Window & {
+              requestIdleCallback: (cb: () => void, opts?: { timeout?: number }) => number;
+            }
+          ).requestIdleCallback(callback, idleOptions)
+        : setTimeout(callback, 1);
 
     return () => {
       if ('cancelIdleCallback' in window) {
-        (window as Window & { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(handle as number);
+        (window as Window & { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(
+          handle as number,
+        );
       } else {
         clearTimeout(handle as number);
       }
     };
-  }, [callback, options?.timeout]);
+  }, [callback, timeout]);
 }
 
 /**
  * Media query hook for responsive optimizations
  */
 export function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(() => 
-    typeof window !== 'undefined' ? window.matchMedia(query).matches : false
+  const [matches, setMatches] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia(query).matches : false,
   );
 
   useEffect(() => {
     const mediaQuery = window.matchMedia(query);
     const handler = (e: MediaQueryListEvent) => setMatches(e.matches);
-    
+
     mediaQuery.addEventListener('change', handler);
     setMatches(mediaQuery.matches);
-    
+
     return () => mediaQuery.removeEventListener('change', handler);
   }, [query]);
 
@@ -203,16 +215,18 @@ export function usePrefersReducedMotion(): boolean {
  * Memory usage tracking (development only)
  */
 export function useMemoryUsage(): { usedHeapSize: number; totalHeapSize: number } | null {
-  const [memory, setMemory] = useState<{ usedHeapSize: number; totalHeapSize: number } | null>(null);
+  const [memory, setMemory] = useState<{ usedHeapSize: number; totalHeapSize: number } | null>(
+    null,
+  );
 
   useEffect(() => {
     if (process.env.NODE_ENV !== 'development') return;
-    
+
     interface PerformanceMemory {
       usedJSHeapSize: number;
       totalJSHeapSize: number;
     }
-    
+
     const perf = performance as Performance & { memory?: PerformanceMemory };
     if (!perf.memory) return;
 
@@ -279,12 +293,12 @@ export const batchedUpdates = {
       // Execute reads first
       const reads = this.reads;
       this.reads = [];
-      reads.forEach(fn => fn());
+      reads.forEach((fn) => fn());
 
       // Then writes
       const writes = this.writes;
       this.writes = [];
-      writes.forEach(fn => fn());
+      writes.forEach((fn) => fn());
 
       this.scheduled = false;
     });
@@ -302,12 +316,18 @@ export function shouldReduceMotion(): boolean {
 /**
  * Defer non-critical work
  */
-export function deferWork(callback: () => void, priority: 'high' | 'normal' | 'low' = 'normal'): void {
+export function deferWork(
+  callback: () => void,
+  priority: 'high' | 'normal' | 'low' = 'normal',
+): void {
   const timeouts = { high: 0, normal: 100, low: 500 };
-  
+
   if ('requestIdleCallback' in window && priority !== 'high') {
-    (window as Window & { requestIdleCallback: (cb: () => void, opts?: { timeout?: number }) => number })
-      .requestIdleCallback(callback, { timeout: timeouts[priority] + 1000 });
+    (
+      window as Window & {
+        requestIdleCallback: (cb: () => void, opts?: { timeout?: number }) => number;
+      }
+    ).requestIdleCallback(callback, { timeout: timeouts[priority] + 1000 });
   } else {
     setTimeout(callback, timeouts[priority]);
   }

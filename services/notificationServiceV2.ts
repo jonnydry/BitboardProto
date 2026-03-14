@@ -14,14 +14,14 @@ import { logger } from './loggingService';
 // ============================================
 
 export enum NotificationType {
-  MENTION = 'mention',           // Someone mentioned you in a post/comment
-  REPLY = 'reply',               // Someone replied to your post/comment
-  FOLLOW = 'follow',             // Someone followed you
-  DIRECT_MESSAGE = 'dm',         // New direct message
-  VOTE = 'vote',                 // Someone voted on your post/comment
-  REPOST = 'repost',             // Someone reposted your content
-  BOARD_ACTIVITY = 'board',      // Activity in boards you follow
-  SYSTEM = 'system',             // System announcements
+  MENTION = 'mention', // Someone mentioned you in a post/comment
+  REPLY = 'reply', // Someone replied to your post/comment
+  FOLLOW = 'follow', // Someone followed you
+  DIRECT_MESSAGE = 'dm', // New direct message
+  VOTE = 'vote', // Someone voted on your post/comment
+  REPOST = 'repost', // Someone reposted your content
+  BOARD_ACTIVITY = 'board', // Activity in boards you follow
+  SYSTEM = 'system', // System announcements
 }
 
 export interface Notification {
@@ -29,20 +29,20 @@ export interface Notification {
   type: NotificationType;
   timestamp: number;
   isRead: boolean;
-  
+
   // Source information
   fromPubkey?: string;
   fromDisplayName?: string;
   fromAvatar?: string;
-  
+
   // Content reference
-  targetEventId?: string;       // The event being referenced (your post that got a reply, etc.)
-  sourceEventId?: string;       // The event that triggered the notification (the reply itself)
-  
+  targetEventId?: string; // The event being referenced (your post that got a reply, etc.)
+  sourceEventId?: string; // The event that triggered the notification (the reply itself)
+
   // Preview content
-  preview?: string;             // Short preview of the notification content
-  title?: string;               // Title for system notifications
-  
+  preview?: string; // Short preview of the notification content
+  title?: string; // Title for system notifications
+
   // Deep link
   deepLink?: {
     viewMode: string;
@@ -62,17 +62,17 @@ export interface NotificationPreferences {
   enableReposts: boolean;
   enableBoardActivity: boolean;
   enableSystemNotifications: boolean;
-  
+
   // Push notification settings
   pushEnabled: boolean;
   pushSound: boolean;
   pushVibrate: boolean;
-  
+
   // Quiet hours
   quietHoursEnabled: boolean;
-  quietHoursStart: number;      // Hour (0-23)
-  quietHoursEnd: number;        // Hour (0-23)
-  
+  quietHoursStart: number; // Hour (0-23)
+  quietHoursEnd: number; // Hour (0-23)
+
   // Filtering
   mutedPubkeys: string[];
   mutedBoards: string[];
@@ -93,19 +93,19 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
   enableReplies: true,
   enableFollows: true,
   enableDMs: true,
-  enableVotes: false,           // Off by default (can be noisy)
+  enableVotes: false, // Off by default (can be noisy)
   enableReposts: true,
-  enableBoardActivity: false,   // Off by default
+  enableBoardActivity: false, // Off by default
   enableSystemNotifications: true,
-  
-  pushEnabled: false,           // Requires explicit opt-in
+
+  pushEnabled: false, // Requires explicit opt-in
   pushSound: true,
   pushVibrate: true,
-  
+
   quietHoursEnabled: false,
-  quietHoursStart: 22,          // 10 PM
-  quietHoursEnd: 8,             // 8 AM
-  
+  quietHoursStart: 22, // 10 PM
+  quietHoursEnd: 8, // 8 AM
+
   mutedPubkeys: [],
   mutedBoards: [],
 };
@@ -121,6 +121,7 @@ class NotificationServiceV2 {
   private onNotification: ((notification: Notification) => void) | null = null;
   private _unreadCount = 0;
   private pushSubscription: PushSubscription | null = null;
+  private listeners = new Set<() => void>();
 
   // ----------------------------------------
   // INITIALIZATION
@@ -129,13 +130,32 @@ class NotificationServiceV2 {
   async initialize(userPubkey: string): Promise<void> {
     this.currentUserPubkey = userPubkey;
     this.loadFromStorage();
-    
+
     // Request push permission if enabled
     if (this.preferences.pushEnabled) {
       await this.initializePushNotifications();
     }
-    
+
+    this.notifyListeners();
+
     logger.info('Notifications', `Initialized for ${userPubkey.slice(0, 8)}...`);
+  }
+
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notifyListeners(): void {
+    this.listeners.forEach((listener) => {
+      try {
+        listener();
+      } catch (error) {
+        logger.warn('Notifications', 'Listener failed', error);
+      }
+    });
   }
 
   /**
@@ -154,16 +174,16 @@ class NotificationServiceV2 {
    */
   createFromEvent(event: NostrEvent, type: NotificationType): Notification | null {
     if (!this.currentUserPubkey) return null;
-    
+
     // Check if this notification type is enabled
     if (!this.isTypeEnabled(type)) return null;
-    
+
     // Check muted pubkeys
     if (this.preferences.mutedPubkeys.includes(event.pubkey)) return null;
-    
+
     // Check quiet hours
     if (this.isQuietHours()) return null;
-    
+
     // Check if notification already exists
     const existingId = `${type}-${event.id}`;
     if (this.notifications.has(existingId)) return null;
@@ -179,14 +199,14 @@ class NotificationServiceV2 {
     };
 
     // Extract target event ID for replies/mentions
-    const eTag = event.tags.find(t => t[0] === 'e');
+    const eTag = event.tags.find((t) => t[0] === 'e');
     if (eTag) {
       notification.targetEventId = eTag[1];
     }
 
     // Add to notifications
     this.addNotification(notification);
-    
+
     return notification;
   }
 
@@ -299,15 +319,17 @@ class NotificationServiceV2 {
     });
   }
 
-  private createNotification(args: Partial<Notification> & { type: NotificationType }): Notification | null {
+  private createNotification(
+    args: Partial<Notification> & { type: NotificationType },
+  ): Notification | null {
     if (!this.currentUserPubkey) return null;
-    
+
     // Check if type is enabled
     if (!this.isTypeEnabled(args.type)) return null;
-    
+
     // Check muted pubkeys
     if (args.fromPubkey && this.preferences.mutedPubkeys.includes(args.fromPubkey)) return null;
-    
+
     // Check quiet hours
     if (this.isQuietHours()) return null;
 
@@ -329,20 +351,21 @@ class NotificationServiceV2 {
 
     this.notifications.set(notification.id, notification);
     this._unreadCount++;
-    
+
     // Trigger callback
     if (this.onNotification) {
       this.onNotification(notification);
     }
-    
+
     // Show push notification if enabled
     if (this.preferences.pushEnabled && !this.isQuietHours()) {
       this.showPushNotification(notification);
     }
-    
+
     // Save to storage
     this.saveToStorage();
-    
+    this.notifyListeners();
+
     // Trim old notifications (keep last 500)
     this.trimNotifications(500);
   }
@@ -354,27 +377,29 @@ class NotificationServiceV2 {
   /**
    * Get all notifications, sorted by timestamp (newest first)
    */
-  getAll(opts: { limit?: number; type?: NotificationType; unreadOnly?: boolean } = {}): Notification[] {
+  getAll(
+    opts: { limit?: number; type?: NotificationType; unreadOnly?: boolean } = {},
+  ): Notification[] {
     let notifications = Array.from(this.notifications.values());
-    
+
     // Filter by type
     if (opts.type) {
-      notifications = notifications.filter(n => n.type === opts.type);
+      notifications = notifications.filter((n) => n.type === opts.type);
     }
-    
+
     // Filter unread only
     if (opts.unreadOnly) {
-      notifications = notifications.filter(n => !n.isRead);
+      notifications = notifications.filter((n) => !n.isRead);
     }
-    
+
     // Sort by timestamp (newest first)
     notifications.sort((a, b) => b.timestamp - a.timestamp);
-    
+
     // Apply limit
     if (opts.limit) {
       notifications = notifications.slice(0, opts.limit);
     }
-    
+
     return notifications;
   }
 
@@ -400,7 +425,7 @@ class NotificationServiceV2 {
       [NotificationType.SYSTEM]: 0,
     };
 
-    this.notifications.forEach(n => {
+    this.notifications.forEach((n) => {
       byType[n.type]++;
     });
 
@@ -424,6 +449,7 @@ class NotificationServiceV2 {
       notification.isRead = true;
       this._unreadCount = Math.max(0, this._unreadCount - 1);
       this.saveToStorage();
+      this.notifyListeners();
     }
   }
 
@@ -431,24 +457,26 @@ class NotificationServiceV2 {
    * Mark all notifications as read
    */
   markAllAsRead(): void {
-    this.notifications.forEach(n => {
+    this.notifications.forEach((n) => {
       n.isRead = true;
     });
     this._unreadCount = 0;
     this.saveToStorage();
+    this.notifyListeners();
   }
 
   /**
    * Mark notifications of a specific type as read
    */
   markTypeAsRead(type: NotificationType): void {
-    this.notifications.forEach(n => {
+    this.notifications.forEach((n) => {
       if (n.type === type && !n.isRead) {
         n.isRead = true;
         this._unreadCount = Math.max(0, this._unreadCount - 1);
       }
     });
     this.saveToStorage();
+    this.notifyListeners();
   }
 
   /**
@@ -462,6 +490,7 @@ class NotificationServiceV2 {
       }
       this.notifications.delete(id);
       this.saveToStorage();
+      this.notifyListeners();
     }
   }
 
@@ -472,6 +501,7 @@ class NotificationServiceV2 {
     this.notifications.clear();
     this._unreadCount = 0;
     this.saveToStorage();
+    this.notifyListeners();
   }
 
   // ----------------------------------------
@@ -490,9 +520,9 @@ class NotificationServiceV2 {
    */
   async updatePreferences(updates: Partial<NotificationPreferences>): Promise<void> {
     const oldPushEnabled = this.preferences.pushEnabled;
-    
+
     this.preferences = { ...this.preferences, ...updates };
-    
+
     // Handle push notification toggle
     if (updates.pushEnabled !== undefined && updates.pushEnabled !== oldPushEnabled) {
       if (updates.pushEnabled) {
@@ -501,8 +531,9 @@ class NotificationServiceV2 {
         await this.disablePushNotifications();
       }
     }
-    
+
     this.saveToStorage();
+    this.notifyListeners();
     logger.info('Notifications', 'Preferences updated');
   }
 
@@ -513,6 +544,7 @@ class NotificationServiceV2 {
     if (!this.preferences.mutedPubkeys.includes(pubkey)) {
       this.preferences.mutedPubkeys.push(pubkey);
       this.saveToStorage();
+      this.notifyListeners();
     }
   }
 
@@ -520,8 +552,9 @@ class NotificationServiceV2 {
    * Unmute a pubkey
    */
   unmutePubkey(pubkey: string): void {
-    this.preferences.mutedPubkeys = this.preferences.mutedPubkeys.filter(p => p !== pubkey);
+    this.preferences.mutedPubkeys = this.preferences.mutedPubkeys.filter((p) => p !== pubkey);
     this.saveToStorage();
+    this.notifyListeners();
   }
 
   // ----------------------------------------
@@ -639,32 +672,31 @@ class NotificationServiceV2 {
 
   private isQuietHours(): boolean {
     if (!this.preferences.quietHoursEnabled) return false;
-    
+
     const now = new Date();
     const hour = now.getHours();
     const start = this.preferences.quietHoursStart;
     const end = this.preferences.quietHoursEnd;
-    
+
     // Handle overnight quiet hours (e.g., 22:00 - 08:00)
     if (start > end) {
       return hour >= start || hour < end;
     }
-    
+
     return hour >= start && hour < end;
   }
 
   private extractPreview(event: NostrEvent, _type: NotificationType): string {
     const content = event.content || '';
     const maxLength = 100;
-    
+
     if (content.length <= maxLength) return content;
     return content.slice(0, maxLength) + '...';
   }
 
   private getNotificationTitle(notification: Notification): string {
-    const fromName = notification.fromDisplayName || 
-      notification.fromPubkey?.slice(0, 8) || 
-      'Someone';
+    const fromName =
+      notification.fromDisplayName || notification.fromPubkey?.slice(0, 8) || 'Someone';
 
     switch (notification.type) {
       case NotificationType.MENTION:
@@ -692,11 +724,12 @@ class NotificationServiceV2 {
     if (this.notifications.size <= maxCount) return;
 
     // Sort by timestamp and keep the newest
-    const sorted = Array.from(this.notifications.values())
-      .sort((a, b) => b.timestamp - a.timestamp);
-    
-    const toKeep = new Set(sorted.slice(0, maxCount).map(n => n.id));
-    
+    const sorted = Array.from(this.notifications.values()).sort(
+      (a, b) => b.timestamp - a.timestamp,
+    );
+
+    const toKeep = new Set(sorted.slice(0, maxCount).map((n) => n.id));
+
     this.notifications.forEach((_, id) => {
       if (!toKeep.has(id)) {
         this.notifications.delete(id);
@@ -704,8 +737,7 @@ class NotificationServiceV2 {
     });
 
     // Recalculate unread count
-    this._unreadCount = Array.from(this.notifications.values())
-      .filter(n => !n.isRead).length;
+    this._unreadCount = Array.from(this.notifications.values()).filter((n) => !n.isRead).length;
   }
 
   // ----------------------------------------
@@ -726,8 +758,9 @@ class NotificationServiceV2 {
           for (const n of data.notifications || []) {
             this.notifications.set(n.id, n);
           }
-          this._unreadCount = Array.from(this.notifications.values())
-            .filter(n => !n.isRead).length;
+          this._unreadCount = Array.from(this.notifications.values()).filter(
+            (n) => !n.isRead,
+          ).length;
         }
       }
 
@@ -777,6 +810,9 @@ class NotificationServiceV2 {
     this.notifications.clear();
     this.currentUserPubkey = null;
     this._unreadCount = 0;
+    this.onNotification = null;
+    this.pushSubscription = null;
+    this.listeners.clear();
     logger.info('Notifications', 'Service cleaned up');
   }
 }

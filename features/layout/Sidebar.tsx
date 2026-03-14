@@ -1,5 +1,24 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { HelpCircle, Hash, Lock, Globe, Eye, Key, MapPin, Radio, Activity, User, ChevronDown, ChevronRight, Shield, AlertTriangle, Trash2, Wifi, WifiOff, RefreshCw, Search } from 'lucide-react';
+import React, { useEffect, useState, useMemo } from 'react';
+import {
+  HelpCircle,
+  Hash,
+  Lock,
+  Globe,
+  Eye,
+  Key,
+  MapPin,
+  Radio,
+  Activity,
+  User,
+  ChevronDown,
+  ChevronRight,
+  Shield,
+  AlertTriangle,
+  Trash2,
+  Wifi,
+  WifiOff,
+  RefreshCw,
+} from 'lucide-react';
 import type { Board, UserState } from '../../types';
 import { BoardType, ThemeId, ViewMode } from '../../types';
 import { geonetDiscoveryService, type GeoChannel } from '../../services/geonetDiscoveryService';
@@ -24,21 +43,29 @@ function CollapsibleSection({
   children: React.ReactNode;
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  const contentId = React.useId();
 
   return (
     <div className="border border-terminal-dim p-2 md:p-3 bg-terminal-bg shadow-hard">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`w-full font-bold border-b border-terminal-dim mb-2 pb-1 text-xs md:text-sm flex items-center gap-2 ${mobileOnly ? 'md:cursor-default' : ''}`}
+        aria-expanded={isOpen}
+        aria-controls={contentId}
       >
         <Icon size={14} />
-        <span className="flex-1 text-left">{">>"} {title}</span>
+        <span className="flex-1 text-left">
+          {'>>'} {title}
+        </span>
         {badge}
         <span className={`transition-transform ${mobileOnly ? 'md:hidden' : ''}`}>
           {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </span>
       </button>
-      <div className={`${isOpen ? 'block' : 'hidden'} ${mobileOnly ? 'md:block' : ''}`}>
+      <div
+        id={contentId}
+        className={`${isOpen ? 'block' : 'hidden'} ${mobileOnly ? 'md:block' : ''}`}
+      >
         {children}
       </div>
     </div>
@@ -70,7 +97,6 @@ export function Sidebar(props: {
     theme,
     setTheme,
     getThemeColor,
-    isNostrConnected,
     viewMode,
     activeBoardId,
     feedFilter,
@@ -87,8 +113,6 @@ export function Sidebar(props: {
   // Nearby activity state
   const [nearbyActivity, setNearbyActivity] = useState<GeoChannel[]>([]);
   const [isLoadingActivity, setIsLoadingActivity] = useState(false);
-  // Mobile state: show more boards
-  const [showAllBoards, setShowAllBoards] = useState(false);
   // Board search filter
   const [boardSearchQuery, setBoardSearchQuery] = useState('');
   // Pagination for boards
@@ -115,9 +139,9 @@ export function Sidebar(props: {
   // Calculate relay health metrics
   const relayMetrics = useMemo(() => {
     const total = relayStatuses.length;
-    const connected = relayStatuses.filter(s => s.isConnected).length;
-    const errored = relayStatuses.filter(s => s.lastError && !s.isConnected).length;
-    const reconnecting = relayStatuses.filter(s => s.nextReconnectTime && !s.isConnected).length;
+    const connected = relayStatuses.filter((s) => s.isConnected).length;
+    const errored = relayStatuses.filter((s) => s.lastError && !s.isConnected).length;
+    const reconnecting = relayStatuses.filter((s) => s.nextReconnectTime && !s.isConnected).length;
 
     // Overall health: green if >50% connected, yellow if >0 connected, red if none
     let healthStatus: 'good' | 'degraded' | 'offline' = 'offline';
@@ -144,10 +168,7 @@ export function Sidebar(props: {
       if (cachedPosition) {
         setIsLoadingActivity(true);
         geonetDiscoveryService
-          .discoverNearbyChannels(
-            cachedPosition.coords.latitude,
-            cachedPosition.coords.longitude
-          )
+          .discoverNearbyChannels(cachedPosition.coords.latitude, cachedPosition.coords.longitude)
           .then((result) => {
             setNearbyActivity(result.channels);
           })
@@ -164,24 +185,19 @@ export function Sidebar(props: {
   // Calculate total nearby posts
   const totalNearbyPosts = nearbyActivity.reduce((sum, ch) => sum + ch.postCount, 0);
   const recentlyActiveCount = nearbyActivity.filter((ch) =>
-    geonetDiscoveryService.isRecentlyActive(ch)
+    geonetDiscoveryService.isRecentlyActive(ch),
   ).length;
-
-  // Board limits for mobile vs desktop
-  const MOBILE_BOARD_LIMIT = 3;
-  const DESKTOP_BOARD_LIMIT = 6;
 
   // Get encrypted boards the user has keys for
   const encryptedBoards = useMemo(() => {
     const encryptedIds = encryptedBoardService.getEncryptedBoardIds();
     return encryptedIds
-      .map(id => boardsById.get(id))
+      .map((id) => boardsById.get(id))
       .filter((board): board is Board => board !== undefined && board.isEncrypted === true);
   }, [boardsById]);
 
   return (
     <aside className="order-first md:order-none space-y-2 md:space-y-4">
-      
       {/* Connection Status - Always visible but compact on mobile */}
       <div className="border border-terminal-dim p-2 md:p-3 bg-terminal-bg shadow-hard relative overflow-hidden group">
         <div className="absolute inset-0 bg-terminal-dim/5 translate-x-[-100%] group-hover:translate-x-full transition-transform duration-1000 pointer-events-none" />
@@ -190,15 +206,23 @@ export function Sidebar(props: {
           <div className="flex gap-1 items-center">
             {/* Relay health indicator dots */}
             {relayMetrics.healthStatus === 'good' && (
-              <div className="w-2 h-2 rounded-sm bg-terminal-text animate-pulse" title="Relays healthy" />
+              <div
+                className="w-2 h-2 rounded-sm bg-terminal-text animate-pulse"
+                title="Relays healthy"
+              />
             )}
             {relayMetrics.healthStatus === 'degraded' && (
-              <div className="w-2 h-2 rounded-sm bg-yellow-500 animate-pulse" title="Some relays offline" />
+              <div
+                className="w-2 h-2 rounded-sm bg-yellow-500 animate-pulse"
+                title="Some relays offline"
+              />
             )}
             {relayMetrics.healthStatus === 'offline' && (
               <div className="w-2 h-2 rounded-sm bg-terminal-alert" title="All relays offline" />
             )}
-            <div className={`w-2 h-2 rounded-sm ${userState.identity ? 'bg-terminal-text' : 'bg-terminal-dim/30'}`} />
+            <div
+              className={`w-2 h-2 rounded-sm ${userState.identity ? 'bg-terminal-text' : 'bg-terminal-dim/30'}`}
+            />
           </div>
         </div>
         <div className="font-mono text-[10px] text-terminal-dim leading-tight">
@@ -211,13 +235,20 @@ export function Sidebar(props: {
               {relayMetrics.connected > 0 ? <Wifi size={10} /> : <WifiOff size={10} />}
               RELAY_LINK:
             </span>
-            <span className={`flex items-center gap-1 ${
-              relayMetrics.healthStatus === 'good' ? 'text-terminal-text' :
-              relayMetrics.healthStatus === 'degraded' ? 'text-yellow-500' :
-              'text-terminal-alert'
-            }`}>
+            <span
+              className={`flex items-center gap-1 ${
+                relayMetrics.healthStatus === 'good'
+                  ? 'text-terminal-text'
+                  : relayMetrics.healthStatus === 'degraded'
+                    ? 'text-yellow-500'
+                    : 'text-terminal-alert'
+              }`}
+            >
               [{relayMetrics.connected}/{relayMetrics.total}]
-              <ChevronDown size={10} className={`transition-transform ${showRelayDetails ? 'rotate-180' : ''}`} />
+              <ChevronDown
+                size={10}
+                className={`transition-transform ${showRelayDetails ? 'rotate-180' : ''}`}
+              />
             </span>
           </button>
 
@@ -228,7 +259,9 @@ export function Sidebar(props: {
                 const urlShort = relay.url.replace('wss://', '').replace('ws://', '').split('/')[0];
                 return (
                   <div key={relay.url} className="flex items-center justify-between gap-2">
-                    <span className="truncate flex-1" title={relay.url}>{urlShort}</span>
+                    <span className="truncate flex-1" title={relay.url}>
+                      {urlShort}
+                    </span>
                     <span className="flex items-center gap-1 flex-shrink-0">
                       {relay.isConnected ? (
                         <span className="text-terminal-text flex items-center gap-1">
@@ -285,29 +318,30 @@ export function Sidebar(props: {
                 onClick={() => setFeedFilterRaw(id as typeof feedFilter)}
                 style={feedFilter === id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
                 className={`text-left text-xs md:text-sm px-2 py-1.5 transition-all flex items-center gap-1 md:gap-2 group cursor-pointer whitespace-nowrap flex-shrink-0
-                  ${feedFilter === id 
-                    ? 'bg-terminal-text font-bold border border-terminal-text' 
-                    : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10 border border-transparent md:border-none'
+                  ${
+                    feedFilter === id
+                      ? 'bg-terminal-text font-bold border border-terminal-text'
+                      : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10 border border-transparent md:border-none'
                   }
                 `}
               >
-                <span 
+                <span
                   style={feedFilter === id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
                   className={`hidden md:inline opacity-0 group-hover:opacity-100 transition-opacity ${feedFilter === id ? 'opacity-100' : 'text-terminal-text'}`}
                 >
                   {'>'}
                 </span>
-                <Icon 
-                  size={12} 
+                <Icon
+                  size={12}
                   style={feedFilter === id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
-                /> 
-                <span 
+                />
+                <span
                   style={feedFilter === id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
                   className="md:hidden"
                 >
                   {label}
                 </span>
-                <span 
+                <span
                   style={feedFilter === id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
                   className="hidden md:inline"
                 >
@@ -320,9 +354,12 @@ export function Sidebar(props: {
       )}
 
       {/* Topic Board Directory - Collapsible on mobile */}
-      <CollapsibleSection title="TOPIC_NET" icon={Hash} defaultOpen={false} badge={
-        <span className="text-[10px] text-terminal-dim">({topicBoards.length})</span>
-      }>
+      <CollapsibleSection
+        title="TOPIC_NET"
+        icon={Hash}
+        defaultOpen={false}
+        badge={<span className="text-[10px] text-terminal-dim">({topicBoards.length})</span>}
+      >
         {/* Board search */}
         {topicBoards.length > 5 && (
           <div className="mb-2">
@@ -344,28 +381,37 @@ export function Sidebar(props: {
             onClick={() => navigateToBoard(null)}
             style={activeBoardId === null ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
             className={`text-left text-xs md:text-sm px-2 py-1.5 transition-all flex items-center gap-2 group
-              ${activeBoardId === null
-                ? 'bg-terminal-text font-bold'
-                : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
+              ${
+                activeBoardId === null
+                  ? 'bg-terminal-text font-bold'
+                  : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
               }
             `}
           >
             <Globe
               size={12}
-              style={activeBoardId === null ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+              style={
+                activeBoardId === null ? { color: 'rgb(var(--color-terminal-bg))' } : undefined
+              }
             />
             <span
-              style={activeBoardId === null ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+              style={
+                activeBoardId === null ? { color: 'rgb(var(--color-terminal-bg))' } : undefined
+              }
               className="truncate"
             >
               GLOBAL_NET
             </span>
           </button>
           {(() => {
-            const publicBoards = topicBoards.filter((b) => b.type === BoardType.TOPIC && b.isPublic);
+            const publicBoards = topicBoards.filter(
+              (b) => b.type === BoardType.TOPIC && b.isPublic,
+            );
             // Filter by search query
             const filteredBoards = boardSearchQuery
-              ? publicBoards.filter(b => b.name.toLowerCase().includes(boardSearchQuery.toLowerCase()))
+              ? publicBoards.filter((b) =>
+                  b.name.toLowerCase().includes(boardSearchQuery.toLowerCase()),
+                )
               : publicBoards;
             // Paginate
             const visibleBoards = filteredBoards.slice(0, visibleBoardCount);
@@ -377,22 +423,35 @@ export function Sidebar(props: {
                   <button
                     key={board.id}
                     onClick={() => navigateToBoard(board.id)}
-                    style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                    style={
+                      activeBoardId === board.id
+                        ? { color: 'rgb(var(--color-terminal-bg))' }
+                        : undefined
+                    }
                     className={`text-left text-xs md:text-sm px-2 py-1 transition-all flex items-center gap-2 group w-full
-                      ${activeBoardId === board.id
-                        ? 'bg-terminal-text font-bold'
-                        : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
+                      ${
+                        activeBoardId === board.id
+                          ? 'bg-terminal-text font-bold'
+                          : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
                       }
                     `}
                   >
                     <span
-                      style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                      style={
+                        activeBoardId === board.id
+                          ? { color: 'rgb(var(--color-terminal-bg))' }
+                          : undefined
+                      }
                       className={`shrink-0 text-[10px] opacity-50 group-hover:opacity-100 ${activeBoardId === board.id ? 'opacity-100' : ''}`}
                     >
                       //
                     </span>
                     <span
-                      style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                      style={
+                        activeBoardId === board.id
+                          ? { color: 'rgb(var(--color-terminal-bg))' }
+                          : undefined
+                      }
                       className="truncate"
                     >
                       {board.name}
@@ -402,7 +461,7 @@ export function Sidebar(props: {
                 {/* Show more toggle */}
                 {hiddenCount > 0 && (
                   <button
-                    onClick={() => setVisibleBoardCount(v => v + 10)}
+                    onClick={() => setVisibleBoardCount((v) => v + 10)}
                     className="text-left text-xs px-2 py-1.5 text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10 transition-all flex items-center gap-2 group w-full"
                   >
                     <span className="shrink-0 text-[10px] opacity-50 group-hover:opacity-100">
@@ -428,15 +487,17 @@ export function Sidebar(props: {
             );
           })()}
           <div className="border-t border-terminal-dim/30 my-2"></div>
-          {topicBoards.filter((b) => b.type === BoardType.TOPIC && !b.isPublic).map((board) => (
-            <button
-              key={board.id}
-              disabled
-              className="text-left text-xs md:text-sm px-2 py-1 text-terminal-dim/30 flex items-center gap-2 cursor-not-allowed italic"
-            >
-              <Lock size={10} /> {board.name}
-            </button>
-          ))}
+          {topicBoards
+            .filter((b) => b.type === BoardType.TOPIC && !b.isPublic)
+            .map((board) => (
+              <button
+                key={board.id}
+                disabled
+                className="text-left text-xs md:text-sm px-2 py-1 text-terminal-dim/30 flex items-center gap-2 cursor-not-allowed italic"
+              >
+                <Lock size={10} /> {board.name}
+              </button>
+            ))}
         </div>
         <button
           onClick={() => onSetViewMode(ViewMode.CREATE_BOARD)}
@@ -454,26 +515,43 @@ export function Sidebar(props: {
               <button
                 key={board.id}
                 onClick={() => navigateToBoard(board.id)}
-                style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                style={
+                  activeBoardId === board.id
+                    ? { color: 'rgb(var(--color-terminal-bg))' }
+                    : undefined
+                }
                 className={`text-left text-xs md:text-sm px-2 py-1.5 transition-all flex items-center gap-2 group w-full
-                  ${activeBoardId === board.id
-                    ? 'bg-terminal-text font-bold'
-                    : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
+                  ${
+                    activeBoardId === board.id
+                      ? 'bg-terminal-text font-bold'
+                      : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
                   }
                 `}
               >
                 <Lock
                   size={10}
-                  style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                  style={
+                    activeBoardId === board.id
+                      ? { color: 'rgb(var(--color-terminal-bg))' }
+                      : undefined
+                  }
                 />
                 <span
-                  style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                  style={
+                    activeBoardId === board.id
+                      ? { color: 'rgb(var(--color-terminal-bg))' }
+                      : undefined
+                  }
                   className="truncate flex-1"
                 >
                   {board.name}
                 </span>
                 <span
-                  style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                  style={
+                    activeBoardId === board.id
+                      ? { color: 'rgb(var(--color-terminal-bg))' }
+                      : undefined
+                  }
                   className="text-[9px] opacity-60"
                 >
                   [DECRYPTED]
@@ -492,7 +570,7 @@ export function Sidebar(props: {
                 <AlertTriangle size={10} />
                 <span className="uppercase font-bold">Failed Keys</span>
               </div>
-              {Array.from(decryptionFailedBoardIds).map(boardId => {
+              {Array.from(decryptionFailedBoardIds).map((boardId) => {
                 const board = boardsById.get(boardId);
                 return (
                   <div
@@ -523,21 +601,25 @@ export function Sidebar(props: {
       )}
 
       {/* Location Channels - Collapsible on mobile */}
-      <CollapsibleSection 
-        title="GEO_NET" 
-        icon={MapPin} 
+      <CollapsibleSection
+        title="GEO_NET"
+        icon={MapPin}
         defaultOpen={false}
-        badge={totalNearbyPosts > 0 ? (
-          <span className="flex items-center gap-1 text-[10px] text-terminal-text font-normal">
-            <Activity size={10} className={recentlyActiveCount > 0 ? 'animate-pulse' : ''} />
-            {totalNearbyPosts}
-          </span>
-        ) : undefined}
+        badge={
+          totalNearbyPosts > 0 ? (
+            <span className="flex items-center gap-1 text-[10px] text-terminal-text font-normal">
+              <Activity size={10} className={recentlyActiveCount > 0 ? 'animate-pulse' : ''} />
+              {totalNearbyPosts}
+            </span>
+          ) : undefined
+        }
       >
         {/* Nearby Activity Summary */}
         {nearbyActivity.length > 0 && (
           <div className="mb-2 md:mb-3 p-1.5 md:p-2 bg-terminal-dim/10 border border-terminal-dim/30">
-            <div className="text-[9px] md:text-[10px] text-terminal-dim uppercase mb-1">Active Channels</div>
+            <div className="text-[9px] md:text-[10px] text-terminal-dim uppercase mb-1">
+              Active Channels
+            </div>
             <div className="flex flex-wrap gap-1">
               {nearbyActivity.slice(0, 3).map((channel) => (
                 <button
@@ -573,35 +655,50 @@ export function Sidebar(props: {
             geohashBoards.map((board) => {
               // Find activity for this board's geohash
               const activity = nearbyActivity.find((ch) => ch.geohash === board.geohash);
-              
+
               return (
                 <button
                   key={board.id}
                   onClick={() => navigateToBoard(board.id)}
-                  style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                  style={
+                    activeBoardId === board.id
+                      ? { color: 'rgb(var(--color-terminal-bg))' }
+                      : undefined
+                  }
                   className={`text-left text-xs md:text-sm px-2 py-1 transition-all flex items-center gap-2 group w-full
-                    ${activeBoardId === board.id 
-                      ? 'bg-terminal-text font-bold' 
-                      : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
+                    ${
+                      activeBoardId === board.id
+                        ? 'bg-terminal-text font-bold'
+                        : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
                     }
                   `}
                 >
-                  <MapPin 
-                    size={10} 
-                    style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
-                  /> 
-                  <span 
-                    style={activeBoardId === board.id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
+                  <MapPin
+                    size={10}
+                    style={
+                      activeBoardId === board.id
+                        ? { color: 'rgb(var(--color-terminal-bg))' }
+                        : undefined
+                    }
+                  />
+                  <span
+                    style={
+                      activeBoardId === board.id
+                        ? { color: 'rgb(var(--color-terminal-bg))' }
+                        : undefined
+                    }
                     className="truncate flex-1"
                   >
                     #{board.geohash}
                   </span>
                   {activity && activity.postCount > 0 && (
-                    <span className={`text-[10px] px-1 ${
-                      activeBoardId === board.id 
-                        ? 'bg-terminal-bg/20' 
-                        : 'bg-terminal-dim/30 text-terminal-text'
-                    }`}>
+                    <span
+                      className={`text-[10px] px-1 ${
+                        activeBoardId === board.id
+                          ? 'bg-terminal-bg/20'
+                          : 'bg-terminal-dim/30 text-terminal-text'
+                      }`}
+                    >
                       {activity.postCount}
                     </span>
                   )}
@@ -627,9 +724,10 @@ export function Sidebar(props: {
               key={t}
               onClick={() => setTheme(t)}
               className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-1.5 font-mono text-[10px] transition-all border rounded
-                ${theme === t 
-                  ? 'border-terminal-text bg-terminal-dim/10 text-terminal-text' 
-                  : 'border-terminal-dim/30 text-terminal-dim'
+                ${
+                  theme === t
+                    ? 'border-terminal-text bg-terminal-dim/10 text-terminal-text'
+                    : 'border-terminal-dim/30 text-terminal-dim'
                 }
               `}
               title={t === ThemeId.BITBORING ? 'BITBORING (UGLY MODE)' : String(t).toUpperCase()}
@@ -637,14 +735,19 @@ export function Sidebar(props: {
               <span
                 className={`w-3 h-3 rounded-full transition-transform ${theme === t ? 'scale-110' : 'scale-100'}`}
                 style={{
-                  background: t === ThemeId.PATRIOT
-                    ? 'linear-gradient(90deg, #ff1428 0 33%, #ffffff 33% 66%, #0a4bff 66% 100%)'
-                    : undefined,
+                  background:
+                    t === ThemeId.PATRIOT
+                      ? 'linear-gradient(90deg, #ff1428 0 33%, #ffffff 33% 66%, #0a4bff 66% 100%)'
+                      : undefined,
                   backgroundColor: t === ThemeId.PATRIOT ? undefined : getThemeColor(t),
-                  border: (t === ThemeId.BITBORING || t === ThemeId.PATRIOT || t === ThemeId.SAKURA) ? '1px solid #888' : 'none',
-                  boxShadow: theme === t
-                    ? `0 0 5px ${t === ThemeId.PATRIOT ? '#ffffff' : getThemeColor(t)}`
-                    : 'none'
+                  border:
+                    t === ThemeId.BITBORING || t === ThemeId.PATRIOT || t === ThemeId.SAKURA
+                      ? '1px solid #888'
+                      : 'none',
+                  boxShadow:
+                    theme === t
+                      ? `0 0 5px ${t === ThemeId.PATRIOT ? '#ffffff' : getThemeColor(t)}`
+                      : 'none',
                 }}
               />
               <span className="uppercase">{t}</span>
@@ -658,9 +761,10 @@ export function Sidebar(props: {
               key={t}
               onClick={() => setTheme(t)}
               className={`group flex items-center gap-2 px-2 py-1.5 font-mono text-xs transition-all border
-                ${theme === t 
-                  ? 'border-terminal-text bg-terminal-dim/10 text-terminal-text' 
-                  : 'border-transparent hover:border-terminal-dim/50 text-terminal-dim'
+                ${
+                  theme === t
+                    ? 'border-terminal-text bg-terminal-dim/10 text-terminal-text'
+                    : 'border-transparent hover:border-terminal-dim/50 text-terminal-dim'
                 }
               `}
               title={t === ThemeId.BITBORING ? 'BITBORING (UGLY MODE)' : String(t).toUpperCase()}
@@ -668,19 +772,22 @@ export function Sidebar(props: {
               <span
                 className={`w-2 h-2 rounded-full transition-transform ${theme === t ? 'scale-125' : 'scale-100 group-hover:scale-110'}`}
                 style={{
-                  background: t === ThemeId.PATRIOT
-                    ? 'linear-gradient(90deg, #ff1428 0 33%, #ffffff 33% 66%, #0a4bff 66% 100%)'
-                    : undefined,
+                  background:
+                    t === ThemeId.PATRIOT
+                      ? 'linear-gradient(90deg, #ff1428 0 33%, #ffffff 33% 66%, #0a4bff 66% 100%)'
+                      : undefined,
                   backgroundColor: t === ThemeId.PATRIOT ? undefined : getThemeColor(t),
-                  border: (t === ThemeId.BITBORING || t === ThemeId.PATRIOT || t === ThemeId.SAKURA) ? '1px solid #888' : 'none',
-                  boxShadow: theme === t
-                    ? `0 0 5px ${t === ThemeId.PATRIOT ? '#ffffff' : getThemeColor(t)}`
-                    : 'none'
+                  border:
+                    t === ThemeId.BITBORING || t === ThemeId.PATRIOT || t === ThemeId.SAKURA
+                      ? '1px solid #888'
+                      : 'none',
+                  boxShadow:
+                    theme === t
+                      ? `0 0 5px ${t === ThemeId.PATRIOT ? '#ffffff' : getThemeColor(t)}`
+                      : 'none',
                 }}
               />
-              <span className="uppercase whitespace-nowrap overflow-hidden text-ellipsis">
-                {t}
-              </span>
+              <span className="uppercase whitespace-nowrap overflow-hidden text-ellipsis">{t}</span>
             </button>
           ))}
         </div>
@@ -689,11 +796,13 @@ export function Sidebar(props: {
       {/* ID Config - Hidden on mobile (accessible via drawer) */}
       <div className="hidden md:block border border-terminal-dim p-3 bg-terminal-bg shadow-hard">
         <h3 className="font-bold border-b border-terminal-dim mb-2 pb-1 text-sm flex items-center gap-2">
-          <HelpCircle size={14} /> {">>"} ID_CONFIG
+          <HelpCircle size={14} /> {'>>'} ID_CONFIG
         </h3>
         <div className="flex flex-col gap-2">
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-terminal-dim uppercase font-bold">Display_Handle:</label>
+            <label className="text-[10px] text-terminal-dim uppercase font-bold">
+              Display_Handle:
+            </label>
             <div className="relative">
               <span className="absolute left-2 top-1.5 text-terminal-dim">{'>'}</span>
               <input
