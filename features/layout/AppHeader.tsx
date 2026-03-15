@@ -11,35 +11,29 @@ import {
   MessageCircle,
   Search as _Search,
 } from 'lucide-react';
-import type { NostrIdentity, UserState } from '../../types';
 import { ThemeId, ViewMode } from '../../types';
 import { notificationServiceV2 } from '../../services/notificationServiceV2';
 import { NotificationCenterV2 } from '../../components/NotificationCenterV2';
 import { NetworkIndicator } from '../../components/NetworkIndicator';
+import { useUIStore } from '../../stores/uiStore';
+import { useUserStore } from '../../stores/userStore';
+import { useBoardStore } from '../../stores/boardStore';
+import { useAppNavigationHandlers } from './useAppNavigationHandlers';
 
-export function AppHeader(props: {
-  theme: ThemeId;
-  isNostrConnected: boolean;
-  viewMode: ViewMode;
-  activeBoardId: string | null;
-  bookmarkedCount: number;
-  identity?: NostrIdentity;
-  userState: UserState;
-  onNavigateGlobal: () => void;
-  onSetViewMode: (mode: ViewMode) => void;
+interface AppHeaderProps {
   onOpenDrawer?: () => void;
-}) {
-  const {
-    theme,
-    viewMode,
-    activeBoardId,
-    bookmarkedCount,
-    identity,
-    userState,
-    onNavigateGlobal,
-    onSetViewMode,
-    onOpenDrawer,
-  } = props;
+}
+
+export function AppHeader({ onOpenDrawer }: AppHeaderProps) {
+  const theme = useUIStore((s) => s.theme);
+  const isNostrConnected = useUIStore((s) => s.isNostrConnected);
+  const viewMode = useUIStore((s) => s.viewMode);
+  const setViewMode = useUIStore((s) => s.setViewMode);
+  const bookmarkedCount = useUIStore((s) => s.bookmarkedIds).length;
+  const activeBoardId = useBoardStore((s) => s.activeBoardId);
+  const identity = useUserStore((s) => s.userState.identity);
+  const userState = useUserStore((s) => s.userState);
+  const { navigateToBoard } = useAppNavigationHandlers();
 
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -85,7 +79,7 @@ export function AppHeader(props: {
         {/* Mobile Logo */}
         <button
           type="button"
-          onClick={onNavigateGlobal}
+          onClick={() => navigateToBoard(null)}
           className="flex items-center gap-2"
           aria-label="Go to global feed"
         >
@@ -134,7 +128,7 @@ export function AppHeader(props: {
         {/* Mobile Status Indicators */}
         <div className="flex items-center gap-2 pr-1">
           <div
-            className={`w-2 h-2 rounded-full ${props.isNostrConnected ? 'bg-terminal-text animate-pulse' : 'bg-terminal-alert'}`}
+            className={`w-2 h-2 rounded-full ${isNostrConnected ? 'bg-terminal-text animate-pulse' : 'bg-terminal-alert'}`}
           />
           <div className="flex items-center gap-1 text-xs">
             <Zap
@@ -150,7 +144,7 @@ export function AppHeader(props: {
       <button
         type="button"
         className="hidden md:flex items-center gap-2 cursor-pointer hover:text-white transition-colors text-left shrink-0"
-        onClick={onNavigateGlobal}
+        onClick={() => navigateToBoard(null)}
         aria-label="Go to global feed"
       >
         {theme === ThemeId.BITBORING ? (
@@ -228,7 +222,7 @@ export function AppHeader(props: {
         </div>
 
         <button
-          onClick={onNavigateGlobal}
+          onClick={() => navigateToBoard(null)}
           className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${viewMode === ViewMode.FEED && activeBoardId === null ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
           title="Global Feed"
         >
@@ -237,7 +231,7 @@ export function AppHeader(props: {
           <span className="lg:hidden">FEED</span>
         </button>
         <button
-          onClick={() => onSetViewMode(ViewMode.CREATE)}
+          onClick={() => setViewMode(ViewMode.CREATE)}
           className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${viewMode === ViewMode.CREATE ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
           title="Create New Bit"
         >
@@ -246,7 +240,7 @@ export function AppHeader(props: {
           <span className="lg:hidden">NEW</span>
         </button>
         <button
-          onClick={() => onSetViewMode(ViewMode.BOOKMARKS)}
+          onClick={() => setViewMode(ViewMode.BOOKMARKS)}
           className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${viewMode === ViewMode.BOOKMARKS ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
           title="Saved Posts"
         >
@@ -259,7 +253,7 @@ export function AppHeader(props: {
           </span>
         </button>
         <button
-          onClick={() => onSetViewMode(ViewMode.IDENTITY)}
+          onClick={() => setViewMode(ViewMode.IDENTITY)}
           className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${viewMode === ViewMode.IDENTITY ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
           title={identity ? 'Identity Settings' : 'Connect Identity'}
         >
@@ -284,7 +278,7 @@ export function AppHeader(props: {
         </button>
         {identity && (
           <button
-            onClick={() => onSetViewMode(ViewMode.DIRECT_MESSAGES)}
+            onClick={() => setViewMode(ViewMode.DIRECT_MESSAGES)}
             className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${viewMode === ViewMode.DIRECT_MESSAGES ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
             title="Direct Messages"
           >
@@ -294,11 +288,11 @@ export function AppHeader(props: {
           </button>
         )}
         <button
-          onClick={() => onSetViewMode(ViewMode.RELAYS)}
+          onClick={() => setViewMode(ViewMode.RELAYS)}
           className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${viewMode === ViewMode.RELAYS ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
-          title={props.isNostrConnected ? 'Relays Connected' : 'Relays Disconnected'}
+          title={isNostrConnected ? 'Relays Connected' : 'Relays Disconnected'}
         >
-          {props.isNostrConnected ? (
+          {isNostrConnected ? (
             <svg
               width="24"
               height="12"

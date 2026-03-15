@@ -1,11 +1,12 @@
 /**
  * Link Preview Service
- * 
+ *
  * Fetches OpenGraph metadata from URLs and caches results.
  * Uses a CORS proxy for direct fetching with fallback to Gemini AI.
  */
 
 import { scanLink } from './geminiService';
+import { logger } from './loggingService';
 
 export interface LinkPreviewData {
   url: string;
@@ -60,32 +61,32 @@ const getFaviconUrl = (url: string): string => {
 const parseOpenGraphFromHtml = (html: string, url: string): LinkPreviewData => {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
-  
+
   const getMeta = (property: string): string | undefined => {
     // Try og: prefix first
     const ogMeta = doc.querySelector(`meta[property="og:${property}"]`);
     if (ogMeta) return ogMeta.getAttribute('content') || undefined;
-    
+
     // Try twitter: prefix
     const twitterMeta = doc.querySelector(`meta[name="twitter:${property}"]`);
     if (twitterMeta) return twitterMeta.getAttribute('content') || undefined;
-    
+
     // Try name attribute
     const nameMeta = doc.querySelector(`meta[name="${property}"]`);
     if (nameMeta) return nameMeta.getAttribute('content') || undefined;
-    
+
     return undefined;
   };
-  
+
   // Get title from multiple sources
   const title = getMeta('title') || doc.querySelector('title')?.textContent || undefined;
-  
+
   // Get description
   const description = getMeta('description');
-  
+
   // Get image
   let image = getMeta('image');
-  
+
   // Make image URL absolute if relative
   if (image && !image.startsWith('http')) {
     try {
@@ -101,13 +102,13 @@ const parseOpenGraphFromHtml = (html: string, url: string): LinkPreviewData => {
       // Keep as-is if URL parsing fails
     }
   }
-  
+
   // Get site name
   const siteName = getMeta('site_name') || extractDomain(url);
-  
+
   // Get type
   const type = getMeta('type');
-  
+
   return {
     url,
     title: title?.trim(),
@@ -128,14 +129,17 @@ const fetchWithProxy = async (url: string): Promise<string | null> => {
       const proxyUrl = proxyFn(url);
       const response = await fetch(proxyUrl, {
         headers: {
-          'Accept': 'text/html,application/xhtml+xml',
+          Accept: 'text/html,application/xhtml+xml',
         },
       });
-      
+
       if (response.ok) {
         const text = await response.text();
         // Basic validation that we got HTML
-        if (text.includes('<') && (text.includes('<!DOCTYPE') || text.includes('<html') || text.includes('<head'))) {
+        if (
+          text.includes('<') &&
+          (text.includes('<!DOCTYPE') || text.includes('<html') || text.includes('<head'))
+        ) {
           return text;
         }
       }
@@ -179,26 +183,26 @@ export const fetchLinkPreview = async (url: string): Promise<LinkPreviewData> =>
   } catch {
     return { url, error: 'Invalid URL' };
   }
-  
+
   // Check cache
   const cached = previewCache.get(url);
   const cacheTime = cacheTimestamps.get(url);
   if (cached && cacheTime && Date.now() - cacheTime < CACHE_TTL) {
     return cached;
   }
-  
+
   // Check for pending request to avoid duplicate fetches
   const pending = pendingRequests.get(url);
   if (pending) {
     return pending;
   }
-  
+
   // Create the fetch promise
   const fetchPromise = (async (): Promise<LinkPreviewData> => {
     try {
       // Try fetching directly through CORS proxy
       const html = await fetchWithProxy(url);
-      
+
       if (html) {
         const preview = parseOpenGraphFromHtml(html, url);
         // Only cache if we got useful data
@@ -208,7 +212,7 @@ export const fetchLinkPreview = async (url: string): Promise<LinkPreviewData> =>
           return preview;
         }
       }
-      
+
       // Fallback to Gemini AI
       const geminiResult = await fetchWithGemini(url);
       if (geminiResult) {
@@ -216,7 +220,7 @@ export const fetchLinkPreview = async (url: string): Promise<LinkPreviewData> =>
         cacheTimestamps.set(url, Date.now());
         return geminiResult;
       }
-      
+
       // Return minimal preview with just the URL info
       const minimalPreview: LinkPreviewData = {
         url,
@@ -227,9 +231,8 @@ export const fetchLinkPreview = async (url: string): Promise<LinkPreviewData> =>
       previewCache.set(url, minimalPreview);
       cacheTimestamps.set(url, Date.now());
       return minimalPreview;
-      
     } catch (error) {
-      console.error('[LinkPreview] Failed to fetch preview:', error);
+      logger.error('LinkPreview', 'Failed to fetch preview', error);
       const errorPreview: LinkPreviewData = {
         url,
         error: 'Failed to load preview',
@@ -241,7 +244,7 @@ export const fetchLinkPreview = async (url: string): Promise<LinkPreviewData> =>
       pendingRequests.delete(url);
     }
   })();
-  
+
   pendingRequests.set(url, fetchPromise);
   return fetchPromise;
 };
@@ -252,20 +255,22 @@ export const fetchLinkPreview = async (url: string): Promise<LinkPreviewData> =>
 export const extractUrls = (content: string): string[] => {
   const urlRegex = /https?:\/\/[^\s<>[\]()]+/g;
   const matches = content.match(urlRegex) || [];
-  
+
   // Filter out image URLs and clean up
-  return matches
-    .map(url => {
-      // Remove trailing punctuation
-      return url.replace(/[.,;:!?)]+$/, '');
-    })
-    .filter(url => {
-      // Exclude direct image links (they're handled separately)
-      const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(url);
-      return !isImage;
-    })
-    // Deduplicate
-    .filter((url, index, self) => self.indexOf(url) === index);
+  return (
+    matches
+      .map((url) => {
+        // Remove trailing punctuation
+        return url.replace(/[.,;:!?)]+$/, '');
+      })
+      .filter((url) => {
+        // Exclude direct image links (they're handled separately)
+        const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(url);
+        return !isImage;
+      })
+      // Deduplicate
+      .filter((url, index, self) => self.indexOf(url) === index)
+  );
 };
 
 /**
@@ -284,7 +289,7 @@ export const getCachedPreview = (url: string): LinkPreviewData | undefined => {
  * Prefetch previews for multiple URLs
  */
 export const prefetchPreviews = (urls: string[]): void => {
-  urls.forEach(url => {
+  urls.forEach((url) => {
     if (!getCachedPreview(url) && !pendingRequests.has(url)) {
       fetchLinkPreview(url).catch(() => {
         // Silently ignore prefetch errors
@@ -300,5 +305,3 @@ export const clearPreviewCache = (): void => {
   previewCache.clear();
   cacheTimestamps.clear();
 };
-
-

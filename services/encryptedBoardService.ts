@@ -8,11 +8,13 @@
 // Key in URL: bitboard.app/b/boardid#base64key
 // The URL fragment stays client-side only.
 
+import { logger } from './loggingService';
+
 const STORAGE_KEY = 'bitboard_encrypted_board_keys';
 
 interface EncryptedBoardKey {
   boardId: string;
-  key: string;  // base64-encoded AES-256 key
+  key: string; // base64-encoded AES-256 key
   createdAt: number;
 }
 
@@ -32,10 +34,10 @@ class EncryptedBoardService {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const keys: EncryptedBoardKey[] = JSON.parse(stored);
-        keys.forEach(k => this.boardKeys.set(k.boardId, k));
+        keys.forEach((k) => this.boardKeys.set(k.boardId, k));
       }
     } catch (error) {
-      console.error('[EncryptedBoard] Failed to load keys:', error);
+      logger.error('EncryptedBoard', 'Failed to load keys', error);
     }
   }
 
@@ -44,7 +46,7 @@ class EncryptedBoardService {
       const keys = Array.from(this.boardKeys.values());
       localStorage.setItem(STORAGE_KEY, JSON.stringify(keys));
     } catch (error) {
-      console.error('[EncryptedBoard] Failed to save keys:', error);
+      logger.error('EncryptedBoard', 'Failed to save keys', error);
     }
   }
 
@@ -57,12 +59,11 @@ class EncryptedBoardService {
    * Returns the base64-encoded raw key
    */
   async generateBoardKey(): Promise<string> {
-    const key = await crypto.subtle.generateKey(
-      { name: 'AES-GCM', length: 256 },
-      true,
-      ['encrypt', 'decrypt']
-    );
-    
+    const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, [
+      'encrypt',
+      'decrypt',
+    ]);
+
     const rawKey = await crypto.subtle.exportKey('raw', key);
     return this.arrayBufferToBase64(rawKey);
   }
@@ -72,13 +73,10 @@ class EncryptedBoardService {
    */
   private async importKey(base64Key: string): Promise<CryptoKey> {
     const rawKey = this.base64ToArrayBuffer(base64Key);
-    return await crypto.subtle.importKey(
-      'raw',
-      rawKey,
-      { name: 'AES-GCM', length: 256 },
-      false,
-      ['encrypt', 'decrypt']
-    );
+    return await crypto.subtle.importKey('raw', rawKey, { name: 'AES-GCM', length: 256 }, false, [
+      'encrypt',
+      'decrypt',
+    ]);
   }
 
   // ----------------------------------------
@@ -131,10 +129,10 @@ class EncryptedBoardService {
    */
   async encryptContent(plaintext: string, base64Key: string): Promise<string> {
     const key = await this.importKey(base64Key);
-    
+
     // Generate random 12-byte IV
     const iv = crypto.getRandomValues(new Uint8Array(12));
-    
+
     // Encode plaintext
     const encoder = new TextEncoder();
     const plaintextBytes = encoder.encode(plaintext);
@@ -143,7 +141,7 @@ class EncryptedBoardService {
     const ciphertext = await crypto.subtle.encrypt(
       { name: 'AES-GCM', iv, tagLength: 128 },
       key,
-      plaintextBytes
+      plaintextBytes,
     );
 
     // Combine IV + ciphertext
@@ -159,13 +157,13 @@ class EncryptedBoardService {
    */
   async decryptContent(ciphertext: string, base64Key: string): Promise<string> {
     const key = await this.importKey(base64Key);
-    
+
     // Decode from base64
     const combined = new Uint8Array(this.base64ToArrayBuffer(ciphertext));
 
     // Extract IV (first 12 bytes)
     const iv = combined.slice(0, 12);
-    
+
     // Extract ciphertext (remaining bytes)
     const encryptedData = combined.slice(12);
 
@@ -173,7 +171,7 @@ class EncryptedBoardService {
     const plaintextBytes = await crypto.subtle.decrypt(
       { name: 'AES-GCM', iv, tagLength: 128 },
       key,
-      encryptedData
+      encryptedData,
     );
 
     // Decode
@@ -186,7 +184,7 @@ class EncryptedBoardService {
    */
   async encryptPost(
     post: { title: string; content: string },
-    base64Key: string
+    base64Key: string,
   ): Promise<{ encryptedTitle: string; encryptedContent: string }> {
     const [encryptedTitle, encryptedContent] = await Promise.all([
       this.encryptContent(post.title, base64Key),
@@ -200,7 +198,7 @@ class EncryptedBoardService {
    */
   async decryptPost(
     encrypted: { encryptedTitle: string; encryptedContent: string },
-    base64Key: string
+    base64Key: string,
   ): Promise<{ title: string; content: string }> {
     try {
       const [title, content] = await Promise.all([
@@ -209,7 +207,7 @@ class EncryptedBoardService {
       ]);
       return { title, content };
     } catch (error) {
-      console.error('[EncryptedBoard] Failed to decrypt post:', error);
+      logger.error('EncryptedBoard', 'Failed to decrypt post', error);
       return {
         title: '[Encrypted - Access Required]',
         content: '[This content is encrypted. You need the share link to view it.]',
@@ -227,14 +225,11 @@ class EncryptedBoardService {
    */
   generateShareLink(boardId: string, base64Key: string): string {
     // Use URL-safe base64
-    const urlSafeKey = base64Key
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
-    
+    const urlSafeKey = base64Key.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
     // Get the base URL from current origin (client-side only app)
     const baseUrl = window.location.origin;
-    
+
     return `${baseUrl}/b/${boardId}#key=${urlSafeKey}`;
   }
 
@@ -253,10 +248,8 @@ class EncryptedBoardService {
     if (!keyMatch) return null;
 
     // Convert URL-safe base64 back to standard base64
-    let key = keyMatch[1]
-      .replace(/-/g, '+')
-      .replace(/_/g, '/');
-    
+    let key = keyMatch[1].replace(/-/g, '+').replace(/_/g, '/');
+
     // Add padding if needed
     while (key.length % 4 !== 0) {
       key += '=';
@@ -299,11 +292,11 @@ class EncryptedBoardService {
   importFromShareLink(shareLink: string): { boardId: string; key: string } | null {
     try {
       const url = new URL(shareLink);
-      
+
       // Extract board ID from path (/b/boardId)
       const pathMatch = url.pathname.match(/\/b\/([^/]+)/);
       const boardId = pathMatch?.[1];
-      
+
       if (!boardId) {
         throw new Error('Invalid share link: missing board ID');
       }
@@ -320,10 +313,8 @@ class EncryptedBoardService {
       }
 
       // Convert URL-safe base64 back to standard base64
-      let key = keyMatch[1]
-        .replace(/-/g, '+')
-        .replace(/_/g, '/');
-      
+      let key = keyMatch[1].replace(/-/g, '+').replace(/_/g, '/');
+
       // Add padding if needed
       while (key.length % 4 !== 0) {
         key += '=';
@@ -367,8 +358,7 @@ class EncryptedBoardService {
    * Check if crypto is available
    */
   isAvailable(): boolean {
-    return typeof crypto !== 'undefined' && 
-           typeof crypto.subtle !== 'undefined';
+    return typeof crypto !== 'undefined' && typeof crypto.subtle !== 'undefined';
   }
 
   /**
@@ -381,15 +371,3 @@ class EncryptedBoardService {
 
 // Export singleton
 export const encryptedBoardService = new EncryptedBoardService();
-
-
-
-
-
-
-
-
-
-
-
-

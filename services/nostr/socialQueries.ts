@@ -1,33 +1,9 @@
-import type { Event as NostrEvent, Filter, SimplePool } from 'nostr-tools';
+import type { Event as NostrEvent, Filter } from 'nostr-tools';
 import { NOSTR_KINDS } from '../../types';
 import { nostrEventDeduplicator } from '../messageDeduplicator';
 import { logger } from '../loggingService';
-
-interface QueryDeps {
-  pool: SimplePool;
-  getReadRelays: () => string[];
-}
-
-interface SubscriptionDeps extends QueryDeps {
-  subscriptions: Map<string, { unsub: () => void }>;
-}
-
-function latestEvent(events: NostrEvent[]): NostrEvent | null {
-  if (events.length === 0) return null;
-  return events.sort((a, b) => b.created_at - a.created_at)[0];
-}
-
-function dedupeLatestByDTag(events: NostrEvent[]): NostrEvent[] {
-  const byDTag = new Map<string, NostrEvent>();
-  for (const event of events) {
-    const dTag = event.tags.find((tag) => tag[0] === 'd')?.[1] || event.id;
-    const existing = byDTag.get(dTag);
-    if (!existing || event.created_at > existing.created_at) {
-      byDTag.set(dTag, event);
-    }
-  }
-  return Array.from(byDTag.values()).sort((a, b) => b.created_at - a.created_at);
-}
+import { latestEvent, dedupeLatestByDTag } from './shared';
+import type { QueryDeps, SubscriptionDeps } from './shared';
 
 export async function fetchList(
   deps: QueryDeps,
@@ -134,6 +110,7 @@ export async function fetchCommunityApprovals(
   const filter: Filter = {
     kinds: [NOSTR_KINDS.COMMUNITY_APPROVAL],
     '#a': [communityAddress],
+    limit: 500,
   };
 
   try {
@@ -149,7 +126,7 @@ export function subscribeToCommunityApprovals(
   communityAddress: string,
   onEvent: (event: NostrEvent) => void,
 ): string {
-  const subscriptionId = `community-approvals-${Date.now()}`;
+  const subscriptionId = deps.nextSubId('community-approvals');
   const filter: Filter = {
     kinds: [NOSTR_KINDS.COMMUNITY_APPROVAL],
     '#a': [communityAddress],

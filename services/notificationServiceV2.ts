@@ -6,7 +6,6 @@
 // and real-time event tracking
 
 import { type Event as NostrEvent } from 'nostr-tools';
-import { NOSTR_KINDS as _NOSTR_KINDS } from '../types';
 import { logger } from './loggingService';
 
 // ============================================

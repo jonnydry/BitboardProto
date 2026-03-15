@@ -18,7 +18,7 @@ interface PostState {
   updatePost: (id: string, updates: Partial<Post>) => void;
   setSelectedPostId: (id: string | null) => void;
   markPostAccessed: (id: string) => void;
-  
+
   // Computed getter for postsById (Map-like interface)
   getPostsById: () => Map<string, Post>;
 }
@@ -30,14 +30,17 @@ interface PostState {
 function enforceLRULimit(
   posts: Post[],
   postAccessTimes: Map<string, number>,
-  selectedPostId: string | null
+  selectedPostId: string | null,
 ): Post[] {
   // If we're under the limit, no eviction needed
   if (posts.length <= MAX_POSTS_IN_MEMORY) {
     return posts;
   }
 
-  logger.debug('postStore', `LRU eviction triggered: ${posts.length} posts -> ${MAX_POSTS_IN_MEMORY}`);
+  logger.debug(
+    'postStore',
+    `LRU eviction triggered: ${posts.length} posts -> ${MAX_POSTS_IN_MEMORY}`,
+  );
 
   // Sort posts by access time (most recent first)
   const postsWithScore = posts.map((post) => ({
@@ -90,7 +93,7 @@ export const usePostStore = create<PostState>()(
     updatePost: (id, updates) => {
       set((state) => {
         const newPosts = state.posts.map((post) =>
-          post.id === id ? { ...post, ...updates } : post
+          post.id === id ? { ...post, ...updates } : post,
         );
         return { posts: newPosts };
       });
@@ -113,24 +116,18 @@ export const usePostStore = create<PostState>()(
       const map = new Map<string, Post>();
       state.posts.forEach((post) => {
         map.set(post.id, post);
-        // Auto-mark as accessed for LRU cache
-        state.postAccessTimes.set(post.id, Date.now());
       });
       return map;
     },
-  }))
+  })),
 );
 
 // Selective selectors prevent unnecessary re-renders
+// NOTE: Do NOT call side-effects (like markPostAccessed) inside selectors.
+// Selectors run on every state change; calling set() inside would cause infinite loops.
+// Instead, call markPostAccessed from useEffect in the consuming component.
 export const usePost = (id: string) =>
-  usePostStore((state) => {
-    const post = state.posts.find((p) => p.id === id);
-    if (post) {
-      // Mark as accessed for LRU
-      state.markPostAccessed(id);
-    }
-    return post;
-  });
+  usePostStore((state) => state.posts.find((p) => p.id === id) ?? null);
 
 export const usePosts = () => usePostStore((state) => state.posts);
 

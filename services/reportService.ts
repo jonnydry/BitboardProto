@@ -28,9 +28,9 @@ export const REPORT_REASON_LABELS: Record<ReportReason, string> = {
 // Map local ReportReason to NIP-56 ReportType
 const REASON_TO_NIP56_TYPE: Record<ReportReason, ReportType> = {
   [ReportReason.SPAM]: ReportType.SPAM,
-  [ReportReason.HARASSMENT]: ReportType.PROFANITY,  // Closest match
-  [ReportReason.INAPPROPRIATE]: ReportType.NUDITY,  // Could be various things
-  [ReportReason.MISINFORMATION]: ReportType.OTHER,  // No direct NIP-56 type
+  [ReportReason.HARASSMENT]: ReportType.PROFANITY, // Closest match
+  [ReportReason.INAPPROPRIATE]: ReportType.NUDITY, // Could be various things
+  [ReportReason.MISINFORMATION]: ReportType.OTHER, // No direct NIP-56 type
   [ReportReason.OTHER]: ReportType.OTHER,
 };
 
@@ -42,7 +42,7 @@ export interface Report {
   details?: string;
   reporterPubkey?: string;
   timestamp: number;
-  nostrEventId?: string;  // If published to Nostr
+  nostrEventId?: string; // If published to Nostr
 }
 
 export interface NostrReportInfo {
@@ -68,14 +68,14 @@ class ReportService {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const reports: Report[] = JSON.parse(stored);
-        reports.forEach(report => {
+        reports.forEach((report) => {
           // Use composite key: targetType-targetId
           const key = this.getKey(report.targetType, report.targetId);
           this.reports.set(key, report);
         });
       }
     } catch (error) {
-      console.error('[Reports] Failed to load:', error);
+      logger.error('Reports', 'Failed to load', error);
     }
   }
 
@@ -84,12 +84,12 @@ class ReportService {
       const reports = Array.from(this.reports.values());
       localStorage.setItem(STORAGE_KEY, JSON.stringify(reports));
     } catch (error) {
-      console.error('[Reports] Failed to save:', error);
+      logger.error('Reports', 'Failed to save', error);
     }
   }
 
   private notifyListeners(): void {
-    this.listeners.forEach(listener => listener());
+    this.listeners.forEach((listener) => listener());
   }
 
   private getKey(targetType: 'post' | 'comment', targetId: string): string {
@@ -124,10 +124,10 @@ class ReportService {
     targetId: string,
     reason: ReportReason,
     details?: string,
-    reporterPubkey?: string
+    reporterPubkey?: string,
   ): Report {
     const key = this.getKey(targetType, targetId);
-    
+
     const report: Report = {
       id: this.generateId(),
       targetType,
@@ -143,7 +143,7 @@ class ReportService {
     this.notifyListeners();
 
     logger.info('Reports', `Submitted report for ${targetType} ${targetId}: ${reason}`);
-    
+
     return report;
   }
 
@@ -170,7 +170,7 @@ class ReportService {
    * Get reports by type
    */
   getReportsByType(targetType: 'post' | 'comment'): Report[] {
-    return Array.from(this.reports.values()).filter(r => r.targetType === targetType);
+    return Array.from(this.reports.values()).filter((r) => r.targetType === targetType);
   }
 
   /**
@@ -209,11 +209,11 @@ class ReportService {
     targetPubkey: string,
     reason: ReportReason,
     identity: NostrIdentity,
-    details?: string
+    details?: string,
   ): Promise<NostrEvent | null> {
     try {
       const reportType = REASON_TO_NIP56_TYPE[reason];
-      
+
       const unsigned = nostrService.buildReportEvent({
         targetEventId,
         targetPubkey,
@@ -240,27 +240,15 @@ class ReportService {
     targetPubkey: string,
     reason: ReportReason,
     identity?: NostrIdentity,
-    details?: string
+    details?: string,
   ): Promise<{ report: Report; nostrEvent?: NostrEvent }> {
     // First, save locally
-    const report = this.submitReport(
-      targetType,
-      targetId,
-      reason,
-      details,
-      identity?.pubkey
-    );
+    const report = this.submitReport(targetType, targetId, reason, details, identity?.pubkey);
 
     // If identity exists, also publish to Nostr
     let nostrEvent: NostrEvent | undefined;
     if (identity) {
-      const event = await this.publishToNostr(
-        targetId,
-        targetPubkey,
-        reason,
-        identity,
-        details
-      );
+      const event = await this.publishToNostr(targetId, targetPubkey, reason, identity, details);
 
       if (event) {
         nostrEvent = event;
@@ -283,10 +271,10 @@ class ReportService {
   async fetchNostrReports(eventId: string): Promise<NostrReportInfo[]> {
     try {
       const events = await nostrService.fetchReportsForEvent(eventId);
-      
-      return events.map(event => {
+
+      return events.map((event) => {
         // Extract report type from e tag
-        const eTag = event.tags.find(t => t[0] === 'e' && t[1] === eventId);
+        const eTag = event.tags.find((t) => t[0] === 'e' && t[1] === eventId);
         const reportType = eTag?.[3] || 'other';
 
         return {
@@ -298,7 +286,7 @@ class ReportService {
         };
       });
     } catch (error) {
-      console.error('[Reports] Failed to fetch from Nostr:', error);
+      logger.error('Reports', 'Failed to fetch from Nostr', error);
       return [];
     }
   }
@@ -308,7 +296,7 @@ class ReportService {
    */
   async getNostrReportCount(eventId: string): Promise<number> {
     const reports = await this.fetchNostrReports(eventId);
-    const uniqueReporters = new Set(reports.map(r => r.reporterPubkey));
+    const uniqueReporters = new Set(reports.map((r) => r.reporterPubkey));
     return uniqueReporters.size;
   }
 }

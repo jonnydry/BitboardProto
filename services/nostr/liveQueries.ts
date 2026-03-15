@@ -1,16 +1,8 @@
-import type { Event as NostrEvent, Filter, SimplePool } from 'nostr-tools';
+import type { Event as NostrEvent, Filter } from 'nostr-tools';
 import { NOSTR_KINDS } from '../../types';
 import { nostrEventDeduplicator } from '../messageDeduplicator';
 import { logger } from '../loggingService';
-
-interface QueryDeps {
-  pool: SimplePool;
-  getReadRelays: () => string[];
-}
-
-interface SubscriptionDeps extends QueryDeps {
-  subscriptions: Map<string, { unsub: () => void }>;
-}
+import type { QueryDeps, SubscriptionDeps } from './shared';
 
 export async function fetchLiveEvent(
   deps: QueryDeps,
@@ -96,7 +88,7 @@ export function subscribeToLiveChat(
   liveEventAddress: string,
   onEvent: (event: NostrEvent) => void,
 ): string {
-  const subscriptionId = `live-chat-${Date.now()}`;
+  const subscriptionId = deps.nextSubId('live-chat');
 
   const filter: Filter = {
     kinds: [NOSTR_KINDS.LIVE_CHAT],

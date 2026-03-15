@@ -3,6 +3,7 @@ import type { Board, Post } from '../../types';
 import { BoardType, SortMode } from '../../types';
 import { searchService } from '../../services/searchService';
 import { logger } from '../../services/loggingService';
+import { trendingScore } from '../../services/nostr/shared';
 
 interface UseAppDerivedDataArgs {
   posts: Post[];
@@ -18,7 +19,6 @@ interface UseAppDerivedDataArgs {
   bookmarkedIds: string[];
   reportedPostIds: string[];
   markPostAccessed: (postId: string) => void;
-  setSelectedPostId: (postId: string | null) => void;
 }
 
 export function useAppDerivedData(args: UseAppDerivedDataArgs) {
@@ -36,7 +36,6 @@ export function useAppDerivedData(args: UseAppDerivedDataArgs) {
     bookmarkedIds,
     reportedPostIds,
     markPostAccessed,
-    setSelectedPostId,
   } = args;
 
   const [workerSearchIds, setWorkerSearchIds] = useState<Set<string> | null>(null);
@@ -152,14 +151,11 @@ export function useAppDerivedData(args: UseAppDerivedDataArgs) {
         return sorted.sort((a, b) => a.timestamp - b.timestamp);
       case SortMode.TRENDING: {
         const now = Date.now();
-        const HOUR = 1000 * 60 * 60;
-        return sorted.sort((a, b) => {
-          const ageA = (now - a.timestamp) / HOUR;
-          const ageB = (now - b.timestamp) / HOUR;
-          const trendA = (a.score + a.commentCount * 2) / Math.pow(ageA + 2, 1.5);
-          const trendB = (b.score + b.commentCount * 2) / Math.pow(ageB + 2, 1.5);
-          return trendB - trendA;
-        });
+        return sorted.sort(
+          (a, b) =>
+            trendingScore(b.score, b.commentCount, b.timestamp, now) -
+            trendingScore(a.score, a.commentCount, a.timestamp, now),
+        );
       }
       case SortMode.COMMENTS:
         return sorted.sort((a, b) => b.commentCount - a.commentCount);
@@ -181,15 +177,15 @@ export function useAppDerivedData(args: UseAppDerivedDataArgs) {
   }, [posts]);
 
   const selectedPost = useMemo(() => {
-    const post = selectedBitId ? postsById.get(selectedBitId) || null : null;
+    return selectedBitId ? postsById.get(selectedBitId) || null : null;
+  }, [selectedBitId, postsById]);
 
-    if (post && selectedBitId) {
+  // Mark post as accessed for LRU cache when selection changes
+  useEffect(() => {
+    if (selectedBitId) {
       markPostAccessed(selectedBitId);
-      setSelectedPostId(selectedBitId);
     }
-
-    return post;
-  }, [selectedBitId, postsById, markPostAccessed, setSelectedPostId]);
+  }, [selectedBitId, markPostAccessed]);
 
   const bookmarkedIdSet = useMemo(() => new Set(bookmarkedIds), [bookmarkedIds]);
   const reportedPostIdSet = useMemo(() => new Set(reportedPostIds), [reportedPostIds]);

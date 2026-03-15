@@ -1,7 +1,15 @@
-import { finalizeEvent, generateSecretKey, getPublicKey, nip19, type Event as NostrEvent, type EventTemplate } from 'nostr-tools';
+import {
+  finalizeEvent,
+  generateSecretKey,
+  getPublicKey,
+  nip19,
+  type Event as NostrEvent,
+  type EventTemplate,
+} from 'nostr-tools';
 import { bytesToHex, hexToBytes } from 'nostr-tools/utils';
 import type { NostrIdentity, UnsignedNostrEvent } from '../types';
 import { cryptoService } from './cryptoService';
+import { logger } from './loggingService';
 
 const STORAGE_KEYS = {
   // Legacy key (unencrypted) - for migration
@@ -29,7 +37,7 @@ class IdentityService {
       await this.loadIdentity();
       this.initialized = true;
     } catch (error) {
-      console.error('[Identity] Failed to initialize:', error);
+      logger.error('Identity', 'Failed to initialize', error);
       this.initialized = true; // Mark as initialized even on error
     }
   }
@@ -60,7 +68,7 @@ class IdentityService {
    */
   async generateIdentity(displayName?: string): Promise<NostrIdentity> {
     await this.ensureInitialized();
-    
+
     const privateKeyBytes = generateSecretKey();
     const pubkey = getPublicKey(privateKeyBytes);
     const privkey = bytesToHex(privateKeyBytes);
@@ -76,10 +84,10 @@ class IdentityService {
 
     this.identity = identity;
     await this.saveIdentity();
-    
+
     // Attempt to clear sensitive data from memory
     cryptoService.secureClear(privkey);
-    
+
     return identity;
   }
 
@@ -88,7 +96,7 @@ class IdentityService {
    */
   async importFromNsec(nsec: string, displayName?: string): Promise<NostrIdentity | null> {
     await this.ensureInitialized();
-    
+
     try {
       const decoded = nip19.decode(nsec);
       if (decoded.type !== 'nsec') {
@@ -110,13 +118,13 @@ class IdentityService {
 
       this.identity = identity;
       await this.saveIdentity();
-      
+
       // Attempt to clear sensitive data from memory
       cryptoService.secureClearBytes(privateKeyBytes);
-      
+
       return identity;
     } catch (error) {
-      console.error('[Identity] Failed to import nsec:', error);
+      logger.error('Identity', 'Failed to import nsec', error);
       return null;
     }
   }
@@ -126,7 +134,7 @@ class IdentityService {
    */
   async importFromHex(hexPrivkey: string, displayName?: string): Promise<NostrIdentity | null> {
     await this.ensureInitialized();
-    
+
     try {
       const privateKeyBytes = hexToBytes(hexPrivkey);
       const pubkey = getPublicKey(privateKeyBytes);
@@ -142,13 +150,13 @@ class IdentityService {
 
       this.identity = identity;
       await this.saveIdentity();
-      
+
       // Attempt to clear sensitive data from memory
       cryptoService.secureClearBytes(privateKeyBytes);
-      
+
       return identity;
     } catch (error) {
-      console.error('[Identity] Failed to import hex key:', error);
+      logger.error('Identity', 'Failed to import hex key', error);
       return null;
     }
   }
@@ -200,7 +208,7 @@ class IdentityService {
    */
   async setDisplayName(name: string): Promise<void> {
     await this.ensureInitialized();
-    
+
     if (this.identity) {
       this.identity.displayName = name;
       if (this.identity.kind === 'local') {
@@ -233,7 +241,7 @@ class IdentityService {
     try {
       // Check if crypto is available
       if (!cryptoService.isAvailable()) {
-        console.warn('[Identity] Web Crypto not available, falling back to unencrypted storage');
+        logger.warn('Identity', 'Web Crypto not available, falling back to unencrypted storage');
         const data = JSON.stringify(this.identity);
         localStorage.setItem(STORAGE_KEYS.IDENTITY_LEGACY, data);
         return;
@@ -242,14 +250,14 @@ class IdentityService {
       // Encrypt identity data
       const plaintext = JSON.stringify(this.identity);
       const encrypted = await cryptoService.encrypt(plaintext);
-      
+
       // Store encrypted data
       localStorage.setItem(STORAGE_KEYS.IDENTITY_ENCRYPTED, encrypted);
-      
+
       // Remove legacy unencrypted data if it exists
       localStorage.removeItem(STORAGE_KEYS.IDENTITY_LEGACY);
     } catch (error) {
-      console.error('[Identity] Failed to save identity:', error);
+      logger.error('Identity', 'Failed to save identity', error);
       throw error;
     }
   }
@@ -261,7 +269,7 @@ class IdentityService {
     try {
       // First, try to load encrypted identity (v2)
       const encryptedData = localStorage.getItem(STORAGE_KEYS.IDENTITY_ENCRYPTED);
-      
+
       if (encryptedData) {
         // Decrypt and parse
         if (cryptoService.isAvailable()) {
@@ -271,17 +279,17 @@ class IdentityService {
           this.identity = parsed?.kind ? parsed : { ...parsed, kind: 'local' };
           return;
         } else {
-          console.warn('[Identity] Cannot decrypt - Web Crypto not available');
+          logger.warn('Identity', 'Cannot decrypt - Web Crypto not available');
         }
       }
 
       // Migration: Check for legacy unencrypted identity
       const legacyData = localStorage.getItem(STORAGE_KEYS.IDENTITY_LEGACY);
-      
+
       if (legacyData) {
         const parsed = JSON.parse(legacyData);
         this.identity = parsed?.kind ? parsed : { ...parsed, kind: 'local' };
-        
+
         // Migrate to encrypted storage
         if (cryptoService.isAvailable()) {
           await this.saveIdentity();
@@ -292,7 +300,7 @@ class IdentityService {
       // No identity found
       this.identity = null;
     } catch (error) {
-      console.error('[Identity] Failed to load identity:', error);
+      logger.error('Identity', 'Failed to load identity', error);
       this.identity = null;
     }
   }
@@ -313,11 +321,11 @@ class IdentityService {
    */
   async getPublicKeyFromExtension(): Promise<string | null> {
     if (!this.hasNip07Extension()) return null;
-    
+
     try {
       return await window.nostr!.getPublicKey();
     } catch (error) {
-      console.error('[Identity] NIP-07 getPublicKey failed:', error);
+      logger.error('Identity', 'NIP-07 getPublicKey failed', error);
       return null;
     }
   }
@@ -327,11 +335,11 @@ class IdentityService {
    */
   async signEventWithExtension(event: UnsignedNostrEvent): Promise<NostrEvent | null> {
     if (!this.hasNip07Extension()) return null;
-    
+
     try {
       return await window.nostr!.signEvent(event);
     } catch (error) {
-      console.error('[Identity] NIP-07 signEvent failed:', error);
+      logger.error('Identity', 'NIP-07 signEvent failed', error);
       return null;
     }
   }

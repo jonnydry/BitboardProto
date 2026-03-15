@@ -1,23 +1,8 @@
-import type { Event as NostrEvent, Filter, SimplePool } from 'nostr-tools';
+import type { Event as NostrEvent, Filter } from 'nostr-tools';
 import { NOSTR_KINDS } from '../../types';
 import { logger } from '../loggingService';
-
-interface QueryDeps {
-  pool: SimplePool;
-  getReadRelays: () => string[];
-}
-
-function dedupeLatestByDTag(events: NostrEvent[]): NostrEvent[] {
-  const byDTag = new Map<string, NostrEvent>();
-  for (const event of events) {
-    const dTag = event.tags.find((tag) => tag[0] === 'd')?.[1] || event.id;
-    const existing = byDTag.get(dTag);
-    if (!existing || event.created_at > existing.created_at) {
-      byDTag.set(dTag, event);
-    }
-  }
-  return Array.from(byDTag.values()).sort((a, b) => b.created_at - a.created_at);
-}
+import { dedupeLatestByDTag } from './shared';
+import type { QueryDeps } from './shared';
 
 export async function fetchArticle(
   deps: QueryDeps,

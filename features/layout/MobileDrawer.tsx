@@ -1,33 +1,24 @@
 import React, { useEffect, useRef } from 'react';
 import { X, Globe, Bookmark, Bell, Wifi, WifiOff, Settings, MapPin, Zap } from 'lucide-react';
 import { ViewMode } from '../../types';
-import type { NostrIdentity, UserState } from '../../types';
+import { useUIStore } from '../../stores/uiStore';
+import { useUserStore } from '../../stores/userStore';
+import { useAppNavigationHandlers } from './useAppNavigationHandlers';
 
 interface MobileDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  viewMode: ViewMode;
-  onSetViewMode: (mode: ViewMode) => void;
-  onNavigateGlobal: () => void;
-  identity?: NostrIdentity;
-  userState: UserState;
-  bookmarkedCount: number;
-  isNostrConnected: boolean;
-  children?: React.ReactNode;
 }
 
-export function MobileDrawer({
-  isOpen,
-  onClose,
-  viewMode,
-  onSetViewMode,
-  onNavigateGlobal,
-  identity,
-  userState,
-  bookmarkedCount,
-  isNostrConnected,
-  children,
-}: MobileDrawerProps) {
+export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
+  const viewMode = useUIStore((s) => s.viewMode);
+  const setViewMode = useUIStore((s) => s.setViewMode);
+  const isNostrConnected = useUIStore((s) => s.isNostrConnected);
+  const bookmarkedCount = useUIStore((s) => s.bookmarkedIds).length;
+  const userState = useUserStore((s) => s.userState);
+  const identity = userState.identity;
+  const { navigateToBoard } = useAppNavigationHandlers();
+
   const drawerRef = useRef<HTMLDivElement>(null);
 
   // Close on escape key
@@ -71,42 +62,42 @@ export function MobileDrawer({
       icon: Globe,
       label: 'GLOBAL_FEED',
       isActive: viewMode === ViewMode.FEED,
-      onClick: () => handleNavClick(onNavigateGlobal),
+      onClick: () => handleNavClick(() => navigateToBoard(null)),
     },
     {
       id: 'bookmarks',
       icon: Bookmark,
       label: `SAVED${bookmarkedCount > 0 ? ` (${bookmarkedCount})` : ''}`,
       isActive: viewMode === ViewMode.BOOKMARKS,
-      onClick: () => handleNavClick(() => onSetViewMode(ViewMode.BOOKMARKS)),
+      onClick: () => handleNavClick(() => setViewMode(ViewMode.BOOKMARKS)),
     },
     {
       id: 'notifications',
       icon: Bell,
       label: 'NOTIFICATIONS',
       isActive: viewMode === ViewMode.NOTIFICATIONS,
-      onClick: () => handleNavClick(() => onSetViewMode(ViewMode.NOTIFICATIONS)),
+      onClick: () => handleNavClick(() => setViewMode(ViewMode.NOTIFICATIONS)),
     },
     {
       id: 'location',
       icon: MapPin,
       label: 'SCAN_NEARBY',
       isActive: viewMode === ViewMode.LOCATION,
-      onClick: () => handleNavClick(() => onSetViewMode(ViewMode.LOCATION)),
+      onClick: () => handleNavClick(() => setViewMode(ViewMode.LOCATION)),
     },
     {
       id: 'identity',
       icon: identity ? Wifi : WifiOff,
       label: identity ? 'IDENTITY' : 'CONNECT',
       isActive: viewMode === ViewMode.IDENTITY,
-      onClick: () => handleNavClick(() => onSetViewMode(ViewMode.IDENTITY)),
+      onClick: () => handleNavClick(() => setViewMode(ViewMode.IDENTITY)),
     },
     {
       id: 'relays',
       icon: Settings,
       label: 'RELAYS',
       isActive: viewMode === ViewMode.RELAYS,
-      onClick: () => handleNavClick(() => onSetViewMode(ViewMode.RELAYS)),
+      onClick: () => handleNavClick(() => setViewMode(ViewMode.RELAYS)),
     },
   ];
 
@@ -138,7 +129,9 @@ export function MobileDrawer({
             <span className="text-terminal-text font-bold text-lg font-terminal tracking-wider">
               BITBOARD
             </span>
-            <div className={`w-2 h-2 rounded-full ${isNostrConnected ? 'bg-terminal-text animate-pulse' : 'bg-terminal-alert'}`} />
+            <div
+              className={`w-2 h-2 rounded-full ${isNostrConnected ? 'bg-terminal-text animate-pulse' : 'bg-terminal-alert'}`}
+            />
           </div>
           <button
             onClick={onClose}
@@ -152,10 +145,15 @@ export function MobileDrawer({
         {/* User Status */}
         <div className="p-4 border-b border-terminal-dim/30">
           <div className="flex items-center gap-3 mb-2">
-            <Zap size={16} className={userState.bits === 0 ? 'text-terminal-alert' : 'text-terminal-text'} />
+            <Zap
+              size={16}
+              className={userState.bits === 0 ? 'text-terminal-alert' : 'text-terminal-text'}
+            />
             <span className="font-mono text-sm">
               <span className="text-terminal-dim">BITS:</span>{' '}
-              <span className="font-bold">{userState.bits}/{userState.maxBits}</span>
+              <span className="font-bold">
+                {userState.bits}/{userState.maxBits}
+              </span>
             </span>
           </div>
           {identity && (
@@ -189,13 +187,6 @@ export function MobileDrawer({
           </ul>
         </nav>
 
-        {/* Sidebar Content (passed as children) */}
-        {children && (
-          <div className="p-4 border-t border-terminal-dim/30">
-            {children}
-          </div>
-        )}
-
         {/* Footer */}
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-terminal-dim/30 bg-terminal-bg text-center">
           <span className="text-[10px] text-terminal-dim uppercase tracking-wider">
@@ -206,4 +197,3 @@ export function MobileDrawer({
     </>
   );
 }
-

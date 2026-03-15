@@ -1,5 +1,6 @@
 import ngeohash from 'ngeohash';
 import { GeohashPrecision, BoardType, type Board } from '../types';
+import { logger } from './loggingService';
 
 // ============================================
 // GEOHASH PRECISION LABELS
@@ -38,7 +39,11 @@ class GeohashService {
   /**
    * Encode latitude/longitude to geohash
    */
-  encode(lat: number, lon: number, precision: GeohashPrecision = GeohashPrecision.NEIGHBORHOOD): string {
+  encode(
+    lat: number,
+    lon: number,
+    precision: GeohashPrecision = GeohashPrecision.NEIGHBORHOOD,
+  ): string {
     return ngeohash.encode(lat, lon, precision);
   }
 
@@ -103,7 +108,7 @@ class GeohashService {
           enableHighAccuracy: true,
           timeout: 10000,
           maximumAge: 60000, // Cache for 1 minute
-        }
+        },
       );
     });
   }
@@ -111,13 +116,11 @@ class GeohashService {
   /**
    * Get current geohash at specified precision
    */
-  async getCurrentGeohash(precision: GeohashPrecision = GeohashPrecision.NEIGHBORHOOD): Promise<string> {
+  async getCurrentGeohash(
+    precision: GeohashPrecision = GeohashPrecision.NEIGHBORHOOD,
+  ): Promise<string> {
     const position = await this.getCurrentPosition();
-    return this.encode(
-      position.coords.latitude,
-      position.coords.longitude,
-      precision
-    );
+    return this.encode(position.coords.latitude, position.coords.longitude, precision);
   }
 
   /**
@@ -125,36 +128,32 @@ class GeohashService {
    */
   async getCurrentAllPrecisions(): Promise<Record<GeohashPrecision, string>> {
     const position = await this.getCurrentPosition();
-    return this.getAllPrecisions(
-      position.coords.latitude,
-      position.coords.longitude
-    );
+    return this.getAllPrecisions(position.coords.latitude, position.coords.longitude);
   }
 
   /**
    * Watch position changes
    */
-  watchPosition(callback: (geohash: string, precision: GeohashPrecision) => void, precision: GeohashPrecision = GeohashPrecision.NEIGHBORHOOD): void {
+  watchPosition(
+    callback: (geohash: string, precision: GeohashPrecision) => void,
+    precision: GeohashPrecision = GeohashPrecision.NEIGHBORHOOD,
+  ): void {
     if (!this.isGeolocationAvailable()) return;
 
     this.watchId = navigator.geolocation.watchPosition(
       (position) => {
         this.currentPosition = position;
-        const geohash = this.encode(
-          position.coords.latitude,
-          position.coords.longitude,
-          precision
-        );
+        const geohash = this.encode(position.coords.latitude, position.coords.longitude, precision);
         callback(geohash, precision);
       },
       (error) => {
-        console.error('[Geohash] Watch error:', error);
+        logger.error('Geohash', 'Watch error', error);
       },
       {
         enableHighAccuracy: true,
         timeout: 10000,
         maximumAge: 30000,
-      }
+      },
     );
   }
 
@@ -184,10 +183,10 @@ class GeohashService {
    */
   generateLocationBoards(lat: number, lon: number): Board[] {
     const geohashes = this.getAllPrecisions(lat, lon);
-    
+
     return Object.entries(geohashes).map(([precisionStr, geohash]) => {
       const precision = Number(precisionStr) as GeohashPrecision;
-      
+
       return {
         id: `geo-${geohash}`,
         name: `${PRECISION_LABELS[precision]} #${geohash}`,
@@ -233,7 +232,7 @@ class GeohashService {
    */
   getPrecisionFromGeohash(geohash: string): GeohashPrecision {
     const length = geohash.length;
-    
+
     if (length <= 2) return GeohashPrecision.COUNTRY;
     if (length <= 3) return GeohashPrecision.REGION;
     if (length <= 4) return GeohashPrecision.PROVINCE;
@@ -255,18 +254,20 @@ class GeohashService {
   approximateDistance(geohash1: string, geohash2: string): number {
     const pos1 = this.decode(geohash1);
     const pos2 = this.decode(geohash2);
-    
+
     const R = 6371; // Earth's radius in km
     const dLat = this.toRad(pos2.latitude - pos1.latitude);
     const dLon = this.toRad(pos2.longitude - pos1.longitude);
-    
-    const a = 
+
+    const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(this.toRad(pos1.latitude)) * Math.cos(this.toRad(pos2.latitude)) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    
+      Math.cos(this.toRad(pos1.latitude)) *
+        Math.cos(this.toRad(pos2.latitude)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    
+
     return R * c;
   }
 
@@ -277,9 +278,3 @@ class GeohashService {
 
 // Export singleton instance
 export const geohashService = new GeohashService();
-
-
-
-
-
-

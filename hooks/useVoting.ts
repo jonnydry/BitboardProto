@@ -8,15 +8,13 @@ import { usePostStore } from '../stores/postStore';
 export function useVoting(args: { postsById: Map<string, Post> }) {
   const { postsById } = args;
 
-  // Use selective Zustand selectors instead of full userState object
-  const userBits = useUserStore((state) => state.userState.bits);
+  // Use selective Zustand selectors for identity (needed for early return check)
+  // Bits and votedPosts are read from store.getState() inside the callback to avoid stale closures
   const userIdentity = useUserStore((state) => state.userState.identity);
-  const votedPosts = useUserStore((state) => state.userState.votedPosts);
   const setUserState = useUserStore((state) => state.setUserState);
 
   // Use targeted post update instead of array mapping
   const updatePost = usePostStore((state) => state.updatePost);
-  const getPost = usePostStore((state) => (id: string) => state.posts.find((p) => p.id === id));
 
   const handleVote = useCallback(
     async (postId: string, direction: 'up' | 'down') => {
@@ -26,23 +24,26 @@ export function useVoting(args: { postsById: Map<string, Post> }) {
         return;
       }
 
-      const currentVote = votedPosts[postId];
+      // Read current vote state directly from store to avoid stale closures
+      const currentVotedPosts = useUserStore.getState().userState.votedPosts;
+      const currentVote = currentVotedPosts[postId];
 
       if (!userIdentity) {
         logger.warn('Vote', 'No identity - connect an identity to vote.');
         return;
       }
 
-      if (!currentVote && userBits <= 0) {
+      const currentBits = useUserStore.getState().userState.bits;
+
+      if (!currentVote && currentBits <= 0) {
         logger.warn('Vote', 'Insufficient bits');
         return;
       }
-
       const optimisticUpdate = computeOptimisticUpdate(
         currentVote ?? null,
         direction,
-        userBits,
-        votedPosts,
+        currentBits,
+        currentVotedPosts,
         postId,
       );
 
@@ -78,15 +79,15 @@ export function useVoting(args: { postsById: Map<string, Post> }) {
             logger.debug('Vote', `Verified: ${result.newTally.uniqueVoters} unique voters`);
           } else if (result.error) {
             logger.error('Vote', `Failed: ${result.error}`);
-            const rollback = computeRollback(optimisticUpdate, votedPosts, postId);
+            const freshVotedPosts = useUserStore.getState().userState.votedPosts;
+            const rollback = computeRollback(optimisticUpdate, freshVotedPosts, postId);
             setUserState((prev) => ({
               ...prev,
               bits: prev.bits + rollback.bitAdjustment,
               votedPosts: rollback.previousVotedPosts,
             }));
             // Get latest post from store for rollback
-            const currentPost = getPost(postId) || post;
-            // Use targeted update for rollback
+            const currentPost = usePostStore.getState().posts.find((p) => p.id === postId) || post;
             updatePost(postId, {
               score: currentPost.score + rollback.scoreDelta,
             });
@@ -94,22 +95,22 @@ export function useVoting(args: { postsById: Map<string, Post> }) {
         } catch (error) {
           logger.error('Vote', 'Error publishing', error);
           // Best-effort rollback for publish exceptions
-          const rollback = computeRollback(optimisticUpdate, votedPosts, postId);
+          const freshVotedPosts = useUserStore.getState().userState.votedPosts;
+          const rollback = computeRollback(optimisticUpdate, freshVotedPosts, postId);
           setUserState((prev) => ({
             ...prev,
             bits: prev.bits + rollback.bitAdjustment,
             votedPosts: rollback.previousVotedPosts,
           }));
           // Get latest post from store for rollback
-          const currentPost = getPost(postId) || post;
-          // Use targeted update for rollback
+          const currentPost = usePostStore.getState().posts.find((p) => p.id === postId) || post;
           updatePost(postId, {
             score: currentPost.score + rollback.scoreDelta,
           });
         }
       }
     },
-    [postsById, updatePost, setUserState, votedPosts, userBits, userIdentity, getPost],
+    [postsById, updatePost, setUserState, userIdentity],
   );
 
   return { handleVote };

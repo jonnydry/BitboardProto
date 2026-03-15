@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import type { Board, NostrIdentity, Post, UserState } from '../../types';
+import type { Board, Post, UserState } from '../../types';
 import { ViewMode } from '../../types';
 import { nostrService } from '../../services/nostrService';
 import { identityService } from '../../services/identityService';
@@ -14,7 +14,6 @@ import { useAppNavigationHandlers } from './useAppNavigationHandlers';
 import { useAppPostMutationHandlers } from './useAppPostMutationHandlers';
 
 interface UseAppEventHandlersProps {
-  posts: Post[];
   setPosts: React.Dispatch<React.SetStateAction<Post[]>>;
   boards: Board[];
   setBoards: React.Dispatch<React.SetStateAction<Board[]>>;
@@ -23,13 +22,9 @@ interface UseAppEventHandlersProps {
   userState: UserState;
   setUserState: React.Dispatch<React.SetStateAction<UserState>>;
   setViewMode: (mode: ViewMode) => void;
-  setSelectedBitId: (id: string | null) => void;
   setActiveBoardId: (id: string | null) => void;
-  setLocationBoards: React.Dispatch<React.SetStateAction<Board[]>>;
-  setProfileUser: (user: { username: string; pubkey?: string } | null) => void;
   setEditingPostId: (id: string | null) => void;
   getRelayHint: () => string;
-  setSearchQuery: (query: string) => void;
   oldestTimestamp: number | null;
   hasMorePosts: boolean;
   setOldestTimestamp: (timestamp: number | null) => void;
@@ -38,7 +33,6 @@ interface UseAppEventHandlersProps {
 }
 
 export const useAppEventHandlers = ({
-  posts: _posts,
   setPosts,
   boards,
   setBoards,
@@ -47,28 +41,17 @@ export const useAppEventHandlers = ({
   userState,
   setUserState,
   setViewMode,
-  setSelectedBitId,
   setActiveBoardId,
-  setLocationBoards,
-  setProfileUser,
   setEditingPostId,
   getRelayHint,
-  setSearchQuery,
   oldestTimestamp,
   hasMorePosts,
   setOldestTimestamp,
   setHasMorePosts,
   locationBoards,
 }: UseAppEventHandlersProps) => {
-  const navigationHandlers = useAppNavigationHandlers({
-    setViewMode,
-    setSelectedBitId,
-    setActiveBoardId,
-    setLocationBoards,
-    setProfileUser,
-    setEditingPostId,
-    setSearchQuery,
-  });
+  // Navigation handlers now read directly from Zustand stores — no props needed
+  const navigationHandlers = useAppNavigationHandlers();
 
   const feedHandlers = useAppFeedHandlers({
     oldestTimestamp,
@@ -169,18 +152,6 @@ export const useAppEventHandlers = ({
     ],
   );
 
-  const handleIdentityChange = useCallback(
-    (identity: NostrIdentity | null) => {
-      setUserState((prev) => ({
-        ...prev,
-        identity: identity || undefined,
-        username: identity?.displayName || prev.username,
-        hasIdentity: !!identity,
-      }));
-    },
-    [setUserState],
-  );
-
   return {
     handleCreatePost: postMutationHandlers.handleCreatePost,
     handleCreateBoard,
@@ -190,7 +161,6 @@ export const useAppEventHandlers = ({
     handleViewBit: navigationHandlers.handleViewBit,
     navigateToBoard: navigationHandlers.navigateToBoard,
     returnToFeed: navigationHandlers.returnToFeed,
-    handleIdentityChange,
     handleLocationBoardSelect: navigationHandlers.handleLocationBoardSelect,
     handleViewProfile: navigationHandlers.handleViewProfile,
     handleEditPost: navigationHandlers.handleEditPost,

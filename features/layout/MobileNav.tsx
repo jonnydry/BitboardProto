@@ -1,24 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Home, PlusSquare, Bookmark, Bell, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import { ViewMode } from '../../types';
-import type { NostrIdentity } from '../../types';
 import { notificationServiceV2 } from '../../services/notificationServiceV2';
+import { useUIStore } from '../../stores/uiStore';
+import { useUserStore } from '../../stores/userStore';
+import { useAppNavigationHandlers } from './useAppNavigationHandlers';
 
-interface MobileNavProps {
-  viewMode: ViewMode;
-  onSetViewMode: (mode: ViewMode) => void;
-  onNavigateGlobal: () => void;
-  identity?: NostrIdentity;
-  bookmarkedCount: number;
-}
+export function MobileNav() {
+  const viewMode = useUIStore((s) => s.viewMode);
+  const setViewMode = useUIStore((s) => s.setViewMode);
+  const bookmarkedCount = useUIStore((s) => s.bookmarkedIds).length;
+  const identity = useUserStore((s) => s.userState.identity);
+  const { navigateToBoard } = useAppNavigationHandlers();
 
-export function MobileNav({
-  viewMode,
-  onSetViewMode,
-  onNavigateGlobal,
-  identity,
-  bookmarkedCount,
-}: MobileNavProps) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [lastHomeTap, setLastHomeTap] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -42,10 +36,10 @@ export function MobileNav({
       // Briefly show refreshing animation
       setTimeout(() => setIsRefreshing(false), 500);
     } else {
-      onNavigateGlobal();
+      navigateToBoard(null);
     }
     setLastHomeTap(now);
-  }, [viewMode, lastHomeTap, onNavigateGlobal]);
+  }, [viewMode, lastHomeTap, navigateToBoard]);
 
   const navItems = [
     {
@@ -62,7 +56,7 @@ export function MobileNav({
       icon: PlusSquare,
       label: 'NEW',
       isActive: viewMode === ViewMode.CREATE,
-      onClick: () => onSetViewMode(ViewMode.CREATE),
+      onClick: () => setViewMode(ViewMode.CREATE),
       badge: null,
     },
     {
@@ -70,7 +64,7 @@ export function MobileNav({
       icon: Bookmark,
       label: 'SAVED',
       isActive: viewMode === ViewMode.BOOKMARKS,
-      onClick: () => onSetViewMode(ViewMode.BOOKMARKS),
+      onClick: () => setViewMode(ViewMode.BOOKMARKS),
       badge: bookmarkedCount > 0 ? bookmarkedCount : null,
     },
     {
@@ -78,7 +72,7 @@ export function MobileNav({
       icon: Bell,
       label: 'ALERTS',
       isActive: viewMode === ViewMode.NOTIFICATIONS,
-      onClick: () => onSetViewMode(ViewMode.NOTIFICATIONS),
+      onClick: () => setViewMode(ViewMode.NOTIFICATIONS),
       badge: unreadCount > 0 ? unreadCount : null,
     },
     {
@@ -86,7 +80,7 @@ export function MobileNav({
       icon: identity ? Wifi : WifiOff,
       label: identity ? 'ID' : 'CONNECT',
       isActive: viewMode === ViewMode.IDENTITY,
-      onClick: () => onSetViewMode(ViewMode.IDENTITY),
+      onClick: () => setViewMode(ViewMode.IDENTITY),
       badge: null,
     },
   ];

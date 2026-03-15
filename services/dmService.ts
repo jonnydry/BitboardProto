@@ -60,6 +60,15 @@ class DMService {
   private _unreadCount = 0;
   private listeners = new Set<() => void>();
 
+  /**
+   * Get the current user's private key from identityService.
+   * Returns null if no local identity is available.
+   */
+  private getPrivateKey(): string | null {
+    const identity = identityService.getIdentity();
+    return identity?.kind === 'local' ? identity.privkey : null;
+  }
+
   // ----------------------------------------
   // INITIALIZATION
   // ----------------------------------------
@@ -210,7 +219,6 @@ class DMService {
   async sendMessage(args: {
     recipientPubkey: string;
     content: string;
-    privateKey: string; // Sender's private key for encryption
     replyToId?: string;
   }): Promise<DirectMessage | null> {
     if (!this.currentUserPubkey) {
@@ -218,10 +226,16 @@ class DMService {
       return null;
     }
 
+    const privkey = this.getPrivateKey();
+    if (!privkey) {
+      logger.error('DM', 'Cannot send message: No identity available');
+      throw new Error('No identity available for sending DM');
+    }
+
     try {
       const encryptedContent = await cryptoService.encryptNIP04(
         args.content,
-        args.privateKey,
+        privkey,
         args.recipientPubkey,
       );
       if (!encryptedContent) throw new Error('NIP-04 encryption failed');
@@ -272,18 +286,21 @@ class DMService {
    * Decrypt and process an incoming DM event
    * Supports NIP-17 (gift wrap), NIP-44, and NIP-04 (legacy)
    */
-  async processIncomingDM(args: {
-    event: NostrEvent;
-    recipientPrivkey: string;
-  }): Promise<DirectMessage | null> {
+  async processIncomingDM(args: { event: NostrEvent }): Promise<DirectMessage | null> {
     if (!this.currentUserPubkey) return null;
+
+    const privkey = this.getPrivateKey();
+    if (!privkey) {
+      logger.warn('DM', 'Cannot process incoming DM: No identity available');
+      return null;
+    }
 
     try {
       // Check if it's a NIP-17 gift wrap
       if (cryptoService.isGiftWrap(args.event)) {
         const unwrapped = await cryptoService.unwrapGiftWrap({
           giftWrapEvent: args.event,
-          recipientPrivkey: args.recipientPrivkey,
+          recipientPrivkey: privkey,
         });
 
         if (unwrapped) {
@@ -311,7 +328,7 @@ class DMService {
         const senderPubkey = args.event.pubkey;
         const decrypted = await cryptoService.decryptNIP04(
           args.event.content,
-          args.recipientPrivkey,
+          privkey,
           senderPubkey,
         );
 
@@ -348,13 +365,12 @@ class DMService {
   /**
    * Fetch DM history for current user
    */
-  async fetchMessages(
-    opts: { since?: number; limit?: number; privateKey?: string } = {},
-  ): Promise<DirectMessage[]> {
+  async fetchMessages(opts: { since?: number; limit?: number } = {}): Promise<DirectMessage[]> {
     if (!this.currentUserPubkey) {
       return [];
     }
 
+    const privkey = this.getPrivateKey();
     const since = opts.since || Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60; // 30 days
     const limit = opts.limit || 500;
 
@@ -384,8 +400,8 @@ class DMService {
       const messages = (
         await Promise.all(
           Array.from(uniqueEvents.values()).map((event) =>
-            opts.privateKey
-              ? this.eventToDirectMessageAsync(event, opts.privateKey)
+            privkey
+              ? this.eventToDirectMessageAsync(event)
               : Promise.resolve(this.eventToDirectMessage(event)),
           ),
         )
@@ -425,7 +441,7 @@ class DMService {
   /**
    * Subscribe to incoming DMs in real-time
    */
-  subscribeToMessages(privateKey?: string): string | null {
+  subscribeToMessages(): string | null {
     if (!this.currentUserPubkey || this.messageSubscription) {
       return this.messageSubscription;
     }
@@ -446,7 +462,7 @@ class DMService {
       ],
       {
         onEvent: (event) => {
-          void this.handleIncomingEvent(event, privateKey);
+          void this.handleIncomingEvent(event);
         },
       },
     );
@@ -455,9 +471,10 @@ class DMService {
     return this.messageSubscription;
   }
 
-  private async handleIncomingEvent(event: NostrEvent, privateKey?: string): Promise<void> {
-    const message = privateKey
-      ? await this.eventToDirectMessageAsync(event, privateKey)
+  private async handleIncomingEvent(event: NostrEvent): Promise<void> {
+    const privkey = this.getPrivateKey();
+    const message = privkey
+      ? await this.eventToDirectMessageAsync(event)
       : this.eventToDirectMessage(event);
 
     if (!message) {
@@ -519,10 +536,7 @@ class DMService {
   /**
    * Convert and decrypt a Nostr DM event (async version)
    */
-  async eventToDirectMessageAsync(
-    event: NostrEvent,
-    privateKey: string,
-  ): Promise<DirectMessage | null> {
+  async eventToDirectMessageAsync(event: NostrEvent): Promise<DirectMessage | null> {
     if (event.kind !== NOSTR_KINDS.ENCRYPTED_DM && event.kind !== NOSTR_KINDS.GIFT_WRAP) {
       return null;
     }
@@ -532,6 +546,7 @@ class DMService {
       return null;
     }
 
+    const privkey = this.getPrivateKey();
     const isSent = event.pubkey === this.currentUserPubkey;
     const replyToId = event.tags.find((t) => t[0] === 'e' && t[3] === 'reply')?.[1];
 
@@ -539,23 +554,25 @@ class DMService {
     let content = '[Encrypted Message]';
     let isDecrypted = false;
 
-    try {
-      const counterpartyPubkey = isSent ? recipientPubkey : event.pubkey;
-      const decrypted =
-        event.kind === NOSTR_KINDS.GIFT_WRAP
-          ? ((
-              await cryptoService.unwrapGiftWrap({
-                giftWrapEvent: event,
-                recipientPrivkey: privateKey,
-              })
-            )?.content ?? null)
-          : await cryptoService.decryptNIP04(event.content, privateKey, counterpartyPubkey);
-      if (decrypted) {
-        content = decrypted;
-        isDecrypted = true;
+    if (privkey) {
+      try {
+        const counterpartyPubkey = isSent ? recipientPubkey : event.pubkey;
+        const decrypted =
+          event.kind === NOSTR_KINDS.GIFT_WRAP
+            ? ((
+                await cryptoService.unwrapGiftWrap({
+                  giftWrapEvent: event,
+                  recipientPrivkey: privkey,
+                })
+              )?.content ?? null)
+            : await cryptoService.decryptNIP04(event.content, privkey, counterpartyPubkey);
+        if (decrypted) {
+          content = decrypted;
+          isDecrypted = true;
+        }
+      } catch {
+        // Decryption failed - keep placeholder content
       }
-    } catch {
-      // Decryption failed - keep placeholder content
     }
 
     return {

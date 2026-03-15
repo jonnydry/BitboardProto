@@ -10,9 +10,9 @@ import { logger } from '../services/loggingService';
 export function useNostrFeed(args: {
   setPosts: React.Dispatch<React.SetStateAction<Post[]>>;
   setBoards: React.Dispatch<React.SetStateAction<Board[]>>;
-  setIsNostrConnected: React.Dispatch<React.SetStateAction<boolean>>;
-  setOldestTimestamp: React.Dispatch<React.SetStateAction<number | null>>;
-  setHasMorePosts: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsNostrConnected: (connected: boolean) => void;
+  setOldestTimestamp: (timestamp: number | null) => void;
+  setHasMorePosts: (hasMore: boolean) => void;
 }) {
   const { setPosts, setBoards, setIsNostrConnected, setOldestTimestamp, setHasMorePosts } = args;
 
@@ -27,7 +27,7 @@ export function useNostrFeed(args: {
         logger.mark('nostr-fetch-start');
         const [nostrPosts, nostrBoards] = await Promise.all([
           nostrService.fetchPosts({ limit: initialLimit }),
-          nostrService.fetchBoards()
+          nostrService.fetchBoards(),
         ]);
         logger.mark('nostr-fetch-end');
         logger.measure('nostr-initial-fetch', 'nostr-fetch-start', 'nostr-fetch-end');
@@ -49,7 +49,7 @@ export function useNostrFeed(args: {
             nostrService.fetchPostEdits(postIds, { limit: 300 }).catch((err) => {
               logger.warn('NostrFeed', 'Failed to fetch post edits', err);
               return [];
-            })
+            }),
           ]);
 
           const postsWithVotes = convertedPosts.map((post) => {
@@ -134,24 +134,30 @@ export function useNostrFeed(args: {
         // PHASE 3: Defer profile fetching to after initial render
         if (processedPosts.length > 0) {
           // Use requestIdleCallback if available, otherwise setTimeout
-          const scheduleProfiles = typeof requestIdleCallback !== 'undefined'
-            ? () => requestIdleCallback(fetchProfiles)
-            : () => setTimeout(fetchProfiles, 100);
+          const scheduleProfiles =
+            typeof requestIdleCallback !== 'undefined'
+              ? () => requestIdleCallback(fetchProfiles)
+              : () => setTimeout(fetchProfiles, 100);
 
           const fetchProfiles = () => {
             const pubkeys = Array.from(
-              new Set(processedPosts.map((p) => p.authorPubkey).filter(Boolean) as string[])
+              new Set(processedPosts.map((p) => p.authorPubkey).filter(Boolean) as string[]),
             );
             if (pubkeys.length > 0) {
-              nostrService.fetchProfiles(pubkeys).then(() => {
-                setPosts((prev) =>
-                  prev.map((p) =>
-                    p.authorPubkey ? { ...p, author: nostrService.getDisplayName(p.authorPubkey) } : p
-                  )
-                );
-              }).catch((err) => {
-                logger.warn('NostrFeed', 'Failed to fetch profiles', err);
-              });
+              nostrService
+                .fetchProfiles(pubkeys)
+                .then(() => {
+                  setPosts((prev) =>
+                    prev.map((p) =>
+                      p.authorPubkey
+                        ? { ...p, author: nostrService.getDisplayName(p.authorPubkey) }
+                        : p,
+                    ),
+                  );
+                })
+                .catch((err) => {
+                  logger.warn('NostrFeed', 'Failed to fetch profiles', err);
+                });
             }
           };
 
@@ -189,8 +195,8 @@ export function useNostrFeed(args: {
             prev.map((p) =>
               p.authorPubkey === post.authorPubkey
                 ? { ...p, author: nostrService.getDisplayName(post.authorPubkey!) }
-                : p
-            )
+                : p,
+            ),
           );
         });
       }
@@ -202,9 +208,10 @@ export function useNostrFeed(args: {
       if (!parsed) return;
       setPosts((prev) =>
         prev.map((p) => {
-          if (p.nostrEventId !== parsed.rootPostEventId && p.id !== parsed.rootPostEventId) return p;
+          if (p.nostrEventId !== parsed.rootPostEventId && p.id !== parsed.rootPostEventId)
+            return p;
           return { ...p, ...parsed.updates };
-        })
+        }),
       );
     });
 

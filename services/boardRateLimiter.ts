@@ -3,6 +3,8 @@
 // ============================================
 // Prevents spam board creation by limiting to 3 boards per pubkey per 24 hours
 
+import { logger } from './loggingService';
+
 const STORAGE_KEY = 'bitboard_board_creation_log';
 const MAX_BOARDS_PER_DAY = 3;
 const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -29,7 +31,7 @@ class BoardRateLimiter {
         this.cleanup();
       }
     } catch (error) {
-      console.error('[BoardRateLimiter] Failed to load:', error);
+      logger.error('BoardRateLimiter', 'Failed to load', error);
       this.records = [];
     }
   }
@@ -38,7 +40,7 @@ class BoardRateLimiter {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.records));
     } catch (error) {
-      console.error('[BoardRateLimiter] Failed to save:', error);
+      logger.error('BoardRateLimiter', 'Failed to save', error);
     }
   }
 
@@ -47,7 +49,7 @@ class BoardRateLimiter {
    */
   private cleanup(): void {
     const cutoff = Date.now() - RATE_LIMIT_WINDOW_MS;
-    this.records = this.records.filter(r => r.timestamp > cutoff);
+    this.records = this.records.filter((r) => r.timestamp > cutoff);
     this.saveToStorage();
   }
 
@@ -56,7 +58,7 @@ class BoardRateLimiter {
    */
   getRecentCreations(pubkey: string): CreationRecord[] {
     this.cleanup();
-    return this.records.filter(r => r.pubkey === pubkey);
+    return this.records.filter((r) => r.pubkey === pubkey);
   }
 
   /**
@@ -67,11 +69,11 @@ class BoardRateLimiter {
     const recentCreations = this.getRecentCreations(pubkey);
     const count = recentCreations.length;
     const remaining = Math.max(0, MAX_BOARDS_PER_DAY - count);
-    
+
     // Find the oldest creation to determine reset time
     let resetAt: number | null = null;
     if (count >= MAX_BOARDS_PER_DAY && recentCreations.length > 0) {
-      const oldestTimestamp = Math.min(...recentCreations.map(r => r.timestamp));
+      const oldestTimestamp = Math.min(...recentCreations.map((r) => r.timestamp));
       resetAt = oldestTimestamp + RATE_LIMIT_WINDOW_MS;
     }
 
@@ -87,13 +89,13 @@ class BoardRateLimiter {
    */
   recordCreation(pubkey: string, boardId: string): void {
     this.cleanup();
-    
+
     this.records.push({
       pubkey,
       boardId,
       timestamp: Date.now(),
     });
-    
+
     this.saveToStorage();
   }
 
@@ -130,21 +132,3 @@ class BoardRateLimiter {
 }
 
 export const boardRateLimiter = new BoardRateLimiter();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

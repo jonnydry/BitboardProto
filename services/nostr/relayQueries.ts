@@ -1,18 +1,8 @@
-import type { Event as NostrEvent, Filter, SimplePool } from 'nostr-tools';
+import type { Event as NostrEvent, Filter } from 'nostr-tools';
 import { NOSTR_KINDS, type UnsignedNostrEvent } from '../../types';
-
-interface QueryDeps {
-  pool: SimplePool;
-  getReadRelays: () => string[];
-}
-
-function getLatestEvent(events: NostrEvent[]): NostrEvent | null {
-  if (!events.length) {
-    return null;
-  }
-
-  return events.sort((a, b) => b.created_at - a.created_at)[0];
-}
+import { logger } from '../loggingService';
+import { latestEvent } from './shared';
+import type { QueryDeps } from './shared';
 
 export function buildRelayListEvent(
   pubkey: string,
@@ -30,6 +20,8 @@ export function buildRelayListEvent(
       tags.push(['r', url, 'read']);
     } else if (relay.write) {
       tags.push(['r', url, 'write']);
+    } else if (relay.read === false && relay.write === false) {
+      continue;
     } else {
       tags.push(['r', url]);
     }
@@ -56,8 +48,12 @@ export async function fetchRelayListEvent(
 
   try {
     const events = await deps.pool.querySync(deps.getReadRelays(), filter);
-    return getLatestEvent(events);
-  } catch {
+    return latestEvent(events);
+  } catch (error) {
+    logger.warn(
+      'relayQueries',
+      `Failed to fetch relay list event for ${pubkey.slice(0, 8)}...: ${error}`,
+    );
     return null;
   }
 }
@@ -74,8 +70,12 @@ export async function fetchContactListEvent(
 
   try {
     const events = await deps.pool.querySync(deps.getReadRelays(), filter);
-    return getLatestEvent(events);
-  } catch {
+    return latestEvent(events);
+  } catch (error) {
+    logger.warn(
+      'relayQueries',
+      `Failed to fetch contact list event for ${pubkey.slice(0, 8)}...: ${error}`,
+    );
     return null;
   }
 }

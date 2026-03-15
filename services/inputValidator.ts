@@ -6,6 +6,7 @@
 // Adopted from BitChat's InputValidator.swift
 
 import { InputLimits } from '../config';
+import { logger } from './loggingService';
 
 // ============================================
 // CONSTANTS
@@ -24,7 +25,7 @@ class InputValidator {
    * Validates and sanitizes user-provided strings
    * Rejects strings containing control characters to prevent security issues
    * and UI rendering problems
-   * 
+   *
    * @param input - The string to validate
    * @param maxLength - Maximum allowed length
    * @returns Sanitized string or null if invalid
@@ -35,11 +36,11 @@ class InputValidator {
     }
 
     const trimmed = input.trim();
-    
+
     if (trimmed.length === 0) {
       return null;
     }
-    
+
     if (trimmed.length > maxLength) {
       return null;
     }
@@ -49,7 +50,7 @@ class InputValidator {
     // Exception: allow newlines (\n) and tabs (\t) in content fields
     const controlCharRegex = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/;
     if (controlCharRegex.test(trimmed)) {
-      console.warn('[InputValidator] Rejected string with control characters');
+      logger.warn('InputValidator', 'Rejected string with control characters');
       return null;
     }
 
@@ -132,7 +133,7 @@ class InputValidator {
 
     for (const tag of tags) {
       if (validTags.length >= InputLimits.MAX_TAGS_COUNT) break;
-      
+
       const validated = this.validateTag(tag);
       if (validated && !seen.has(validated)) {
         validTags.push(validated);
@@ -201,7 +202,7 @@ class InputValidator {
     const now = Date.now();
     const oneHourAgo = now - InputLimits.TIMESTAMP_WINDOW_MS;
     const oneHourFromNow = now + InputLimits.TIMESTAMP_WINDOW_MS;
-    
+
     return timestamp >= oneHourAgo && timestamp <= oneHourFromNow;
   }
 
@@ -215,7 +216,7 @@ class InputValidator {
    */
   escapeHtml(input: string): string {
     if (!input || typeof input !== 'string') return '';
-    
+
     const htmlEscapes: Record<string, string> = {
       '&': '&amp;',
       '<': '&lt;',
@@ -245,9 +246,9 @@ class InputValidator {
    */
   validatePubkeyHex(pubkey: string): string | null {
     if (!pubkey || typeof pubkey !== 'string') return null;
-    
+
     const trimmed = pubkey.trim().toLowerCase();
-    
+
     // Nostr pubkeys are 64 hex characters (32 bytes)
     if (!/^[a-f0-9]{64}$/.test(trimmed)) {
       return null;
@@ -269,9 +270,9 @@ class InputValidator {
    */
   validateNpub(npub: string): string | null {
     if (!npub || typeof npub !== 'string') return null;
-    
+
     const trimmed = npub.trim().toLowerCase();
-    
+
     // npub starts with 'npub1' and is ~63 characters
     if (!trimmed.startsWith('npub1') || trimmed.length < 60 || trimmed.length > 65) {
       return null;
@@ -290,9 +291,9 @@ class InputValidator {
    */
   validateNsec(nsec: string): string | null {
     if (!nsec || typeof nsec !== 'string') return null;
-    
+
     const trimmed = nsec.trim().toLowerCase();
-    
+
     // nsec starts with 'nsec1' and is ~63 characters
     if (!trimmed.startsWith('nsec1') || trimmed.length < 60 || trimmed.length > 65) {
       return null;
@@ -315,9 +316,9 @@ class InputValidator {
    */
   validateGeohash(geohash: string): string | null {
     if (!geohash || typeof geohash !== 'string') return null;
-    
+
     const trimmed = geohash.trim().toLowerCase();
-    
+
     // Geohashes are 1-12 characters, base32 encoded
     if (trimmed.length < 1 || trimmed.length > 12) {
       return null;
@@ -337,9 +338,3 @@ export const inputValidator = new InputValidator();
 
 // Re-export InputLimits for convenience
 export { InputLimits } from '../config';
-
-
-
-
-
-

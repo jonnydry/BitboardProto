@@ -1,14 +1,5 @@
-import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
-import {
-  Post,
-  UserState,
-  ViewMode,
-  Board,
-  ThemeId,
-  NostrIdentity,
-  SortMode,
-  BoardType,
-} from '../../types';
+import React, { createContext, useContext, useCallback, useMemo, useEffect } from 'react';
+import { Post, UserState, ViewMode, Board, NostrIdentity, SortMode, BoardType } from '../../types';
 import { nostrService } from '../../services/nostrService';
 import { identityService } from '../../services/identityService';
 import { bookmarkService } from '../../services/bookmarkService';
@@ -28,11 +19,10 @@ import { useAppEventHandlers } from './useAppEventHandlers';
 import { useAppLifecycle } from './useAppLifecycle';
 import { usePostDecryption } from '../../hooks/usePostDecryption';
 import { usePhaseTwoServices } from './usePhaseTwoServices';
-import { followServiceV2 } from '../../services/followServiceV2';
-
 import { usePostStore } from '../../stores/postStore';
 import { useBoardStore } from '../../stores/boardStore';
 import { useUIStore } from '../../stores/uiStore';
+import { trendingScore } from '../../services/nostr/shared';
 import { useUserStoreEffects, useUserStore } from '../../stores/userStore';
 
 interface AppContextType {
@@ -40,55 +30,27 @@ interface AppContextType {
   posts: Post[];
   boards: Board[];
   viewMode: ViewMode;
-  selectedBitId: string | null;
   activeBoardId: string | null;
-  theme: ThemeId;
-  isNostrConnected: boolean;
   locationBoards: Board[];
-  feedFilter: 'all' | 'topic' | 'location' | 'following';
-  searchQuery: string;
-  sortMode: SortMode;
   profileUser: { username: string; pubkey?: string } | null;
   editingPostId: string | null;
-  bookmarkedIds: string[];
-  reportedPostIds: string[];
   userState: UserState;
-  hasMorePosts: boolean;
-  oldestTimestamp: number | null;
 
   // Computed values
-  boardsById: Map<string, Board>;
   postsById: Map<string, Post>;
-  filteredPosts: Post[];
   sortedPosts: Post[];
   knownUsers: Set<string>;
   selectedPost: Post | null;
   activeBoard: Board | null;
   topicBoards: Board[];
-  geohashBoards: Board[];
-  bookmarkedIdSet: Set<string>;
-  reportedPostIdSet: Set<string>;
   decryptionFailedBoardIds: Set<string>;
 
   // Encryption actions
   removeFailedDecryptionKey: (boardId: string) => void;
 
   // Actions
-  setPosts: React.Dispatch<React.SetStateAction<Post[]>>;
-  setBoards: React.Dispatch<React.SetStateAction<Board[]>>;
   setViewMode: (mode: ViewMode) => void;
-  setSelectedBitId: (id: string | null) => void;
-  setActiveBoardId: (id: string | null) => void;
-  setTheme: (theme: ThemeId) => void;
   setLocationBoards: React.Dispatch<React.SetStateAction<Board[]>>;
-  setFeedFilter: (filter: 'all' | 'topic' | 'location' | 'following') => void;
-  setSearchQuery: (query: string) => void;
-  setSortMode: (mode: SortMode) => void;
-  setProfileUser: (user: { username: string; pubkey?: string } | null) => void;
-  setEditingPostId: (id: string | null) => void;
-  setUserState: React.Dispatch<React.SetStateAction<UserState>>;
-  setHasMorePosts: (hasMore: boolean) => void;
-  setOldestTimestamp: (timestamp: number | null) => void;
 
   // Event handlers
   handleCreatePost: (
@@ -110,11 +72,9 @@ interface AppContextType {
   handleComment: (postId: string, content: string, parentCommentId?: string) => Promise<void>;
   handleEditComment: (postId: string, commentId: string, nextContent: string) => Promise<void>;
   handleDeleteComment: (postId: string, commentId: string) => Promise<void>;
-  handleViewBit: (postId: string) => void;
   navigateToBoard: (boardId: string | null) => void;
   returnToFeed: () => void;
   handleIdentityChange: (identity: NostrIdentity | null) => void;
-  handleLocationBoardSelect: (board: Board) => void;
   handleViewProfile: (username: string, pubkey?: string) => void;
   handleEditPost: (postId: string) => void;
   handleSavePost: (postId: string, updates: Partial<Post>) => void;
@@ -123,9 +83,6 @@ interface AppContextType {
   handleVote: (postId: string, direction: 'up' | 'down') => void;
   handleCommentVote: (postId: string, commentId: string, direction: 'up' | 'down') => void;
   handleToggleBookmark: (postId: string) => void;
-  handleSearch: (query: string) => void;
-  loadMorePosts: () => Promise<void>;
-  getThemeColor: (id: ThemeId) => string;
   getBoardName: (postId: string) => string | undefined;
   refreshProfileMetadata: (pubkeys: string[]) => Promise<void>;
   handleRetryPost: (postId: string) => Promise<void>;
@@ -149,26 +106,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
 // Internal provider that aggregates from focused contexts
 const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // State for things not handled by focused contexts
-  const [selectedBitId, setSelectedBitId] = useState<string | null>(null);
-  const [feedFilter, setFeedFilter] = useState<'all' | 'topic' | 'location' | 'following'>('all');
-  const [followingPubkeys, setFollowingPubkeys] = useState<string[]>(() =>
-    followServiceV2.getFollowingPubkeys(),
-  );
-  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>(() =>
-    bookmarkService.getBookmarkedIds(),
-  );
-  const [reportedPostIds, setReportedPostIds] = useState<string[]>(() =>
-    reportService.getReportsByType('post').map((r) => r.targetId),
-  );
-  const [isNostrConnected, setIsNostrConnected] = useState(false);
-  const [hasMorePosts, setHasMorePosts] = useState(true);
-  const [oldestTimestamp, setOldestTimestamp] = useState<number | null>(null);
+  // selectedBitId now lives in postStore as the single source of truth
+  const selectedBitId = usePostStore((state) => state.selectedPostId);
+  const setSelectedBitId = usePostStore((state) => state.setSelectedPostId);
 
   const posts = usePostStore((state) => state.posts);
   const setPosts = usePostStore((state) => state.setPosts);
   const markPostAccessed = usePostStore((state) => state.markPostAccessed);
-  const setSelectedPostId = usePostStore((state) => state.setSelectedPostId);
 
   const boards = useBoardStore((state) => state.boards);
   const locationBoards = useBoardStore((state) => state.locationBoards);
@@ -184,17 +128,31 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
   const profileUser = useUIStore((state) => state.profileUser);
   const editingPostId = useUIStore((state) => state.editingPostId);
   const setViewMode = useUIStore((state) => state.setViewMode);
-  const setTheme = useUIStore((state) => state.setTheme);
-  const setSearchQuery = useUIStore((state) => state.setSearchQuery);
-  const setSortMode = useUIStore((state) => state.setSortMode);
-  const setProfileUser = useUIStore((state) => state.setProfileUser);
   const setEditingPostId = useUIStore((state) => state.setEditingPostId);
+  const feedFilter = useUIStore((state) => state.feedFilter);
+  const setIsNostrConnected = useUIStore((state) => state.setIsNostrConnected);
+  const hasMorePosts = useUIStore((state) => state.hasMorePosts);
+  const setHasMorePosts = useUIStore((state) => state.setHasMorePosts);
+  const oldestTimestamp = useUIStore((state) => state.oldestTimestamp);
+  const setOldestTimestamp = useUIStore((state) => state.setOldestTimestamp);
+  const bookmarkedIds = useUIStore((state) => state.bookmarkedIds);
+  const setBookmarkedIds = useUIStore((state) => state.setBookmarkedIds);
+  const reportedPostIds = useUIStore((state) => state.reportedPostIds);
+  const setReportedPostIds = useUIStore((state) => state.setReportedPostIds);
 
   const userState = useUserStore((state) => state.userState);
   const setUserState = useUserStore((state) => state.setUserState);
   const toggleMute = useUserStore((state) => state.toggleMute);
   const isMuted = useUserStore((state) => state.isMuted);
   const handleIdentityChange = useUserStore((state) => state.handleIdentityChange);
+  const followingPubkeys = useUserStore((state) => state.followingPubkeys);
+  const setFollowingPubkeys = useUserStore((state) => state.setFollowingPubkeys);
+
+  // Initialize bookmarkedIds and reportedPostIds from services on mount
+  useEffect(() => {
+    setBookmarkedIds(bookmarkService.getBookmarkedIds());
+    setReportedPostIds(reportService.getReportsByType('post').map((r) => r.targetId));
+  }, [setBookmarkedIds, setReportedPostIds]);
 
   const postsById = useMemo(() => {
     const map = new Map<string, Post>();
@@ -218,21 +176,11 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     return boards.filter((board) => board.type === BoardType.TOPIC);
   }, [boards]);
 
-  const geohashBoards = useMemo(() => {
-    const geohashMap = new Map<string, Board>();
-    boards
-      .filter((board) => board.type === BoardType.GEOHASH)
-      .forEach((board) => geohashMap.set(board.id, board));
-    locationBoards.forEach((board) => geohashMap.set(board.id, board));
-    return Array.from(geohashMap.values());
-  }, [boards, locationBoards]);
-
   const postsCtx = {
     posts,
     postsById,
     setPosts,
     markPostAccessed,
-    setSelectedPostId,
   };
 
   const boardsCtx = {
@@ -241,7 +189,6 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     activeBoardId,
     boardsById,
     topicBoards,
-    geohashBoards,
     activeBoard,
     setBoards,
     setLocationBoards,
@@ -256,10 +203,6 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     profileUser,
     editingPostId,
     setViewMode,
-    setTheme,
-    setSearchQuery,
-    setSortMode,
-    setProfileUser,
     setEditingPostId,
   };
 
@@ -288,8 +231,6 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     sortedPosts: derivedSortedPosts,
     knownUsers,
     selectedPost,
-    bookmarkedIdSet,
-    reportedPostIdSet,
   } = useAppDerivedData({
     posts: postsCtx.posts,
     postsById: postsCtx.postsById,
@@ -304,7 +245,6 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     bookmarkedIds,
     reportedPostIds,
     markPostAccessed: postsCtx.markPostAccessed,
-    setSelectedPostId: postsCtx.setSelectedPostId,
   });
 
   // Decrypt encrypted posts/comments if we have the keys
@@ -328,14 +268,11 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
         return sorted.sort((a, b) => a.timestamp - b.timestamp);
       case SortMode.TRENDING: {
         const now = Date.now();
-        const hour = 1000 * 60 * 60;
-        return sorted.sort((a, b) => {
-          const ageA = (now - a.timestamp) / hour;
-          const ageB = (now - b.timestamp) / hour;
-          const trendA = (a.score + a.commentCount * 2) / Math.pow(ageA + 2, 1.5);
-          const trendB = (b.score + b.commentCount * 2) / Math.pow(ageB + 2, 1.5);
-          return trendB - trendA;
-        });
+        return sorted.sort(
+          (a, b) =>
+            trendingScore(b.score, b.commentCount, b.timestamp, now) -
+            trendingScore(a.score, a.commentCount, a.timestamp, now),
+        );
       }
       case SortMode.COMMENTS:
         return sorted.sort((a, b) => b.commentCount - a.commentCount);
@@ -344,20 +281,6 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
         return sorted.sort((a, b) => b.score - a.score);
     }
   }, [decryptedPosts, derivedSortedPosts, filteredPosts, uiCtx.sortMode]);
-
-  // Theme colors map
-  const themeColors = useMemo(() => {
-    return new Map<ThemeId, string>([
-      [ThemeId.AMBER, '#ffb000'],
-      [ThemeId.PHOSPHOR, '#00ff41'],
-      [ThemeId.PLASMA, '#00f0ff'],
-      [ThemeId.VERMILION, '#ff4646'],
-      [ThemeId.SLATE, '#c8c8c8'],
-      [ThemeId.PATRIOT, '#ffffff'],
-      [ThemeId.SAKURA, '#ffb4dc'],
-      [ThemeId.BITBORING, '#ffffff'],
-    ]);
-  }, []);
 
   // Hooks
   useTheme(uiCtx.theme);
@@ -393,7 +316,6 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Event handlers (imported from separate file with updated context access)
   const eventHandlers = useAppEventHandlers({
-    posts: postsCtx.posts,
     setPosts: postsCtx.setPosts,
     boards: boardsCtx.boards,
     setBoards: boardsCtx.setBoards,
@@ -402,13 +324,9 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     userState: userCtx.userState,
     setUserState: userCtx.setUserState,
     setViewMode: uiCtx.setViewMode,
-    setSelectedBitId,
     setActiveBoardId: boardsCtx.setActiveBoardId,
-    setLocationBoards: boardsCtx.setLocationBoards,
-    setProfileUser: uiCtx.setProfileUser,
     setEditingPostId: uiCtx.setEditingPostId,
     getRelayHint,
-    setSearchQuery: uiCtx.setSearchQuery,
     oldestTimestamp,
     hasMorePosts,
     setOldestTimestamp,
@@ -442,53 +360,25 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     posts: postsCtx.posts,
     boards: boardsCtx.boards,
     viewMode: uiCtx.viewMode,
-    selectedBitId,
     activeBoardId: boardsCtx.activeBoardId,
-    theme: uiCtx.theme,
-    isNostrConnected,
     locationBoards: boardsCtx.locationBoards,
-    feedFilter,
-    searchQuery: uiCtx.searchQuery,
-    sortMode: uiCtx.sortMode,
     profileUser: uiCtx.profileUser,
     editingPostId: uiCtx.editingPostId,
-    bookmarkedIds,
-    reportedPostIds,
     userState: userCtx.userState,
-    hasMorePosts,
-    oldestTimestamp,
 
     // Computed values (aggregated from focused contexts)
-    boardsById: boardsCtx.boardsById,
     postsById: postsCtx.postsById,
-    filteredPosts,
     sortedPosts,
     knownUsers,
     selectedPost,
     activeBoard: boardsCtx.activeBoard,
     topicBoards: boardsCtx.topicBoards,
-    geohashBoards: boardsCtx.geohashBoards,
-    bookmarkedIdSet,
-    reportedPostIdSet,
     decryptionFailedBoardIds,
     removeFailedDecryptionKey: removeFailedKey,
 
     // Actions (delegated to focused contexts)
-    setPosts: postsCtx.setPosts,
-    setBoards: boardsCtx.setBoards,
     setViewMode: uiCtx.setViewMode,
-    setSelectedBitId,
-    setActiveBoardId: boardsCtx.setActiveBoardId,
-    setTheme: uiCtx.setTheme,
     setLocationBoards: boardsCtx.setLocationBoards,
-    setFeedFilter,
-    setSearchQuery: uiCtx.setSearchQuery,
-    setSortMode: uiCtx.setSortMode,
-    setProfileUser: uiCtx.setProfileUser,
-    setEditingPostId: uiCtx.setEditingPostId,
-    setUserState: userCtx.setUserState,
-    setHasMorePosts,
-    setOldestTimestamp,
 
     // Event handlers
     handleCreatePost: eventHandlers.handleCreatePost,
@@ -496,11 +386,9 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     handleComment: eventHandlers.handleComment,
     handleEditComment: eventHandlers.handleEditComment,
     handleDeleteComment: eventHandlers.handleDeleteComment,
-    handleViewBit: eventHandlers.handleViewBit,
     navigateToBoard: eventHandlers.navigateToBoard,
     returnToFeed: eventHandlers.returnToFeed,
     handleIdentityChange: userCtx.handleIdentityChange,
-    handleLocationBoardSelect: eventHandlers.handleLocationBoardSelect,
     handleViewProfile: eventHandlers.handleViewProfile,
     handleEditPost: eventHandlers.handleEditPost,
     handleSavePost: eventHandlers.handleSavePost,
@@ -529,9 +417,6 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     },
-    handleSearch: eventHandlers.handleSearch,
-    loadMorePosts: eventHandlers.loadMorePosts,
-    getThemeColor: (id: ThemeId) => themeColors.get(id) || '#fff',
     getBoardName: eventHandlers.getBoardName,
     refreshProfileMetadata: eventHandlers.refreshProfileMetadata,
     handleRetryPost: eventHandlers.handleRetryPost,

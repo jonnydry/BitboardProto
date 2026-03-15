@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
-import { Post, UserState, ViewMode } from '../types';
+import { ViewMode } from '../types';
 import { PostItem } from './PostItem';
 import { ProfileEditor } from './ProfileEditor';
 import { profileService, type ProfileMetadata } from '../services/profileService';
@@ -8,75 +8,82 @@ import { useFollows } from '../hooks/useFollows';
 import { dataExportService } from '../services/dataExportService';
 import { toastService } from '../services/toastService';
 import { UIConfig } from '../config';
-import { ArrowLeft, User, FileText, MessageSquare, TrendingUp, RefreshCw, VolumeX, Edit, Globe, Zap, Mail, ExternalLink, Download, UserPlus, UserMinus } from 'lucide-react';
+import {
+  ArrowLeft,
+  User,
+  FileText,
+  MessageSquare,
+  TrendingUp,
+  RefreshCw,
+  VolumeX,
+  Edit,
+  Globe,
+  Zap,
+  Mail,
+  ExternalLink,
+  Download,
+  UserPlus,
+  UserMinus,
+} from 'lucide-react';
 import { FollowButton as _FollowButton, FollowStats as _FollowStats } from './FollowButton';
 import { ZapButton } from './ZapButton';
 import { BadgeDisplay } from './BadgeDisplay';
 import { TrustIndicator } from './TrustIndicator';
+import { useUIStore } from '../stores/uiStore';
+import { useUserStore } from '../stores/userStore';
+import { usePostStore } from '../stores/postStore';
+import { useAppNavigationHandlers } from '../features/layout/useAppNavigationHandlers';
 
 interface UserProfileProps {
-  username: string;
-  authorPubkey?: string;
-  posts: Post[];
-  bookmarkedIdSet: Set<string>;
-  reportedPostIdSet: Set<string>;
   onToggleBookmark: (postId: string) => void;
-  userState: UserState;
   knownUsers?: Set<string>;
   onVote: (postId: string, direction: 'up' | 'down') => void;
   onComment: (postId: string, content: string, parentCommentId?: string) => void;
   onEditComment?: (postId: string, commentId: string, content: string) => void;
   onDeleteComment?: (postId: string, commentId: string) => void;
   onCommentVote?: (postId: string, commentId: string, direction: 'up' | 'down') => void;
-  onViewBit: (postId: string) => void;
-  onViewProfile?: (username: string, pubkey?: string) => void;
-  onEditPost?: (postId: string) => void;
-  onDeletePost?: (postId: string) => void;
-  onTagClick?: (tag: string) => void;
   onRefreshProfile?: (pubkey: string) => void;
-  onClose: () => void;
-  isNostrConnected: boolean;
-  onToggleMute?: (pubkey: string) => void;
-  isMuted?: (pubkey: string) => boolean;
-  onSetViewMode?: (mode: ViewMode) => void;
+  onDeletePost?: (postId: string) => void;
 }
 
 export const UserProfile: React.FC<UserProfileProps> = ({
-  username,
-  authorPubkey,
-  posts,
-  bookmarkedIdSet,
-  reportedPostIdSet,
   onToggleBookmark,
-  userState,
   knownUsers,
   onVote,
   onComment,
   onEditComment,
   onDeleteComment,
   onCommentVote,
-  onViewBit,
-  onViewProfile,
-  onEditPost,
-  onDeletePost,
-  onTagClick,
   onRefreshProfile,
-  onClose,
-  isNostrConnected,
-  onToggleMute,
-  isMuted,
-  onSetViewMode,
+  onDeletePost,
 }) => {
+  // Read state from Zustand stores
+  const profileUser = useUIStore((s) => s.profileUser);
+  const isNostrConnected = useUIStore((s) => s.isNostrConnected);
+  const setViewMode = useUIStore((s) => s.setViewMode);
+  const userState = useUserStore((s) => s.userState);
+  const toggleMute = useUserStore((s) => s.toggleMute);
+  const isMuted = useUserStore((s) => s.isMuted);
+  const posts = usePostStore((s) => s.posts);
+
+  // Derive username and authorPubkey from profileUser
+  const username = profileUser?.username ?? '';
+  const authorPubkey = profileUser?.pubkey;
+
+  // Navigation handlers
+  const { handleViewBit, handleViewProfile, handleEditPost, handleTagClick } =
+    useAppNavigationHandlers();
+
+  const onClose = useCallback(() => setViewMode(ViewMode.FEED), [setViewMode]);
   const [profileMetadata, setProfileMetadata] = useState<ProfileMetadata | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const { follow, unfollow, isFollowing, isLoading: isFollowLoading } = useFollows();
   // Filter posts by this user
   const userPosts = useMemo(() => {
-    return posts.filter(p => 
-      p.author === username || 
-      (authorPubkey && p.authorPubkey === authorPubkey)
-    ).sort((a, b) => b.timestamp - a.timestamp);
+    return posts
+      .filter((p) => p.author === username || (authorPubkey && p.authorPubkey === authorPubkey))
+      .sort((a, b) => b.timestamp - a.timestamp);
   }, [posts, username, authorPubkey]);
 
   // Calculate user stats
@@ -91,57 +98,66 @@ export const UserProfile: React.FC<UserProfileProps> = ({
     };
   }, [userPosts]);
 
-  const isOwnProfile = userState.username === username ||
+  const isOwnProfile =
+    userState.username === username ||
     (authorPubkey && userState.identity?.pubkey === authorPubkey);
 
   // Stabilize callbacks to prevent PostItem re-renders
-  const handleVote = useCallback((postId: string, direction: 'up' | 'down') => {
-    onVote(postId, direction);
-  }, [onVote]);
+  const handleVote = useCallback(
+    (postId: string, direction: 'up' | 'down') => {
+      onVote(postId, direction);
+    },
+    [onVote],
+  );
 
-  const handleComment = useCallback((postId: string, content: string, parentCommentId?: string) => {
-    onComment(postId, content, parentCommentId);
-  }, [onComment]);
+  const handleComment = useCallback(
+    (postId: string, content: string, parentCommentId?: string) => {
+      onComment(postId, content, parentCommentId);
+    },
+    [onComment],
+  );
 
-  const handleEditComment = useCallback((postId: string, commentId: string, content: string) => {
-    onEditComment?.(postId, commentId, content);
-  }, [onEditComment]);
+  const handleEditComment = useCallback(
+    (postId: string, commentId: string, content: string) => {
+      onEditComment?.(postId, commentId, content);
+    },
+    [onEditComment],
+  );
 
-  const handleDeleteComment = useCallback((postId: string, commentId: string) => {
-    onDeleteComment?.(postId, commentId);
-  }, [onDeleteComment]);
+  const handleDeleteComment = useCallback(
+    (postId: string, commentId: string) => {
+      onDeleteComment?.(postId, commentId);
+    },
+    [onDeleteComment],
+  );
 
-  const handleCommentVote = useCallback((postId: string, commentId: string, direction: 'up' | 'down') => {
-    onCommentVote?.(postId, commentId, direction);
-  }, [onCommentVote]);
+  const handleCommentVote = useCallback(
+    (postId: string, commentId: string, direction: 'up' | 'down') => {
+      onCommentVote?.(postId, commentId, direction);
+    },
+    [onCommentVote],
+  );
 
-  const handleViewBit = useCallback((postId: string) => {
-    onViewBit(postId);
-  }, [onViewBit]);
+  const handleDeletePost = useCallback(
+    (postId: string) => {
+      onDeletePost?.(postId);
+    },
+    [onDeletePost],
+  );
 
-  const handleViewProfile = useCallback((username: string, pubkey?: string) => {
-    onViewProfile?.(username, pubkey);
-  }, [onViewProfile]);
+  const handleToggleBookmark = useCallback(
+    (id: string) => {
+      onToggleBookmark(id);
+    },
+    [onToggleBookmark],
+  );
 
-  const handleEditPost = useCallback((postId: string) => {
-    onEditPost?.(postId);
-  }, [onEditPost]);
-
-  const handleDeletePost = useCallback((postId: string) => {
-    onDeletePost?.(postId);
-  }, [onDeletePost]);
-
-  const handleTagClick = useCallback((tag: string) => {
-    onTagClick?.(tag);
-  }, [onTagClick]);
-
-  const handleToggleBookmark = useCallback((id: string) => {
-    onToggleBookmark(id);
-  }, [onToggleBookmark]);
-
-  const handleToggleMute = useCallback((pubkey: string) => {
-    onToggleMute?.(pubkey);
-  }, [onToggleMute]);
+  const handleToggleMute = useCallback(
+    (pubkey: string) => {
+      toggleMute(pubkey);
+    },
+    [toggleMute],
+  );
 
   // Virtualization for large lists (>25 items)
   const VIRTUALIZE_THRESHOLD = 25;
@@ -160,11 +176,12 @@ export const UserProfile: React.FC<UserProfileProps> = ({
   useEffect(() => {
     if (authorPubkey) {
       setIsLoadingProfile(true);
-      profileService.getProfileMetadata(authorPubkey)
-        .then(metadata => {
+      profileService
+        .getProfileMetadata(authorPubkey)
+        .then((metadata) => {
           setProfileMetadata(metadata);
         })
-        .catch(error => {
+        .catch((error) => {
           console.error('[UserProfile] Failed to load profile metadata:', error);
         })
         .finally(() => {
@@ -239,7 +256,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
 
   return (
     <div className="animate-fade-in">
-      <button 
+      <button
         onClick={onClose}
         className="flex items-center gap-2 text-terminal-dim hover:text-terminal-text mb-4 uppercase text-sm font-bold group"
       >
@@ -277,7 +294,10 @@ export const UserProfile: React.FC<UserProfileProps> = ({
                 }}
               />
             ) : null}
-            <User size={32} className={`text-terminal-text ${profileMetadata?.picture ? 'hidden' : ''}`} />
+            <User
+              size={32}
+              className={`text-terminal-text ${profileMetadata?.picture ? 'hidden' : ''}`}
+            />
           </div>
 
           <div className="flex-1">
@@ -291,17 +311,18 @@ export const UserProfile: React.FC<UserProfileProps> = ({
                 </span>
               )}
 
-              {!isOwnProfile && authorPubkey && onToggleMute && (
+              {!isOwnProfile && authorPubkey && (
                 <button
-                  onClick={() => onToggleMute(authorPubkey)}
+                  onClick={() => toggleMute(authorPubkey)}
                   className={`flex items-center gap-1 text-xs border px-2 py-0.5 transition-colors uppercase
-                    ${isMuted?.(authorPubkey)
-                      ? 'border-terminal-alert text-terminal-alert hover:bg-terminal-alert hover:text-black'
-                      : 'border-terminal-dim text-terminal-dim hover:text-terminal-alert hover:border-terminal-alert'
+                    ${
+                      isMuted(authorPubkey)
+                        ? 'border-terminal-alert text-terminal-alert hover:bg-terminal-alert hover:text-black'
+                        : 'border-terminal-dim text-terminal-dim hover:text-terminal-alert hover:border-terminal-alert'
                     }`}
                 >
                   <VolumeX size={12} />
-                  {isMuted?.(authorPubkey) ? 'UNMUTE' : 'MUTE'}
+                  {isMuted(authorPubkey) ? 'UNMUTE' : 'MUTE'}
                 </button>
               )}
 
@@ -332,15 +353,11 @@ export const UserProfile: React.FC<UserProfileProps> = ({
 
               {/* Zap Button */}
               {!isOwnProfile && authorPubkey && (
-                <ZapButton
-                  authorPubkey={authorPubkey}
-                  authorName={username}
-                  compact={false}
-                />
+                <ZapButton authorPubkey={authorPubkey} authorName={username} compact={false} />
               )}
 
               {/* Edit Profile Button */}
-              {isOwnProfile && onSetViewMode && (
+              {isOwnProfile && (
                 <>
                   <button
                     onClick={handleEditProfile}
@@ -366,7 +383,11 @@ export const UserProfile: React.FC<UserProfileProps> = ({
                   onClick={() => onRefreshProfile(authorPubkey)}
                   disabled={!isNostrConnected || isLoadingProfile}
                   className="ml-auto flex items-center gap-2 px-3 py-2 md:py-1 border border-terminal-dim text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors uppercase text-xs disabled:opacity-50"
-                  title={isNostrConnected ? 'Refresh profile metadata' : 'Offline: cannot refresh profile'}
+                  title={
+                    isNostrConnected
+                      ? 'Refresh profile metadata'
+                      : 'Offline: cannot refresh profile'
+                  }
                 >
                   <RefreshCw size={12} className={isLoadingProfile ? 'animate-spin' : ''} />
                   REFRESH
@@ -385,9 +406,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
 
             {/* Bio/About */}
             {profileMetadata?.about && (
-              <p className="text-terminal-text mb-3 leading-relaxed">
-                {profileMetadata.about}
-              </p>
+              <p className="text-terminal-text mb-3 leading-relaxed">{profileMetadata.about}</p>
             )}
 
             {/* Badges */}
@@ -398,7 +417,10 @@ export const UserProfile: React.FC<UserProfileProps> = ({
             )}
 
             {/* Links */}
-            {(profileMetadata?.website || profileMetadata?.nip05 || profileMetadata?.lud16 || profileMetadata?.lud06) && (
+            {(profileMetadata?.website ||
+              profileMetadata?.nip05 ||
+              profileMetadata?.lud16 ||
+              profileMetadata?.lud06) && (
               <div className="flex flex-wrap gap-3 mb-4">
                 {profileMetadata.website && (
                   <a
@@ -503,10 +525,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
                     onTagClick={handleTagClick}
                     onEditPost={handleEditPost}
                     onDeletePost={handleDeletePost}
-                    isBookmarked={bookmarkedIdSet.has(post.id)}
                     onToggleBookmark={handleToggleBookmark}
-                    hasReported={reportedPostIdSet.has(post.id)}
-                    isNostrConnected={isNostrConnected}
                     onToggleMute={handleToggleMute}
                     isMuted={isMuted}
                   />
@@ -517,7 +536,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
         </div>
       ) : (
         <div className="space-y-2">
-          {userPosts.map(post => (
+          {userPosts.map((post) => (
             <PostItem
               key={post.id}
               post={post}
@@ -533,10 +552,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
               onTagClick={handleTagClick}
               onEditPost={handleEditPost}
               onDeletePost={handleDeletePost}
-              isBookmarked={bookmarkedIdSet.has(post.id)}
               onToggleBookmark={handleToggleBookmark}
-              hasReported={reportedPostIdSet.has(post.id)}
-              isNostrConnected={isNostrConnected}
               onToggleMute={handleToggleMute}
               isMuted={isMuted}
             />

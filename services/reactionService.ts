@@ -4,13 +4,8 @@
 // Handles emoji reactions to posts and comments
 // Reactions are FREE (no bit cost) - social signals only
 
-import {
-  type Event as NostrEvent,
-  type Filter,
-  finalizeEvent,
-  type UnsignedEvent,
-  SimplePool,
-} from 'nostr-tools';
+import { type Event as NostrEvent, type Filter } from 'nostr-tools';
+import type { UnsignedNostrEvent } from '../types';
 import { logger } from './loggingService';
 import { nostrService } from './nostrService';
 import { identityService } from './identityService';
@@ -120,27 +115,12 @@ class ReactionService {
         limit: 1000,
       };
 
-      // Get nostr service
-      const relayList = nostrService.getRelays();
-      const relays = relayList.map((r: { url: string }) => r.url);
-      if (relays.length === 0) return new Map();
-
-      const events: NostrEvent[] = [];
-
-      // Create a temporary pool for querying
-      const pool = new SimplePool();
-
-      // Query relays for reactions using type assertion to handle nostr-tools API
+      // Use nostrService to query reactions (reuses the existing connection pool)
+      let events: NostrEvent[];
       try {
-        const sub = (pool as any).subscribeMany(relays, [filter], {
-          onevent: (event: NostrEvent) => events.push(event),
-        });
-
-        // Wait for initial results
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        sub.close();
+        events = await nostrService.queryEvents(filter);
       } catch {
-        // Ignore query errors
+        events = [];
       }
 
       // Process events into reaction states
@@ -238,7 +218,7 @@ class ReactionService {
 
     try {
       // Build NIP-25 reaction event
-      const unsignedEvent: UnsignedEvent = {
+      const unsignedEvent: UnsignedNostrEvent = {
         kind: NIP25_KIND,
         pubkey: this.currentUserPubkey,
         created_at: Math.floor(Date.now() / 1000),
@@ -249,19 +229,15 @@ class ReactionService {
         content: emoji,
       };
 
-      // Get identity to sign
-      const identity = await this.getIdentity();
-      if (!identity || !identity.privkey) {
-        logger.warn('Reactions', 'Cannot sign reaction without privkey');
+      // Sign through identityService (handles key conversion safely)
+      const signedEvent = await identityService.signEvent(unsignedEvent);
+      if (!signedEvent) {
+        logger.warn('Reactions', 'Cannot sign reaction — no identity or NIP-07 rejected');
         return false;
       }
 
-      // Sign and publish
-      const signedEvent = finalizeEvent(unsignedEvent, identity.privkey as unknown as Uint8Array);
-      const relayList = nostrService.getRelays();
-      const relays = relayList.map((r: { url: string }) => r.url);
-      const pool = new SimplePool();
-      await Promise.all(pool.publish(relays, signedEvent));
+      // Publish through nostrService (reuses connection pool)
+      await nostrService.publishSignedEvent(signedEvent);
 
       // Update local state
       const newState = this.getReactionState(eventId);
@@ -362,10 +338,6 @@ class ReactionService {
     }
 
     return null;
-  }
-
-  private async getIdentity(): Promise<{ pubkey: string; privkey?: string } | null> {
-    return identityService.getIdentity();
   }
 
   // ----------------------------------------

@@ -1,10 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import type { Comment, Post, UserState } from '../types';
 import { nostrService } from '../services/nostrService';
 import { votingService } from '../services/votingService';
 import { profileService } from '../services/profileService';
 import { logger } from '../services/loggingService';
-
 type LatestCommentUpdate = {
   created_at: number;
   updates: Partial<Comment>;
@@ -17,12 +16,22 @@ export function useCommentsLoader(args: {
   userState?: UserState;
   setUserState?: React.Dispatch<React.SetStateAction<UserState>>;
 }) {
-  const { selectedBitId, postsById, setPosts, userState, setUserState } = args;
+  const { selectedBitId, setPosts, userState, setUserState } = args;
+
+  // Keep postsById in a ref so the effect doesn't re-run when the Map reference changes
+  const postsByIdRef = useRef(args.postsById);
+  useEffect(() => {
+    postsByIdRef.current = args.postsById;
+  }, [args.postsById]);
+
+  // Stabilize muted pubkeys — only change when the actual array contents change
+  const mutedPubkeysJson = JSON.stringify(userState?.mutedPubkeys || []);
+  const identityPubkey = userState?.identity?.pubkey ?? null;
 
   useEffect(() => {
     if (!selectedBitId) return;
 
-    const post = postsById.get(selectedBitId);
+    const post = postsByIdRef.current.get(selectedBitId);
     if (!post?.nostrEventId) return;
 
     let cancelled = false;
@@ -36,7 +45,7 @@ export function useCommentsLoader(args: {
             ...p,
             comments: p.comments.map((c) => (c.id === targetCommentId ? { ...c, ...updates } : c)),
           };
-        })
+        }),
       );
     };
 
@@ -57,7 +66,10 @@ export function useCommentsLoader(args: {
             if (!parsed) continue;
             const existing = latestByComment.get(parsed.targetCommentId);
             if (!existing || ev.created_at > existing.created_at) {
-              latestByComment.set(parsed.targetCommentId, { created_at: ev.created_at, updates: parsed.updates });
+              latestByComment.set(parsed.targetCommentId, {
+                created_at: ev.created_at,
+                updates: parsed.updates,
+              });
             }
           }
           latestByComment.forEach((v, commentId) => applyCommentUpdates(commentId, v.updates));
@@ -70,7 +82,10 @@ export function useCommentsLoader(args: {
             if (!parsed) continue;
             const existing = latestByComment.get(parsed.targetCommentId);
             if (!existing || ev.created_at > existing.created_at) {
-              latestByComment.set(parsed.targetCommentId, { created_at: ev.created_at, updates: parsed.updates });
+              latestByComment.set(parsed.targetCommentId, {
+                created_at: ev.created_at,
+                updates: parsed.updates,
+              });
             }
           }
           latestByComment.forEach((v, commentId) => applyCommentUpdates(commentId, v.updates));
@@ -92,16 +107,21 @@ export function useCommentsLoader(args: {
       const comments = commentEvents.map((event) => nostrService.eventToComment(event));
 
       // Filter muted users
-      const mutedSet = new Set(userState?.mutedPubkeys || []);
-      const filteredComments = comments.filter(c => !c.authorPubkey || !mutedSet.has(c.authorPubkey));
+      const mutedSet = new Set(JSON.parse(mutedPubkeysJson) as string[]);
+      const filteredComments = comments.filter(
+        (c) => !c.authorPubkey || !mutedSet.has(c.authorPubkey),
+      );
 
       // Fetch votes for all comments
-      const commentNostrIds = filteredComments.filter(c => c.nostrEventId).map(c => c.nostrEventId!);
-      const commentVoteTallies = commentNostrIds.length > 0 
-        ? await votingService.fetchVotesForComments(commentNostrIds)
-        : new Map();
+      const commentNostrIds = filteredComments
+        .filter((c) => c.nostrEventId)
+        .map((c) => c.nostrEventId!);
+      const commentVoteTallies =
+        commentNostrIds.length > 0
+          ? await votingService.fetchVotesForComments(commentNostrIds)
+          : new Map();
 
-      const commentsWithVotes = filteredComments.map(comment => {
+      const commentsWithVotes = filteredComments.map((comment) => {
         if (comment.nostrEventId) {
           const tally = commentVoteTallies.get(comment.nostrEventId);
           if (tally) {
@@ -115,7 +135,12 @@ export function useCommentsLoader(args: {
             };
           }
         }
-        return { ...comment, score: comment.score ?? 0, upvotes: comment.upvotes ?? 0, downvotes: comment.downvotes ?? 0 };
+        return {
+          ...comment,
+          score: comment.score ?? 0,
+          upvotes: comment.upvotes ?? 0,
+          downvotes: comment.downvotes ?? 0,
+        };
       });
 
       setPosts((prevPosts) =>
@@ -130,13 +155,13 @@ export function useCommentsLoader(args: {
             comments: [...p.comments, ...newOnes],
             commentCount: p.comments.length + newOnes.length,
           };
-        })
+        }),
       );
 
       // Restore user's comment votes from local storage if available
-      if (userState?.identity && setUserState) {
-        const userCommentVotes = votingService.getUserCommentVotes(userState.identity.pubkey);
-        setUserState(prev => ({
+      if (identityPubkey && setUserState) {
+        const userCommentVotes = votingService.getUserCommentVotes(identityPubkey);
+        setUserState((prev) => ({
           ...prev,
           votedComments: { ...prev.votedComments, ...Object.fromEntries(userCommentVotes) },
         }));
@@ -144,7 +169,9 @@ export function useCommentsLoader(args: {
 
       // Best-effort profile enrichment (kind 0) for comment authors
       // Batch prefetch to warm profileService cache before CommentThread components render
-      const pubkeys = Array.from(new Set(comments.map((c) => c.authorPubkey).filter(Boolean) as string[]));
+      const pubkeys = Array.from(
+        new Set(comments.map((c) => c.authorPubkey).filter(Boolean) as string[]),
+      );
       if (pubkeys.length > 0) {
         profileService.prefetchProfiles(pubkeys).then(() => {
           setPosts((prevPosts) =>
@@ -153,10 +180,12 @@ export function useCommentsLoader(args: {
               return {
                 ...p,
                 comments: p.comments.map((c) =>
-                  c.authorPubkey ? { ...c, author: nostrService.getDisplayName(c.authorPubkey) } : c
+                  c.authorPubkey
+                    ? { ...c, author: nostrService.getDisplayName(c.authorPubkey) }
+                    : c,
                 ),
               };
-            })
+            }),
           );
         });
       }
@@ -191,5 +220,7 @@ export function useCommentsLoader(args: {
       nostrService.unsubscribe(subEdits);
       nostrService.unsubscribe(subDeletes);
     };
-  }, [postsById, selectedBitId, setPosts, userState?.identity, setUserState, userState?.mutedPubkeys]);
+    // postsByIdRef is a stable ref; mutedPubkeysJson/identityPubkey are derived stable values
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBitId, setPosts, identityPubkey, setUserState, mutedPubkeysJson]);
 }

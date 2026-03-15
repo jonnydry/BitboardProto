@@ -97,13 +97,15 @@ describe('postStore', () => {
       expect(usePostStore.getState().getPostsById().has('1')).toBe(true);
     });
 
-    it('auto-marks posts when accessed via getPostsById', () => {
+    it('getPostsById returns posts without side-effects (no direct state mutation)', () => {
       usePostStore.getState().setPosts([createMockPost('1')]);
 
       const post = usePostStore.getState().getPostsById().get('1');
 
       expect(post).toBeDefined();
-      expect(usePostStore.getState().postAccessTimes.has('1')).toBe(true);
+      // getPostsById should NOT auto-mark access times (that was a mutation bug).
+      // Access times are now only updated via explicit markPostAccessed calls.
+      expect(usePostStore.getState().postAccessTimes.has('1')).toBe(false);
     });
 
     it('evicts old posts when over limit', () => {

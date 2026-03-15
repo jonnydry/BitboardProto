@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useCallback, useState } from 'react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
-import { Post, UserState } from '../types';
+import { Post, ViewMode } from '../types';
 import { PostItem } from './PostItem';
 import { ArrowLeft, Bookmark, Trash2, Globe, Loader2 } from 'lucide-react';
 import { bookmarkService } from '../services/bookmarkService';
@@ -9,58 +9,51 @@ import { identityService } from '../services/identityService';
 import { nostrService } from '../services/nostrService';
 import { toastService } from '../services/toastService';
 import { FeatureFlags, UIConfig } from '../config';
+import { useUIStore } from '../stores/uiStore';
+import { useUserStore } from '../stores/userStore';
+import { usePostStore } from '../stores/postStore';
+import { useAppNavigationHandlers } from '../features/layout/useAppNavigationHandlers';
 
 interface BookmarksProps {
-  posts: Post[];
-  bookmarkedIds: string[];
-  reportedPostIdSet: Set<string>;
-  userState: UserState;
   knownUsers?: Set<string>;
   onVote: (postId: string, direction: 'up' | 'down') => void;
   onComment: (postId: string, content: string, parentCommentId?: string) => void;
   onEditComment?: (postId: string, commentId: string, content: string) => void;
   onDeleteComment?: (postId: string, commentId: string) => void;
   onCommentVote?: (postId: string, commentId: string, direction: 'up' | 'down') => void;
-  onViewBit: (postId: string) => void;
-  onViewProfile?: (username: string, pubkey?: string) => void;
-  onEditPost?: (postId: string) => void;
+  onToggleBookmark: (postId: string) => void;
   onDeletePost?: (postId: string) => void;
-  onTagClick?: (tag: string) => void;
-  onClose: () => void;
-  isNostrConnected: boolean;
-  onToggleMute?: (pubkey: string) => void;
-  isMuted?: (pubkey: string) => boolean;
 }
 
 export const Bookmarks: React.FC<BookmarksProps> = ({
-  posts,
-  bookmarkedIds,
-  reportedPostIdSet,
-  userState,
   knownUsers,
   onVote,
   onComment,
   onEditComment,
   onDeleteComment,
   onCommentVote,
-  onViewBit,
-  onViewProfile,
-  onEditPost,
+  onToggleBookmark,
   onDeletePost,
-  onTagClick,
-  onClose,
-  isNostrConnected,
-  onToggleMute,
-  isMuted,
 }) => {
+  // Read state from Zustand stores
+  const bookmarkedIds = useUIStore((s) => s.bookmarkedIds);
+  const setViewMode = useUIStore((s) => s.setViewMode);
+  const userState = useUserStore((s) => s.userState);
+  const toggleMute = useUserStore((s) => s.toggleMute);
+  const isMuted = useUserStore((s) => s.isMuted);
+  const posts = usePostStore((s) => s.posts);
+
+  // Navigation handlers
+  const { handleViewBit, handleViewProfile, handleEditPost, handleTagClick } =
+    useAppNavigationHandlers();
+
+  const onClose = useCallback(() => setViewMode(ViewMode.FEED), [setViewMode]);
   const [isSyncing, setIsSyncing] = useState(false);
 
   // Get bookmarked posts in order
   const bookmarkedPosts = useMemo(() => {
-    const postsMap = new Map(posts.map(p => [p.id, p]));
-    return bookmarkedIds
-      .map(id => postsMap.get(id))
-      .filter((p): p is Post => p !== undefined);
+    const postsMap = new Map(posts.map((p) => [p.id, p]));
+    return bookmarkedIds.map((id) => postsMap.get(id)).filter((p): p is Post => p !== undefined);
   }, [posts, bookmarkedIds]);
 
   const handleClearAll = () => {
@@ -71,19 +64,19 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
 
   const handleSyncWithNostr = useCallback(async () => {
     if (!userState.identity) return;
-    
+
     setIsSyncing(true);
     try {
       // 1. Fetch bookmarks from Nostr
       const remoteList = await listService.fetchBookmarks(userState.identity.pubkey);
-      
+
       if (remoteList && remoteList.eventIds.length > 0) {
         // 2. Merge with local bookmarks
         const localIds = bookmarkService.getBookmarkedIds();
         const mergedIds = Array.from(new Set([...localIds, ...remoteList.eventIds]));
-        
+
         // 3. Update local service
-        mergedIds.forEach(id => {
+        mergedIds.forEach((id) => {
           if (!localIds.includes(id)) {
             bookmarkService.toggleBookmark(id); // This will add it
           }
@@ -113,7 +106,7 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
         });
         const signed = await identityService.signEvent(unsigned);
         await nostrService.publishSignedEvent(signed);
-        
+
         toastService.push({
           type: 'success',
           message: 'Bookmarks published to Nostr',
@@ -134,53 +127,61 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
   }, [userState.identity, bookmarkedIds]);
 
   // Stabilize callbacks to prevent PostItem re-renders
-  const handleVote = useCallback((postId: string, direction: 'up' | 'down') => {
-    onVote(postId, direction);
-  }, [onVote]);
+  const handleVote = useCallback(
+    (postId: string, direction: 'up' | 'down') => {
+      onVote(postId, direction);
+    },
+    [onVote],
+  );
 
-  const handleComment = useCallback((postId: string, content: string, parentCommentId?: string) => {
-    onComment(postId, content, parentCommentId);
-  }, [onComment]);
+  const handleComment = useCallback(
+    (postId: string, content: string, parentCommentId?: string) => {
+      onComment(postId, content, parentCommentId);
+    },
+    [onComment],
+  );
 
-  const handleEditComment = useCallback((postId: string, commentId: string, content: string) => {
-    onEditComment?.(postId, commentId, content);
-  }, [onEditComment]);
+  const handleEditComment = useCallback(
+    (postId: string, commentId: string, content: string) => {
+      onEditComment?.(postId, commentId, content);
+    },
+    [onEditComment],
+  );
 
-  const handleDeleteComment = useCallback((postId: string, commentId: string) => {
-    onDeleteComment?.(postId, commentId);
-  }, [onDeleteComment]);
+  const handleDeleteComment = useCallback(
+    (postId: string, commentId: string) => {
+      onDeleteComment?.(postId, commentId);
+    },
+    [onDeleteComment],
+  );
 
-  const handleCommentVote = useCallback((postId: string, commentId: string, direction: 'up' | 'down') => {
-    onCommentVote?.(postId, commentId, direction);
-  }, [onCommentVote]);
+  const handleCommentVote = useCallback(
+    (postId: string, commentId: string, direction: 'up' | 'down') => {
+      onCommentVote?.(postId, commentId, direction);
+    },
+    [onCommentVote],
+  );
 
-  const handleViewBit = useCallback((postId: string) => {
-    onViewBit(postId);
-  }, [onViewBit]);
+  const handleDeletePost = useCallback(
+    (postId: string) => {
+      onDeletePost?.(postId);
+    },
+    [onDeletePost],
+  );
 
-  const handleViewProfile = useCallback((username: string, pubkey?: string) => {
-    onViewProfile?.(username, pubkey);
-  }, [onViewProfile]);
+  const handleToggleBookmark = useCallback(
+    (id: string) => {
+      onToggleBookmark(id);
+    },
+    [onToggleBookmark],
+  );
 
-  const handleEditPost = useCallback((postId: string) => {
-    onEditPost?.(postId);
-  }, [onEditPost]);
-
-  const handleDeletePost = useCallback((postId: string) => {
-    onDeletePost?.(postId);
-  }, [onDeletePost]);
-
-  const handleTagClick = useCallback((tag: string) => {
-    onTagClick?.(tag);
-  }, [onTagClick]);
-
-  const handleToggleBookmark = useCallback((id: string) => {
-    bookmarkService.toggleBookmark(id);
-  }, []);
-
-  const handleToggleMute = useCallback((pubkey: string) => {
-    onToggleMute?.(pubkey);
-  }, [onToggleMute]);
+  const handleToggleMute = useCallback(
+    (pubkey: string) => {
+      toggleMute(pubkey);
+    },
+    [toggleMute],
+  );
 
   // Virtualization for large lists (>25 items)
   const VIRTUALIZE_THRESHOLD = 25;
@@ -197,7 +198,7 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
 
   return (
     <div className="animate-fade-in">
-      <button 
+      <button
         onClick={onClose}
         className="flex items-center gap-2 text-terminal-dim hover:text-terminal-text mb-4 uppercase text-sm font-bold group"
       >
@@ -216,7 +217,7 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
             {bookmarkedPosts.length} {bookmarkedPosts.length === 1 ? 'post' : 'posts'} saved
           </p>
         </div>
-        
+
         {bookmarkedPosts.length > 0 && (
           <div className="flex items-center gap-2">
             {userState.identity && FeatureFlags.ENABLE_LISTS && (
@@ -226,11 +227,7 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
                 className="flex items-center gap-2 text-xs text-terminal-text hover:bg-terminal-text hover:text-black border border-terminal-text px-2 py-1 transition-colors uppercase font-bold"
                 title="Sync bookmarks with Nostr (NIP-51)"
               >
-                {isSyncing ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : (
-                  <Globe size={12} />
-                )}
+                {isSyncing ? <Loader2 size={12} className="animate-spin" /> : <Globe size={12} />}
                 {isSyncing ? 'SYNCING...' : 'SYNC_NOSTR'}
               </button>
             )}
@@ -253,9 +250,7 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
           </div>
           <div>
             <p className="font-bold">&gt; NO SAVED BITS</p>
-            <p className="text-xs mt-2">
-              Click the bookmark icon on any post to save it here.
-            </p>
+            <p className="text-xs mt-2">Click the bookmark icon on any post to save it here.</p>
           </div>
         </div>
       ) : shouldVirtualize && rowVirtualizer ? (
@@ -294,10 +289,7 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
                     onTagClick={handleTagClick}
                     onEditPost={handleEditPost}
                     onDeletePost={handleDeletePost}
-                    isBookmarked={true}
                     onToggleBookmark={handleToggleBookmark}
-                    hasReported={reportedPostIdSet.has(post.id)}
-                    isNostrConnected={isNostrConnected}
                     onToggleMute={handleToggleMute}
                     isMuted={isMuted}
                   />
@@ -308,7 +300,7 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
         </div>
       ) : (
         <div className="space-y-2">
-          {bookmarkedPosts.map(post => (
+          {bookmarkedPosts.map((post) => (
             <PostItem
               key={post.id}
               post={post}
@@ -324,10 +316,7 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
               onTagClick={handleTagClick}
               onEditPost={handleEditPost}
               onDeletePost={handleDeletePost}
-              isBookmarked={true}
               onToggleBookmark={handleToggleBookmark}
-              hasReported={reportedPostIdSet.has(post.id)}
-              isNostrConnected={isNostrConnected}
               onToggleMute={handleToggleMute}
               isMuted={isMuted}
             />

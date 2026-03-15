@@ -1,14 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
-import { followService } from '../services/followService';
+import { followServiceV2 } from '../services/followServiceV2';
 
+/**
+ * Hook for follow/unfollow functionality.
+ * Uses followServiceV2 (NIP-02 based) as the single source of truth.
+ */
 export function useFollows() {
-  const [follows, setFollows] = useState<string[]>(() => followService.getFollows());
+  const [follows, setFollows] = useState<string[]>(() => followServiceV2.getFollowingPubkeys());
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Subscribe to follow changes
-    const unsubscribe = followService.subscribe((newFollows) => {
-      setFollows(newFollows);
+    // Subscribe to follow changes — V2 notifies listeners on any change
+    const unsubscribe = followServiceV2.subscribe(() => {
+      setFollows(followServiceV2.getFollowingPubkeys());
     });
 
     return unsubscribe;
@@ -17,7 +21,7 @@ export function useFollows() {
   const follow = useCallback(async (pubkey: string) => {
     setIsLoading(true);
     try {
-      await followService.follow(pubkey);
+      await followServiceV2.follow(pubkey);
     } finally {
       setIsLoading(false);
     }
@@ -26,14 +30,14 @@ export function useFollows() {
   const unfollow = useCallback(async (pubkey: string) => {
     setIsLoading(true);
     try {
-      await followService.unfollow(pubkey);
+      await followServiceV2.unfollow(pubkey);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   const isFollowing = useCallback((pubkey: string) => {
-    return followService.isFollowing(pubkey);
+    return followServiceV2.isFollowing(pubkey);
   }, []);
 
   return {
@@ -44,4 +48,3 @@ export function useFollows() {
     isLoading,
   };
 }
-

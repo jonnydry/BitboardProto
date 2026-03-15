@@ -1,5 +1,6 @@
 import { nostrService } from './nostrService';
 import { identityService } from './identityService';
+import { logger } from './loggingService';
 
 /**
  * Profile metadata interface (NIP-01 kind 0 content)
@@ -38,7 +39,7 @@ class ProfileService {
       }
       return metadata ?? null;
     } catch (error) {
-      console.error('[ProfileService] Failed to fetch profile:', error);
+      logger.error('ProfileService', 'Failed to fetch profile', error);
       return null;
     }
   }
@@ -63,7 +64,7 @@ class ProfileService {
         this.profileCache.set(pubkey, rawMetadata as unknown as ProfileMetadata);
       });
     } catch (error) {
-      console.error('[ProfileService] Failed to prefetch profiles:', error);
+      logger.error('ProfileService', 'Failed to prefetch profiles', error);
     }
   }
 
@@ -76,7 +77,7 @@ class ProfileService {
       const rawMetadata = profile.get(pubkey);
       return (rawMetadata as unknown as ProfileMetadata) ?? null;
     } catch (error) {
-      console.error('[ProfileService] Failed to refresh profile:', error);
+      logger.error('ProfileService', 'Failed to refresh profile', error);
       return null;
     }
   }
@@ -108,7 +109,7 @@ class ProfileService {
         identityService.setSessionIdentity(updatedIdentity);
       }
     } catch (error) {
-      console.error('[ProfileService] Failed to update profile:', error);
+      logger.error('ProfileService', 'Failed to update profile', error);
       throw error;
     }
   }

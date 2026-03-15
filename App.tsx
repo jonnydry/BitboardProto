@@ -219,36 +219,15 @@ const AppContent: React.FC = () => {
       <div className="min-h-screen bg-terminal-bg text-terminal-text font-mono selection:bg-terminal-text selection:text-black relative overflow-x-hidden">
         <ToastHost />
         {/* Offline Status Banner */}
-        <OfflineBanner isNostrConnected={app.isNostrConnected} />
+        <OfflineBanner />
         {/* Scanline Overlay */}
         <div className="scanlines fixed inset-0 pointer-events-none z-50"></div>
 
         {/* Mobile Drawer */}
-        <MobileDrawer
-          isOpen={isDrawerOpen}
-          onClose={() => setIsDrawerOpen(false)}
-          viewMode={app.viewMode}
-          onSetViewMode={app.setViewMode}
-          onNavigateGlobal={() => app.navigateToBoard(null)}
-          identity={app.userState.identity || undefined}
-          userState={app.userState}
-          bookmarkedCount={app.bookmarkedIds.length}
-          isNostrConnected={app.isNostrConnected}
-        />
+        <MobileDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
 
         <div className="max-w-[1174px] mx-auto p-3 md:p-6 relative z-10 pb-20 md:pb-6">
-          <AppHeader
-            theme={app.theme}
-            isNostrConnected={app.isNostrConnected}
-            viewMode={app.viewMode}
-            activeBoardId={app.activeBoardId}
-            bookmarkedCount={app.bookmarkedIds.length}
-            identity={app.userState.identity || undefined}
-            userState={app.userState}
-            onNavigateGlobal={() => app.navigateToBoard(null)}
-            onSetViewMode={app.setViewMode}
-            onOpenDrawer={() => setIsDrawerOpen(true)}
-          />
+          <AppHeader onOpenDrawer={() => setIsDrawerOpen(true)} />
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-8 py-[5px]">
             {/* Main Content */}
@@ -257,28 +236,16 @@ const AppContent: React.FC = () => {
               {app.viewMode === ViewMode.FEED && (
                 <FeedView
                   sortedPosts={app.sortedPosts}
-                  feedFilter={app.feedFilter}
                   getBoardName={app.getBoardName}
                   knownUsers={app.knownUsers}
-                  bookmarkedIdSet={app.bookmarkedIdSet}
-                  reportedPostIdSet={app.reportedPostIdSet}
-                  isNostrConnected={app.isNostrConnected}
                   loaderRef={app.loaderRef}
                   isLoadingMore={app.isLoadingMore}
-                  hasMorePosts={app.hasMorePosts}
-                  setSortMode={app.setSortMode}
-                  onSetViewMode={app.setViewMode}
-                  onSearch={app.handleSearch}
                   onVote={app.handleVote}
                   onComment={app.handleComment}
                   onEditComment={app.handleEditComment}
                   onDeleteComment={app.handleDeleteComment}
                   onCommentVote={app.handleCommentVote}
-                  onViewBit={app.handleViewBit}
-                  onViewProfile={app.handleViewProfile}
-                  onEditPost={app.handleEditPost}
                   onDeletePost={app.handleDeletePost}
-                  onTagClick={app.handleTagClick}
                   onToggleBookmark={app.handleToggleBookmark}
                   onToggleMute={app.toggleMute}
                   isMuted={app.isMuted}
@@ -322,11 +289,8 @@ const AppContent: React.FC = () => {
                       onViewProfile={app.handleViewProfile}
                       onEditPost={app.handleEditPost}
                       onTagClick={app.handleTagClick}
-                      isBookmarked={app.bookmarkedIdSet.has(app.selectedPost.id)}
                       onToggleBookmark={app.handleToggleBookmark}
-                      hasReported={app.reportedPostIdSet.has(app.selectedPost.id)}
                       isFullPage={true}
-                      isNostrConnected={app.isNostrConnected}
                       onToggleMute={app.toggleMute}
                       isMuted={app.isMuted}
                       onRetryPost={app.handleRetryPost}
@@ -412,54 +376,29 @@ const AppContent: React.FC = () => {
               {app.viewMode === ViewMode.USER_PROFILE && app.profileUser && (
                 <Suspense fallback={<LoadingFallback />}>
                   <UserProfile
-                    username={app.profileUser.username}
-                    authorPubkey={app.profileUser.pubkey}
-                    posts={app.posts}
-                    bookmarkedIdSet={app.bookmarkedIdSet}
-                    reportedPostIdSet={app.reportedPostIdSet}
                     onToggleBookmark={app.handleToggleBookmark}
-                    userState={app.userState}
                     knownUsers={app.knownUsers}
                     onVote={app.handleVote}
                     onComment={app.handleComment}
                     onEditComment={app.handleEditComment}
                     onDeleteComment={app.handleDeleteComment}
                     onCommentVote={app.handleCommentVote}
-                    onViewBit={app.handleViewBit}
-                    onViewProfile={app.handleViewProfile}
-                    onEditPost={app.handleEditPost}
-                    onDeletePost={app.handleDeletePost}
-                    onTagClick={app.handleTagClick}
                     onRefreshProfile={(pubkey) => app.refreshProfileMetadata([pubkey])}
-                    onClose={() => app.setViewMode(ViewMode.FEED)}
-                    isNostrConnected={app.isNostrConnected}
-                    onToggleMute={app.toggleMute}
-                    isMuted={app.isMuted}
+                    onDeletePost={app.handleDeletePost}
                   />
                 </Suspense>
               )}
               {app.viewMode === ViewMode.BOOKMARKS && (
                 <Suspense fallback={<LoadingFallback />}>
                   <Bookmarks
-                    posts={app.posts}
-                    bookmarkedIds={app.bookmarkedIds}
-                    reportedPostIdSet={app.reportedPostIdSet}
-                    userState={app.userState}
                     knownUsers={app.knownUsers}
                     onVote={app.handleVote}
                     onComment={app.handleComment}
                     onEditComment={app.handleEditComment}
                     onDeleteComment={app.handleDeleteComment}
                     onCommentVote={app.handleCommentVote}
-                    onViewBit={app.handleViewBit}
-                    onViewProfile={app.handleViewProfile}
-                    onEditPost={app.handleEditPost}
+                    onToggleBookmark={app.handleToggleBookmark}
                     onDeletePost={app.handleDeletePost}
-                    onTagClick={app.handleTagClick}
-                    onClose={() => app.setViewMode(ViewMode.FEED)}
-                    isNostrConnected={app.isNostrConnected}
-                    onToggleMute={app.toggleMute}
-                    isMuted={app.isMuted}
                   />
                 </Suspense>
               )}
@@ -500,23 +439,8 @@ const AppContent: React.FC = () => {
             {/* Sidebar - shows above content on mobile, beside on desktop */}
             <aside className="order-1 md:order-2">
               <Sidebar
-                userState={app.userState}
-                setUserState={app.setUserState}
-                theme={app.theme}
-                setTheme={app.setTheme}
-                getThemeColor={app.getThemeColor}
-                isNostrConnected={app.isNostrConnected}
-                viewMode={app.viewMode}
-                activeBoardId={app.activeBoardId}
-                feedFilter={app.feedFilter}
-                setFeedFilter={app.setFeedFilter}
-                topicBoards={app.topicBoards}
-                geohashBoards={app.geohashBoards}
-                boardsById={app.boardsById}
                 decryptionFailedBoardIds={app.decryptionFailedBoardIds}
                 removeFailedDecryptionKey={app.removeFailedDecryptionKey}
-                navigateToBoard={app.navigateToBoard}
-                onSetViewMode={app.setViewMode}
               />
             </aside>
           </div>
@@ -546,13 +470,7 @@ const AppContent: React.FC = () => {
         </footer>
 
         {/* Mobile Bottom Navigation */}
-        <MobileNav
-          viewMode={app.viewMode}
-          onSetViewMode={app.setViewMode}
-          onNavigateGlobal={() => app.navigateToBoard(null)}
-          identity={app.userState.identity || undefined}
-          bookmarkedCount={app.bookmarkedIds.length}
-        />
+        <MobileNav />
       </div>
     </>
   );

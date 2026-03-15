@@ -1,21 +1,14 @@
-import type { Event as NostrEvent, Filter, SimplePool } from 'nostr-tools';
+import type { Event as NostrEvent, Filter } from 'nostr-tools';
 import { NOSTR_KINDS } from '../../types';
 import { nostrEventDeduplicator } from '../messageDeduplicator';
 import { logger } from '../loggingService';
-
-interface QueryDeps {
-  pool: SimplePool;
-  getReadRelays: () => string[];
-}
-
-interface SubscriptionDeps extends QueryDeps {
-  subscriptions: Map<string, { unsub: () => void }>;
-}
+import type { QueryDeps, SubscriptionDeps } from './shared';
 
 export async function fetchZapReceipts(deps: QueryDeps, eventId: string): Promise<NostrEvent[]> {
   const filter: Filter = {
     kinds: [NOSTR_KINDS.ZAP_RECEIPT],
     '#e': [eventId],
+    limit: 500,
   };
 
   try {
@@ -72,7 +65,7 @@ export function subscribeToZapReceipts(
   eventIds: string[],
   onEvent: (event: NostrEvent) => void,
 ): string {
-  const subscriptionId = `zaps-${Date.now()}`;
+  const subscriptionId = deps.nextSubId('zaps');
 
   if (eventIds.length === 0) {
     return subscriptionId;

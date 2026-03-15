@@ -9,8 +9,16 @@ import { PostSkeleton } from '../../components/PostSkeleton';
 import { LoadingPhaseIndicator } from '../../components/LoadingSkeletons';
 import { ShareBoardLink } from '../../components/ShareBoardLink';
 import { encryptedBoardService } from '../../services/encryptedBoardService';
-import { useUIStore, useViewMode, useSearchQuery, useSortMode } from '../../stores/uiStore';
+import {
+  useUIStore,
+  useViewMode,
+  useSearchQuery,
+  useSortMode,
+  useFeedFilter,
+  useHasMorePosts,
+} from '../../stores/uiStore';
 import { useActiveBoard } from '../../stores/boardStore';
+import { useAppNavigationHandlers } from '../layout/useAppNavigationHandlers';
 import {
   FeedLoaderRow,
   FeedPostCard,
@@ -42,7 +50,6 @@ function getTimeChunk(timestamp: number): TimeChunk {
 
 export function FeedView(props: {
   sortedPosts: Post[];
-  feedFilter?: 'all' | 'topic' | 'location' | 'following';
 
   getBoardName: (postId: string) => string | undefined;
   knownUsers: Set<string>;
@@ -52,24 +59,12 @@ export function FeedView(props: {
   onEditComment: (postId: string, commentId: string, content: string) => void;
   onDeleteComment: (postId: string, commentId: string) => void;
   onCommentVote?: (postId: string, commentId: string, direction: 'up' | 'down') => void;
-  onViewBit: (postId: string) => void;
-  onViewProfile: (username: string, pubkey?: string) => void;
-  onEditPost: (postId: string) => void;
   onDeletePost: (postId: string) => void;
-  onTagClick: (tag: string) => void;
 
-  bookmarkedIdSet: Set<string>;
-  reportedPostIdSet: Set<string>;
   onToggleBookmark: (id: string) => void;
-
-  isNostrConnected: boolean;
 
   loaderRef: React.RefObject<HTMLDivElement>;
   isLoadingMore: boolean;
-  hasMorePosts: boolean;
-  setSortMode: (mode: SortMode) => void;
-  onSetViewMode: (mode: ViewMode) => void;
-  onSearch: (query: string) => void;
   onToggleMute?: (pubkey: string) => void;
   isMuted?: (pubkey: string) => boolean;
   isInitialLoading?: boolean;
@@ -80,55 +75,47 @@ export function FeedView(props: {
   const searchQuery = useSearchQuery();
   const sortMode = useSortMode();
   const activeBoard = useActiveBoard();
+  const feedFilter = useFeedFilter();
+  const hasMorePosts = useHasMorePosts();
   const setSortModeStore = useUIStore((state) => state.setSortMode);
   const setSearchQueryStore = useUIStore((state) => state.setSearchQuery);
+  const setViewMode = useUIStore((state) => state.setViewMode);
+
+  // Navigation handlers from Zustand-based hook
+  const { handleViewBit, handleViewProfile, handleEditPost, handleTagClick } =
+    useAppNavigationHandlers();
 
   const {
     sortedPosts,
-    feedFilter,
     getBoardName,
     knownUsers,
-    bookmarkedIdSet,
-    reportedPostIdSet,
-    isNostrConnected,
     loaderRef,
     isLoadingMore,
-    hasMorePosts,
     isInitialLoading = false,
-    setSortMode,
-    onSetViewMode,
-    onSearch,
     onVote,
     onComment,
     onEditComment,
     onDeleteComment,
     onCommentVote,
-    onViewBit,
-    onViewProfile,
-    onEditPost,
     onDeletePost,
-    onTagClick,
     onToggleBookmark,
     onToggleMute,
     isMuted,
     onRetryPost,
   } = props;
 
-  // Use store setters when available, fallback to props
   const handleSetSortMode = useCallback(
     (m: SortMode) => {
       setSortModeStore(m);
-      setSortMode(m);
     },
-    [setSortModeStore, setSortMode],
+    [setSortModeStore],
   );
 
   const handleSearch = useCallback(
     (q: string) => {
       setSearchQueryStore(q);
-      onSearch(q);
     },
-    [setSearchQueryStore, onSearch],
+    [setSearchQueryStore],
   );
 
   const [showShareModal, setShowShareModal] = useState(false);
@@ -283,39 +270,11 @@ export function FeedView(props: {
     [onCommentVote],
   );
 
-  const handleViewBit = useCallback(
-    (postId: string) => {
-      onViewBit(postId);
-    },
-    [onViewBit],
-  );
-
-  const handleViewProfile = useCallback(
-    (username: string, pubkey?: string) => {
-      onViewProfile(username, pubkey);
-    },
-    [onViewProfile],
-  );
-
-  const handleEditPost = useCallback(
-    (postId: string) => {
-      onEditPost(postId);
-    },
-    [onEditPost],
-  );
-
   const handleDeletePost = useCallback(
     (postId: string) => {
       onDeletePost(postId);
     },
     [onDeletePost],
-  );
-
-  const handleTagClick = useCallback(
-    (tag: string) => {
-      onTagClick(tag);
-    },
-    [onTagClick],
   );
 
   const handleToggleBookmark = useCallback(
@@ -350,7 +309,7 @@ export function FeedView(props: {
             <p className="text-xs mt-2">Enable location access to discover nearby channels.</p>
           </div>
           <button
-            onClick={() => onSetViewMode(ViewMode.LOCATION)}
+            onClick={() => setViewMode(ViewMode.LOCATION)}
             className="mt-4 px-4 py-2 border border-terminal-dim hover:bg-terminal-dim hover:text-white transition-colors uppercase text-sm"
           >
             [ SCAN_NEARBY ]
@@ -369,7 +328,7 @@ export function FeedView(props: {
             <p className="text-xs mt-2">Browse available boards or create your own.</p>
           </div>
           <button
-            onClick={() => onSetViewMode(ViewMode.BROWSE_BOARDS)}
+            onClick={() => setViewMode(ViewMode.BROWSE_BOARDS)}
             className="mt-4 px-4 py-2 border border-terminal-dim hover:bg-terminal-dim hover:text-white transition-colors uppercase text-sm"
           >
             [ BROWSE_BOARDS ]
@@ -387,14 +346,14 @@ export function FeedView(props: {
           <p className="text-xs mt-2">Be the first to transmit on this frequency.</p>
         </div>
         <button
-          onClick={() => onSetViewMode(ViewMode.CREATE)}
+          onClick={() => setViewMode(ViewMode.CREATE)}
           className="mt-4 px-4 py-2 border border-terminal-dim hover:bg-terminal-dim hover:text-white transition-colors uppercase text-sm"
         >
           [ INIT_BIT ]
         </button>
       </div>
     );
-  }, [feedFilter, onSetViewMode]);
+  }, [feedFilter, setViewMode]);
 
   return (
     <div className="space-y-2">
@@ -510,10 +469,7 @@ export function FeedView(props: {
                   onEditPost={handleEditPost}
                   onDeletePost={handleDeletePost}
                   onTagClick={handleTagClick}
-                  bookmarkedIdSet={bookmarkedIdSet}
                   onToggleBookmark={handleToggleBookmark}
-                  reportedPostIdSet={reportedPostIdSet}
-                  isNostrConnected={isNostrConnected}
                   onToggleMute={handleToggleMute}
                   isMuted={isMuted}
                   onRetryPost={handleRetryPost}
@@ -590,10 +546,7 @@ export function FeedView(props: {
                   onEditPost={handleEditPost}
                   onDeletePost={handleDeletePost}
                   onTagClick={handleTagClick}
-                  bookmarkedIdSet={bookmarkedIdSet}
                   onToggleBookmark={handleToggleBookmark}
-                  reportedPostIdSet={reportedPostIdSet}
-                  isNostrConnected={isNostrConnected}
                   onToggleMute={handleToggleMute}
                   isMuted={isMuted}
                   onRetryPost={handleRetryPost}
@@ -632,20 +585,13 @@ export const MemoizedFeedView = React.memo(FeedView, (prevProps, nextProps) => {
 
   // Compare loading states
   if (prevProps.isLoadingMore !== nextProps.isLoadingMore) return false;
-  if (prevProps.hasMorePosts !== nextProps.hasMorePosts) return false;
   if (prevProps.isInitialLoading !== nextProps.isInitialLoading) return false;
 
-  // Compare sets (bookmarkedIdSet, reportedPostIdSet, knownUsers)
-  if (prevProps.bookmarkedIdSet !== nextProps.bookmarkedIdSet) return false;
-  if (prevProps.reportedPostIdSet !== nextProps.reportedPostIdSet) return false;
+  // Compare sets (knownUsers)
   if (prevProps.knownUsers !== nextProps.knownUsers) return false;
 
-  // Compare other essential props
-  if (prevProps.feedFilter !== nextProps.feedFilter) return false;
-  if (prevProps.isNostrConnected !== nextProps.isNostrConnected) return false;
-
   // Ignore handler props - they should be stable callbacks
-  // Ignore viewMode, searchQuery, sortMode, activeBoard, userState - now from stores
+  // feedFilter, hasMorePosts, viewMode, searchQuery, sortMode, activeBoard - now from stores
 
   return true; // Props are equal, skip re-render
 });

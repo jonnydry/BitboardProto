@@ -1,5 +1,11 @@
 import type { Event as NostrEvent } from 'nostr-tools';
-import { NOSTR_KINDS, type Post, type Board, type UnsignedNostrEvent, ReportType } from '../../types';
+import {
+  NOSTR_KINDS,
+  type Post,
+  type Board,
+  type UnsignedNostrEvent,
+  ReportType,
+} from '../../types';
 import {
   BITBOARD_TYPE_COMMENT,
   BITBOARD_TYPE_COMMENT_DELETE,
@@ -10,7 +16,10 @@ import {
 } from './bitboardEventTypes';
 
 export function buildPostEvent(
-  post: Omit<Post, 'id' | 'score' | 'commentCount' | 'comments' | 'nostrEventId' | 'upvotes' | 'downvotes'>,
+  post: Omit<
+    Post,
+    'id' | 'score' | 'commentCount' | 'comments' | 'nostrEventId' | 'upvotes' | 'downvotes'
+  >,
   pubkey: string,
   geohash?: string,
   opts?: {
@@ -22,10 +31,10 @@ export function buildPostEvent(
     encryptedTitle?: string;
     /** Encrypted content (base64) */
     encryptedContent?: string;
-  }
+  },
 ): UnsignedNostrEvent {
   const isEncrypted = !!(opts?.encryptedTitle || opts?.encryptedContent);
-  
+
   const tags: string[][] = [
     ['client', 'bitboard'],
     [BITBOARD_TYPE_TAG, BITBOARD_TYPE_POST],
@@ -115,7 +124,7 @@ export function buildPostEditEvent(args: {
   encryptedContent?: string;
 }): UnsignedNostrEvent {
   const isEncrypted = !!(args.encryptedTitle || args.encryptedContent);
-  
+
   const tags: string[][] = [
     ['client', 'bitboard'],
     [BITBOARD_TYPE_TAG, BITBOARD_TYPE_POST_EDIT],
@@ -167,7 +176,7 @@ export function buildCommentEvent(
     parentCommentAuthorPubkey?: string;
     /** Encrypted content (base64) */
     encryptedContent?: string;
-  }
+  },
 ): UnsignedNostrEvent {
   const isEncrypted = !!opts?.encryptedContent;
 
@@ -215,7 +224,7 @@ export function buildCommentEditEvent(args: {
   encryptedContent?: string;
 }): UnsignedNostrEvent {
   const isEncrypted = !!args.encryptedContent;
-  
+
   const tags: string[][] = [
     ['client', 'bitboard'],
     [BITBOARD_TYPE_TAG, BITBOARD_TYPE_COMMENT_EDIT],
@@ -298,7 +307,7 @@ export function buildVoteEvent(
   opts?: {
     /** Post author's pubkey (NIP-25 p tag) */
     postAuthorPubkey?: string;
-  }
+  },
 ): UnsignedNostrEvent {
   const tags: string[][] = [['e', postEventId]];
 
@@ -318,36 +327,9 @@ export function buildVoteEvent(
   return event as UnsignedNostrEvent;
 }
 
-export function buildCommentVoteEvent(
-  commentEventId: string,
-  direction: 'up' | 'down',
-  pubkey: string,
-  opts?: {
-    /** Comment author's pubkey (NIP-25 p tag) */
-    commentAuthorPubkey?: string;
-  }
-): UnsignedNostrEvent {
-  const tags: string[][] = [['e', commentEventId]];
-
-  // NIP-25: include 'p' tag for the author of the reacted-to event
-  if (opts?.commentAuthorPubkey) {
-    tags.push(['p', opts.commentAuthorPubkey]);
-  }
-
-  const event: Partial<NostrEvent> = {
-    pubkey,
-    kind: NOSTR_KINDS.REACTION,
-    created_at: Math.floor(Date.now() / 1000),
-    tags,
-    content: direction === 'up' ? '+' : '-',
-  };
-
-  return event as UnsignedNostrEvent;
-}
-
 export function buildBoardEvent(
   board: Omit<Board, 'memberCount' | 'nostrEventId'>,
-  pubkey: string
+  pubkey: string,
 ): UnsignedNostrEvent {
   const tags: string[][] = [
     ['d', board.id],

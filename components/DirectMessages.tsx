@@ -507,7 +507,7 @@ export const DirectMessages: React.FC<DirectMessagesProps> = ({
     searchQuery,
     showNewModal,
     isLoading,
-    localPrivateKey,
+    hasLocalIdentity,
     setSearchQuery,
     setSelectedPubkey,
     setShowNewModal,
@@ -570,7 +570,7 @@ export const DirectMessages: React.FC<DirectMessagesProps> = ({
               currentUserPubkey={userPubkey}
               onSendMessage={handleSendMessage}
               onBack={() => setSelectedPubkey(null)}
-              canSend={!!localPrivateKey}
+              canSend={hasLocalIdentity}
             />
           ) : (
             <div className="flex-1 flex items-center justify-center text-terminal-dim">

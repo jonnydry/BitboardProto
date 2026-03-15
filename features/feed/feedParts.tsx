@@ -27,10 +27,7 @@ interface FeedPostActions {
   onEditPost: (postId: string) => void;
   onDeletePost: (postId: string) => void;
   onTagClick: (tag: string) => void;
-  bookmarkedIdSet: Set<string>;
   onToggleBookmark: (id: string) => void;
-  reportedPostIdSet: Set<string>;
-  isNostrConnected: boolean;
   onToggleMute?: (pubkey: string) => void;
   isMuted?: (pubkey: string) => boolean;
   onRetryPost?: (postId: string) => void;
@@ -67,10 +64,7 @@ export const FeedPostCard: React.FC<{ post: Post } & FeedPostActions> = (props) 
     onEditPost,
     onDeletePost,
     onTagClick,
-    bookmarkedIdSet,
     onToggleBookmark,
-    reportedPostIdSet,
-    isNostrConnected,
     onToggleMute,
     isMuted,
     onRetryPost,
@@ -91,10 +85,7 @@ export const FeedPostCard: React.FC<{ post: Post } & FeedPostActions> = (props) 
       onEditPost={onEditPost}
       onDeletePost={onDeletePost}
       onTagClick={onTagClick}
-      isBookmarked={bookmarkedIdSet.has(post.id)}
       onToggleBookmark={onToggleBookmark}
-      hasReported={reportedPostIdSet.has(post.id)}
-      isNostrConnected={isNostrConnected}
       onToggleMute={onToggleMute}
       isMuted={isMuted}
       onRetryPost={onRetryPost}

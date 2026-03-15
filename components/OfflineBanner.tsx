@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { WifiOff, RefreshCw, X, CloudOff, Upload } from 'lucide-react';
 import { nostrService } from '../services/nostr/NostrService';
+import { useUIStore } from '../stores/uiStore';
 
-interface OfflineBannerProps {
-  isNostrConnected: boolean;
-}
-
-export const OfflineBanner: React.FC<OfflineBannerProps> = ({ isNostrConnected }) => {
+export const OfflineBanner: React.FC = () => {
+  const isNostrConnected = useUIStore((s) => s.isNostrConnected);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
   const [isDismissed, setIsDismissed] = useState(false);
@@ -76,7 +74,9 @@ export const OfflineBanner: React.FC<OfflineBannerProps> = ({ isNostrConnected }
       <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-fade-in">
         <div className="bg-terminal-text text-black px-4 py-2 rounded-sm shadow-hard flex items-center gap-2 text-sm font-bold">
           <Upload size={16} />
-          <span>{lastSyncedCount} action{lastSyncedCount > 1 ? 's' : ''} synced</span>
+          <span>
+            {lastSyncedCount} action{lastSyncedCount > 1 ? 's' : ''} synced
+          </span>
         </div>
       </div>
     );

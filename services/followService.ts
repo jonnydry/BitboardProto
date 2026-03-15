@@ -2,6 +2,7 @@ import { nostrService } from './nostrService';
 import { identityService } from './identityService';
 import { toastService } from './toastService';
 import { UIConfig } from '../config';
+import { logger } from './loggingService';
 
 /**
  * Service for managing follow relationships (NIP-02 contact lists)
@@ -34,7 +35,7 @@ class FollowService {
           this.notifyListeners();
         }
       } catch (error) {
-        console.error('[FollowService] Failed to load contact list from Nostr:', error);
+        logger.error('FollowService', 'Failed to load contact list from Nostr', error);
       }
     }
 
@@ -94,7 +95,7 @@ class FollowService {
       this.saveToStorage();
       this.notifyListeners();
 
-      console.error('[FollowService] Failed to follow user:', error);
+      logger.error('FollowService', 'Failed to follow user', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to follow user';
       toastService.push({
         type: 'error',
@@ -146,7 +147,7 @@ class FollowService {
       this.saveToStorage();
       this.notifyListeners();
 
-      console.error('[FollowService] Failed to unfollow user:', error);
+      logger.error('FollowService', 'Failed to unfollow user', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to unfollow user';
       toastService.push({
         type: 'error',
@@ -165,17 +166,17 @@ class FollowService {
   subscribe(listener: (follows: string[]) => void): () => void {
     this.listeners.push(listener);
     return () => {
-      this.listeners = this.listeners.filter(l => l !== listener);
+      this.listeners = this.listeners.filter((l) => l !== listener);
     };
   }
 
   private notifyListeners() {
     const follows = this.getFollows();
-    this.listeners.forEach(listener => {
+    this.listeners.forEach((listener) => {
       try {
         listener(follows);
       } catch (error) {
-        console.error('[FollowService] Listener error:', error);
+        logger.error('FollowService', 'Listener error', error);
       }
     });
   }
@@ -183,14 +184,14 @@ class FollowService {
   private loadFromStorage() {
     try {
       if (typeof localStorage === 'undefined') return;
-      const raw = localStorage.getItem('bitboard_follows_v1');
+      const raw = localStorage.getItem('bitboard_follows_v1_legacy');
       if (!raw) return;
       const follows = JSON.parse(raw);
       if (Array.isArray(follows)) {
         this.follows = new Set(follows);
       }
     } catch (error) {
-      console.error('[FollowService] Failed to load follows from storage:', error);
+      logger.error('FollowService', 'Failed to load follows from storage', error);
     }
   }
 
@@ -198,28 +199,16 @@ class FollowService {
     try {
       if (typeof localStorage === 'undefined') return;
       const follows = this.getFollows();
-      localStorage.setItem('bitboard_follows_v1', JSON.stringify(follows));
+      localStorage.setItem('bitboard_follows_v1_legacy', JSON.stringify(follows));
     } catch (error) {
-      console.error('[FollowService] Failed to save follows to storage:', error);
+      logger.error('FollowService', 'Failed to save follows to storage', error);
     }
   }
 
-  /**
-   * Get follower count for a user (requires fetching their contact lists)
-   * Note: This is expensive and should be cached
-   */
+  // Stub: not yet implemented. Always returns 0.
   async getFollowerCount(_pubkey: string): Promise<number> {
-    try {
-      // This is a simplified implementation - in practice you'd need to
-      // fetch all contact lists that include this pubkey
-      // For now, return 0 as this requires more complex querying
-      return 0;
-    } catch (error) {
-      console.error('[FollowService] Failed to get follower count:', error);
-      return 0;
-    }
+    return 0;
   }
 }
 
 export const followService = new FollowService();
-

@@ -8,14 +8,17 @@ import { identityService } from '../services/identityService';
 import { nostrService } from '../services/nostr/NostrService';
 import { wotService } from '../services/wotService';
 import { logger } from '../services/loggingService';
+import { followServiceV2 } from '../services/followServiceV2';
 import { FeatureFlags } from '../config';
 
 interface UserStoreState {
   // State
   userState: UserState;
+  followingPubkeys: string[];
 
   // Actions
   setUserState: (state: UserState | ((prev: UserState) => UserState)) => void;
+  setFollowingPubkeys: (pubkeys: string[] | ((prev: string[]) => string[])) => void;
   toggleMute: (pubkey: string) => Promise<void>;
   handleIdentityChange: (identity: NostrIdentity | null) => void;
   isMuted: (pubkey: string) => boolean;
@@ -50,6 +53,13 @@ function loadInitialUserState(): UserState {
 export const useUserStore = create<UserStoreState>()(
   subscribeWithSelector((set, get) => ({
     userState: loadInitialUserState(),
+    followingPubkeys: followServiceV2.getFollowingPubkeys(),
+
+    setFollowingPubkeys: (updater) => {
+      const current = get().followingPubkeys;
+      const next = typeof updater === 'function' ? updater(current) : updater;
+      set({ followingPubkeys: next });
+    },
 
     setUserState: (updater) => {
       const currentState = get().userState;
@@ -140,3 +150,4 @@ export function useUserStoreEffects() {
 export const useUserState = () => useUserStore((state) => state.userState);
 export const useIdentity = () => useUserStore((state) => state.userState.identity);
 export const useIsMuted = (pubkey: string) => useUserStore((state) => state.isMuted(pubkey));
+export const useFollowingPubkeys = () => useUserStore((state) => state.followingPubkeys);

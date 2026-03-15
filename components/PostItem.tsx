@@ -41,6 +41,7 @@ import { ZapButton } from './ZapButton';
 import { BadgeDisplay } from './BadgeDisplay';
 import { TrustIndicator } from './TrustIndicator';
 import { usePostAuthorProfile } from './usePostAuthorProfile';
+import { useUIStore } from '../stores/uiStore';
 import {
   buildPreviewCommentTree,
   formatPostTime,
@@ -66,11 +67,8 @@ interface PostItemProps {
   onEditPost?: (postId: string) => void;
   onDeletePost?: (postId: string) => void;
   onTagClick?: (tag: string) => void;
-  isBookmarked?: boolean;
   onToggleBookmark?: (postId: string) => void;
-  hasReported?: boolean;
   isFullPage?: boolean;
-  isNostrConnected?: boolean;
   onToggleMute?: (pubkey: string) => void;
   isMuted?: (pubkey: string) => boolean;
   onRetryPost?: (postId: string) => void;
@@ -90,17 +88,19 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   onEditPost,
   onDeletePost,
   onTagClick,
-  isBookmarked = false,
   onToggleBookmark,
-  hasReported = false,
   isFullPage = false,
-  isNostrConnected = false,
   onToggleMute,
   isMuted: isMutedProp,
   onRetryPost,
 }) => {
   // Get userState from store instead of props
   const userState = useUserState();
+  const isNostrConnected = useUIStore((s) => s.isNostrConnected);
+  const bookmarkedIds = useUIStore((s) => s.bookmarkedIds);
+  const reportedPostIds = useUIStore((s) => s.reportedPostIds);
+  const isBookmarked = bookmarkedIds.includes(post.id);
+  const hasReported = reportedPostIds.includes(post.id);
   const isMutedStore = useIsMuted(post.authorPubkey || '');
   const isMuted = isMutedProp ?? (post.authorPubkey ? isMutedStore : false);
   const [isExpanded, setIsExpanded] = useState(isFullPage);
@@ -946,10 +946,6 @@ export const PostItem = React.memo(PostItemComponent, (prevProps, nextProps) => 
   }
 
   return (
-    prevProps.boardName === nextProps.boardName &&
-    prevProps.isBookmarked === nextProps.isBookmarked &&
-    prevProps.hasReported === nextProps.hasReported &&
-    prevProps.isNostrConnected === nextProps.isNostrConnected &&
-    prevProps.isFullPage === nextProps.isFullPage
+    prevProps.boardName === nextProps.boardName && prevProps.isFullPage === nextProps.isFullPage
   );
 });

@@ -3,6 +3,8 @@
 // ============================================
 // Handles saving and loading bookmarked posts from localStorage
 
+import { logger } from './loggingService';
+
 const STORAGE_KEY = 'bitboard_bookmarks';
 
 export interface BookmarkEntry {
@@ -23,12 +25,12 @@ class BookmarkService {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const entries: BookmarkEntry[] = JSON.parse(stored);
-        entries.forEach(entry => {
+        entries.forEach((entry) => {
           this.bookmarks.set(entry.postId, entry);
         });
       }
     } catch (error) {
-      console.error('[Bookmarks] Failed to load:', error);
+      logger.error('Bookmarks', 'Failed to load', error);
     }
   }
 
@@ -37,12 +39,12 @@ class BookmarkService {
       const entries = Array.from(this.bookmarks.values());
       localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
     } catch (error) {
-      console.error('[Bookmarks] Failed to save:', error);
+      logger.error('Bookmarks', 'Failed to save', error);
     }
   }
 
   private notifyListeners(): void {
-    this.listeners.forEach(listener => listener());
+    this.listeners.forEach((listener) => listener());
   }
 
   /**
@@ -103,7 +105,7 @@ class BookmarkService {
   getBookmarkedIds(): string[] {
     return Array.from(this.bookmarks.values())
       .sort((a, b) => b.savedAt - a.savedAt)
-      .map(entry => entry.postId);
+      .map((entry) => entry.postId);
   }
 
   /**

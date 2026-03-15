@@ -14,6 +14,7 @@ const { nostrServiceMock, cryptoServiceMock, identityServiceMock } = vi.hoisted(
   },
   identityServiceMock: {
     signEvent: vi.fn(),
+    getIdentity: vi.fn(),
   },
 }));
 
@@ -46,6 +47,13 @@ describe('dmService', () => {
     dmService.cleanup();
     localStorage.clear();
 
+    identityServiceMock.getIdentity.mockReturnValue({
+      kind: 'local',
+      pubkey: 'author-pubkey',
+      privkey: 'privkey-hex',
+      npub: 'npub-test',
+      displayName: 'test',
+    });
     cryptoServiceMock.encryptNIP04.mockResolvedValue('encrypted-body');
     cryptoServiceMock.decryptNIP04.mockImplementation(
       async (content: string) => `decrypted:${content}`,
@@ -72,7 +80,6 @@ describe('dmService', () => {
     const message = await dmService.sendMessage({
       recipientPubkey: 'recipient-pubkey',
       content: 'hello there',
-      privateKey: 'privkey-hex',
     });
 
     expect(cryptoServiceMock.encryptNIP04).toHaveBeenCalledWith(
@@ -111,7 +118,7 @@ describe('dmService', () => {
         },
       ]);
 
-    const messages = await dmService.fetchMessages({ privateKey: 'privkey-hex' });
+    const messages = await dmService.fetchMessages();
 
     expect(messages).toHaveLength(2);
     expect(messages[0].content).toBe('decrypted:enc-sent');
@@ -128,7 +135,7 @@ describe('dmService', () => {
       return 'sub-1';
     });
 
-    dmService.subscribeToMessages('privkey-hex');
+    dmService.subscribeToMessages();
 
     onEvent?.({
       id: 'recv-live',

@@ -18,12 +18,12 @@ export function useDirectMessagesController(args: UseDirectMessagesControllerArg
   const [isLoading, setIsLoading] = useState(true);
 
   const identity = identityService.getIdentity();
-  const localPrivateKey = identity?.kind === 'local' ? identity.privkey : null;
+  const hasLocalIdentity = identity?.kind === 'local';
 
-  const loadConversations = async (privateKey?: string) => {
+  const loadConversations = async () => {
     setIsLoading(true);
     try {
-      await dmService.fetchMessages({ privateKey });
+      await dmService.fetchMessages();
       setConversations(dmService.getConversations());
     } finally {
       setIsLoading(false);
@@ -41,14 +41,14 @@ export function useDirectMessagesController(args: UseDirectMessagesControllerArg
       setConversations(dmService.getConversations());
     });
 
-    void loadConversations(localPrivateKey || undefined);
-    dmService.subscribeToMessages(localPrivateKey || undefined);
+    void loadConversations();
+    dmService.subscribeToMessages();
 
     return () => {
       unsubscribe();
       dmService.unsubscribeFromMessages();
     };
-  }, [userPubkey, localPrivateKey]);
+  }, [userPubkey]);
 
   const handleSelectConversation = (pubkey: string) => {
     setSelectedPubkey(pubkey);
@@ -74,14 +74,13 @@ export function useDirectMessagesController(args: UseDirectMessagesControllerArg
   };
 
   const handleSendMessage = async (content: string) => {
-    if (!selectedPubkey || !localPrivateKey) {
+    if (!selectedPubkey) {
       return;
     }
 
     const message = await dmService.sendMessage({
       recipientPubkey: selectedPubkey,
       content,
-      privateKey: localPrivateKey,
     });
 
     if (message) {
@@ -98,7 +97,7 @@ export function useDirectMessagesController(args: UseDirectMessagesControllerArg
     searchQuery,
     showNewModal,
     isLoading,
-    localPrivateKey,
+    hasLocalIdentity,
     setSearchQuery,
     setSelectedPubkey,
     setShowNewModal,

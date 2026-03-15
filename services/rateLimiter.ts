@@ -5,6 +5,8 @@
 // Prevents spam, DoS attacks, and abuse
 // Adopted from BitChat's MessageRateLimiter.swift and NoiseRateLimiter.swift
 
+import { logger } from './loggingService';
+
 // ============================================
 // TOKEN BUCKET IMPLEMENTATION
 // ============================================
@@ -38,10 +40,7 @@ function consumeToken(bucket: TokenBucket, cost: number = 1): boolean {
 
   // Refill tokens based on time elapsed
   if (deltaSeconds > 0) {
-    bucket.tokens = Math.min(
-      bucket.capacity,
-      bucket.tokens + deltaSeconds * bucket.refillPerSec
-    );
+    bucket.tokens = Math.min(bucket.capacity, bucket.tokens + deltaSeconds * bucket.refillPerSec);
     bucket.lastRefill = now;
   }
 
@@ -60,19 +59,19 @@ function consumeToken(bucket: TokenBucket, cost: number = 1): boolean {
 
 export const RateLimitConfig = {
   // Per-user posting limits
-  POST_CAPACITY: 5,           // Max burst of 5 posts
-  POST_REFILL_PER_SEC: 0.1,   // 1 post per 10 seconds sustained
+  POST_CAPACITY: 5, // Max burst of 5 posts
+  POST_REFILL_PER_SEC: 0.1, // 1 post per 10 seconds sustained
 
   // Per-user voting limits
-  VOTE_CAPACITY: 20,          // Max burst of 20 votes
-  VOTE_REFILL_PER_SEC: 1,     // 1 vote per second sustained
+  VOTE_CAPACITY: 20, // Max burst of 20 votes
+  VOTE_REFILL_PER_SEC: 1, // 1 vote per second sustained
 
   // Per-user comment limits
-  COMMENT_CAPACITY: 10,       // Max burst of 10 comments
+  COMMENT_CAPACITY: 10, // Max burst of 10 comments
   COMMENT_REFILL_PER_SEC: 0.5, // 1 comment per 2 seconds sustained
 
   // Content-based limits (prevent duplicate content spam)
-  CONTENT_CAPACITY: 3,        // Max 3 identical content submissions
+  CONTENT_CAPACITY: 3, // Max 3 identical content submissions
   CONTENT_REFILL_PER_SEC: 0.5, // Refill slowly
 
   // Global limits (across all users)
@@ -108,11 +107,11 @@ class RateLimiter {
     // Initialize global buckets
     this.globalPostBucket = createBucket(
       RateLimitConfig.GLOBAL_POST_CAPACITY,
-      RateLimitConfig.GLOBAL_POST_REFILL_PER_SEC
+      RateLimitConfig.GLOBAL_POST_REFILL_PER_SEC,
     );
     this.globalRelayBucket = createBucket(
       RateLimitConfig.RELAY_MESSAGE_CAPACITY,
-      RateLimitConfig.RELAY_MESSAGE_REFILL_PER_SEC
+      RateLimitConfig.RELAY_MESSAGE_REFILL_PER_SEC,
     );
 
     // Start periodic cleanup of stale buckets
@@ -129,43 +128,77 @@ class RateLimiter {
    * @param contentHash - Optional hash of content to prevent duplicates
    */
   allowPost(userId: string, contentHash?: string): boolean {
-    // Check global limit first
-    if (!consumeToken(this.globalPostBucket)) {
-      console.warn('[RateLimiter] Global post rate limit exceeded');
-      return false;
-    }
-
     // Get or create user bucket
     let userBucket = this.userPostBuckets.get(userId);
     if (!userBucket) {
-      userBucket = createBucket(
-        RateLimitConfig.POST_CAPACITY,
-        RateLimitConfig.POST_REFILL_PER_SEC
-      );
+      userBucket = createBucket(RateLimitConfig.POST_CAPACITY, RateLimitConfig.POST_REFILL_PER_SEC);
       this.userPostBuckets.set(userId, userBucket);
     }
 
-    // Check user limit
-    if (!consumeToken(userBucket)) {
-      console.warn(`[RateLimiter] User post rate limit exceeded for ${userId.slice(0, 8)}...`);
+    // Refill buckets before peeking so token counts are current
+    const now = Date.now();
+
+    const userDelta = (now - userBucket.lastRefill) / 1000;
+    if (userDelta > 0) {
+      userBucket.tokens = Math.min(
+        userBucket.capacity,
+        userBucket.tokens + userDelta * userBucket.refillPerSec,
+      );
+      userBucket.lastRefill = now;
+    }
+
+    const globalDelta = (now - this.globalPostBucket.lastRefill) / 1000;
+    if (globalDelta > 0) {
+      this.globalPostBucket.tokens = Math.min(
+        this.globalPostBucket.capacity,
+        this.globalPostBucket.tokens + globalDelta * this.globalPostBucket.refillPerSec,
+      );
+      this.globalPostBucket.lastRefill = now;
+    }
+
+    // Peek: check both buckets have enough tokens before consuming either
+    if (userBucket.tokens < 1) {
+      logger.warn('RateLimiter', `User post rate limit exceeded for ${userId.slice(0, 8)}...`);
       return false;
     }
 
-    // Check content-based limit if provided
+    if (this.globalPostBucket.tokens < 1) {
+      logger.warn('RateLimiter', 'Global post rate limit exceeded');
+      return false;
+    }
+
+    // Check content-based limit if provided (peek first)
+    let contentBucket: TokenBucket | undefined;
     if (contentHash) {
-      let contentBucket = this.contentBuckets.get(contentHash);
+      contentBucket = this.contentBuckets.get(contentHash);
       if (!contentBucket) {
         contentBucket = createBucket(
           RateLimitConfig.CONTENT_CAPACITY,
-          RateLimitConfig.CONTENT_REFILL_PER_SEC
+          RateLimitConfig.CONTENT_REFILL_PER_SEC,
         );
         this.contentBuckets.set(contentHash, contentBucket);
       }
 
-      if (!consumeToken(contentBucket)) {
-        console.warn('[RateLimiter] Duplicate content rate limit exceeded');
+      const contentDelta = (now - contentBucket.lastRefill) / 1000;
+      if (contentDelta > 0) {
+        contentBucket.tokens = Math.min(
+          contentBucket.capacity,
+          contentBucket.tokens + contentDelta * contentBucket.refillPerSec,
+        );
+        contentBucket.lastRefill = now;
+      }
+
+      if (contentBucket.tokens < 1) {
+        logger.warn('RateLimiter', 'Duplicate content rate limit exceeded');
         return false;
       }
+    }
+
+    // All checks passed — consume from all buckets
+    userBucket.tokens -= 1;
+    this.globalPostBucket.tokens -= 1;
+    if (contentBucket) {
+      contentBucket.tokens -= 1;
     }
 
     return true;
@@ -182,15 +215,12 @@ class RateLimiter {
   allowVote(userId: string): boolean {
     let userBucket = this.userVoteBuckets.get(userId);
     if (!userBucket) {
-      userBucket = createBucket(
-        RateLimitConfig.VOTE_CAPACITY,
-        RateLimitConfig.VOTE_REFILL_PER_SEC
-      );
+      userBucket = createBucket(RateLimitConfig.VOTE_CAPACITY, RateLimitConfig.VOTE_REFILL_PER_SEC);
       this.userVoteBuckets.set(userId, userBucket);
     }
 
     if (!consumeToken(userBucket)) {
-      console.warn(`[RateLimiter] User vote rate limit exceeded for ${userId.slice(0, 8)}...`);
+      logger.warn('RateLimiter', `User vote rate limit exceeded for ${userId.slice(0, 8)}...`);
       return false;
     }
 
@@ -211,13 +241,13 @@ class RateLimiter {
     if (!userBucket) {
       userBucket = createBucket(
         RateLimitConfig.COMMENT_CAPACITY,
-        RateLimitConfig.COMMENT_REFILL_PER_SEC
+        RateLimitConfig.COMMENT_REFILL_PER_SEC,
       );
       this.userCommentBuckets.set(userId, userBucket);
     }
 
     if (!consumeToken(userBucket)) {
-      console.warn(`[RateLimiter] User comment rate limit exceeded for ${userId.slice(0, 8)}...`);
+      logger.warn('RateLimiter', `User comment rate limit exceeded for ${userId.slice(0, 8)}...`);
       return false;
     }
 
@@ -227,13 +257,13 @@ class RateLimiter {
       if (!contentBucket) {
         contentBucket = createBucket(
           RateLimitConfig.CONTENT_CAPACITY,
-          RateLimitConfig.CONTENT_REFILL_PER_SEC
+          RateLimitConfig.CONTENT_REFILL_PER_SEC,
         );
         this.contentBuckets.set(contentHash, contentBucket);
       }
 
       if (!consumeToken(contentBucket)) {
-        console.warn('[RateLimiter] Duplicate content rate limit exceeded');
+        logger.warn('RateLimiter', 'Duplicate content rate limit exceeded');
         return false;
       }
     }
@@ -250,7 +280,7 @@ class RateLimiter {
    */
   allowRelayMessage(): boolean {
     if (!consumeToken(this.globalRelayBucket)) {
-      console.warn('[RateLimiter] Relay message rate limit exceeded');
+      logger.warn('RateLimiter', 'Relay message rate limit exceeded');
       return false;
     }
     return true;
@@ -279,13 +309,13 @@ class RateLimiter {
   getPostTokens(userId: string): number {
     const bucket = this.userPostBuckets.get(userId);
     if (!bucket) return RateLimitConfig.POST_CAPACITY;
-    
+
     // Refill before reporting
     const now = Date.now();
     const deltaSeconds = (now - bucket.lastRefill) / 1000;
     const currentTokens = Math.min(
       bucket.capacity,
-      bucket.tokens + deltaSeconds * bucket.refillPerSec
+      bucket.tokens + deltaSeconds * bucket.refillPerSec,
     );
     return Math.floor(currentTokens);
   }
@@ -296,12 +326,12 @@ class RateLimiter {
   getVoteTokens(userId: string): number {
     const bucket = this.userVoteBuckets.get(userId);
     if (!bucket) return RateLimitConfig.VOTE_CAPACITY;
-    
+
     const now = Date.now();
     const deltaSeconds = (now - bucket.lastRefill) / 1000;
     const currentTokens = Math.min(
       bucket.capacity,
-      bucket.tokens + deltaSeconds * bucket.refillPerSec
+      bucket.tokens + deltaSeconds * bucket.refillPerSec,
     );
     return Math.floor(currentTokens);
   }
@@ -323,15 +353,15 @@ class RateLimiter {
     this.userVoteBuckets.clear();
     this.userCommentBuckets.clear();
     this.contentBuckets.clear();
-    
+
     // Reset global buckets
     this.globalPostBucket = createBucket(
       RateLimitConfig.GLOBAL_POST_CAPACITY,
-      RateLimitConfig.GLOBAL_POST_REFILL_PER_SEC
+      RateLimitConfig.GLOBAL_POST_REFILL_PER_SEC,
     );
     this.globalRelayBucket = createBucket(
       RateLimitConfig.RELAY_MESSAGE_CAPACITY,
-      RateLimitConfig.RELAY_MESSAGE_REFILL_PER_SEC
+      RateLimitConfig.RELAY_MESSAGE_REFILL_PER_SEC,
     );
   }
 
@@ -382,9 +412,3 @@ class RateLimiter {
 
 // Export singleton instance
 export const rateLimiter = new RateLimiter();
-
-
-
-
-
-

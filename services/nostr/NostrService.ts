@@ -139,6 +139,9 @@ class NostrService {
   private _activePublishes = 0;
   private _activeFetches = 0;
 
+  // Monotonic counter for unique subscription IDs (avoids Date.now() collisions)
+  private _subscriptionCounter = 0;
+
   constructor() {
     this.pool = new SimplePool();
 
@@ -164,6 +167,11 @@ class NostrService {
         nextReconnectTime: null,
       });
     });
+  }
+
+  /** Generate a unique subscription ID (monotonic counter avoids Date.now() collisions) */
+  private nextSubId(prefix: string): string {
+    return `${prefix}-${++this._subscriptionCounter}`;
   }
 
   // ----------------------------------------
@@ -578,7 +586,7 @@ class NostrService {
               }
             }
           })
-          .catch(console.error);
+          .catch((err) => logger.error('Nostr', 'Failed to flush message queue', err));
       }
     }
   }
@@ -1005,13 +1013,16 @@ class NostrService {
 
       // Use Promise.race with timeout for faster response
       const QUERY_TIMEOUT_MS = 5000; // 5 second timeout
+      let timeoutId: ReturnType<typeof setTimeout>;
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Query timeout')), QUERY_TIMEOUT_MS);
+        timeoutId = setTimeout(() => reject(new Error('Query timeout')), QUERY_TIMEOUT_MS);
       });
 
       const queryPromise = this.pool.querySync(relaysToQuery, filter);
 
-      const events = await Promise.race([queryPromise, timeoutPromise]);
+      const events = await Promise.race([queryPromise, timeoutPromise]).finally(() => {
+        clearTimeout(timeoutId);
+      });
 
       // Update relay statuses on success
       relaysToQuery.forEach((url) => this.updateRelayStatus(url, true));
@@ -1022,7 +1033,7 @@ class NostrService {
           !nostrEventDeduplicator.isEventDuplicate(event.id) && this.isBitboardPostEvent(event),
       );
     } catch (error) {
-      console.error('[Nostr] Failed to fetch posts:', error);
+      logger.error('Nostr', 'Failed to fetch posts:', error);
       // Don't throw - return empty array for graceful degradation
       return [];
     } finally {
@@ -1045,8 +1056,8 @@ class NostrService {
       const events = await this.pool.querySync(this.getReadRelays(), filter);
       return events.filter((event) => !nostrEventDeduplicator.isEventDuplicate(event.id));
     } catch (error) {
-      console.error('[Nostr] Failed to fetch boards:', error);
-      throw error;
+      logger.error('Nostr', 'Failed to fetch boards:', error);
+      return [];
     }
   }
 
@@ -1058,10 +1069,16 @@ class NostrService {
     const filter: Filter = {
       kinds: [NOSTR_KINDS.REACTION],
       '#e': [postEventId],
+      limit: 500,
     };
 
-    const events = await this.pool.querySync(this.getReadRelays(), filter);
-    return events;
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      return events;
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch vote events:', error);
+      return [];
+    }
   }
 
   /**
@@ -1104,12 +1121,17 @@ class NostrService {
       '#client': ['bitboard'],
     };
 
-    const events = await this.pool.querySync(this.getReadRelays(), filter);
-    return events.filter(
-      (event) =>
-        !nostrEventDeduplicator.isEventDuplicate(event.id) &&
-        this.isBitboardCommentEvent(event, postEventId),
-    );
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      return events.filter(
+        (event) =>
+          !nostrEventDeduplicator.isEventDuplicate(event.id) &&
+          this.isBitboardCommentEvent(event, postEventId),
+      );
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch comments:', error);
+      return [];
+    }
   }
 
   async fetchCommentEdits(
@@ -1124,12 +1146,17 @@ class NostrService {
       limit: opts.limit ?? 200,
     };
 
-    const events = await this.pool.querySync(this.getReadRelays(), filter);
-    return events.filter(
-      (event) =>
-        !nostrEventDeduplicator.isEventDuplicate(event.id) &&
-        this.isBitboardCommentEditEvent(event),
-    );
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      return events.filter(
+        (event) =>
+          !nostrEventDeduplicator.isEventDuplicate(event.id) &&
+          this.isBitboardCommentEditEvent(event),
+      );
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch comment edits:', error);
+      return [];
+    }
   }
 
   async fetchCommentDeletes(
@@ -1144,12 +1171,17 @@ class NostrService {
       limit: opts.limit ?? 200,
     };
 
-    const events = await this.pool.querySync(this.getReadRelays(), filter);
-    return events.filter(
-      (event) =>
-        !nostrEventDeduplicator.isEventDuplicate(event.id) &&
-        this.isBitboardCommentDeleteEvent(event),
-    );
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      return events.filter(
+        (event) =>
+          !nostrEventDeduplicator.isEventDuplicate(event.id) &&
+          this.isBitboardCommentDeleteEvent(event),
+      );
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch comment deletes:', error);
+      return [];
+    }
   }
 
   /**
@@ -1170,11 +1202,16 @@ class NostrService {
       limit: opts.limit ?? 200,
     };
 
-    const events = await this.pool.querySync(this.getReadRelays(), filter as Filter);
-    return events.filter(
-      (event) =>
-        !nostrEventDeduplicator.isEventDuplicate(event.id) && this.isBitboardPostEditEvent(event),
-    );
+    try {
+      const events = await this.pool.querySync(this.getReadRelays(), filter as Filter);
+      return events.filter(
+        (event) =>
+          !nostrEventDeduplicator.isEventDuplicate(event.id) && this.isBitboardPostEditEvent(event),
+      );
+    } catch (error) {
+      logger.error('Nostr', 'Failed to fetch post edits:', error);
+      return [];
+    }
   }
 
   // ----------------------------------------
@@ -1185,7 +1222,7 @@ class NostrService {
     onEvent: (event: NostrEvent) => void,
     filters: { boardId?: string; boardAddress?: string; geohash?: string } = {},
   ): string {
-    const subscriptionId = `feed-${Date.now()}`;
+    const subscriptionId = this.nextSubId('feed');
 
     const filter: FilterWithTags = {
       kinds: [NOSTR_KINDS.POST],
@@ -1275,7 +1312,7 @@ class NostrService {
       onEose?: () => void;
     },
   ): string {
-    const subscriptionId = `custom-${Date.now()}`;
+    const subscriptionId = this.nextSubId('custom');
     const sub = this.pool.subscribeMany(this.getReadRelays(), filters as any, {
       onevent: handlers.onEvent,
       oneose: () => {
@@ -1296,7 +1333,7 @@ class NostrService {
    * Callers should merge edits into existing post state by root post id.
    */
   subscribeToPostEdits(onEvent: (event: NostrEvent) => void): string {
-    const subscriptionId = `post-edits-${Date.now()}`;
+    const subscriptionId = this.nextSubId('post-edits');
 
     const filter: FilterWithTags = {
       kinds: [NOSTR_KINDS.POST],
@@ -1326,7 +1363,7 @@ class NostrService {
   }
 
   subscribeToCommentEdits(postEventId: string, onEvent: (event: NostrEvent) => void): string {
-    const subscriptionId = `comment-edits-${postEventId}-${Date.now()}`;
+    const subscriptionId = this.nextSubId(`comment-edits-${postEventId}`);
 
     const filter: FilterWithTags = {
       kinds: [NOSTR_KINDS.POST],
@@ -1349,7 +1386,7 @@ class NostrService {
   }
 
   subscribeToCommentDeletes(postEventId: string, onEvent: (event: NostrEvent) => void): string {
-    const subscriptionId = `comment-deletes-${postEventId}-${Date.now()}`;
+    const subscriptionId = this.nextSubId(`comment-deletes-${postEventId}`);
 
     const filter: FilterWithTags = {
       kinds: [NOSTR_KINDS.DELETE],
@@ -1399,6 +1436,13 @@ class NostrService {
 
     // Save profile cache to localStorage before shutdown
     this.profiles.destroy();
+
+    // Close all pool WebSocket connections to prevent leaks
+    try {
+      this.pool.close(this.relays);
+    } catch {
+      // pool.close may throw if already closed — safe to ignore
+    }
 
     // Keep relay status map so callers can still read relays/status after cleanup
     this.relayStatuses.forEach((status) => {
@@ -1479,6 +1523,7 @@ class NostrService {
         pool: this.pool,
         getReadRelays: () => this.getReadRelays(),
         subscriptions: this.subscriptions,
+        nextSubId: (prefix: string) => this.nextSubId(prefix),
       },
       liveEventAddress,
       onEvent,
@@ -1700,6 +1745,7 @@ class NostrService {
         pool: this.pool,
         getReadRelays: () => this.getReadRelays(),
         subscriptions: this.subscriptions,
+        nextSubId: (prefix: string) => this.nextSubId(prefix),
       },
       communityAddress,
       onEvent,
@@ -1792,6 +1838,7 @@ class NostrService {
         pool: this.pool,
         getReadRelays: () => this.getReadRelays(),
         subscriptions: this.subscriptions,
+        nextSubId: (prefix: string) => this.nextSubId(prefix),
       },
       eventIds,
       onEvent,

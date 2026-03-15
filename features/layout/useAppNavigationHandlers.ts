@@ -1,27 +1,23 @@
 import { useCallback } from 'react';
-import type { Dispatch, SetStateAction } from 'react';
 import type { Board } from '../../types';
 import { ViewMode } from '../../types';
+import { useUIStore } from '../../stores/uiStore';
+import { usePostStore } from '../../stores/postStore';
+import { useBoardStore } from '../../stores/boardStore';
 
-interface UseAppNavigationHandlersArgs {
-  setViewMode: (mode: ViewMode) => void;
-  setSelectedBitId: (id: string | null) => void;
-  setActiveBoardId: (id: string | null) => void;
-  setLocationBoards: Dispatch<SetStateAction<Board[]>>;
-  setProfileUser: (user: { username: string; pubkey?: string } | null) => void;
-  setEditingPostId: (id: string | null) => void;
-  setSearchQuery: (query: string) => void;
-}
+/**
+ * Navigation handlers that read directly from Zustand stores.
+ * Can be used from any component — no need to go through AppContext.
+ */
+export function useAppNavigationHandlers() {
+  const setViewMode = useUIStore((s) => s.setViewMode);
+  const setSearchQuery = useUIStore((s) => s.setSearchQuery);
+  const setProfileUser = useUIStore((s) => s.setProfileUser);
+  const setEditingPostId = useUIStore((s) => s.setEditingPostId);
+  const setSelectedBitId = usePostStore((s) => s.setSelectedPostId);
+  const setActiveBoardId = useBoardStore((s) => s.setActiveBoardId);
+  const setLocationBoards = useBoardStore((s) => s.setLocationBoards);
 
-export function useAppNavigationHandlers({
-  setViewMode,
-  setSelectedBitId,
-  setActiveBoardId,
-  setLocationBoards,
-  setProfileUser,
-  setEditingPostId,
-  setSearchQuery,
-}: UseAppNavigationHandlersArgs) {
   const handleViewBit = useCallback(
     (postId: string) => {
       setSelectedBitId(postId);
@@ -47,7 +43,7 @@ export function useAppNavigationHandlers({
 
   const handleLocationBoardSelect = useCallback(
     (board: Board) => {
-      setLocationBoards((prev) => {
+      setLocationBoards((prev: Board[]) => {
         if (prev.some((candidate) => candidate.id === board.id)) return prev;
         return [...prev, board];
       });
