@@ -274,7 +274,7 @@ const AppContent: React.FC = () => {
           onNavigateGlobal={() => app.navigateToBoard(null)}
           identity={app.userState.identity || undefined}
           userState={app.userState}
-          bookmarkedCount={app.bookmarkedIds.length}
+          bookmarkedCount={(app.bookmarkedIds ?? []).length}
           isNostrConnected={app.isNostrConnected}
         >
           <Sidebar
@@ -288,9 +288,9 @@ const AppContent: React.FC = () => {
             activeBoardId={app.activeBoardId}
             feedFilter={app.feedFilter}
             setFeedFilter={app.setFeedFilter}
-            topicBoards={app.topicBoards}
-            geohashBoards={app.geohashBoards}
-            boardsById={app.boardsById}
+            topicBoards={app.topicBoards ?? []}
+            geohashBoards={app.geohashBoards ?? []}
+            boardsById={app.boardsById ?? new Map()}
             decryptionFailedBoardIds={app.decryptionFailedBoardIds}
             removeFailedDecryptionKey={app.removeFailedDecryptionKey}
             navigateToBoard={app.navigateToBoard}
@@ -411,8 +411,8 @@ const AppContent: React.FC = () => {
               {app.viewMode === ViewMode.BROWSE_BOARDS && (
                 <Suspense fallback={<LoadingFallback />}>
                   <BoardBrowser
-                    topicBoards={app.topicBoards}
-                    posts={app.posts}
+                    topicBoards={app.topicBoards ?? []}
+                    posts={app.posts ?? []}
                     onNavigateToBoard={app.navigateToBoard}
                     onSetViewMode={app.setViewMode}
                     onClose={() => app.setViewMode(ViewMode.FEED)}
@@ -517,8 +517,23 @@ const AppContent: React.FC = () => {
             {/* Sidebar - desktop only, mobile content lives in drawer */}
             <aside className="hidden md:block md:order-2">
               <Sidebar
+                userState={app.userState}
+                setUserState={app.setUserState}
+                theme={app.theme}
+                setTheme={app.setTheme}
+                getThemeColor={app.getThemeColor}
+                isNostrConnected={app.isNostrConnected}
+                viewMode={app.viewMode}
+                activeBoardId={app.activeBoardId}
+                feedFilter={app.feedFilter}
+                setFeedFilter={app.setFeedFilter}
+                topicBoards={app.topicBoards ?? []}
+                geohashBoards={app.geohashBoards ?? []}
+                boardsById={app.boardsById ?? new Map()}
                 decryptionFailedBoardIds={app.decryptionFailedBoardIds}
                 removeFailedDecryptionKey={app.removeFailedDecryptionKey}
+                navigateToBoard={app.navigateToBoard}
+                onSetViewMode={app.setViewMode}
               />
             </aside>
           </div>
