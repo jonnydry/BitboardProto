@@ -25,6 +25,7 @@ import {
   RefreshCw,
   AlertTriangle,
   Loader2,
+  MoreHorizontal,
 } from 'lucide-react';
 import { profileService } from '../services/profileService';
 import { CommentThread, buildCommentTree } from './CommentThread';
@@ -108,7 +109,9 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   const [isTransmitting, setIsTransmitting] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showMoreActions, setShowMoreActions] = useState(false);
   const { postRef, authorProfile, profileLoadState } = usePostAuthorProfile(post.authorPubkey);
+  const moreActionsRef = React.useRef<HTMLDivElement | null>(null);
 
   const handleReportClick = useCallback(
     (e: React.MouseEvent) => {
@@ -185,6 +188,19 @@ const PostItemComponent: React.FC<PostItemProps> = ({
     if (isFullPage) setIsExpanded(true);
   }, [isFullPage]);
 
+  useEffect(() => {
+    if (!showMoreActions) return;
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!moreActionsRef.current?.contains(event.target as Node)) {
+        setShowMoreActions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [showMoreActions]);
+
   const voteDirection = useMemo(
     () => userState.votedPosts[post.id],
     [userState.votedPosts, post.id],
@@ -204,16 +220,18 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   const isEncryptedWithoutKey = useMemo(() => isPostEncryptedWithoutKey(post), [post]);
 
   const handleCommentSubmit = useCallback(
-    (e: React.FormEvent) => {
+    async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!newComment.trim()) return;
+      const content = newComment.trim();
+      if (!content) return;
 
       setIsTransmitting(true);
-      setTimeout(() => {
-        onComment(post.id, newComment, undefined); // Top-level comment (no parent)
+      try {
+        await Promise.resolve(onComment(post.id, content, undefined));
         setNewComment('');
+      } finally {
         setIsTransmitting(false);
-      }, 500);
+      }
     },
     [newComment, onComment, post.id],
   );
@@ -393,16 +411,6 @@ const PostItemComponent: React.FC<PostItemProps> = ({
       >
         {/* Voting Column - Cryptographically Verified */}
         <div className="flex flex-col items-center w-10 md:w-12 border-r border-terminal-dim pr-1 md:pr-2 justify-start pt-1 gap-0.5 md:gap-1 flex-shrink-0">
-          {/* Guest User Indicator */}
-          {!userState.identity && (
-            <div
-              className="mb-1 flex items-center gap-1 px-1.5 py-0.5 border border-terminal-dim/50 bg-terminal-dim/10 rounded"
-              title="Guest mode: Connect identity to cast verified votes"
-            >
-              <UserX size={10} className="text-terminal-dim" />
-              <span className="text-[8px] text-terminal-dim uppercase">GUEST</span>
-            </div>
-          )}
           <button
             onClick={handleVoteUp}
             className={`p-2 md:p-1 hover:bg-terminal-dim transition-colors min-w-[40px] min-h-[40px] md:min-w-0 md:min-h-0 flex items-center justify-center ${isUpvoted ? 'text-terminal-text font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -466,7 +474,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 >
                   <Shield size={10} className="text-terminal-text" />
                   {typeof post.uniqueVoters === 'number' && (
-                    <span className="text-[9px] text-terminal-dim flex items-center gap-0.5">
+                    <span className="text-[11px] text-terminal-dim flex items-center gap-0.5">
                       <Users size={8} /> {post.uniqueVoters}
                     </span>
                   )}
@@ -492,17 +500,17 @@ const PostItemComponent: React.FC<PostItemProps> = ({
           {/* Investment Indicator */}
           {hasInvested && (
             <div className="mt-2 flex flex-col items-center animate-fade-in">
-              <span className="text-[8px] text-terminal-dim border border-terminal-dim px-1 py-0.5 uppercase tracking-tighter">
+              <span className="text-[10px] text-terminal-dim border border-terminal-dim px-1 py-0.5 uppercase tracking-tighter">
                 1 BIT
               </span>
-              <span className="text-[8px] text-terminal-dim">LOCKED</span>
+              <span className="text-[10px] text-terminal-dim">LOCKED</span>
             </div>
           )}
         </div>
 
         {/* Content Column */}
         <div className="flex-1 flex flex-col min-w-0">
-          <div className="text-[10px] text-terminal-dim mb-1 flex flex-wrap items-center gap-2 uppercase tracking-wider">
+          <div className="text-xs text-terminal-dim mb-1 flex flex-wrap items-center gap-2 uppercase tracking-wider">
             {boardName && (
               <span className="bg-terminal-dim/20 px-1 text-terminal-text font-bold mr-2">
                 //{boardName}
@@ -531,7 +539,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 ) : (
                   profileLoadState !== 'loading' && (
                     <div
-                      className="w-4 h-4 rounded-full bg-terminal-dim/20 flex items-center justify-center text-[8px] text-terminal-dim font-bold"
+                      className="w-4 h-4 rounded-full bg-terminal-dim/20 flex items-center justify-center text-[10px] text-terminal-dim font-bold"
                       title={post.authorPubkey ? `${post.authorPubkey.slice(0, 8)}...` : ''}
                     >
                       {post.author.charAt(0).toUpperCase()}
@@ -563,7 +571,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 title="Edit this post"
               >
                 <Edit3 size={10} />
-                <span className="text-[10px]">EDIT</span>
+                <span className="text-xs">EDIT</span>
               </button>
             )}
             {isOwnPost && onDeletePost && (
@@ -573,12 +581,12 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 title="Delete this post"
               >
                 <Trash2 size={10} />
-                <span className="text-[10px]">DELETE</span>
+                <span className="text-xs">DELETE</span>
               </button>
             )}
             {post.url && (
-              <span className="ml-auto border border-terminal-dim px-1 text-[10px] text-terminal-text flex items-center gap-1">
-                LINK_BIT
+              <span className="ml-auto border border-terminal-dim px-1 text-xs text-terminal-text flex items-center gap-1">
+                LINK
                 {post.imageUrl && <ImageIcon size={8} />}
               </span>
             )}
@@ -619,6 +627,13 @@ const PostItemComponent: React.FC<PostItemProps> = ({
             )}
           </div>
 
+          {!userState.identity && (
+            <div className="mb-3 flex items-center gap-2 border border-terminal-dim/60 bg-terminal-dim/10 px-3 py-2 text-xs md:text-sm text-terminal-muted">
+              <UserX size={14} className="text-terminal-text flex-shrink-0" />
+              <span>Connect your identity for verified voting, comments, and zaps.</span>
+            </div>
+          )}
+
           {/* Media Preview */}
           {post.imageUrl && <ImagePreview src={post.imageUrl} className="mb-4 mt-2 max-w-lg" />}
 
@@ -638,7 +653,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
               onKeyDown={handleInteractionKeyDown}
               tabIndex={0}
               role="button"
-              className={`text-sm text-terminal-text/80 font-mono leading-relaxed mb-2 cursor-pointer break-words ${!isExpanded ? 'line-clamp-2' : 'opacity-100'}`}
+              className={`text-sm text-terminal-muted font-mono leading-relaxed mb-2 cursor-pointer break-words ${!isExpanded ? 'line-clamp-3' : 'text-terminal-text'}`}
             >
               {(() => {
                 // Detect markdown syntax - only load full renderer if needed
@@ -658,7 +673,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 <button
                   key={tag}
                   onClick={(e) => handleTagClick(e, tag)}
-                  className="text-[10px] md:text-xs border border-terminal-dim px-1.5 py-0.5 md:px-1 md:py-0 text-terminal-dim flex items-center hover:text-terminal-text hover:border-terminal-text cursor-pointer transition-colors"
+                  className="text-xs border border-terminal-dim px-1.5 py-0.5 md:px-1 md:py-0 text-terminal-dim flex items-center hover:text-terminal-text hover:border-terminal-text cursor-pointer transition-colors"
                   title={`Search for #${tag}`}
                 >
                   <Hash size={10} className="mr-0.5 md:mr-1" />
@@ -668,13 +683,18 @@ const PostItemComponent: React.FC<PostItemProps> = ({
             </div>
 
             <div className="flex items-center gap-1 md:gap-2 flex-wrap justify-end">
-              {/* Reactions (FREE - social signals) */}
-              <ReactionBar
-                eventId={post.id}
-                nostrEventId={post.nostrEventId}
-                disabled={!userState.identity}
-                compact={true}
-              />
+              <button
+                onClick={handleCommentClick}
+                className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 py-2 md:px-2 md:py-0.5 transition-colors border border-terminal-dim/50 md:border-transparent shrink-0 text-terminal-dim hover:text-terminal-text hover:border-terminal-dim"
+                title="View full thread"
+              >
+                <MessageSquare size={14} />
+                <span className="hidden sm:inline">
+                  {post.commentCount} {post.commentCount === 1 ? 'COMMENT' : 'COMMENTS'}
+                </span>
+                <span className="sm:hidden">{post.commentCount}</span>
+                <Maximize2 size={10} className="opacity-50 hidden md:inline" />
+              </button>
 
               {/* Zap Button (NIP-57 Layer 2 engagement) */}
               <ZapButton
@@ -704,49 +724,67 @@ const PostItemComponent: React.FC<PostItemProps> = ({
               {/* Share Button */}
               <ShareButton postId={post.id} postTitle={post.title} />
 
-              {/* Report Button */}
-              {!isOwnPost && (
-                <button
-                  onClick={handleReportClick}
-                  className={`p-2.5 md:p-1 transition-colors min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center ${hasReported ? 'text-terminal-alert' : 'text-terminal-dim hover:text-terminal-alert'}`}
-                  title={hasReported ? 'Already reported' : 'Report this post'}
-                  disabled={hasReported}
-                  aria-label={hasReported ? 'Already reported' : 'Report this post'}
-                >
-                  <Flag
-                    size={16}
-                    className="md:w-3.5 md:h-3.5"
-                    fill={hasReported ? 'currentColor' : 'none'}
-                  />
-                </button>
-              )}
-
-              {/* Mute Button */}
-              {!isOwnPost && post.authorPubkey && onToggleMute && (
+              <div className="relative" ref={moreActionsRef}>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onToggleMute(post.authorPubkey!);
+                    setShowMoreActions((prev) => !prev);
                   }}
-                  className={`p-2.5 md:p-1 transition-colors min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center ${isMuted?.(post.authorPubkey) ? 'text-terminal-alert' : 'text-terminal-dim hover:text-terminal-alert'}`}
-                  title={isMuted?.(post.authorPubkey) ? 'Unmute user' : 'Mute user'}
+                  className="p-2.5 md:p-1 transition-colors min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center text-terminal-dim hover:text-terminal-text"
+                  title="More actions"
+                  aria-label="More actions"
+                  aria-expanded={showMoreActions}
                 >
-                  <VolumeX size={16} className="md:w-3.5 md:h-3.5" />
+                  <MoreHorizontal size={18} className="md:w-4 md:h-4" />
                 </button>
-              )}
 
-              <button
-                onClick={handleCommentClick}
-                className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 py-2 md:px-2 md:py-0.5 transition-colors border border-terminal-dim/50 md:border-transparent shrink-0 text-terminal-dim hover:text-terminal-text hover:border-terminal-dim"
-                title="View full thread"
-              >
-                <MessageSquare size={14} />
-                <span className="hidden sm:inline">
-                  {post.commentCount} {post.commentCount === 1 ? 'COMMENT' : 'COMMENTS'}
-                </span>
-                <span className="sm:hidden">{post.commentCount}</span>
-                <Maximize2 size={10} className="opacity-50 hidden md:inline" />
-              </button>
+                {showMoreActions && (
+                  <div
+                    className="absolute right-0 top-full z-20 mt-2 min-w-[190px] border border-terminal-dim bg-terminal-bg p-2 shadow-hard"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="mb-2 border-b border-terminal-dim/30 pb-2">
+                      <div className="mb-1 text-xs uppercase tracking-wider text-terminal-muted">
+                        Reactions
+                      </div>
+                      <ReactionBar
+                        eventId={post.id}
+                        nostrEventId={post.nostrEventId}
+                        disabled={!userState.identity}
+                        compact={true}
+                      />
+                    </div>
+
+                    {!isOwnPost && (
+                      <button
+                        onClick={(e) => {
+                          handleReportClick(e);
+                          setShowMoreActions(false);
+                        }}
+                        className={`flex w-full items-center gap-2 px-2 py-2 text-left text-xs uppercase tracking-wide transition-colors ${hasReported ? 'text-terminal-alert' : 'text-terminal-dim hover:bg-terminal-dim/10 hover:text-terminal-alert'}`}
+                        disabled={hasReported}
+                      >
+                        <Flag size={14} />
+                        {hasReported ? 'Reported' : 'Report Post'}
+                      </button>
+                    )}
+
+                    {!isOwnPost && post.authorPubkey && onToggleMute && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleMute(post.authorPubkey!);
+                          setShowMoreActions(false);
+                        }}
+                        className="flex w-full items-center gap-2 px-2 py-2 text-left text-xs uppercase tracking-wide text-terminal-dim transition-colors hover:bg-terminal-dim/10 hover:text-terminal-alert"
+                      >
+                        <VolumeX size={14} />
+                        {isMuted?.(post.authorPubkey) ? 'Unmute User' : 'Mute User'}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -768,9 +806,9 @@ const PostItemComponent: React.FC<PostItemProps> = ({
               {/* Link Previews */}
               {linkUrls.length > 0 && (
                 <div className="mb-6">
-                  <h4 className="text-[10px] text-terminal-dim mb-3 font-bold uppercase tracking-widest flex items-center gap-2">
+                  <h4 className="text-xs text-terminal-dim mb-3 font-bold uppercase tracking-widest flex items-center gap-2">
                     <ExternalLink size={12} />
-                    LINKED_RESOURCES
+                    LINKED RESOURCES
                   </h4>
                   <LinkPreviewList urls={linkUrls} maxPreviews={3} />
                 </div>
@@ -778,7 +816,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
 
               <h4 className="text-xs text-terminal-dim mb-4 font-bold uppercase tracking-widest flex items-center gap-2">
                 <CornerDownRight size={14} />
-                DATA_STREAM
+                COMMENT THREAD
               </h4>
 
               {(() => {
@@ -840,8 +878,8 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 className="flex gap-3 items-start bg-terminal-bg/40 p-3 border border-terminal-dim/30"
               >
                 <div className="flex-1 flex flex-col gap-2">
-                  <label className="text-[10px] uppercase text-terminal-dim font-bold">
-                    Append Data (use @ to mention):
+                  <label className="text-xs uppercase text-terminal-muted font-bold tracking-wide">
+                    Add Reply (use @ to mention):
                   </label>
                   <MentionInput
                     value={newComment}
@@ -856,7 +894,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                   disabled={!newComment.trim() || isTransmitting}
                   className="mt-auto h-full self-stretch border border-terminal-dim px-4 text-xs hover:bg-terminal-text hover:text-black disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-terminal-dim transition-all uppercase font-bold tracking-wider min-w-[80px]"
                 >
-                  {isTransmitting ? '...' : '[ TX ]'}
+                  {isTransmitting ? '...' : 'TRANSMIT'}
                 </button>
               </form>
             </div>

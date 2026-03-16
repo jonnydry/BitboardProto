@@ -24,6 +24,8 @@ import {
   Download,
   UserPlus,
   UserMinus,
+  Copy,
+  CheckCircle,
 } from 'lucide-react';
 import { FollowButton as _FollowButton, FollowStats as _FollowStats } from './FollowButton';
 import { ZapButton } from './ZapButton';
@@ -78,6 +80,9 @@ export const UserProfile: React.FC<UserProfileProps> = ({
   const [profileMetadata, setProfileMetadata] = useState<ProfileMetadata | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [showAvatarFallback, setShowAvatarFallback] = useState(false);
+  const [showBannerImage, setShowBannerImage] = useState(true);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const { follow, unfollow, isFollowing, isLoading: isFollowLoading } = useFollows();
   // Filter posts by this user
   const userPosts = useMemo(() => {
@@ -190,6 +195,11 @@ export const UserProfile: React.FC<UserProfileProps> = ({
     }
   }, [authorPubkey]);
 
+  useEffect(() => {
+    setShowAvatarFallback(!profileMetadata?.picture);
+    setShowBannerImage(!!profileMetadata?.banner);
+  }, [profileMetadata?.picture, profileMetadata?.banner]);
+
   const handleEditProfile = () => {
     setIsEditingProfile(true);
   };
@@ -242,6 +252,24 @@ export const UserProfile: React.FC<UserProfileProps> = ({
     }
   };
 
+  const handleCopyPubkey = async () => {
+    if (!authorPubkey) return;
+
+    try {
+      await navigator.clipboard.writeText(authorPubkey);
+      setCopiedField('pubkey');
+      window.setTimeout(() => setCopiedField(null), 2000);
+    } catch (error) {
+      console.error('[UserProfile] Copy pubkey error:', error);
+      toastService.push({
+        type: 'error',
+        message: 'Failed to copy public key',
+        durationMs: UIConfig.TOAST_DURATION_MS,
+        dedupeKey: 'copy-pubkey-failed',
+      });
+    }
+  };
+
   // If editing profile, show the editor
   if (isEditingProfile && isOwnProfile) {
     return (
@@ -267,15 +295,13 @@ export const UserProfile: React.FC<UserProfileProps> = ({
       {/* Profile Header */}
       <div className="border-2 border-terminal-text bg-terminal-bg p-6 mb-6 shadow-hard">
         {/* Banner */}
-        {profileMetadata?.banner && (
+        {profileMetadata?.banner && showBannerImage && (
           <div className="w-full h-32 mb-4 overflow-hidden rounded border border-terminal-dim">
             <img
               src={profileMetadata.banner}
               alt="Profile banner"
               className="w-full h-full object-cover"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
+              onError={() => setShowBannerImage(false)}
             />
           </div>
         )}
@@ -283,20 +309,17 @@ export const UserProfile: React.FC<UserProfileProps> = ({
         <div className="flex items-start gap-4">
           {/* Avatar */}
           <div className="w-16 h-16 border-2 border-terminal-text flex items-center justify-center bg-terminal-dim/20 overflow-hidden rounded">
-            {profileMetadata?.picture ? (
+            {profileMetadata?.picture && !showAvatarFallback ? (
               <img
                 src={profileMetadata.picture}
                 alt={`${username}'s avatar`}
                 className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                }}
+                onError={() => setShowAvatarFallback(true)}
               />
             ) : null}
             <User
               size={32}
-              className={`text-terminal-text ${profileMetadata?.picture ? 'hidden' : ''}`}
+              className={`text-terminal-text ${showAvatarFallback ? '' : 'hidden'}`}
             />
           </div>
 
@@ -316,7 +339,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
                   onClick={() => toggleMute(authorPubkey)}
                   className={`flex items-center gap-1 text-xs border px-2 py-0.5 transition-colors uppercase
                     ${
-                      isMuted(authorPubkey)
+                      isMuted?.(authorPubkey)
                         ? 'border-terminal-alert text-terminal-alert hover:bg-terminal-alert hover:text-black'
                         : 'border-terminal-dim text-terminal-dim hover:text-terminal-alert hover:border-terminal-alert'
                     }`}
@@ -400,6 +423,15 @@ export const UserProfile: React.FC<UserProfileProps> = ({
                 <p className="text-xs text-terminal-dim font-mono truncate max-w-md">
                   npub: {authorPubkey.slice(0, 16)}...{authorPubkey.slice(-8)}
                 </p>
+                <button
+                  type="button"
+                  onClick={handleCopyPubkey}
+                  className="flex items-center gap-1 text-xs border border-terminal-dim px-2 py-1 text-terminal-dim hover:border-terminal-text hover:text-terminal-text transition-colors uppercase"
+                  title="Copy public key"
+                >
+                  {copiedField === 'pubkey' ? <CheckCircle size={12} /> : <Copy size={12} />}
+                  {copiedField === 'pubkey' ? 'COPIED' : 'COPY'}
+                </button>
                 <TrustIndicator pubkey={authorPubkey} compact={false} />
               </div>
             )}

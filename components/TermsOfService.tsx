@@ -7,7 +7,7 @@ export const TermsOfService: React.FC = () => {
   const setViewMode = useUIStore((s) => s.setViewMode);
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6 animate-fade-in">
+    <div className="max-w-4xl mx-auto p-6 space-y-6 animate-fade-in font-mono text-terminal-text">
       <button
         onClick={() => setViewMode(ViewMode.FEED)}
         className="flex items-center gap-2 text-terminal-dim hover:text-terminal-text mb-4 uppercase text-xs md:text-sm font-bold group"
@@ -16,9 +16,9 @@ export const TermsOfService: React.FC = () => {
         BACK TO FEED
       </button>
 
-      <h1 className="text-3xl font-bold mb-6">Terms of Service</h1>
+      <h1 className="text-3xl font-bold mb-6 font-terminal tracking-wide">Terms of Service</h1>
 
-      <p className="text-sm text-gray-500">Last Updated: {new Date().toLocaleDateString()}</p>
+      <p className="text-sm text-terminal-muted">Last Updated: 2026-03-15</p>
 
       <section className="space-y-4">
         <h2 className="text-2xl font-semibold">Acceptance of Terms</h2>
@@ -66,7 +66,7 @@ export const TermsOfService: React.FC = () => {
           <li>Not impersonate others</li>
           <li>Comply with applicable laws and regulations</li>
         </ul>
-        <p className="text-sm text-gray-600 mt-2">
+        <p className="text-sm text-terminal-muted mt-2">
           Note: Content moderation on Nostr is handled by individual relay servers and clients. We
           provide reporting tools, but cannot guarantee content removal from the decentralized
           network.
@@ -141,7 +141,7 @@ export const TermsOfService: React.FC = () => {
           <li>Deleting your Nostr keys</li>
           <li>Simply not accessing the application</li>
         </ul>
-        <p className="text-sm text-gray-600 mt-2">
+        <p className="text-sm text-terminal-muted mt-2">
           Note: Content already published to the Nostr network may remain on relay servers, as this
           is inherent to the decentralized protocol.
         </p>
@@ -194,8 +194,8 @@ export const TermsOfService: React.FC = () => {
         </p>
       </section>
 
-      <div className="mt-8 pt-6 border-t border-gray-300">
-        <p className="text-sm text-gray-600">
+      <div className="mt-8 pt-6 border-t border-terminal-dim/30">
+        <p className="text-sm text-terminal-muted">
           By using BitBoard, you acknowledge that you have read, understood, and agree to be bound
           by these Terms of Service.
         </p>

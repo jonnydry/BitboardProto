@@ -7,7 +7,7 @@ export const PrivacyPolicy: React.FC = () => {
   const setViewMode = useUIStore((s) => s.setViewMode);
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6 animate-fade-in">
+    <div className="max-w-4xl mx-auto p-6 space-y-6 animate-fade-in font-mono text-terminal-text">
       <button
         onClick={() => setViewMode(ViewMode.FEED)}
         className="flex items-center gap-2 text-terminal-dim hover:text-terminal-text mb-4 uppercase text-xs md:text-sm font-bold group"
@@ -16,9 +16,9 @@ export const PrivacyPolicy: React.FC = () => {
         BACK TO FEED
       </button>
 
-      <h1 className="text-3xl font-bold mb-6">Privacy Policy</h1>
+      <h1 className="text-3xl font-bold mb-6 font-terminal tracking-wide">Privacy Policy</h1>
 
-      <p className="text-sm text-gray-500">Last Updated: {new Date().toLocaleDateString()}</p>
+      <p className="text-sm text-terminal-muted">Last Updated: 2026-03-15</p>
 
       <section className="space-y-4">
         <h2 className="text-2xl font-semibold">Overview</h2>
@@ -51,7 +51,7 @@ export const PrivacyPolicy: React.FC = () => {
             <strong>Draft Content:</strong> Unsent posts and comments
           </li>
         </ul>
-        <p className="text-sm text-gray-600 mt-2">
+        <p className="text-sm text-terminal-muted mt-2">
           This data never leaves your device unless you explicitly publish content to the Nostr
           network.
         </p>
@@ -99,7 +99,7 @@ export const PrivacyPolicy: React.FC = () => {
             (you choose which relays to use)
           </li>
         </ul>
-        <p className="text-sm text-gray-600 mt-2">
+        <p className="text-sm text-terminal-muted mt-2">
           These services are only used if you explicitly configure them. Check their respective
           privacy policies for more information.
         </p>
@@ -144,7 +144,7 @@ export const PrivacyPolicy: React.FC = () => {
             Nostr clients
           </li>
         </ul>
-        <p className="text-sm text-gray-600 mt-2">
+        <p className="text-sm text-terminal-muted mt-2">
           Note: Content published to the Nostr network cannot be deleted from relay servers, as this
           is a fundamental aspect of the decentralized protocol.
         </p>
@@ -174,8 +174,8 @@ export const PrivacyPolicy: React.FC = () => {
         </p>
       </section>
 
-      <div className="mt-8 pt-6 border-t border-gray-300">
-        <p className="text-sm text-gray-600">
+      <div className="mt-8 pt-6 border-t border-terminal-dim/30">
+        <p className="text-sm text-terminal-muted">
           BitBoard is open source software. You can review the code to verify how your data is
           handled at our GitHub repository.
         </p>

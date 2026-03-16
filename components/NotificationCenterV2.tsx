@@ -42,6 +42,7 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [filter, setFilter] = useState<NotificationType | 'all'>('all');
   const [showSettings, setShowSettings] = useState(false);
+  const [isConfirmingClearAll, setIsConfirmingClearAll] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
   const loadNotifications = useCallback(() => {
@@ -73,10 +74,9 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
   };
 
   const handleClearAll = () => {
-    if (confirm('Clear all notifications? This cannot be undone.')) {
-      notificationServiceV2.clearAll();
-      loadNotifications();
-    }
+    notificationServiceV2.clearAll();
+    setIsConfirmingClearAll(false);
+    loadNotifications();
   };
 
   const handleNotificationClick = (notification: Notification) => {
@@ -126,13 +126,13 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
           </div>
 
           {/* Filter tabs */}
-          <div className="flex gap-1 overflow-x-auto pb-1 text-xs">
+          <div className="flex gap-2 overflow-x-auto pb-1 text-sm">
             {(['all', ...Object.values(NotificationType)] as const).map((type) => (
               <button
                 key={type}
                 onClick={() => setFilter(type)}
                 className={`
-                  px-2 py-1 whitespace-nowrap transition-colors
+                  min-h-[36px] px-3 py-2 whitespace-nowrap transition-colors uppercase tracking-wide
                   ${
                     filter === type
                       ? 'bg-terminal-text text-black'
@@ -160,12 +160,42 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
               Mark all read
             </button>
             <button
-              onClick={handleClearAll}
+              onClick={() => setIsConfirmingClearAll(true)}
               className="text-terminal-dim hover:text-terminal-alert transition-colors flex items-center gap-1"
             >
               <Trash2 size={12} />
               Clear all
             </button>
+          </div>
+        )}
+
+        {isConfirmingClearAll && notifications.length > 0 && (
+          <div className="mx-4 mt-3 border border-terminal-alert bg-terminal-alert/10 p-3">
+            <div className="flex items-start gap-2 text-terminal-alert">
+              <Trash2 size={14} className="mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-bold uppercase tracking-wide">
+                  Clear all notifications?
+                </p>
+                <p className="mt-1 text-sm text-terminal-muted">
+                  This removes all notifications from local storage and cannot be undone.
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                onClick={() => setIsConfirmingClearAll(false)}
+                className="border border-terminal-dim px-3 py-2 text-xs uppercase tracking-wide text-terminal-dim transition-colors hover:border-terminal-text hover:text-terminal-text"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleClearAll}
+                className="border border-terminal-alert bg-terminal-alert px-3 py-2 text-xs uppercase tracking-wide text-black transition-colors hover:opacity-90"
+              >
+                Confirm Clear All
+              </button>
+            </div>
           </div>
         )}
 
@@ -364,6 +394,9 @@ const SettingToggle: React.FC<{
     <span className="text-terminal-dim">{label}</span>
     <button
       onClick={onToggle}
+      role="switch"
+      aria-checked={enabled}
+      aria-label={label}
       className={`
         w-10 h-5 rounded-full transition-colors relative
         ${enabled ? 'bg-terminal-text' : 'bg-terminal-dim/30'}

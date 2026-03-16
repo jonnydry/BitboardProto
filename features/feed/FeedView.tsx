@@ -403,8 +403,8 @@ export function FeedView(props: {
                       : 'AGGREGATING TOP SIGNALS FROM PUBLIC SECTORS'}
             </p>
           </div>
-          <span className="text-xs border border-terminal-dim px-2 py-1">
-            SIGNAL_COUNT: {sortedPosts.length}
+          <span className="text-xs border border-terminal-dim px-2 py-1 text-terminal-muted">
+            POSTS: {sortedPosts.length}
           </span>
         </div>
 

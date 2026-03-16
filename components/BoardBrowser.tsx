@@ -1,5 +1,17 @@
 import React, { useState, useMemo } from 'react';
-import { ArrowLeft, Hash, Lock, Globe, Plus, Shield, Key, Link2, Check, AlertTriangle, Unlock } from 'lucide-react';
+import {
+  ArrowLeft,
+  Hash,
+  Lock,
+  Globe,
+  Plus,
+  Shield,
+  Key,
+  Link2,
+  Check,
+  AlertTriangle,
+  Unlock,
+} from 'lucide-react';
 import type { Board, Post } from '../types';
 import { ViewMode } from '../types';
 import { encryptedBoardService } from '../services/encryptedBoardService';
@@ -15,14 +27,24 @@ interface BoardBrowserProps {
   onClose: () => void;
 }
 
-export function BoardBrowser({ topicBoards, posts, onNavigateToBoard, onSetViewMode, onClose }: BoardBrowserProps) {
+export function BoardBrowser({
+  topicBoards,
+  posts,
+  onNavigateToBoard,
+  onSetViewMode,
+  onClose,
+}: BoardBrowserProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [shareLinkInput, setShareLinkInput] = useState('');
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState(false);
+  const [showImportPanel, setShowImportPanel] = useState(false);
 
   // Get IDs of boards we have keys for
-  const encryptedBoardIds = useMemo(() => new Set(encryptedBoardService.getEncryptedBoardIds()), []);
+  const encryptedBoardIds = useMemo(
+    () => new Set(encryptedBoardService.getEncryptedBoardIds()),
+    [],
+  );
 
   // Calculate real member counts from posts and comments
   const boardsWithRealMemberCounts = useMemo(() => {
@@ -41,7 +63,7 @@ export function BoardBrowser({ topicBoards, posts, onNavigateToBoard, onSetViewM
     try {
       // Try to parse the share link
       const result = encryptedBoardService.importFromShareLink(shareLinkInput.trim());
-      
+
       if (result) {
         setImportSuccess(true);
         setShareLinkInput('');
@@ -52,7 +74,7 @@ export function BoardBrowser({ topicBoards, posts, onNavigateToBoard, onSetViewM
           durationMs: UIConfig.TOAST_DURATION_MS,
           dedupeKey: 'share-link-imported',
         });
-        
+
         // Navigate to the board after a short delay
         setTimeout(() => {
           onNavigateToBoard(result.boardId);
@@ -70,15 +92,15 @@ export function BoardBrowser({ topicBoards, posts, onNavigateToBoard, onSetViewM
     if (!searchQuery.trim()) return boardsWithRealMemberCounts;
 
     const query = searchQuery.toLowerCase().trim();
-    return boardsWithRealMemberCounts.filter(board =>
-      board.name.toLowerCase().includes(query) ||
-      board.description.toLowerCase().includes(query)
+    return boardsWithRealMemberCounts.filter(
+      (board) =>
+        board.name.toLowerCase().includes(query) || board.description.toLowerCase().includes(query),
     );
   }, [boardsWithRealMemberCounts, searchQuery]);
 
-  const publicBoards = filteredBoards.filter(b => b.isPublic && !b.isEncrypted);
-  const privateBoards = filteredBoards.filter(b => !b.isPublic && !b.isEncrypted);
-  const encryptedBoards = filteredBoards.filter(b => b.isEncrypted);
+  const publicBoards = filteredBoards.filter((b) => b.isPublic && !b.isEncrypted);
+  const privateBoards = filteredBoards.filter((b) => !b.isPublic && !b.isEncrypted);
+  const encryptedBoards = filteredBoards.filter((b) => b.isEncrypted);
 
   const handleBoardClick = (boardId: string, board: Board) => {
     // Check if it's an encrypted board without key
@@ -100,13 +122,16 @@ export function BoardBrowser({ topicBoards, posts, onNavigateToBoard, onSetViewM
     const isLocked = board.isEncrypted && !hasKey;
 
     return (
-      <div
+      <button
+        type="button"
         onClick={() => handleBoardClick(board.id, board)}
-        className={`border p-4 bg-terminal-bg transition-all group ${
-          isLocked 
-            ? 'border-terminal-dim/50 cursor-not-allowed opacity-60' 
+        disabled={isLocked}
+        className={`w-full border p-4 bg-terminal-bg transition-all group text-left ${
+          isLocked
+            ? 'border-terminal-dim/50 cursor-not-allowed opacity-60'
             : 'border-terminal-dim hover:border-terminal-text cursor-pointer'
         }`}
+        aria-label={`${board.name} board ${isLocked ? 'locked' : 'open'}`}
       >
         <div className="flex items-start justify-between mb-2">
           <h3 className="font-bold text-terminal-text flex items-center gap-2">
@@ -125,32 +150,34 @@ export function BoardBrowser({ topicBoards, posts, onNavigateToBoard, onSetViewM
           </h3>
           <div className="flex items-center gap-2">
             {board.isEncrypted && (
-              <span className={`text-[10px] uppercase flex items-center gap-1 ${hasKey ? 'text-terminal-text' : 'text-terminal-dim'}`}>
+              <span
+                className={`text-xs uppercase flex items-center gap-1 ${hasKey ? 'text-terminal-text' : 'text-terminal-dim'}`}
+              >
                 <Shield size={10} />
                 {hasKey ? 'DECRYPTED' : 'ENCRYPTED'}
               </span>
             )}
             {!board.isEncrypted && (
-              <span className="text-[10px] text-terminal-dim uppercase">
+              <span className="text-xs text-terminal-dim uppercase">
                 {board.isPublic ? 'PUBLIC' : 'PRIVATE'}
               </span>
             )}
           </div>
         </div>
 
-        <p className="text-sm text-terminal-dim mb-3 line-clamp-2">
+        <p className="text-sm text-terminal-muted mb-3 line-clamp-2">
           {isLocked ? '[ENCRYPTED CONTENT - SHARE LINK REQUIRED]' : board.description}
         </p>
 
         <div className="flex items-center justify-between">
-          <span className="text-xs text-terminal-dim">
-            MEMBERS: {board.memberCount}
-          </span>
-          <div className={`text-xs transition-opacity ${isLocked ? 'opacity-100 text-terminal-dim' : 'opacity-0 group-hover:opacity-100 text-terminal-text'}`}>
-            {isLocked ? 'LOCKED' : 'ENTER →'}
+          <span className="text-xs text-terminal-dim">MEMBERS: {board.memberCount}</span>
+          <div
+            className={`text-xs uppercase tracking-wide ${isLocked ? 'text-terminal-dim' : 'text-terminal-text'}`}
+          >
+            {isLocked ? 'Share Link Required' : 'Open Board'}
           </div>
         </div>
-      </div>
+      </button>
     );
   };
 
@@ -169,7 +196,7 @@ export function BoardBrowser({ topicBoards, posts, onNavigateToBoard, onSetViewM
         <div>
           <h2 className="text-2xl font-terminal uppercase tracking-widest text-terminal-text flex items-center gap-2">
             <Hash size={24} />
-            BOARD_DIRECTORY
+            BOARDS
           </h2>
           <p className="text-xs text-terminal-dim mt-1">
             {filteredBoards.length} {filteredBoards.length === 1 ? 'board' : 'boards'} available
@@ -181,7 +208,7 @@ export function BoardBrowser({ topicBoards, posts, onNavigateToBoard, onSetViewM
           className="flex items-center gap-2 text-xs border border-terminal-dim border-dashed text-terminal-dim p-2 hover:text-terminal-bg hover:bg-terminal-text hover:border-solid transition-all uppercase"
         >
           <Plus size={12} />
-          CREATE_BOARD
+          CREATE BOARD
         </button>
       </div>
 
@@ -201,48 +228,61 @@ export function BoardBrowser({ topicBoards, posts, onNavigateToBoard, onSetViewM
 
       {/* Import Share Link */}
       <div className="mb-8 border border-terminal-dim p-4 bg-terminal-bg/50">
-        <h3 className="text-sm font-bold border-b border-terminal-dim mb-3 pb-1 text-terminal-text flex items-center gap-2">
-          <Link2 size={14} />
-          IMPORT_SHARE_LINK
-        </h3>
-        <p className="text-xs text-terminal-dim mb-3">
-          Have a share link for an encrypted board? Paste it below to gain access.
-        </p>
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <span className="absolute left-3 top-2 text-terminal-dim text-sm">
-              <Key size={12} />
-            </span>
-            <input
-              type="text"
-              value={shareLinkInput}
-              onChange={(e) => {
-                setShareLinkInput(e.target.value);
-                setImportError(null);
-                setImportSuccess(false);
-              }}
-              placeholder="Paste share link here..."
-              className="w-full bg-terminal-bg border border-terminal-dim py-2 pl-8 pr-4 text-xs text-terminal-text font-mono focus:outline-none focus:border-terminal-text focus:ring-1 focus:ring-terminal-text/50 transition-all"
-            />
-          </div>
-          <button
-            onClick={handleImportShareLink}
-            className="px-4 py-2 border border-terminal-dim text-xs text-terminal-dim hover:bg-terminal-text hover:text-terminal-bg hover:border-terminal-text transition-all uppercase flex items-center gap-1"
-          >
-            <Key size={12} />
-            IMPORT
-          </button>
-        </div>
-        {importError && (
-          <div className="mt-2 text-xs text-terminal-alert flex items-center gap-1">
-            <AlertTriangle size={12} />
-            {importError}
-          </div>
-        )}
-        {importSuccess && (
-          <div className="mt-2 text-xs text-terminal-text flex items-center gap-1">
-            <Check size={12} />
-            Key imported successfully! Redirecting...
+        <button
+          type="button"
+          onClick={() => setShowImportPanel((prev) => !prev)}
+          className="w-full flex items-center justify-between text-left"
+          aria-expanded={showImportPanel}
+        >
+          <span className="text-sm font-bold text-terminal-text flex items-center gap-2 uppercase tracking-wide">
+            <Link2 size={14} />
+            Import Share Link
+          </span>
+          <span className="text-xs text-terminal-dim">{showImportPanel ? 'Hide' : 'Show'}</span>
+        </button>
+
+        {showImportPanel && (
+          <div className="mt-4 border-t border-terminal-dim pt-4">
+            <p className="text-xs text-terminal-muted mb-3">
+              Have a share link for an encrypted board? Paste it below to gain access.
+            </p>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-2 text-terminal-dim text-sm">
+                  <Key size={12} />
+                </span>
+                <input
+                  type="text"
+                  value={shareLinkInput}
+                  onChange={(e) => {
+                    setShareLinkInput(e.target.value);
+                    setImportError(null);
+                    setImportSuccess(false);
+                  }}
+                  placeholder="Paste share link here..."
+                  className="w-full bg-terminal-bg border border-terminal-dim py-2 pl-8 pr-4 text-xs text-terminal-text font-mono focus:outline-none focus:border-terminal-text focus:ring-1 focus:ring-terminal-text/50 transition-all"
+                />
+              </div>
+              <button
+                onClick={handleImportShareLink}
+                className="px-4 py-2 border border-terminal-dim text-xs text-terminal-dim hover:bg-terminal-text hover:text-terminal-bg hover:border-terminal-text transition-all uppercase flex items-center gap-1"
+              >
+                <Key size={12} />
+                Import
+              </button>
+            </div>
+            {importError && (
+              <div className="mt-2 text-xs text-terminal-alert flex items-center gap-1">
+                <AlertTriangle size={12} />
+                {importError}
+              </div>
+            )}
+            {importSuccess && (
+              <div className="mt-2 text-xs text-terminal-text flex items-center gap-1">
+                <Check size={12} />
+                Key imported successfully! Redirecting...
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -252,10 +292,10 @@ export function BoardBrowser({ topicBoards, posts, onNavigateToBoard, onSetViewM
         <div className="mb-8">
           <h3 className="text-lg font-bold border-b border-terminal-dim mb-4 pb-1 text-terminal-text flex items-center gap-2">
             <Shield size={16} />
-            ENCRYPTED_CHANNELS
+            ENCRYPTED BOARDS
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {encryptedBoards.map(board => (
+            {encryptedBoards.map((board) => (
               <BoardCard key={board.id} board={board} />
             ))}
           </div>
@@ -267,10 +307,10 @@ export function BoardBrowser({ topicBoards, posts, onNavigateToBoard, onSetViewM
         <div className="mb-8">
           <h3 className="text-lg font-bold border-b border-terminal-dim mb-4 pb-1 text-terminal-text flex items-center gap-2">
             <Globe size={16} />
-            PUBLIC_SECTORS
+            PUBLIC BOARDS
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {publicBoards.map(board => (
+            {publicBoards.map((board) => (
               <BoardCard key={board.id} board={board} />
             ))}
           </div>
@@ -282,10 +322,10 @@ export function BoardBrowser({ topicBoards, posts, onNavigateToBoard, onSetViewM
         <div className="mb-8">
           <h3 className="text-lg font-bold border-b border-terminal-dim mb-4 pb-1 text-terminal-text flex items-center gap-2">
             <Lock size={16} />
-            PRIVATE_CHANNELS
+            PRIVATE BOARDS
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {privateBoards.map(board => (
+            {privateBoards.map((board) => (
               <BoardCard key={board.id} board={board} />
             ))}
           </div>
@@ -314,9 +354,7 @@ export function BoardBrowser({ topicBoards, posts, onNavigateToBoard, onSetViewM
           </div>
           <div>
             <p className="font-bold">&gt; NO BOARDS AVAILABLE</p>
-            <p className="text-xs mt-2">
-              Be the first to create a board for this frequency.
-            </p>
+            <p className="text-xs mt-2">Be the first to create a board for this frequency.</p>
           </div>
           <button
             onClick={() => onSetViewMode(ViewMode.CREATE_BOARD)}

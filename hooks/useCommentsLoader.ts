@@ -220,7 +220,5 @@ export function useCommentsLoader(args: {
       nostrService.unsubscribe(subEdits);
       nostrService.unsubscribe(subDeletes);
     };
-    // postsByIdRef is a stable ref; mutedPubkeysJson/identityPubkey are derived stable values
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBitId, setPosts, identityPubkey, setUserState, mutedPubkeysJson]);
 }

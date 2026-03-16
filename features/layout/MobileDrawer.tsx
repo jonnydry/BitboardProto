@@ -1,24 +1,43 @@
 import React, { useEffect, useRef } from 'react';
-import { X, Globe, Bookmark, Bell, Wifi, WifiOff, Settings, MapPin, Zap } from 'lucide-react';
+import {
+  X,
+  Globe,
+  Bookmark,
+  Bell,
+  Wifi,
+  WifiOff,
+  Settings,
+  MapPin,
+  Zap,
+  MessageSquare,
+} from 'lucide-react';
 import { ViewMode } from '../../types';
-import { useUIStore } from '../../stores/uiStore';
-import { useUserStore } from '../../stores/userStore';
-import { useAppNavigationHandlers } from './useAppNavigationHandlers';
 
 interface MobileDrawerProps {
   isOpen: boolean;
   onClose: () => void;
+  viewMode: ViewMode;
+  onSetViewMode: (mode: ViewMode) => void;
+  onNavigateGlobal: () => void;
+  identity?: { npub: string };
+  userState: { bits: number; maxBits: number };
+  bookmarkedCount: number;
+  isNostrConnected: boolean;
+  children?: React.ReactNode;
 }
 
-export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
-  const viewMode = useUIStore((s) => s.viewMode);
-  const setViewMode = useUIStore((s) => s.setViewMode);
-  const isNostrConnected = useUIStore((s) => s.isNostrConnected);
-  const bookmarkedCount = useUIStore((s) => s.bookmarkedIds).length;
-  const userState = useUserStore((s) => s.userState);
-  const identity = userState.identity;
-  const { navigateToBoard } = useAppNavigationHandlers();
-
+export function MobileDrawer({
+  isOpen,
+  onClose,
+  viewMode,
+  onSetViewMode,
+  onNavigateGlobal,
+  identity,
+  userState,
+  bookmarkedCount,
+  isNostrConnected,
+  children,
+}: MobileDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
 
   // Close on escape key
@@ -62,42 +81,53 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
       icon: Globe,
       label: 'GLOBAL_FEED',
       isActive: viewMode === ViewMode.FEED,
-      onClick: () => handleNavClick(() => navigateToBoard(null)),
+      onClick: () => handleNavClick(onNavigateGlobal),
     },
     {
       id: 'bookmarks',
       icon: Bookmark,
       label: `SAVED${bookmarkedCount > 0 ? ` (${bookmarkedCount})` : ''}`,
       isActive: viewMode === ViewMode.BOOKMARKS,
-      onClick: () => handleNavClick(() => setViewMode(ViewMode.BOOKMARKS)),
+      onClick: () => handleNavClick(() => onSetViewMode(ViewMode.BOOKMARKS)),
     },
     {
       id: 'notifications',
       icon: Bell,
       label: 'NOTIFICATIONS',
       isActive: viewMode === ViewMode.NOTIFICATIONS,
-      onClick: () => handleNavClick(() => setViewMode(ViewMode.NOTIFICATIONS)),
+      onClick: () => handleNavClick(() => onSetViewMode(ViewMode.NOTIFICATIONS)),
     },
+    ...(identity
+      ? [
+          {
+            id: 'messages',
+            icon: MessageSquare,
+            label: 'DIRECT_MESSAGES',
+            isActive: viewMode === ViewMode.DIRECT_MESSAGES,
+            onClick: () => handleNavClick(() => onSetViewMode(ViewMode.DIRECT_MESSAGES)),
+          },
+        ]
+      : []),
     {
       id: 'location',
       icon: MapPin,
       label: 'SCAN_NEARBY',
       isActive: viewMode === ViewMode.LOCATION,
-      onClick: () => handleNavClick(() => setViewMode(ViewMode.LOCATION)),
+      onClick: () => handleNavClick(() => onSetViewMode(ViewMode.LOCATION)),
     },
     {
       id: 'identity',
       icon: identity ? Wifi : WifiOff,
       label: identity ? 'IDENTITY' : 'CONNECT',
       isActive: viewMode === ViewMode.IDENTITY,
-      onClick: () => handleNavClick(() => setViewMode(ViewMode.IDENTITY)),
+      onClick: () => handleNavClick(() => onSetViewMode(ViewMode.IDENTITY)),
     },
     {
       id: 'relays',
       icon: Settings,
       label: 'RELAYS',
       isActive: viewMode === ViewMode.RELAYS,
-      onClick: () => handleNavClick(() => setViewMode(ViewMode.RELAYS)),
+      onClick: () => handleNavClick(() => onSetViewMode(ViewMode.RELAYS)),
     },
   ];
 
@@ -119,7 +149,7 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
         role="dialog"
         aria-modal="true"
         aria-label="Navigation menu"
-        className={`md:hidden fixed top-0 left-0 bottom-0 z-50 w-[280px] max-w-[85vw] bg-terminal-bg border-r-2 border-terminal-text transform transition-transform duration-200 ease-out overflow-y-auto ${
+        className={`md:hidden fixed top-0 left-0 bottom-0 z-50 w-[280px] max-w-[85vw] bg-terminal-bg border-r-2 border-terminal-text transform transition-transform duration-200 ease-out flex flex-col ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -163,32 +193,37 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
           )}
         </div>
 
-        {/* Navigation Links */}
-        <nav className="p-2">
-          <ul className="space-y-1">
-            {navLinks.map((item) => {
-              const Icon = item.icon;
-              return (
-                <li key={item.id}>
-                  <button
-                    onClick={item.onClick}
-                    className={`w-full flex items-center gap-3 px-3 py-3 text-sm uppercase tracking-wider transition-colors ${
-                      item.isActive
-                        ? 'bg-terminal-text text-terminal-bg font-bold'
-                        : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
-                    }`}
-                  >
-                    <Icon size={18} />
-                    <span>{item.label}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
+        <div className="flex-1 overflow-y-auto">
+          {/* Navigation Links */}
+          <nav className="p-2">
+            <ul className="space-y-1">
+              {navLinks.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <li key={item.id}>
+                    <button
+                      onClick={item.onClick}
+                      className={`w-full flex items-center gap-3 px-3 py-3 text-sm uppercase tracking-wider transition-colors ${
+                        item.isActive
+                          ? 'bg-terminal-text text-terminal-bg font-bold'
+                          : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
+                      }`}
+                    >
+                      <Icon size={18} />
+                      <span>{item.label}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+
+          {/* Sidebar Content (passed as children) */}
+          {children && <div className="p-4 border-t border-terminal-dim/30">{children}</div>}
+        </div>
 
         {/* Footer */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-terminal-dim/30 bg-terminal-bg text-center">
+        <div className="mt-auto p-4 border-t border-terminal-dim/30 bg-terminal-bg text-center">
           <span className="text-[10px] text-terminal-dim uppercase tracking-wider">
             NOSTR PROTOCOL V3.0
           </span>

@@ -39,7 +39,7 @@ export const useAppEventHandlers = ({
   boardsById,
   postsById,
   userState,
-  setUserState,
+  setUserState: _setUserState,
   setViewMode,
   setActiveBoardId,
   setEditingPostId,

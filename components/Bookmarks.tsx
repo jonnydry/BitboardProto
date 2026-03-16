@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useCallback, useState } from 'react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { Post, ViewMode } from '../types';
 import { PostItem } from './PostItem';
-import { ArrowLeft, Bookmark, Trash2, Globe, Loader2 } from 'lucide-react';
+import { ArrowLeft, Bookmark, Trash2, Globe, Loader2, AlertTriangle } from 'lucide-react';
 import { bookmarkService } from '../services/bookmarkService';
 import { listService } from '../services/listService';
 import { identityService } from '../services/identityService';
@@ -21,7 +21,6 @@ interface BookmarksProps {
   onEditComment?: (postId: string, commentId: string, content: string) => void;
   onDeleteComment?: (postId: string, commentId: string) => void;
   onCommentVote?: (postId: string, commentId: string, direction: 'up' | 'down') => void;
-  onToggleBookmark: (postId: string) => void;
   onDeletePost?: (postId: string) => void;
 }
 
@@ -32,7 +31,6 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
   onEditComment,
   onDeleteComment,
   onCommentVote,
-  onToggleBookmark,
   onDeletePost,
 }) => {
   // Read state from Zustand stores
@@ -49,6 +47,7 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
 
   const onClose = useCallback(() => setViewMode(ViewMode.FEED), [setViewMode]);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isConfirmingClearAll, setIsConfirmingClearAll] = useState(false);
 
   // Get bookmarked posts in order
   const bookmarkedPosts = useMemo(() => {
@@ -57,9 +56,14 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
   }, [posts, bookmarkedIds]);
 
   const handleClearAll = () => {
-    if (confirm('Remove all bookmarks? This cannot be undone.')) {
-      bookmarkService.clearAll();
-    }
+    bookmarkService.clearAll();
+    setIsConfirmingClearAll(false);
+    toastService.push({
+      type: 'success',
+      message: 'Bookmarks cleared',
+      detail: 'All saved posts were removed from this device.',
+      durationMs: UIConfig.TOAST_DURATION_MS,
+    });
   };
 
   const handleSyncWithNostr = useCallback(async () => {
@@ -169,12 +173,9 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
     [onDeletePost],
   );
 
-  const handleToggleBookmark = useCallback(
-    (id: string) => {
-      onToggleBookmark(id);
-    },
-    [onToggleBookmark],
-  );
+  const handleToggleBookmark = useCallback((id: string) => {
+    bookmarkService.toggleBookmark(id);
+  }, []);
 
   const handleToggleMute = useCallback(
     (pubkey: string) => {
@@ -232,7 +233,7 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
               </button>
             )}
             <button
-              onClick={handleClearAll}
+              onClick={() => setIsConfirmingClearAll(true)}
               className="flex items-center gap-2 text-xs text-terminal-dim hover:text-terminal-alert border border-terminal-dim hover:border-terminal-alert px-2 py-1 transition-colors uppercase font-bold"
             >
               <Trash2 size={12} />
@@ -241,6 +242,37 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
           </div>
         )}
       </div>
+
+      {isConfirmingClearAll && bookmarkedPosts.length > 0 && (
+        <div className="mb-6 space-y-3 border border-terminal-alert bg-terminal-alert/10 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle size={16} className="mt-0.5 text-terminal-alert" />
+            <div>
+              <p className="text-sm font-bold uppercase tracking-wide text-terminal-alert">
+                Remove all saved posts?
+              </p>
+              <p className="mt-1 text-sm text-terminal-muted">
+                This clears {bookmarkedPosts.length} bookmarked{' '}
+                {bookmarkedPosts.length === 1 ? 'post' : 'posts'} from this device.
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setIsConfirmingClearAll(false)}
+              className="border border-terminal-dim px-3 py-2 text-xs uppercase tracking-wide text-terminal-dim transition-colors hover:border-terminal-text hover:text-terminal-text"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleClearAll}
+              className="border border-terminal-alert bg-terminal-alert px-3 py-2 text-xs uppercase tracking-wide text-black transition-colors hover:opacity-90"
+            >
+              Confirm Clear All
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Bookmarked Posts */}
       {bookmarkedPosts.length === 0 ? (

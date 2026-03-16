@@ -25,10 +25,6 @@ import { geonetDiscoveryService, type GeoChannel } from '../../services/geonetDi
 import { geohashService } from '../../services/geohashService';
 import { encryptedBoardService } from '../../services/encryptedBoardService';
 import { nostrService, type RelayStatus } from '../../services/nostr/NostrService';
-import { useUIStore } from '../../stores/uiStore';
-import { useUserStore } from '../../stores/userStore';
-import { useBoardStore } from '../../stores/boardStore';
-import { useAppNavigationHandlers } from './useAppNavigationHandlers';
 
 // Collapsible section component for mobile
 function CollapsibleSection({
@@ -77,53 +73,46 @@ function CollapsibleSection({
 }
 
 interface SidebarProps {
+  userState: any;
+  setUserState: (value: any) => void;
+  theme: ThemeId;
+  setTheme: (theme: ThemeId) => void;
+  getThemeColor: (id: ThemeId) => string;
+  isNostrConnected: boolean;
+  viewMode: ViewMode;
+  activeBoardId: string | null;
+  feedFilter: string;
+  setFeedFilter: (filter: any) => void;
+  topicBoards: Board[];
+  geohashBoards: Board[];
+  boardsById: Map<string, Board>;
   decryptionFailedBoardIds?: Set<string>;
   removeFailedDecryptionKey?: (boardId: string) => void;
+  navigateToBoard: (id: string | null) => void;
+  onSetViewMode: (mode: ViewMode) => void;
+  inMobileDrawer?: boolean;
 }
 
-// Theme color map for preview swatches
-const themeColorMap = new Map<ThemeId, string>([
-  [ThemeId.AMBER, '#ffb000'],
-  [ThemeId.PHOSPHOR, '#00ff41'],
-  [ThemeId.PLASMA, '#00f0ff'],
-  [ThemeId.VERMILION, '#ff4646'],
-  [ThemeId.SLATE, '#c8c8c8'],
-  [ThemeId.PATRIOT, '#ffffff'],
-  [ThemeId.SAKURA, '#ffb4dc'],
-  [ThemeId.BITBORING, '#ffffff'],
-]);
-const getThemeColor = (id: ThemeId) => themeColorMap.get(id) || '#fff';
-
-export function Sidebar({ decryptionFailedBoardIds, removeFailedDecryptionKey }: SidebarProps) {
-  // Read state from Zustand stores
-  const userState = useUserStore((s) => s.userState);
-  const setUserState = useUserStore((s) => s.setUserState);
-  const theme = useUIStore((s) => s.theme);
-  const setTheme = useUIStore((s) => s.setTheme);
-  const isNostrConnected = useUIStore((s) => s.isNostrConnected);
-  const viewMode = useUIStore((s) => s.viewMode);
-  const setViewMode = useUIStore((s) => s.setViewMode);
-  const feedFilter = useUIStore((s) => s.feedFilter);
-  const setFeedFilterRaw = useUIStore((s) => s.setFeedFilter);
-  const activeBoardId = useBoardStore((s) => s.activeBoardId);
-  const topicBoards = useBoardStore((s) => s.boards.filter((b) => b.type === BoardType.TOPIC));
-  const geohashBoards = useBoardStore((s) => {
-    const geohashFromBoards = s.boards.filter((b) => b.type === BoardType.GEOHASH);
-    const map = new Map<string, Board>();
-    geohashFromBoards.forEach((b) => map.set(b.id, b));
-    s.locationBoards.forEach((b) => map.set(b.id, b));
-    return Array.from(map.values());
-  });
-  const boardsById = useBoardStore((s) => {
-    const map = new Map<string, Board>();
-    s.boards.forEach((b) => map.set(b.id, b));
-    s.locationBoards.forEach((b) => map.set(b.id, b));
-    return map;
-  });
-  const { navigateToBoard } = useAppNavigationHandlers();
-
-  // Alias setViewMode for onSetViewMode usage
-  const onSetViewMode = setViewMode;
+export function Sidebar(props: SidebarProps) {
+  const {
+    userState,
+    setUserState,
+    theme,
+    setTheme,
+    getThemeColor,
+    viewMode,
+    activeBoardId,
+    feedFilter,
+    setFeedFilter: setFeedFilterRaw,
+    topicBoards,
+    geohashBoards,
+    boardsById,
+    decryptionFailedBoardIds,
+    removeFailedDecryptionKey,
+    navigateToBoard,
+    onSetViewMode,
+    inMobileDrawer = false,
+  } = props;
 
   // Nearby activity state
   const [nearbyActivity, setNearbyActivity] = useState<GeoChannel[]>([]);
@@ -212,7 +201,9 @@ export function Sidebar({ decryptionFailedBoardIds, removeFailedDecryptionKey }:
   }, [boardsById]);
 
   return (
-    <aside className="order-first md:order-none space-y-2 md:space-y-4">
+    <aside
+      className={inMobileDrawer ? 'space-y-2' : 'order-first md:order-none space-y-2 md:space-y-4'}
+    >
       {/* Connection Status - Always visible but compact on mobile */}
       <div className="border border-terminal-dim p-2 md:p-3 bg-terminal-bg shadow-hard relative overflow-hidden group">
         <div className="absolute inset-0 bg-terminal-dim/5 translate-x-[-100%] group-hover:translate-x-full transition-transform duration-1000 pointer-events-none" />
@@ -808,8 +799,10 @@ export function Sidebar({ decryptionFailedBoardIds, removeFailedDecryptionKey }:
         </div>
       </CollapsibleSection>
 
-      {/* ID Config - Hidden on mobile (accessible via drawer) */}
-      <div className="hidden md:block border border-terminal-dim p-3 bg-terminal-bg shadow-hard">
+      {/* ID Config - Hidden on mobile unless rendered in drawer */}
+      <div
+        className={`${inMobileDrawer ? 'block' : 'hidden md:block'} border border-terminal-dim p-3 bg-terminal-bg shadow-hard`}
+      >
         <h3 className="font-bold border-b border-terminal-dim mb-2 pb-1 text-sm flex items-center gap-2">
           <HelpCircle size={14} /> {'>>'} ID_CONFIG
         </h3>

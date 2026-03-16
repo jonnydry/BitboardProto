@@ -11,7 +11,9 @@ import {
   Search,
   Plus,
   ChevronUp,
+  Radio,
 } from 'lucide-react';
+import { nip19 } from 'nostr-tools';
 import { type Conversation, type DirectMessage } from '../services/dmService';
 import {
   filterConversations,
@@ -212,13 +214,13 @@ const ConversationItem: React.FC<{
           </div>
         </div>
 
-        {/* Delete button (on hover) */}
+        {/* Delete button */}
         <button
           onClick={(e) => {
             e.stopPropagation();
             onDelete();
           }}
-          className="p-1 opacity-0 hover:opacity-100 focus:opacity-100 text-terminal-alert hover:bg-terminal-alert/20 transition-all"
+          className="p-1 text-terminal-alert/80 hover:text-terminal-alert hover:bg-terminal-alert/20 md:opacity-0 md:hover:opacity-100 md:focus:opacity-100 transition-all"
           title="Delete conversation"
         >
           <Trash2 size={14} />
@@ -282,7 +284,7 @@ const ChatView: React.FC<{
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-terminal-bg">
       {/* Header */}
       <div className="p-4 border-b border-terminal-dim flex items-center gap-3">
         <button
@@ -292,12 +294,12 @@ const ChatView: React.FC<{
           <ArrowLeft size={20} />
         </button>
 
-        <div className="w-10 h-10 rounded-full border border-terminal-dim flex items-center justify-center bg-terminal-dim/20">
+        <div className="w-10 h-10 border border-terminal-dim flex items-center justify-center bg-terminal-dim/20 overflow-hidden">
           {conversation.participantAvatar ? (
             <img
               src={conversation.participantAvatar}
               alt={displayName}
-              className="w-full h-full rounded-full object-cover"
+              className="w-full h-full object-cover"
             />
           ) : (
             <User size={18} className="text-terminal-dim" />
@@ -389,11 +391,11 @@ const MessageBubble: React.FC<{
     <div className={`flex ${isSent ? 'justify-end' : 'justify-start'}`}>
       <div
         className={`
-          max-w-[75%] p-3 rounded-lg
+          max-w-[75%] p-3 border
           ${
             isSent
-              ? 'bg-terminal-text text-black rounded-br-none'
-              : 'bg-terminal-dim/30 border border-terminal-dim rounded-bl-none'
+              ? 'bg-terminal-text text-black border-terminal-text'
+              : 'bg-terminal-dim/30 border-terminal-dim'
           }
         `}
       >
@@ -434,14 +436,29 @@ const NewConversationModal: React.FC<{
 
   const handleStart = () => {
     const trimmed = pubkey.trim();
+    let normalizedPubkey = trimmed;
 
-    // Basic validation - should be 64 hex chars
-    if (!/^[a-fA-F0-9]{64}$/.test(trimmed)) {
-      setError('Invalid public key. Must be 64 hex characters.');
+    if (trimmed.startsWith('npub')) {
+      try {
+        const decoded = nip19.decode(trimmed) as { type: string; data: unknown };
+        if (decoded.type !== 'npub' || typeof decoded.data !== 'string') {
+          setError('Invalid npub public key.');
+          return;
+        }
+        normalizedPubkey = decoded.data;
+      } catch {
+        setError('Invalid npub public key.');
+        return;
+      }
+    }
+
+    // Basic validation - should be 64 hex chars after normalization
+    if (!/^[a-fA-F0-9]{64}$/.test(normalizedPubkey)) {
+      setError('Invalid public key. Use a valid npub or 64-character hex key.');
       return;
     }
 
-    onStart(trimmed.toLowerCase());
+    onStart(normalizedPubkey.toLowerCase());
   };
 
   return (
@@ -449,13 +466,13 @@ const NewConversationModal: React.FC<{
       <div className="bg-terminal-bg border-2 border-terminal-text p-6 max-w-md w-full">
         <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
           <MessageCircle size={20} />
-          NEW_MESSAGE
+          NEW MESSAGE
         </h2>
 
         <div className="space-y-4">
           <div>
             <label className="block text-sm text-terminal-dim uppercase font-bold mb-1">
-              Recipient Public Key (hex)
+              Recipient Public Key
             </label>
             <input
               type="text"
@@ -464,7 +481,7 @@ const NewConversationModal: React.FC<{
                 setPubkey(e.target.value);
                 setError(null);
               }}
-              placeholder="64-character hex public key..."
+              placeholder="npub1... or 64-character hex public key..."
               className="w-full bg-terminal-bg border border-terminal-dim p-3 text-terminal-text focus:border-terminal-text focus:outline-none font-mono text-sm"
             />
             {error && <p className="text-terminal-alert text-xs mt-1">* {error}</p>}
@@ -476,13 +493,13 @@ const NewConversationModal: React.FC<{
               disabled={!pubkey.trim()}
               className="flex-1 bg-terminal-text text-black font-bold py-3 hover:bg-terminal-dim hover:text-white transition-colors disabled:opacity-50"
             >
-              [ START_CHAT ]
+              START CHAT
             </button>
             <button
               onClick={onClose}
               className="px-6 border border-terminal-dim text-terminal-dim hover:border-terminal-text hover:text-terminal-text transition-colors"
             >
-              [ CANCEL ]
+              CANCEL
             </button>
           </div>
         </div>
@@ -521,7 +538,7 @@ export const DirectMessages: React.FC<DirectMessagesProps> = ({
   });
 
   return (
-    <div className="fixed inset-0 bg-terminal-bg z-50 flex flex-col">
+    <div className="animate-fade-in border-2 border-terminal-text bg-terminal-bg shadow-hard-lg min-h-[70vh] flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-terminal-dim">
         <h1 className="text-xl font-bold flex items-center gap-2">
@@ -532,7 +549,7 @@ export const DirectMessages: React.FC<DirectMessagesProps> = ({
           onClick={onClose}
           className="px-4 py-2 border border-terminal-dim hover:border-terminal-alert hover:text-terminal-alert transition-colors"
         >
-          [ CLOSE ]
+          BACK
         </button>
       </div>
 
@@ -587,7 +604,10 @@ export const DirectMessages: React.FC<DirectMessagesProps> = ({
       {isLoading && (
         <div className="absolute inset-0 bg-terminal-bg/80 flex items-center justify-center">
           <div className="text-center">
-            <div className="animate-pulse text-2xl mb-2">📡</div>
+            <Radio
+              size={28}
+              className="mx-auto mb-2 text-terminal-text motion-safe:animate-pulse"
+            />
             <p className="text-terminal-dim">Loading messages...</p>
           </div>
         </div>

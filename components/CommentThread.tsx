@@ -13,6 +13,7 @@ import {
   ArrowBigDown,
   UserX,
   VolumeX,
+  MoreHorizontal,
 } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 // MentionText is used via MarkdownRenderer
@@ -88,7 +89,9 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showMoreActions, setShowMoreActions] = useState(false);
   const [authorProfile, setAuthorProfile] = useState<any>(null);
+  const moreActionsRef = useRef<HTMLDivElement | null>(null);
 
   // Load author profile metadata from cache (profiles are pre-fetched at parent level)
   useEffect(() => {
@@ -182,6 +185,19 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
   useEffect(() => {
     setVisibleReplies(REPLIES_PAGE_SIZE);
   }, [comment.id]);
+
+  useEffect(() => {
+    if (!showMoreActions) return;
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!moreActionsRef.current?.contains(event.target as Node)) {
+        setShowMoreActions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [showMoreActions]);
 
   // Visual indentation caps at maxVisualDepth
   const visualDepth = Math.min(depth, maxVisualDepth);
@@ -439,14 +455,6 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
 
                 {/* Actions */}
                 <div className="flex items-center gap-3">
-                  {/* Reactions (FREE - social signals) */}
-                  <ReactionBar
-                    eventId={comment.id}
-                    nostrEventId={comment.nostrEventId}
-                    disabled={!userState.identity}
-                    compact={true}
-                  />
-
                   <button
                     onClick={handleReplyClick}
                     className={`text-xs flex items-center gap-1 transition-colors
@@ -459,89 +467,111 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
                     {isReplying ? 'CANCEL' : 'REPLY'}
                   </button>
 
-                  {/* Edit / Delete for own comment */}
-                  {isOwnComment && !isDeleted && (onEdit || onDelete) && (
-                    <>
-                      {onEdit && (
-                        <button
-                          type="button"
-                          onClick={handleEditClick}
-                          className="text-xs flex items-center gap-1 text-terminal-dim hover:text-terminal-text transition-colors"
-                          title="Edit comment"
-                        >
-                          <Edit3 size={10} />
-                          EDIT
-                        </button>
-                      )}
-                      {onDelete && (
-                        <>
-                          {!showDeleteConfirm ? (
-                            <button
-                              type="button"
-                              onClick={() => setShowDeleteConfirm(true)}
-                              className="text-xs flex items-center gap-1 text-terminal-dim hover:text-terminal-alert transition-colors"
-                              title="Delete comment"
-                            >
-                              <Trash2 size={10} />
-                              DELETE
-                            </button>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-terminal-alert">Delete?</span>
-                              <button
-                                type="button"
-                                onClick={handleDelete}
-                                className="text-xs border border-terminal-alert px-2 py-0.5 text-terminal-alert hover:bg-terminal-alert hover:text-black transition-colors"
-                              >
-                                YES
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setShowDeleteConfirm(false)}
-                                className="text-xs border border-terminal-dim px-2 py-0.5 text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors"
-                              >
-                                NO
-                              </button>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </>
-                  )}
-
-                  {/* Report button */}
-                  {!isOwnComment && (
+                  <div className="relative" ref={moreActionsRef}>
                     <button
-                      onClick={handleReportClick}
-                      className={`text-xs flex items-center gap-1 transition-colors
-                    ${
-                      hasReported
-                        ? 'text-terminal-alert'
-                        : 'text-terminal-dim hover:text-terminal-alert'
-                    }`}
-                      title={hasReported ? 'Already reported' : 'Report this comment'}
-                      disabled={hasReported}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowMoreActions((prev) => !prev);
+                      }}
+                      className="text-xs flex items-center gap-1 text-terminal-dim hover:text-terminal-text transition-colors"
+                      title="More actions"
+                      aria-expanded={showMoreActions}
                     >
-                      <Flag size={10} fill={hasReported ? 'currentColor' : 'none'} />
-                      {hasReported ? 'REPORTED' : 'REPORT'}
+                      <MoreHorizontal size={10} />
+                      MORE
                     </button>
-                  )}
 
-                  {/* Mute button */}
-                  {!isOwnComment && comment.authorPubkey && onToggleMute && (
-                    <button
-                      onClick={() => onToggleMute(comment.authorPubkey!)}
-                      className={`text-xs flex items-center gap-1 transition-colors
-                    ${
-                      isMuted?.(comment.authorPubkey!)
-                        ? 'text-terminal-alert'
-                        : 'text-terminal-dim hover:text-terminal-alert'
-                    }`}
-                      title={isMuted?.(comment.authorPubkey!) ? 'Unmute user' : 'Mute user'}
-                    >
-                      <VolumeX size={10} />
-                      {isMuted?.(comment.authorPubkey!) ? 'UNMUTE' : 'MUTE'}
-                    </button>
+                    {showMoreActions && (
+                      <div className="absolute right-0 top-full z-20 mt-2 min-w-[180px] border border-terminal-dim bg-terminal-bg p-2 shadow-hard">
+                        <div className="mb-2 border-b border-terminal-dim/30 pb-2">
+                          <div className="mb-1 text-[10px] uppercase tracking-wider text-terminal-muted">
+                            Reactions
+                          </div>
+                          <ReactionBar
+                            eventId={comment.id}
+                            nostrEventId={comment.nostrEventId}
+                            disabled={!userState.identity}
+                            compact={true}
+                          />
+                        </div>
+
+                        {isOwnComment && !isDeleted && onEdit && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleEditClick();
+                              setShowMoreActions(false);
+                            }}
+                            className="flex w-full items-center gap-2 px-2 py-2 text-left text-xs uppercase tracking-wide text-terminal-dim hover:bg-terminal-dim/10 hover:text-terminal-text transition-colors"
+                          >
+                            <Edit3 size={12} />
+                            Edit Comment
+                          </button>
+                        )}
+
+                        {isOwnComment && !isDeleted && onDelete && !showDeleteConfirm && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowDeleteConfirm(true);
+                              setShowMoreActions(false);
+                            }}
+                            className="flex w-full items-center gap-2 px-2 py-2 text-left text-xs uppercase tracking-wide text-terminal-dim hover:bg-terminal-dim/10 hover:text-terminal-alert transition-colors"
+                          >
+                            <Trash2 size={12} />
+                            Delete Comment
+                          </button>
+                        )}
+
+                        {!isOwnComment && (
+                          <button
+                            onClick={() => {
+                              handleReportClick();
+                              setShowMoreActions(false);
+                            }}
+                            className={`flex w-full items-center gap-2 px-2 py-2 text-left text-xs uppercase tracking-wide transition-colors ${hasReported ? 'text-terminal-alert' : 'text-terminal-dim hover:bg-terminal-dim/10 hover:text-terminal-alert'}`}
+                            disabled={hasReported}
+                          >
+                            <Flag size={12} fill={hasReported ? 'currentColor' : 'none'} />
+                            {hasReported ? 'Reported' : 'Report Comment'}
+                          </button>
+                        )}
+
+                        {!isOwnComment && comment.authorPubkey && onToggleMute && (
+                          <button
+                            onClick={() => {
+                              onToggleMute(comment.authorPubkey!);
+                              setShowMoreActions(false);
+                            }}
+                            className="flex w-full items-center gap-2 px-2 py-2 text-left text-xs uppercase tracking-wide text-terminal-dim hover:bg-terminal-dim/10 hover:text-terminal-alert transition-colors"
+                          >
+                            <VolumeX size={12} />
+                            {isMuted?.(comment.authorPubkey!) ? 'Unmute User' : 'Mute User'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {isOwnComment && !isDeleted && onDelete && showDeleteConfirm && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-terminal-alert">Delete?</span>
+                      <button
+                        type="button"
+                        onClick={handleDelete}
+                        className="text-xs border border-terminal-alert px-2 py-0.5 text-terminal-alert hover:bg-terminal-alert hover:text-black transition-colors"
+                      >
+                        YES
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowDeleteConfirm(false)}
+                        className="text-xs border border-terminal-dim px-2 py-0.5 text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors"
+                      >
+                        NO
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -566,7 +596,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
                       disabled={!replyContent.trim() || isSubmitting}
                       className="border border-terminal-dim px-3 py-1 text-xs hover:bg-terminal-text hover:text-black disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-terminal-dim transition-all uppercase font-bold"
                     >
-                      {isSubmitting ? '...' : 'TX'}
+                      {isSubmitting ? '...' : 'SEND'}
                     </button>
                   </form>
                 )}

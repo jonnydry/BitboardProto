@@ -185,15 +185,15 @@ export function OnboardingFlow({
             }
           }
         }, 200);
-      }, 1200);
+      }, 700);
 
       // Phase 3: Lock achieved
-      const phase3 = setTimeout(() => setSignalPhase(3), 2400);
+      const phase3 = setTimeout(() => setSignalPhase(3), 1300);
 
       // Phase 4: Transition to welcome
       const phase4 = setTimeout(() => {
         setCurrentStep('welcome');
-      }, 3200);
+      }, 1800);
 
       return () => {
         clearTimeout(phase1);
@@ -309,6 +309,7 @@ export function OnboardingFlow({
   };
 
   const toggleBoardSelection = (boardId: string) => {
+    setError(null);
     setSelectedBoards((prev) => {
       const next = new Set(prev);
       if (next.has(boardId)) {
@@ -349,8 +350,14 @@ export function OnboardingFlow({
   const visibleStepIndex = visibleSteps.indexOf(currentStep);
 
   const handleNext = async () => {
+    if (currentStep === 'boards' && selectedBoards.size === 0) {
+      setError('Select at least one board to personalize your feed.');
+      return;
+    }
+
     const currentIndex = steps.indexOf(currentStep);
     if (currentIndex < steps.length - 1) {
+      setError(null);
       setCurrentStep(steps[currentIndex + 1]);
     } else {
       await publishBoardFollows();
@@ -502,7 +509,7 @@ export function OnboardingFlow({
         {/* Skip button */}
         <button
           onClick={() => setCurrentStep('welcome')}
-          className="absolute bottom-8 right-8 text-terminal-dim/50 hover:text-terminal-text text-xs uppercase tracking-wider transition-colors"
+          className="absolute top-6 right-6 border border-terminal-dim/40 px-3 py-2 text-terminal-dim hover:text-terminal-text hover:border-terminal-text text-xs uppercase tracking-wider transition-colors"
         >
           Skip Intro
         </button>
@@ -1039,6 +1046,13 @@ export function OnboardingFlow({
                     Select the communities you want to follow ({selectedBoards.size} selected)
                   </p>
                 </div>
+
+                {error && (
+                  <div className="mb-6 p-4 border border-terminal-alert/50 bg-terminal-alert/10 text-terminal-alert flex items-center gap-3 text-sm animate-fade-in">
+                    <AlertTriangle size={18} />
+                    {error}
+                  </div>
+                )}
 
                 <div className="space-y-6 max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-track-terminal-dim/10 scrollbar-thumb-terminal-text/30">
                   {Object.entries(BOARD_CATEGORIES).map(([category, boardIds]) => {

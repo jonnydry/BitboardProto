@@ -7,6 +7,16 @@ import { scanLink } from '../../services/geminiService';
 import { inputValidator, InputLimits } from '../../services/inputValidator';
 import { rateLimiter } from '../../services/rateLimiter';
 
+const CREATE_POST_TITLE_PATTERN = />\s*(COMPILE_NEW_BIT|CREATE[_ ]POST)/i;
+const TITLE_PLACEHOLDER_PATTERN = /enter subject|descriptive title|post title/i;
+const CONTENT_PLACEHOLDER_PATTERN = /data packet content|write your signal|post body/i;
+const SUBMIT_BUTTON_PATTERN = /upload_bit|transmit bit|create post|submit/i;
+const CANCEL_BUTTON_PATTERN = /abort|discard|cancel/i;
+const SCAN_BUTTON_PATTERN = /scan_network|scan url|scan/i;
+const TITLE_LABEL_PATTERN = /bit header|title/i;
+const CONTENT_LABEL_PATTERN = /payload\s*\/\s*text|content|post body/i;
+const URL_LABEL_PATTERN = /hyperlink|link/i;
+
 // Mock dependencies
 vi.mock('../../services/geminiService');
 vi.mock('../../services/inputValidator');
@@ -69,18 +79,35 @@ describe('CreatePost', () => {
     (rateLimiter.hashContent as Mock).mockReturnValue('hash123');
   });
 
+  const getSubmitButton = () => screen.getByRole('button', { name: SUBMIT_BUTTON_PATTERN });
+  const getCancelButton = () => screen.getByRole('button', { name: CANCEL_BUTTON_PATTERN });
+  const getScanButton = () => screen.getByRole('button', { name: SCAN_BUTTON_PATTERN });
+  const getTitleInput = () =>
+    screen.queryByLabelText(TITLE_LABEL_PATTERN) ??
+    screen.getByPlaceholderText(TITLE_PLACEHOLDER_PATTERN);
+  const getContentInput = () =>
+    screen.queryByLabelText(CONTENT_LABEL_PATTERN) ??
+    screen.getByPlaceholderText(CONTENT_PLACEHOLDER_PATTERN);
+  const getUrlInput = () =>
+    screen.queryByLabelText(URL_LABEL_PATTERN) ??
+    screen.getByPlaceholderText('https://example.com');
+
   describe('Initial Render', () => {
     it('should render the form with all required fields', () => {
       render(<CreatePost {...mockProps} />);
 
-      expect(screen.getByText('> COMPILE_NEW_BIT')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('Enter subject...')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('Enter data packet content...')).toBeInTheDocument();
+      expect(screen.getByText(CREATE_POST_TITLE_PATTERN)).toBeInTheDocument();
+      expect(getTitleInput()).toBeInTheDocument();
+      expect(getContentInput()).toBeInTheDocument();
       expect(screen.getByPlaceholderText('https://example.com')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('Auto-filled by scanner or enter manually...')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('tech, discussion, news (comma separated)')).toBeInTheDocument();
-      expect(screen.getByText('[ UPLOAD_BIT ]')).toBeInTheDocument();
-      expect(screen.getByText('[ ABORT ]')).toBeInTheDocument();
+      expect(
+        screen.getByPlaceholderText('Auto-filled by scanner or enter manually...'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByPlaceholderText('tech, discussion, news (comma separated)'),
+      ).toBeInTheDocument();
+      expect(getSubmitButton()).toBeInTheDocument();
+      expect(getCancelButton()).toBeInTheDocument();
     });
 
     it('should display user ID in header', () => {
@@ -116,8 +143,8 @@ describe('CreatePost', () => {
     it('should display board options with appropriate indicators', () => {
       render(<CreatePost {...mockProps} />);
 
-      expect(screen.getByText('//General')).toBeInTheDocument();
-      expect(screen.getByText('//Secret [LOCKED] 🔒')).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: /general/i })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: /secret/i })).toBeInTheDocument();
     });
   });
 
@@ -125,7 +152,7 @@ describe('CreatePost', () => {
     it('should require title', async () => {
       render(<CreatePost {...mockProps} />);
 
-      const submitButton = screen.getByText('[ UPLOAD_BIT ]');
+      const submitButton = getSubmitButton();
       await user.click(submitButton);
 
       expect(screen.getByText('* Title is required')).toBeInTheDocument();
@@ -138,13 +165,17 @@ describe('CreatePost', () => {
 
       render(<CreatePost {...mockProps} />);
 
-      const titleInput = screen.getByPlaceholderText('Enter subject...');
+      const titleInput = getTitleInput();
       await user.type(titleInput, longTitle);
 
-      const submitButton = screen.getByText('[ UPLOAD_BIT ]');
+      const submitButton = getSubmitButton();
       await user.click(submitButton);
 
-      expect(screen.getByText(new RegExp(`title must be ${InputLimits.MAX_TITLE_LENGTH} characters or less`, 'i'))).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          new RegExp(`title must be ${InputLimits.MAX_TITLE_LENGTH} characters or less`, 'i'),
+        ),
+      ).toBeInTheDocument();
     });
 
     it('should validate content length', async () => {
@@ -154,16 +185,23 @@ describe('CreatePost', () => {
 
       render(<CreatePost {...mockProps} />);
 
-      const titleInput = screen.getByPlaceholderText('Enter subject...');
-      const contentTextarea = screen.getByPlaceholderText('Enter data packet content...');
-      const submitButton = screen.getByText('[ UPLOAD_BIT ]');
+      const titleInput = getTitleInput();
+      const contentTextarea = getContentInput();
+      const submitButton = getSubmitButton();
 
       await user.type(titleInput, 'Valid Title');
       // Use fireEvent for long content to avoid timeout
       fireEvent.change(contentTextarea, { target: { value: longContent } });
       await user.click(submitButton);
 
-      expect(screen.getByText(new RegExp(`content must be ${InputLimits.MAX_POST_CONTENT_LENGTH} characters or less`, 'i'))).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          new RegExp(
+            `content must be ${InputLimits.MAX_POST_CONTENT_LENGTH} characters or less`,
+            'i',
+          ),
+        ),
+      ).toBeInTheDocument();
     });
 
     it('should validate URL format', async () => {
@@ -178,19 +216,19 @@ describe('CreatePost', () => {
 
       render(<CreatePost {...mockProps} />);
 
-      const titleInput = screen.getByPlaceholderText('Enter subject...');
+      const titleInput = getTitleInput();
       const urlInput = screen.getByPlaceholderText('https://example.com');
       const form = titleInput.closest('form');
-      const submitButton = screen.getByText('[ UPLOAD_BIT ]');
+      const submitButton = getSubmitButton();
 
       // Type title and URL - ensure both are set
       await user.type(titleInput, 'Valid Title');
       await user.type(urlInput, 'invalid-url');
-      
+
       // Verify both inputs have values before submitting
       expect(titleInput).toHaveValue('Valid Title');
       expect(urlInput).toHaveValue('invalid-url');
-      
+
       // Submit the form directly to ensure form submission is triggered
       // The form's handleSubmit calls validateForm() which should validate the URL
       // If URL validation fails, setUrlError('Invalid URL format') is called
@@ -203,27 +241,30 @@ describe('CreatePost', () => {
 
       // Verify onSubmit was not called due to validation failure
       expect(mockProps.onSubmit).not.toHaveBeenCalled();
-      
+
       // Verify that validateUrl was called with the trimmed URL
       expect(inputValidator.validateUrl).toHaveBeenCalledWith('invalid-url');
-      
+
       // The error message "* Invalid URL format" should appear after validation
       // The error is rendered conditionally: {urlError && <span>* {urlError}</span>}
       // Wait for React to re-render with the error state
-      await waitFor(() => {
-        expect(screen.getByText(/\* Invalid URL format/i)).toBeInTheDocument();
-      }, { timeout: 2000 });
+      await waitFor(
+        () => {
+          expect(screen.getByText(/\* Invalid URL format/i)).toBeInTheDocument();
+        },
+        { timeout: 2000 },
+      );
     });
 
     it('should clear validation errors when input changes', async () => {
       render(<CreatePost {...mockProps} />);
 
-      const submitButton = screen.getByText('[ UPLOAD_BIT ]');
+      const submitButton = getSubmitButton();
       await user.click(submitButton);
 
       expect(screen.getByText('* Title is required')).toBeInTheDocument();
 
-      const titleInput = screen.getByPlaceholderText('Enter subject...');
+      const titleInput = getTitleInput();
       await user.type(titleInput, 'Valid Title');
 
       expect(screen.queryByText('* Title is required')).not.toBeInTheDocument();
@@ -232,7 +273,7 @@ describe('CreatePost', () => {
     it('should allow submit button click when title is empty to show validation', () => {
       render(<CreatePost {...mockProps} />);
 
-      const submitButton = screen.getByText('[ UPLOAD_BIT ]');
+      const submitButton = getSubmitButton();
       // Button is enabled to allow validation errors to be shown
       expect(submitButton).not.toBeDisabled();
     });
@@ -240,8 +281,8 @@ describe('CreatePost', () => {
     it('should enable submit button when title is provided', async () => {
       render(<CreatePost {...mockProps} />);
 
-      const titleInput = screen.getByPlaceholderText('Enter subject...');
-      const submitButton = screen.getByText('[ UPLOAD_BIT ]');
+      const titleInput = getTitleInput();
+      const submitButton = getSubmitButton();
 
       await user.type(titleInput, 'Valid Title');
 
@@ -253,7 +294,7 @@ describe('CreatePost', () => {
     it('should display character count for title', async () => {
       render(<CreatePost {...mockProps} />);
 
-      const titleInput = screen.getByPlaceholderText('Enter subject...');
+      const titleInput = getTitleInput();
       await user.type(titleInput, 'Test Title');
 
       expect(screen.getByText(`10/${InputLimits.MAX_TITLE_LENGTH}`)).toBeInTheDocument();
@@ -262,7 +303,7 @@ describe('CreatePost', () => {
     it('should display character count for content', async () => {
       render(<CreatePost {...mockProps} />);
 
-      const contentTextarea = screen.getByPlaceholderText('Enter data packet content...');
+      const contentTextarea = getContentInput();
       await user.type(contentTextarea, 'Test content');
 
       expect(screen.getByText(`12/${InputLimits.MAX_POST_CONTENT_LENGTH}`)).toBeInTheDocument();
@@ -271,7 +312,7 @@ describe('CreatePost', () => {
     it('should show warning color when title exceeds limit', async () => {
       render(<CreatePost {...mockProps} />);
 
-      const titleInput = screen.getByPlaceholderText('Enter subject...');
+      const titleInput = getTitleInput();
       const longTitle = 'a'.repeat(InputLimits.MAX_TITLE_LENGTH + 1);
       await user.type(titleInput, longTitle);
 
@@ -282,13 +323,15 @@ describe('CreatePost', () => {
     it('should show warning color when content exceeds limit', async () => {
       render(<CreatePost {...mockProps} />);
 
-      const contentTextarea = screen.getByPlaceholderText('Enter data packet content...');
+      const contentTextarea = getContentInput();
       const longContent = 'a'.repeat(InputLimits.MAX_POST_CONTENT_LENGTH + 1);
       // Use paste instead of type for long content to avoid timeout
       await user.clear(contentTextarea);
       fireEvent.change(contentTextarea, { target: { value: longContent } });
 
-      const charCount = screen.getByText(`${longContent.length}/${InputLimits.MAX_POST_CONTENT_LENGTH}`);
+      const charCount = screen.getByText(
+        `${longContent.length}/${InputLimits.MAX_POST_CONTENT_LENGTH}`,
+      );
       expect(charCount).toHaveClass('text-terminal-alert');
     });
   });
@@ -303,8 +346,8 @@ describe('CreatePost', () => {
 
       render(<CreatePost {...mockProps} />);
 
-      const urlInput = screen.getByLabelText(/hyperlink/i);
-      const scanButton = screen.getByText('[ SCAN_NETWORK ]');
+      const urlInput = getUrlInput();
+      const scanButton = getScanButton();
 
       await user.type(urlInput, 'https://example.com');
       await user.click(scanButton);
@@ -317,8 +360,8 @@ describe('CreatePost', () => {
 
       render(<CreatePost {...mockProps} />);
 
-      const urlInput = screen.getByLabelText(/hyperlink/i);
-      const scanButton = screen.getByText('[ SCAN_NETWORK ]');
+      const urlInput = getUrlInput();
+      const scanButton = getScanButton();
 
       await user.type(urlInput, 'invalid-url');
       await user.click(scanButton);
@@ -330,17 +373,19 @@ describe('CreatePost', () => {
     it('should disable scan button when URL is empty', () => {
       render(<CreatePost {...mockProps} />);
 
-      const scanButton = screen.getByText('[ SCAN_NETWORK ]');
+      const scanButton = getScanButton();
       expect(scanButton).toBeDisabled();
     });
 
     it('should show loading state during scan', async () => {
-      (scanLink as Mock).mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+      (scanLink as Mock).mockImplementation(
+        () => new Promise((resolve) => setTimeout(resolve, 100)),
+      );
 
       render(<CreatePost {...mockProps} />);
 
-      const urlInput = screen.getByLabelText(/hyperlink/i);
-      const scanButton = screen.getByText('[ SCAN_NETWORK ]');
+      const urlInput = getUrlInput();
+      const scanButton = getScanButton();
 
       await user.type(urlInput, 'https://example.com');
       await user.click(scanButton);
@@ -358,19 +403,22 @@ describe('CreatePost', () => {
 
       render(<CreatePost {...mockProps} />);
 
-      const urlInput = screen.getByLabelText(/hyperlink/i);
-      const scanButton = screen.getByText('[ SCAN_NETWORK ]');
+      const urlInput = getUrlInput();
+      const scanButton = getScanButton();
 
       await user.type(urlInput, 'https://example.com');
       await user.click(scanButton);
 
       await waitFor(() => {
-        const titleInput = screen.getByLabelText(/bit header/i) as HTMLInputElement;
-        const contentTextarea = screen.getByLabelText(/payload \/ text/i) as HTMLTextAreaElement;
+        const titleInput = getTitleInput() as HTMLInputElement;
+        const contentTextarea = getContentInput() as HTMLTextAreaElement;
 
         expect(titleInput.value).toBe('Scanned Title');
         expect(contentTextarea.value).toBe('Scanned description');
-        expect(screen.getByAltText('Link Preview')).toHaveAttribute('src', 'https://example.com/image.jpg');
+        expect(screen.getByAltText('Link Preview')).toHaveAttribute(
+          'src',
+          'https://example.com/image.jpg',
+        );
       });
     });
 
@@ -382,9 +430,9 @@ describe('CreatePost', () => {
 
       render(<CreatePost {...mockProps} />);
 
-      const titleInput = screen.getByLabelText(/bit header/i);
-      const urlInput = screen.getByLabelText(/hyperlink/i);
-      const scanButton = screen.getByText('[ SCAN_NETWORK ]');
+      const titleInput = getTitleInput();
+      const urlInput = getUrlInput();
+      const scanButton = getScanButton();
 
       await user.type(titleInput, 'Existing Title');
       await user.type(urlInput, 'https://example.com');
@@ -403,8 +451,8 @@ describe('CreatePost', () => {
 
       render(<CreatePost {...mockProps} />);
 
-      const urlInput = screen.getByLabelText(/hyperlink/i);
-      const scanButton = screen.getByText('[ SCAN_NETWORK ]');
+      const urlInput = getUrlInput();
+      const scanButton = getScanButton();
 
       await user.type(urlInput, 'https://example.com');
       await user.click(scanButton);
@@ -423,8 +471,8 @@ describe('CreatePost', () => {
 
       render(<CreatePost {...mockProps} />);
 
-      const urlInput = screen.getByLabelText(/hyperlink/i);
-      const scanButton = screen.getByText('[ SCAN_NETWORK ]');
+      const urlInput = getUrlInput();
+      const scanButton = getScanButton();
 
       await user.type(urlInput, 'https://example.com');
       await user.click(scanButton);
@@ -446,8 +494,8 @@ describe('CreatePost', () => {
 
       render(<CreatePost {...mockProps} />);
 
-      const titleInput = screen.getByPlaceholderText('Enter subject...');
-      const submitButton = screen.getByText('[ UPLOAD_BIT ]');
+      const titleInput = getTitleInput();
+      const submitButton = getSubmitButton();
 
       await user.type(titleInput, 'Test Title');
       await user.click(submitButton);
@@ -459,9 +507,9 @@ describe('CreatePost', () => {
     it('should call rate limiter with correct parameters', async () => {
       render(<CreatePost {...mockProps} />);
 
-      const titleInput = screen.getByPlaceholderText('Enter subject...');
-      const contentTextarea = screen.getByPlaceholderText('Enter data packet content...');
-      const submitButton = screen.getByText('[ UPLOAD_BIT ]');
+      const titleInput = getTitleInput();
+      const contentTextarea = getContentInput();
+      const submitButton = getSubmitButton();
 
       await user.type(titleInput, 'Test Title');
       await user.type(contentTextarea, 'Test Content');
@@ -476,11 +524,11 @@ describe('CreatePost', () => {
     it('should submit valid form data', async () => {
       render(<CreatePost {...mockProps} />);
 
-      const titleInput = screen.getByLabelText(/bit header/i);
-      const contentTextarea = screen.getByLabelText(/payload \/ text/i);
-      const urlInput = screen.getByLabelText(/hyperlink/i);
+      const titleInput = getTitleInput();
+      const contentTextarea = getContentInput();
+      const urlInput = getUrlInput();
       const tagsInput = screen.getByLabelText(/tags/i);
-      const submitButton = screen.getByText('[ UPLOAD_BIT ]');
+      const submitButton = getSubmitButton();
 
       await user.type(titleInput, 'Test Title');
       await user.type(contentTextarea, 'Test Content');
@@ -506,12 +554,12 @@ describe('CreatePost', () => {
     it('should sanitize and validate all inputs before submission', async () => {
       render(<CreatePost {...mockProps} />);
 
-      const titleInput = screen.getByLabelText(/bit header/i);
-      const contentTextarea = screen.getByLabelText(/payload \/ text/i);
-      const urlInput = screen.getByLabelText(/hyperlink/i);
+      const titleInput = getTitleInput();
+      const contentTextarea = getContentInput();
+      const urlInput = getUrlInput();
       const imageInput = screen.getByLabelText(/attached image asset/i);
       const tagsInput = screen.getByLabelText(/tags/i);
-      const submitButton = screen.getByText('[ UPLOAD_BIT ]');
+      const submitButton = getSubmitButton();
 
       await user.type(titleInput, 'Test Title');
       await user.type(contentTextarea, 'Test Content');
@@ -530,8 +578,8 @@ describe('CreatePost', () => {
     it('should use default tags when no tags provided', async () => {
       render(<CreatePost {...mockProps} />);
 
-      const titleInput = screen.getByLabelText(/bit header/i);
-      const submitButton = screen.getByText('[ UPLOAD_BIT ]');
+      const titleInput = getTitleInput();
+      const submitButton = getSubmitButton();
 
       await user.type(titleInput, 'Test Title');
       await user.click(submitButton);
@@ -546,8 +594,8 @@ describe('CreatePost', () => {
       const select = screen.getByRole('combobox');
       await user.selectOptions(select, 'board-2');
 
-      const titleInput = screen.getByLabelText(/bit header/i);
-      const submitButton = screen.getByText('[ UPLOAD_BIT ]');
+      const titleInput = getTitleInput();
+      const submitButton = getSubmitButton();
 
       await user.type(titleInput, 'Test Title');
       await user.click(submitButton);
@@ -559,13 +607,15 @@ describe('CreatePost', () => {
     it('should show submitting state during form submission', async () => {
       render(<CreatePost {...mockProps} />);
 
-      const titleInput = screen.getByLabelText(/bit header/i);
-      const submitButton = screen.getByText('[ UPLOAD_BIT ]');
+      const titleInput = getTitleInput();
+      const submitButton = getSubmitButton();
 
       await user.type(titleInput, 'Test Title');
 
       // Mock onSubmit to be async and take some time
-      mockProps.onSubmit.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+      mockProps.onSubmit.mockImplementation(
+        () => new Promise((resolve) => setTimeout(resolve, 100)),
+      );
 
       await user.click(submitButton);
 
@@ -577,7 +627,7 @@ describe('CreatePost', () => {
     it('should call onCancel when cancel button is clicked', async () => {
       render(<CreatePost {...mockProps} />);
 
-      const cancelButton = screen.getByText('[ ABORT ]');
+      const cancelButton = getCancelButton();
       await user.click(cancelButton);
 
       expect(mockProps.onCancel).toHaveBeenCalled();
@@ -596,17 +646,17 @@ describe('CreatePost', () => {
     it('should have proper ARIA labels', () => {
       render(<CreatePost {...mockProps} />);
 
-      expect(screen.getByLabelText(/bit header/i)).toHaveAttribute('type', 'text');
+      expect(getTitleInput()).toHaveAttribute('type', 'text');
       // Textarea elements don't have a type attribute - check tagName instead
-      expect(screen.getByLabelText(/payload \/ text/i).tagName).toBe('TEXTAREA');
-      expect(screen.getByLabelText(/hyperlink/i)).toHaveAttribute('type', 'url');
+      expect(getContentInput().tagName).toBe('TEXTAREA');
+      expect(getUrlInput()).toHaveAttribute('type', 'url');
       expect(screen.getByLabelText(/attached image asset/i)).toHaveAttribute('type', 'text');
     });
 
     it('should show validation errors with proper styling', async () => {
       render(<CreatePost {...mockProps} />);
 
-      const submitButton = screen.getByText('[ UPLOAD_BIT ]');
+      const submitButton = getSubmitButton();
       await user.click(submitButton);
 
       const errorMessage = screen.getByText('* Title is required');

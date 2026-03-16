@@ -1,5 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Key, Copy, Download, Upload, RefreshCw, CheckCircle, AlertTriangle, Wifi, WifiOff } from 'lucide-react';
+import {
+  Key,
+  Copy,
+  Download,
+  Upload,
+  RefreshCw,
+  CheckCircle,
+  AlertTriangle,
+  Wifi,
+  WifiOff,
+  User,
+} from 'lucide-react';
 import { nip19 } from 'nostr-tools';
 import { identityService } from '../services/identityService';
 import type { NostrIdentity } from '../types';
@@ -7,9 +18,14 @@ import type { NostrIdentity } from '../types';
 interface IdentityManagerProps {
   onIdentityChange: (identity: NostrIdentity | null) => void;
   onClose: () => void;
+  onViewProfile?: (username: string, pubkey?: string) => void;
 }
 
-export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChange, onClose }) => {
+export const IdentityManager: React.FC<IdentityManagerProps> = ({
+  onIdentityChange,
+  onClose,
+  onViewProfile,
+}) => {
   const [identity, setIdentity] = useState<NostrIdentity | null>(null);
   const [displayName, setDisplayName] = useState('');
   const [importKey, setImportKey] = useState('');
@@ -18,6 +34,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChan
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [hasNip07, setHasNip07] = useState(false);
+  const [isConfirmingLogout, setIsConfirmingLogout] = useState(false);
 
   useEffect(() => {
     const loadIdentity = async () => {
@@ -34,10 +51,10 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChan
   const handleGenerate = async () => {
     setIsGenerating(true);
     setError(null);
-    
+
     try {
       // Small delay for UX feedback
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 300));
       const newIdentity = await identityService.generateIdentity(displayName || undefined);
       setIdentity(newIdentity);
       onIdentityChange(newIdentity);
@@ -51,7 +68,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChan
 
   const handleImport = async () => {
     setError(null);
-    
+
     if (!importKey.trim()) {
       setError('Please enter your nsec or hex private key');
       return;
@@ -61,9 +78,15 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChan
       let newIdentity: NostrIdentity | null = null;
 
       if (importKey.startsWith('nsec')) {
-        newIdentity = await identityService.importFromNsec(importKey.trim(), displayName || undefined);
+        newIdentity = await identityService.importFromNsec(
+          importKey.trim(),
+          displayName || undefined,
+        );
       } else {
-        newIdentity = await identityService.importFromHex(importKey.trim(), displayName || undefined);
+        newIdentity = await identityService.importFromHex(
+          importKey.trim(),
+          displayName || undefined,
+        );
       }
 
       if (newIdentity) {
@@ -81,7 +104,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChan
 
   const handleNip07Connect = async () => {
     setError(null);
-    
+
     try {
       const pubkey = await identityService.getPublicKeyFromExtension();
       if (pubkey) {
@@ -120,7 +143,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChan
         displayName: identity.displayName,
         exportedAt: new Date().toISOString(),
       };
-      
+
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -135,7 +158,15 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChan
     identityService.clearIdentity();
     identityService.setSessionIdentity(null);
     setIdentity(null);
+    setIsConfirmingLogout(false);
     onIdentityChange(null);
+  };
+
+  const handleViewProfile = () => {
+    if (!identity || !onViewProfile) return;
+
+    const profileName = displayName.trim() || identity.displayName || identity.npub.slice(0, 12);
+    onViewProfile(profileName, identity.pubkey);
   };
 
   const handleUpdateName = async () => {
@@ -154,7 +185,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChan
           <Key size={20} />
           {identity ? 'IDENTITY_CONFIG' : 'INIT_IDENTITY'}
         </h2>
-        <button 
+        <button
           onClick={onClose}
           className="text-terminal-dim hover:text-terminal-text transition-colors"
         >
@@ -173,14 +204,27 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChan
         // ========== IDENTITY EXISTS ==========
         <div className="space-y-6">
           {/* Status */}
-          <div className="flex items-center gap-2 text-sm">
-            <Wifi size={14} className="text-green-500" />
-            <span className="text-terminal-dim">CONNECTED_TO_NOSTR</span>
+          <div className="flex items-center justify-between gap-3 rounded-sm border border-terminal-dim/40 bg-terminal-dim/10 p-3 text-sm">
+            <div className="flex items-center gap-2">
+              <Wifi size={14} className="text-terminal-text" />
+              <span className="text-terminal-muted">IDENTITY CONNECTED</span>
+            </div>
+            {onViewProfile && (
+              <button
+                onClick={handleViewProfile}
+                className="flex items-center gap-2 border border-terminal-dim px-3 py-1.5 text-xs text-terminal-text transition-colors hover:border-terminal-text hover:bg-terminal-dim/10"
+              >
+                <User size={12} />
+                VIEW PROFILE
+              </button>
+            )}
           </div>
 
           {/* Public Key */}
           <div className="space-y-2">
-            <label className="text-xs text-terminal-dim uppercase font-bold">Public Key (npub)</label>
+            <label className="text-xs text-terminal-muted uppercase font-bold">
+              Public Key (npub)
+            </label>
             <div className="flex items-center gap-2">
               <code className="flex-1 bg-terminal-dim/20 p-2 text-xs font-mono break-all">
                 {identity.npub}
@@ -189,7 +233,11 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChan
                 onClick={() => handleCopy(identity.npub, 'npub')}
                 className="p-2 border border-terminal-dim hover:border-terminal-text transition-colors"
               >
-                {copied === 'npub' ? <CheckCircle size={16} className="text-green-500" /> : <Copy size={16} />}
+                {copied === 'npub' ? (
+                  <CheckCircle size={16} className="text-terminal-text" />
+                ) : (
+                  <Copy size={16} />
+                )}
               </button>
             </div>
           </div>
@@ -197,13 +245,18 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChan
           {/* Private Key (hidden by default) */}
           {identity.kind === 'local' && (
             <div className="space-y-2">
-              <label className="text-xs text-terminal-dim uppercase font-bold flex items-center gap-2">
-                Private Key (nsec) 
-                <span className="text-terminal-alert">⚠ KEEP SECRET</span>
+              <label className="text-xs text-terminal-muted uppercase font-bold flex items-center gap-2">
+                Private Key (nsec)
+                <span className="inline-flex items-center gap-1 text-terminal-alert">
+                  <AlertTriangle size={12} />
+                  KEEP SECRET
+                </span>
               </label>
               <div className="flex items-center gap-2">
                 <code className="flex-1 bg-terminal-dim/20 p-2 text-xs font-mono break-all">
-                  {showPrivateKey ? identityService.exportNsec() : '••••••••••••••••••••••••••••••••'}
+                  {showPrivateKey
+                    ? identityService.exportNsec()
+                    : '••••••••••••••••••••••••••••••••'}
                 </code>
                 <button
                   onClick={() => setShowPrivateKey(!showPrivateKey)}
@@ -216,7 +269,11 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChan
                     onClick={() => handleCopy(identityService.exportNsec() || '', 'nsec')}
                     className="p-2 border border-terminal-dim hover:border-terminal-text transition-colors"
                   >
-                    {copied === 'nsec' ? <CheckCircle size={16} className="text-green-500" /> : <Copy size={16} />}
+                    {copied === 'nsec' ? (
+                      <CheckCircle size={16} className="text-terminal-text" />
+                    ) : (
+                      <Copy size={16} />
+                    )}
                   </button>
                 )}
               </div>
@@ -225,7 +282,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChan
 
           {/* Display Name */}
           <div className="space-y-2">
-            <label className="text-xs text-terminal-dim uppercase font-bold">Display Name</label>
+            <label className="text-xs text-terminal-muted uppercase font-bold">Display Name</label>
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -253,13 +310,42 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChan
               BACKUP_KEY
             </button>
             <button
-              onClick={handleLogout}
+              onClick={() => setIsConfirmingLogout(true)}
               className="flex items-center gap-2 px-4 py-2 border border-terminal-alert text-terminal-alert hover:bg-terminal-alert hover:text-black transition-colors text-sm"
             >
               <WifiOff size={14} />
               LOGOUT
             </button>
           </div>
+
+          {isConfirmingLogout && (
+            <div className="space-y-3 rounded-sm border border-terminal-alert bg-terminal-alert/10 p-4">
+              <div className="flex items-start gap-2 text-terminal-alert">
+                <AlertTriangle size={16} className="mt-0.5" />
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-wide">Disconnect identity?</p>
+                  <p className="mt-1 text-sm text-terminal-muted">
+                    Your key will be removed from this browser session. Make sure you have a backup
+                    before continuing.
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setIsConfirmingLogout(false)}
+                  className="border border-terminal-dim px-3 py-2 text-xs uppercase tracking-wide text-terminal-dim transition-colors hover:border-terminal-text hover:text-terminal-text"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="border border-terminal-alert bg-terminal-alert px-3 py-2 text-xs uppercase tracking-wide text-black transition-colors hover:opacity-90"
+                >
+                  Confirm Logout
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         // ========== NO IDENTITY ==========
@@ -267,15 +353,18 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChan
           {/* Info */}
           <div className="p-4 border border-terminal-dim/50 bg-terminal-dim/5 text-sm">
             <p className="text-terminal-dim leading-relaxed">
-              Your identity on BitBoard is a <span className="text-terminal-text">Nostr keypair</span>. 
-              No email, no password, no server. Your private key is your password - 
+              Your identity on BitBoard is a{' '}
+              <span className="text-terminal-text">Nostr keypair</span>. No email, no password, no
+              server. Your private key is your password -
               <span className="text-terminal-alert"> back it up and never share it</span>.
             </p>
           </div>
 
           {/* Display Name (optional) */}
           <div className="space-y-2">
-            <label className="text-xs text-terminal-dim uppercase font-bold">Display Name (optional)</label>
+            <label className="text-xs text-terminal-dim uppercase font-bold">
+              Display Name (optional)
+            </label>
             <input
               type="text"
               value={displayName}
@@ -340,7 +429,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChan
                 OR
                 <div className="flex-1 border-t border-terminal-dim/30" />
               </div>
-              
+
               <button
                 onClick={handleNip07Connect}
                 className="w-full px-4 py-3 border border-terminal-dim hover:border-terminal-text hover:bg-terminal-dim/10 transition-colors text-sm uppercase flex items-center justify-center gap-2"
@@ -358,4 +447,3 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({ onIdentityChan
     </div>
   );
 };
-

@@ -18,6 +18,7 @@ import { nostrService } from './services/nostrService';
 import { keyboardShortcutsService } from './services/keyboardShortcutsService';
 import { analyticsService, AnalyticsEvents } from './services/analyticsService';
 import { sentryService } from './services/sentryService';
+import type { Notification } from './services/notificationServiceV2';
 
 // Lazy load components that are only used in specific views
 const IdentityManager = lazy(() =>
@@ -74,7 +75,9 @@ import {
 // Default loading fallback
 const LoadingFallback = () => (
   <div className="flex items-center justify-center py-8">
-    <div className="animate-pulse text-terminal-dim uppercase tracking-wider">LOADING...</div>
+    <div className="motion-safe:animate-pulse text-terminal-muted uppercase tracking-wider">
+      LOADING...
+    </div>
   </div>
 );
 
@@ -84,6 +87,9 @@ const AppContent: React.FC = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [notificationDmTargetPubkey, setNotificationDmTargetPubkey] = useState<
+    string | undefined
+  >();
 
   // Initialize keyboard shortcuts
   useEffect(() => {
@@ -200,6 +206,42 @@ const AppContent: React.FC = () => {
     analyticsService.track(AnalyticsEvents.ONBOARDING_SKIPPED);
   };
 
+  useEffect(() => {
+    if (app.viewMode !== ViewMode.DIRECT_MESSAGES) {
+      setNotificationDmTargetPubkey(undefined);
+    }
+  }, [app.viewMode]);
+
+  const handleNotificationNavigate = (deepLink: Notification['deepLink']) => {
+    if (!deepLink?.viewMode) return;
+
+    if (deepLink.viewMode === ViewMode.SINGLE_BIT && deepLink.postId) {
+      if (deepLink.boardId) {
+        app.setActiveBoardId(deepLink.boardId);
+      }
+      app.setSelectedBitId(deepLink.postId);
+      app.setViewMode(ViewMode.SINGLE_BIT);
+      return;
+    }
+
+    if (deepLink.viewMode === ViewMode.USER_PROFILE && deepLink.pubkey) {
+      const fallbackUsername = `${deepLink.pubkey.slice(0, 8)}...`;
+      app.setProfileUser({ username: fallbackUsername, pubkey: deepLink.pubkey });
+      app.setViewMode(ViewMode.USER_PROFILE);
+      return;
+    }
+
+    if (deepLink.viewMode === ViewMode.DIRECT_MESSAGES) {
+      setNotificationDmTargetPubkey(deepLink.pubkey);
+      app.setViewMode(ViewMode.DIRECT_MESSAGES);
+      return;
+    }
+
+    if (Object.values(ViewMode).includes(deepLink.viewMode as ViewMode)) {
+      app.setViewMode(deepLink.viewMode as ViewMode);
+    }
+  };
+
   return (
     <>
       {/* SEO meta tags */}
@@ -221,17 +263,48 @@ const AppContent: React.FC = () => {
         {/* Offline Status Banner */}
         <OfflineBanner />
         {/* Scanline Overlay */}
-        <div className="scanlines fixed inset-0 pointer-events-none z-50"></div>
+        <div className="scanlines fixed inset-0 pointer-events-none z-40"></div>
 
         {/* Mobile Drawer */}
-        <MobileDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
+        <MobileDrawer
+          isOpen={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+          viewMode={app.viewMode}
+          onSetViewMode={app.setViewMode}
+          onNavigateGlobal={() => app.navigateToBoard(null)}
+          identity={app.userState.identity || undefined}
+          userState={app.userState}
+          bookmarkedCount={app.bookmarkedIds.length}
+          isNostrConnected={app.isNostrConnected}
+        >
+          <Sidebar
+            userState={app.userState}
+            setUserState={app.setUserState}
+            theme={app.theme}
+            setTheme={app.setTheme}
+            getThemeColor={app.getThemeColor}
+            isNostrConnected={app.isNostrConnected}
+            viewMode={app.viewMode}
+            activeBoardId={app.activeBoardId}
+            feedFilter={app.feedFilter}
+            setFeedFilter={app.setFeedFilter}
+            topicBoards={app.topicBoards}
+            geohashBoards={app.geohashBoards}
+            boardsById={app.boardsById}
+            decryptionFailedBoardIds={app.decryptionFailedBoardIds}
+            removeFailedDecryptionKey={app.removeFailedDecryptionKey}
+            navigateToBoard={app.navigateToBoard}
+            onSetViewMode={app.setViewMode}
+            inMobileDrawer={true}
+          />
+        </MobileDrawer>
 
         <div className="max-w-[1174px] mx-auto p-3 md:p-6 relative z-10 pb-20 md:pb-6">
           <AppHeader onOpenDrawer={() => setIsDrawerOpen(true)} />
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-8 py-[5px]">
             {/* Main Content */}
-            <main className="md:col-span-3 order-2 md:order-1">
+            <main className="md:col-span-3">
               {/* Feed View */}
               {app.viewMode === ViewMode.FEED && (
                 <FeedView
@@ -302,7 +375,10 @@ const AppContent: React.FC = () => {
               {/* Notifications View */}
               {app.viewMode === ViewMode.NOTIFICATIONS && (
                 <div className="animate-fade-in">
-                  <NotificationCenterV2 onClose={() => app.setViewMode(ViewMode.FEED)} />
+                  <NotificationCenterV2
+                    onClose={() => app.setViewMode(ViewMode.FEED)}
+                    onNavigate={handleNotificationNavigate}
+                  />
                 </div>
               )}
 
@@ -348,6 +424,7 @@ const AppContent: React.FC = () => {
                   <IdentityManager
                     onIdentityChange={app.handleIdentityChange}
                     onClose={() => app.setViewMode(ViewMode.FEED)}
+                    onViewProfile={app.handleViewProfile}
                   />
                 </Suspense>
               )}
@@ -430,14 +507,15 @@ const AppContent: React.FC = () => {
                 <Suspense fallback={<LoadingFallback />}>
                   <DirectMessages
                     userPubkey={app.userState.identity.pubkey}
+                    initialConversationPubkey={notificationDmTargetPubkey}
                     onClose={() => app.setViewMode(ViewMode.FEED)}
                   />
                 </Suspense>
               )}
             </main>
 
-            {/* Sidebar - shows above content on mobile, beside on desktop */}
-            <aside className="order-1 md:order-2">
+            {/* Sidebar - desktop only, mobile content lives in drawer */}
+            <aside className="hidden md:block md:order-2">
               <Sidebar
                 decryptionFailedBoardIds={app.decryptionFailedBoardIds}
                 removeFailedDecryptionKey={app.removeFailedDecryptionKey}
@@ -447,7 +525,7 @@ const AppContent: React.FC = () => {
         </div>
 
         {/* Footer - hidden on mobile to make room for bottom nav */}
-        <footer className="hidden md:block text-center text-terminal-dim text-xs py-8 opacity-50">
+        <footer className="hidden md:block text-center text-terminal-muted text-xs py-8">
           <div className="mb-2">
             BitBoard NOSTR PROTOCOL V3.0 // RELAYS: {nostrService.getRelays().length} // NODES
             ACTIVE: {app.boards.length + app.locationBoards.length}

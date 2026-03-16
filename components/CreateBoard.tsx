@@ -8,18 +8,26 @@ import { encryptedBoardService } from '../services/encryptedBoardService';
 import { makeBoardId } from '../services/boardIdService';
 
 interface CreateBoardProps {
-  onSubmit: (board: Omit<Board, 'id' | 'memberCount' | 'nostrEventId'>, encryptionKey?: string) => void;
+  onSubmit: (
+    board: Omit<Board, 'id' | 'memberCount' | 'nostrEventId'>,
+    encryptionKey?: string,
+  ) => void;
   onCancel: () => void;
   identity?: NostrIdentity;
   onConnectIdentity?: () => void;
 }
 
-export const CreateBoard: React.FC<CreateBoardProps> = ({ onSubmit, onCancel, identity, onConnectIdentity }) => {
+export const CreateBoard: React.FC<CreateBoardProps> = ({
+  onSubmit,
+  onCancel,
+  identity,
+  onConnectIdentity,
+}) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // Validation error states
   const [nameError, setNameError] = useState<string | null>(null);
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
@@ -60,7 +68,9 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({ onSubmit, onCancel, id
       const validatedDesc = inputValidator.validateBoardDescription(description);
       if (!validatedDesc) {
         if (description.length > InputLimits.MAX_BOARD_DESCRIPTION_LENGTH) {
-          setDescriptionError(`Description must be ${InputLimits.MAX_BOARD_DESCRIPTION_LENGTH} characters or less`);
+          setDescriptionError(
+            `Description must be ${InputLimits.MAX_BOARD_DESCRIPTION_LENGTH} characters or less`,
+          );
         } else {
           setDescriptionError('Description contains invalid characters');
         }
@@ -77,47 +87,49 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({ onSubmit, onCancel, id
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
 
     setIsSubmitting(true);
-    
+
     try {
       // Use validated name
       const cleanName = inputValidator.validateBoardName(name)!;
-      const cleanDescription = description.trim() 
+      const cleanDescription = description.trim()
         ? inputValidator.validateBoardDescription(description) || ''
         : '';
-      
+
       let encryptionKey: string | undefined;
-      
+
       // Generate encryption key for private boards
       if (!isPublic) {
         encryptionKey = await encryptedBoardService.generateBoardKey();
-        
+
         // Generate board ID for the share link
         const boardId = makeBoardId(cleanName);
-        
+
         // Save the key locally
         encryptedBoardService.saveBoardKey(boardId, encryptionKey);
-        
+
         // Generate share link
         const link = encryptedBoardService.generateShareLink(boardId, encryptionKey);
-        
+
         setGeneratedKey(encryptionKey);
         setShareLink(link);
       }
-      
-      onSubmit({
-        name: cleanName,
-        description: cleanDescription,
-        isPublic,
-        type: BoardType.TOPIC,
-        isEncrypted: !isPublic,
-      }, encryptionKey);
-      
+
+      onSubmit(
+        {
+          name: cleanName,
+          description: cleanDescription,
+          isPublic,
+          type: BoardType.TOPIC,
+          isEncrypted: !isPublic,
+        },
+        encryptionKey,
+      );
     } catch (error) {
       console.error('[CreateBoard] Failed to create board:', error);
     } finally {
@@ -127,7 +139,7 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({ onSubmit, onCancel, id
 
   const handleCopyLink = async () => {
     if (!shareLink) return;
-    
+
     try {
       await navigator.clipboard.writeText(shareLink);
       setCopied(true);
@@ -169,8 +181,9 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({ onSubmit, onCancel, id
           <div className="p-3 border border-terminal-alert/30 bg-terminal-alert/5 flex items-start gap-2">
             <AlertTriangle size={14} className="text-terminal-alert mt-0.5 shrink-0" />
             <p className="text-xs text-terminal-dim">
-              <span className="text-terminal-alert font-bold">Important:</span> Anyone with this link can access the board. 
-              The encryption key is embedded in the link and never sent to servers.
+              <span className="text-terminal-alert font-bold">Important:</span> Anyone with this
+              link can access the board. The encryption key is embedded in the link and never sent
+              to servers.
             </p>
           </div>
 
@@ -188,8 +201,8 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({ onSubmit, onCancel, id
                 type="button"
                 onClick={handleCopyLink}
                 className={`px-4 border transition-colors flex items-center gap-2 ${
-                  copied 
-                    ? 'border-terminal-text bg-terminal-text text-black' 
+                  copied
+                    ? 'border-terminal-text bg-terminal-text text-black'
                     : 'border-terminal-dim text-terminal-dim hover:border-terminal-text hover:text-terminal-text'
                 }`}
               >
@@ -219,9 +232,8 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({ onSubmit, onCancel, id
       <h2 className="text-2xl font-bold mb-6 border-b border-terminal-dim pb-2">
         &gt; INITIALIZE_NEW_FREQUENCY
       </h2>
-      
+
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-        
         {/* Name Input */}
         <div className="flex flex-col gap-2">
           <div className="flex justify-between items-center">
@@ -233,9 +245,11 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({ onSubmit, onCancel, id
             </span>
           </div>
           <div className="flex items-center">
-             <span className="bg-terminal-dim/20 border border-r-0 border-terminal-dim p-3 text-terminal-dim font-mono">//</span>
-             <input 
-              type="text" 
+            <span className="bg-terminal-dim/20 border border-r-0 border-terminal-dim p-3 text-terminal-dim font-mono">
+              //
+            </span>
+            <input
+              type="text"
               value={name}
               onChange={handleNameChange}
               className={`flex-1 bg-terminal-bg border p-3 text-terminal-text focus:border-terminal-text focus:outline-none font-mono text-lg tracking-widest uppercase ${
@@ -249,19 +263,25 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({ onSubmit, onCancel, id
               <AlertTriangle size={12} /> {nameError}
             </span>
           ) : (
-            <span className="text-[10px] text-terminal-dim">* STARTS WITH LETTER. ALPHANUMERIC + UNDERSCORE ONLY.</span>
+            <span className="text-[10px] text-terminal-dim">
+              * STARTS WITH LETTER. ALPHANUMERIC + UNDERSCORE ONLY.
+            </span>
           )}
         </div>
 
         {/* Description */}
         <div className="flex flex-col gap-2">
           <div className="flex justify-between items-center">
-            <label className="text-sm text-terminal-dim uppercase font-bold">Manifesto / Description</label>
-            <span className={`text-xs ${descOverLimit ? 'text-terminal-alert' : 'text-terminal-dim'}`}>
+            <label className="text-sm text-terminal-dim uppercase font-bold">
+              Manifesto / Description
+            </label>
+            <span
+              className={`text-xs ${descOverLimit ? 'text-terminal-alert' : 'text-terminal-dim'}`}
+            >
               {descCharCount}/{InputLimits.MAX_BOARD_DESCRIPTION_LENGTH}
             </span>
           </div>
-          <textarea 
+          <textarea
             value={description}
             onChange={(e) => {
               setDescription(e.target.value);
@@ -290,7 +310,9 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({ onSubmit, onCancel, id
             >
               <Globe size={24} />
               <span className="font-bold">PUBLIC_NET</span>
-              <span className="text-[10px] text-center">Visible to all nodes. Indexed in global directory.</span>
+              <span className="text-[10px] text-center">
+                Visible to all nodes. Indexed in global directory.
+              </span>
             </button>
 
             <button
@@ -300,7 +322,9 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({ onSubmit, onCancel, id
             >
               <Lock size={24} />
               <span className="font-bold">ENCRYPTED</span>
-              <span className="text-[10px] text-center">Invite only. Requires private key for access.</span>
+              <span className="text-[10px] text-center">
+                Invite only. Requires private key for access.
+              </span>
             </button>
           </div>
         </div>
@@ -313,7 +337,8 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({ onSubmit, onCancel, id
               <div className="flex-1">
                 <p className="text-sm text-terminal-alert font-bold mb-1">Identity Required</p>
                 <p className="text-xs text-terminal-dim mb-3">
-                  To prevent spam, board creation requires a Nostr identity. Your identity is used to sign and verify the board.
+                  To prevent spam, board creation requires a Nostr identity. Your identity is used
+                  to sign and verify the board.
                 </p>
                 {onConnectIdentity && (
                   <button
@@ -331,11 +356,11 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({ onSubmit, onCancel, id
 
         {/* Rate Limit Info */}
         {identity && (
-          <div className={`p-3 border ${rateLimit.allowed ? 'border-terminal-dim/30 bg-terminal-dim/5' : 'border-terminal-alert/50 bg-terminal-alert/5'}`}>
+          <div
+            className={`p-3 border ${rateLimit.allowed ? 'border-terminal-dim/30 bg-terminal-dim/5' : 'border-terminal-alert/50 bg-terminal-alert/5'}`}
+          >
             <div className="flex items-center justify-between text-xs">
-              <span className="text-terminal-dim">
-                Board Creation Quota:
-              </span>
+              <span className="text-terminal-dim">Board Creation Quota:</span>
               <span className={rateLimit.allowed ? 'text-terminal-text' : 'text-terminal-alert'}>
                 {rateLimit.remaining}/{boardRateLimiter.getLimit()} remaining today
               </span>
@@ -349,22 +374,21 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({ onSubmit, onCancel, id
         )}
 
         <div className="flex gap-4 mt-6 pt-4 border-t border-terminal-dim/30">
-          <button 
+          <button
             type="submit"
             disabled={isSubmitting || !name.trim() || !identity || !rateLimit.allowed}
             className="bg-terminal-text text-black font-bold px-6 py-3 hover:bg-terminal-dim hover:text-white transition-colors uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed flex-1"
           >
-            {isSubmitting ? 'ESTABLISHING...' : '[ ESTABLISH_CONNECTION ]'}
+            {isSubmitting ? 'ESTABLISHING...' : 'CREATE BOARD'}
           </button>
-          <button 
+          <button
             type="button"
             onClick={onCancel}
             className="border border-terminal-alert text-terminal-alert px-6 py-3 hover:bg-terminal-alert hover:text-black transition-colors uppercase tracking-widest"
           >
-            [ ABORT ]
+            DISCARD
           </button>
         </div>
-
       </form>
     </div>
   );

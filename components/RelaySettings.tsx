@@ -15,24 +15,27 @@ function normalizeRelayUrl(raw: string): string | null {
 export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [userRelays, setUserRelays] = useState<string[]>(() => nostrService.getUserRelays());
   const [statuses, setStatuses] = useState<RelayStatus[]>(() => nostrService.getRelayStatuses());
-  const [diagnostics, setDiagnostics] = useState<DiagnosticEvent[]>(() => diagnosticsService.getEvents());
+  const [diagnostics, setDiagnostics] = useState<DiagnosticEvent[]>(() =>
+    diagnosticsService.getEvents(),
+  );
 
   const [newRelay, setNewRelay] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isConfirmingReset, setIsConfirmingReset] = useState(false);
 
   const lastStatusJsonRef = useRef<string>('');
 
   const effectiveRelays = nostrService.getRelays();
   const queuedCount = nostrService.getQueuedMessageCount();
 
-  const connectedCount = useMemo(() => statuses.filter(s => s.isConnected).length, [statuses]);
+  const connectedCount = useMemo(() => statuses.filter((s) => s.isConnected).length, [statuses]);
 
   const refreshStatuses = useCallback(() => {
     const next = nostrService.getRelayStatuses();
 
     // Avoid rerender churn if nothing changed
     const json = JSON.stringify(
-      next.map(s => ({
+      next.map((s) => ({
         url: s.url,
         isConnected: s.isConnected,
         lastConnectedAt: s.lastConnectedAt,
@@ -40,7 +43,7 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
         reconnectAttempts: s.reconnectAttempts,
         nextReconnectTime: s.nextReconnectTime,
         lastError: s.lastError ? s.lastError.message : null,
-      }))
+      })),
     );
 
     if (json !== lastStatusJsonRef.current) {
@@ -65,12 +68,15 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     });
   }, []);
 
-  const syncUserRelays = useCallback((next: string[]) => {
-    setUserRelays(next);
-    nostrService.setUserRelays(next);
-    // Ensure we show statuses for newly added relays
-    refreshStatuses();
-  }, [refreshStatuses]);
+  const syncUserRelays = useCallback(
+    (next: string[]) => {
+      setUserRelays(next);
+      nostrService.setUserRelays(next);
+      // Ensure we show statuses for newly added relays
+      refreshStatuses();
+    },
+    [refreshStatuses],
+  );
 
   const handleAddRelay = useCallback(() => {
     setError(null);
@@ -90,20 +96,27 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     setNewRelay('');
   }, [newRelay, syncUserRelays, userRelays]);
 
-  const handleRemoveRelay = useCallback((url: string) => {
-    setError(null);
-    syncUserRelays(userRelays.filter(r => r !== url));
-  }, [syncUserRelays, userRelays]);
+  const handleRemoveRelay = useCallback(
+    (url: string) => {
+      setError(null);
+      syncUserRelays(userRelays.filter((r) => r !== url));
+    },
+    [syncUserRelays, userRelays],
+  );
 
   const handleResetDefaults = useCallback(() => {
     setError(null);
     syncUserRelays([]);
+    setIsConfirmingReset(false);
   }, [syncUserRelays]);
 
-  const handleRetry = useCallback((url: string) => {
-    nostrService.retryConnection(url);
-    refreshStatuses();
-  }, [refreshStatuses]);
+  const handleRetry = useCallback(
+    (url: string) => {
+      nostrService.retryConnection(url);
+      refreshStatuses();
+    },
+    [refreshStatuses],
+  );
 
   return (
     <div className="border-2 border-terminal-text bg-terminal-bg p-6 max-w-3xl mx-auto w-full shadow-hard-lg animate-fade-in">
@@ -111,10 +124,14 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
         <div>
           <h2 className="text-xl font-bold">RELAY_SETTINGS</h2>
           <p className="text-xs text-terminal-dim mt-1">
-            CONNECTED: <span className="text-terminal-text font-bold">{connectedCount}</span> / {statuses.length}
+            CONNECTED: <span className="text-terminal-text font-bold">{connectedCount}</span> /{' '}
+            {statuses.length}
           </p>
         </div>
-        <button onClick={onClose} className="text-terminal-dim hover:text-terminal-text transition-colors">
+        <button
+          onClick={onClose}
+          className="text-terminal-dim hover:text-terminal-text transition-colors"
+        >
           [ ESC ]
         </button>
       </div>
@@ -126,12 +143,21 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
         </div>
       )}
 
+      <div className="mb-6 border border-terminal-dim/40 bg-terminal-dim/10 p-4 text-sm text-terminal-muted leading-relaxed">
+        Relays are independent servers that store and distribute your Nostr messages. Add a few
+        trusted relays for better reach and resilience.
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <section className="border border-terminal-dim p-4">
           <h3 className="font-bold border-b border-terminal-dim mb-3 pb-1 text-sm">USER_RELAYS</h3>
 
           <div className="flex gap-2 mb-3">
+            <label htmlFor="relay-url-input" className="sr-only">
+              Relay URL
+            </label>
             <input
+              id="relay-url-input"
               value={newRelay}
               onChange={(e) => setNewRelay(e.target.value)}
               onKeyDown={(e) => {
@@ -156,7 +182,9 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
             <ul className="space-y-2">
               {userRelays.map((url) => (
                 <li key={url} className="flex items-center gap-2">
-                  <code className="flex-1 text-xs bg-terminal-dim/10 border border-terminal-dim/30 p-2 break-all">{url}</code>
+                  <code className="flex-1 text-xs bg-terminal-dim/10 border border-terminal-dim/30 p-2 break-all">
+                    {url}
+                  </code>
                   <button
                     onClick={() => handleRemoveRelay(url)}
                     className="p-2 border border-terminal-alert text-terminal-alert hover:bg-terminal-alert hover:text-black transition-colors"
@@ -171,23 +199,56 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
 
           <div className="mt-4 pt-3 border-t border-terminal-dim/30 flex items-center justify-between">
             <button
-              onClick={handleResetDefaults}
+              onClick={() => setIsConfirmingReset(true)}
               className="text-xs border border-terminal-dim px-3 py-2 text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors"
             >
               RESET_TO_DEFAULTS
             </button>
           </div>
+
+          {isConfirmingReset && (
+            <div className="mt-3 border border-terminal-alert bg-terminal-alert/10 p-3 space-y-3">
+              <div className="flex items-start gap-2 text-terminal-alert">
+                <AlertTriangle size={14} className="mt-0.5" />
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-wide">Reset relay list?</p>
+                  <p className="mt-1 text-sm text-terminal-muted">
+                    This removes all custom relays and falls back to the default set.
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setIsConfirmingReset(false)}
+                  className="border border-terminal-dim px-3 py-2 text-xs uppercase tracking-wide text-terminal-dim transition-colors hover:border-terminal-text hover:text-terminal-text"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleResetDefaults}
+                  className="border border-terminal-alert bg-terminal-alert px-3 py-2 text-xs uppercase tracking-wide text-black transition-colors hover:opacity-90"
+                >
+                  Confirm Reset
+                </button>
+              </div>
+            </div>
+          )}
         </section>
 
         <section className="border border-terminal-dim p-4">
-          <h3 className="font-bold border-b border-terminal-dim mb-3 pb-1 text-sm">EFFECTIVE_RELAYS</h3>
+          <h3 className="font-bold border-b border-terminal-dim mb-3 pb-1 text-sm">
+            EFFECTIVE_RELAYS
+          </h3>
           <p className="text-xs text-terminal-dim mb-3">
-            These are the relays BitBoard will use for reads/writes (user relays first, then defaults).
+            These are the relays BitBoard will use for reads/writes (user relays first, then
+            defaults).
           </p>
           <ul className="space-y-2">
             {effectiveRelays.map((relay) => (
               <li key={relay.url}>
-                <code className="block text-xs bg-terminal-dim/10 border border-terminal-dim/30 p-2 break-all">{relay.url}</code>
+                <code className="block text-xs bg-terminal-dim/10 border border-terminal-dim/30 p-2 break-all">
+                  {relay.url}
+                </code>
               </li>
             ))}
           </ul>
@@ -206,7 +267,49 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
           </button>
         </div>
 
-        <div className="overflow-auto">
+        <div className="space-y-3 md:hidden">
+          {statuses.map((s) => {
+            const statusText = s.isConnected ? 'CONNECTED' : s.lastError ? 'ERROR' : 'DISCONNECTED';
+            const nextRetry = s.nextReconnectTime
+              ? new Date(s.nextReconnectTime).toLocaleTimeString()
+              : '-';
+
+            return (
+              <div
+                key={s.url}
+                className="border border-terminal-dim/30 p-3 text-sm font-mono space-y-2"
+              >
+                <div className="break-all text-terminal-text">{s.url}</div>
+                <div className="flex items-center justify-between gap-3">
+                  <span
+                    className={
+                      s.isConnected
+                        ? 'text-terminal-text'
+                        : s.lastError
+                          ? 'text-terminal-alert'
+                          : 'text-terminal-muted'
+                    }
+                    title={s.lastError ? s.lastError.message : ''}
+                  >
+                    {statusText}
+                  </span>
+                  <button
+                    onClick={() => handleRetry(s.url)}
+                    className="text-xs border border-terminal-dim px-2 py-1 text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors"
+                  >
+                    RETRY
+                  </button>
+                </div>
+                <div className="text-xs text-terminal-muted space-y-1">
+                  <div>Retries: {s.reconnectAttempts}</div>
+                  <div>Next retry: {nextRetry}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="hidden md:block overflow-auto">
           <table className="w-full text-xs font-mono">
             <thead>
               <tr className="text-terminal-dim border-b border-terminal-dim/30">
@@ -219,13 +322,21 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
             </thead>
             <tbody>
               {statuses.map((s) => {
-                const statusText = s.isConnected ? 'CONNECTED' : (s.lastError ? 'ERROR' : 'DISCONNECTED');
-                const nextRetry = s.nextReconnectTime ? new Date(s.nextReconnectTime).toLocaleTimeString() : '-';
+                const statusText = s.isConnected
+                  ? 'CONNECTED'
+                  : s.lastError
+                    ? 'ERROR'
+                    : 'DISCONNECTED';
+                const nextRetry = s.nextReconnectTime
+                  ? new Date(s.nextReconnectTime).toLocaleTimeString()
+                  : '-';
                 return (
                   <tr key={s.url} className="border-b border-terminal-dim/10">
                     <td className="py-2 pr-2 break-all">{s.url}</td>
-                    <td className={`py-2 pr-2 ${s.isConnected ? 'text-terminal-text' : (s.lastError ? 'text-terminal-alert' : 'text-terminal-dim')}`}
-                        title={s.lastError ? s.lastError.message : ''}>
+                    <td
+                      className={`py-2 pr-2 ${s.isConnected ? 'text-terminal-text' : s.lastError ? 'text-terminal-alert' : 'text-terminal-dim'}`}
+                      title={s.lastError ? s.lastError.message : ''}
+                    >
                       {statusText}
                     </td>
                     <td className="py-2 pr-2 text-terminal-dim">{s.reconnectAttempts}</td>
@@ -265,43 +376,83 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
         {diagnostics.length === 0 ? (
           <p className="text-xs text-terminal-dim">No diagnostics recorded.</p>
         ) : (
-          <div className="max-h-48 overflow-auto border border-terminal-dim/30">
-            <table className="w-full text-[10px] font-mono">
-              <thead>
-                <tr className="text-terminal-dim border-b border-terminal-dim/30">
-                  <th className="text-left py-2 px-2">TIME</th>
-                  <th className="text-left py-2 px-2">LVL</th>
-                  <th className="text-left py-2 px-2">SRC</th>
-                  <th className="text-left py-2 px-2">MSG</th>
-                </tr>
-              </thead>
-              <tbody>
-                {diagnostics.slice(-40).reverse().map((d) => (
-                  <tr key={d.id} className="border-b border-terminal-dim/10 align-top">
-                    <td className="py-2 px-2 text-terminal-dim whitespace-nowrap">
-                      {new Date(d.at).toLocaleTimeString()}
-                    </td>
-                    <td
-                      className={`py-2 px-2 whitespace-nowrap ${
-                        d.level === 'error'
-                          ? 'text-terminal-alert'
-                          : d.level === 'warn'
-                            ? 'text-terminal-text'
-                            : 'text-terminal-dim'
-                      }`}
-                    >
-                      {d.level.toUpperCase()}
-                    </td>
-                    <td className="py-2 px-2 text-terminal-dim whitespace-nowrap">{d.source}</td>
-                    <td className="py-2 px-2 text-terminal-text break-words">
-                      {d.message}
-                      {d.detail ? <div className="text-terminal-dim mt-1 break-words">{d.detail}</div> : null}
-                    </td>
-                  </tr>
+          <>
+            <div className="space-y-2 md:hidden max-h-48 overflow-auto">
+              {diagnostics
+                .slice(-20)
+                .reverse()
+                .map((d) => (
+                  <div key={d.id} className="border border-terminal-dim/20 p-2 text-xs font-mono">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-terminal-muted">
+                        {new Date(d.at).toLocaleTimeString()}
+                      </span>
+                      <span
+                        className={
+                          d.level === 'error'
+                            ? 'text-terminal-alert'
+                            : d.level === 'warn'
+                              ? 'text-terminal-text'
+                              : 'text-terminal-muted'
+                        }
+                      >
+                        {d.level.toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-terminal-muted">{d.source}</div>
+                    <div className="mt-1 text-terminal-text break-words">{d.message}</div>
+                    {d.detail ? (
+                      <div className="mt-1 text-terminal-muted break-words">{d.detail}</div>
+                    ) : null}
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
+            </div>
+
+            <div className="hidden md:block max-h-48 overflow-auto border border-terminal-dim/30">
+              <table className="w-full text-[10px] font-mono">
+                <thead>
+                  <tr className="text-terminal-dim border-b border-terminal-dim/30">
+                    <th className="text-left py-2 px-2">TIME</th>
+                    <th className="text-left py-2 px-2">LVL</th>
+                    <th className="text-left py-2 px-2">SRC</th>
+                    <th className="text-left py-2 px-2">MSG</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {diagnostics
+                    .slice(-40)
+                    .reverse()
+                    .map((d) => (
+                      <tr key={d.id} className="border-b border-terminal-dim/10 align-top">
+                        <td className="py-2 px-2 text-terminal-dim whitespace-nowrap">
+                          {new Date(d.at).toLocaleTimeString()}
+                        </td>
+                        <td
+                          className={`py-2 px-2 whitespace-nowrap ${
+                            d.level === 'error'
+                              ? 'text-terminal-alert'
+                              : d.level === 'warn'
+                                ? 'text-terminal-text'
+                                : 'text-terminal-dim'
+                          }`}
+                        >
+                          {d.level.toUpperCase()}
+                        </td>
+                        <td className="py-2 px-2 text-terminal-dim whitespace-nowrap">
+                          {d.source}
+                        </td>
+                        <td className="py-2 px-2 text-terminal-text break-words">
+                          {d.message}
+                          {d.detail ? (
+                            <div className="text-terminal-dim mt-1 break-words">{d.detail}</div>
+                          ) : null}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </section>
 
@@ -317,24 +468,3 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     </div>
   );
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
