@@ -123,6 +123,7 @@ export function FeedView(props: {
   const [showShareModal, setShowShareModal] = useState(false);
   const [showJumpToTop, setShowJumpToTop] = useState(false);
   const [activeTimeChunk, setActiveTimeChunk] = useState<TimeChunk | null>(null);
+  const [showBitsGuide, setShowBitsGuide] = useState(false);
 
   // Check if this is an encrypted board that we can share (we have the key)
   const canShareBoard =
@@ -366,12 +367,68 @@ export function FeedView(props: {
 
         <div className="flex flex-col gap-4 pb-4">
           {!activeBoard && !searchQuery && feedFilter === 'all' && (
-            <div className="border border-terminal-dim/40 bg-terminal-dim/5 px-4 py-3 text-xs md:text-sm text-terminal-muted leading-relaxed">
-              <span className="text-terminal-text font-bold">Bit-weighted global feed:</span>{' '}
-              verified identities spend limited bits to push the best posts upward. You currently
-              have <span className="text-terminal-text font-bold">{userState.bits}</span> of{' '}
-              <span className="text-terminal-text font-bold">{userState.maxBits}</span> bits
-              available.
+            <div className="border border-terminal-dim/40 bg-terminal-dim/5 px-4 py-3 text-xs md:text-sm text-terminal-muted leading-relaxed space-y-3">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <span className="text-terminal-text font-bold">Bit-weighted global feed:</span>{' '}
+                  verified identities spend limited bits to push the best posts upward.
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-xs uppercase tracking-wide text-terminal-dim">
+                    Influence available
+                  </div>
+                  <div className="text-terminal-text font-bold">
+                    {userState.bits}/{userState.maxBits} bits
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowBitsGuide((prev) => !prev)}
+                    className="border border-terminal-dim/50 px-2 py-1 text-xs uppercase tracking-wide text-terminal-dim hover:border-terminal-text hover:text-terminal-text transition-colors"
+                  >
+                    {showBitsGuide ? 'Hide Guide' : 'How Bits Work'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="h-1.5 w-full overflow-hidden border border-terminal-dim/30 bg-terminal-bg/70">
+                <div
+                  className="h-full bg-terminal-text"
+                  style={{
+                    width: `${Math.max(0, Math.min(100, (userState.bits / Math.max(1, userState.maxBits)) * 100))}%`,
+                  }}
+                />
+              </div>
+
+              {showBitsGuide && (
+                <div className="grid gap-3 border-t border-terminal-dim/30 pt-3 md:grid-cols-3">
+                  <div>
+                    <div className="text-terminal-text font-bold uppercase tracking-wide mb-1">
+                      Spend deliberately
+                    </div>
+                    <div className="text-terminal-muted">
+                      Each new vote locks 1 bit, so influence goes where you think it matters most.
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-terminal-text font-bold uppercase tracking-wide mb-1">
+                      Refund by retracting
+                    </div>
+                    <div className="text-terminal-muted">
+                      Remove your vote to refund the bit. Switching directions keeps the same bit
+                      locked in place.
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-terminal-text font-bold uppercase tracking-wide mb-1">
+                      Verified consensus
+                    </div>
+                    <div className="text-terminal-muted">
+                      The global feed improves when many verified identities choose the same
+                      high-signal posts.
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

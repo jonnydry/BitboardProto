@@ -322,15 +322,20 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
               <div className="mt-1 flex flex-col items-center gap-0.5">
                 {post.votesVerified ? (
                   <div
-                    className="flex items-center gap-0.5"
+                    className="flex flex-col items-center gap-0.5"
                     title="Score synced with verified Nostr votes"
                   >
-                    <Shield size={10} className="text-terminal-text" />
-                    {typeof post.uniqueVoters === 'number' && (
-                      <span className="text-[11px] text-terminal-dim flex items-center gap-0.5">
-                        <Users size={8} /> {post.uniqueVoters}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-0.5">
+                      <Shield size={10} className="text-terminal-text" />
+                      {typeof post.uniqueVoters === 'number' && (
+                        <span className="text-[11px] text-terminal-dim flex items-center gap-0.5">
+                          <Users size={8} /> {post.uniqueVoters}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[9px] uppercase tracking-wide text-terminal-dim">
+                      verified
+                    </span>
                   </div>
                 ) : (
                   <div

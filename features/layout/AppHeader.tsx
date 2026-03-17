@@ -252,17 +252,31 @@ export function AppHeader({ onOpenDrawer }: AppHeaderProps) {
 
         <div className="hidden lg:flex items-center gap-3 shrink-0">
           <div
-            className="flex items-center gap-2 border border-terminal-dim/50 bg-terminal-dim/5 px-3 py-1.5 font-mono text-terminal-text"
+            className="flex items-center gap-3 border border-terminal-dim/50 bg-terminal-dim/5 px-3 py-1.5 font-mono text-terminal-text"
             title="Available voting bits"
           >
             <Zap
               size={12}
               className={userState.bits === 0 ? 'text-terminal-alert' : 'text-terminal-text'}
             />
-            <span className="text-xs uppercase tracking-wide text-terminal-dim">BITS</span>
-            <span className="text-sm font-bold">
-              {userState.bits}/{userState.maxBits}
-            </span>
+            <div className="flex flex-col gap-1 min-w-[120px]">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] uppercase tracking-wide text-terminal-dim">
+                  Bits available
+                </span>
+                <span className="text-sm font-bold">
+                  {userState.bits}/{userState.maxBits}
+                </span>
+              </div>
+              <div className="h-1.5 overflow-hidden border border-terminal-dim/30 bg-terminal-bg/70">
+                <div
+                  className={`h-full ${userState.bits === 0 ? 'bg-terminal-alert' : 'bg-terminal-text'}`}
+                  style={{
+                    width: `${Math.max(0, Math.min(100, (userState.bits / Math.max(1, userState.maxBits)) * 100))}%`,
+                  }}
+                />
+              </div>
+            </div>
           </div>
           <NetworkIndicator compact />
           <InlineNetworkStatus />
