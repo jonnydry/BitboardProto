@@ -18,7 +18,6 @@ import {
   useHasMorePosts,
 } from '../../stores/uiStore';
 import { useActiveBoard } from '../../stores/boardStore';
-import { useUserStore } from '../../stores/userStore';
 import { useAppNavigationHandlers } from '../layout/useAppNavigationHandlers';
 import {
   FeedLoaderRow,
@@ -81,7 +80,6 @@ export function FeedView(props: {
   const setSortModeStore = useUIStore((state) => state.setSortMode);
   const setSearchQueryStore = useUIStore((state) => state.setSearchQuery);
   const setViewMode = useUIStore((state) => state.setViewMode);
-  const userState = useUserStore((state) => state.userState);
 
   // Navigation handlers from Zustand-based hook
   const { handleViewBit, handleViewProfile, handleEditPost, handleTagClick } =

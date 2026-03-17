@@ -61,7 +61,6 @@ jobs:
       - name: Build application
         run: npm run build:prod
         env:
-          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY || '' }}
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN || '' }}
 
       - name: Upload build artifacts
@@ -98,6 +97,3 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           load: true
-
-
-

@@ -150,6 +150,7 @@ export function OnboardingFlow({
   const [importKey, setImportKey] = useState('');
   const [passphrase, setPassphrase] = useState('');
   const [confirmPassphrase, setConfirmPassphrase] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasNip07, setHasNip07] = useState(false);
@@ -219,8 +220,14 @@ export function OnboardingFlow({
     setError(null);
 
     try {
+      if (!termsAccepted) {
+        setError('You must accept the Terms of Service to continue.');
+        return;
+      }
       if (!passphrase.trim()) {
-        setError('Create a passphrase to protect your local key on this device.');
+        setError(
+          'Create a passphrase (minimum 12 characters) to protect your local key on this device.',
+        );
         return;
       }
       if (passphrase !== confirmPassphrase) {
@@ -246,6 +253,12 @@ export function OnboardingFlow({
   const handleImportIdentity = async () => {
     setIsLoading(true);
     setError(null);
+
+    if (!termsAccepted) {
+      setError('You must accept the Terms of Service to continue.');
+      setIsLoading(false);
+      return;
+    }
 
     if (!importKey.trim()) {
       setError('Please enter your nsec or hex private key');
@@ -906,6 +919,34 @@ export function OnboardingFlow({
                       </div>
                     </div>
 
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        id="terms-accept-generate"
+                        checked={termsAccepted}
+                        onChange={(e) => setTermsAccepted(e.target.checked)}
+                        className="mt-1 w-4 h-4 accent-terminal-text"
+                      />
+                      <label htmlFor="terms-accept-generate" className="text-xs text-terminal-dim">
+                        I agree to the{' '}
+                        <button
+                          type="button"
+                          onClick={() => window.open('#/terms', '_blank')}
+                          className="text-terminal-text hover:underline"
+                        >
+                          Terms of Service
+                        </button>{' '}
+                        and{' '}
+                        <button
+                          type="button"
+                          onClick={() => window.open('#/privacy', '_blank')}
+                          className="text-terminal-text hover:underline"
+                        >
+                          Privacy Policy
+                        </button>
+                      </label>
+                    </div>
+
                     <div className="space-y-3">
                       <input
                         type="password"
@@ -975,6 +1016,34 @@ export function OnboardingFlow({
                       <p className="text-xs text-terminal-dim mt-2">
                         Your key is encrypted locally and never transmitted.
                       </p>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        id="terms-accept-import"
+                        checked={termsAccepted}
+                        onChange={(e) => setTermsAccepted(e.target.checked)}
+                        className="mt-1 w-4 h-4 accent-terminal-text"
+                      />
+                      <label htmlFor="terms-accept-import" className="text-xs text-terminal-dim">
+                        I agree to the{' '}
+                        <button
+                          type="button"
+                          onClick={() => window.open('#/terms', '_blank')}
+                          className="text-terminal-text hover:underline"
+                        >
+                          Terms of Service
+                        </button>{' '}
+                        and{' '}
+                        <button
+                          type="button"
+                          onClick={() => window.open('#/privacy', '_blank')}
+                          className="text-terminal-text hover:underline"
+                        >
+                          Privacy Policy
+                        </button>
+                      </label>
                     </div>
 
                     <div className="space-y-3">

@@ -3,10 +3,17 @@
  *
  * Provides product analytics using PostHog.
  * Tracks user behavior, feature usage, and engagement metrics.
+ *
+ * CONSENT MODEL:
+ * - Analytics are OFF by default (opt-in required)
+ * - User must explicitly consent via cookie banner
+ * - Consent preference is stored in localStorage
  */
 
 import posthog from 'posthog-js';
 import { logger } from './loggingService';
+
+const CONSENT_STORAGE_KEY = 'bitboard_analytics_consent';
 
 export interface AnalyticsConfig {
   /** Enable/disable analytics */
@@ -89,8 +96,26 @@ class AnalyticsService {
   };
 
   /**
+   * Check if user has provided consent for analytics
+   */
+  hasUserConsent(): boolean {
+    const consent = localStorage.getItem(CONSENT_STORAGE_KEY);
+    return consent === 'true';
+  }
+
+  /**
+   * Store user consent preference
+   */
+  private setUserConsent(consent: boolean): void {
+    localStorage.setItem(CONSENT_STORAGE_KEY, consent.toString());
+  }
+
+  /**
    * Initialize PostHog analytics
    * Should be called early in application startup
+   *
+   * IMPORTANT: Analytics are disabled by default unless user explicitly consents.
+   * The app must show a consent banner and call optIn() after user agrees.
    */
   initialize(config?: Partial<AnalyticsConfig>): void {
     if (this.initialized) {
@@ -101,21 +126,26 @@ class AnalyticsService {
     // Auto-detect from environment
     const apiKey = config?.apiKey || import.meta.env.VITE_POSTHOG_API_KEY;
     const host = config?.host || import.meta.env.VITE_POSTHOG_HOST || 'https://app.posthog.com';
-    const enabled = config?.enabled !== false && !!apiKey;
+    const envEnabled = config?.enabled !== false && !!apiKey;
 
     this.config = {
-      enabled,
+      enabled: envEnabled,
       apiKey,
       host,
       capturePageviews: config?.capturePageviews ?? true,
       captureClicks: config?.captureClicks ?? false, // Manual tracking preferred
     };
 
-    if (!enabled) {
+    // Check if PostHog API key is configured
+    if (!envEnabled) {
       logger.debug('Analytics', 'Analytics disabled (no API key provided or explicitly disabled)');
       this.initialized = true;
       return;
     }
+
+    // Even if API key exists, require explicit user consent
+    // Default to opt-out unless user has previously opted in
+    const userConsent = this.hasUserConsent();
 
     try {
       posthog.init(apiKey, {
@@ -124,8 +154,14 @@ class AnalyticsService {
           if (import.meta.env.DEV) {
             posthog.opt_out_capturing(); // Don't track in dev
             logger.debug('Analytics', 'PostHog loaded (capturing disabled in dev)');
+          } else if (userConsent) {
+            // User previously consented - enable tracking
+            posthog.opt_in_capturing();
+            logger.info('Analytics', 'PostHog loaded with user consent');
           } else {
-            logger.info('Analytics', 'PostHog loaded and capturing');
+            // No consent yet - remain opt-ed out
+            posthog.opt_out_capturing();
+            logger.info('Analytics', 'PostHog loaded, waiting for user consent');
           }
         },
         capture_pageview: this.config.capturePageviews,
@@ -222,6 +258,8 @@ class AnalyticsService {
   optOut(): void {
     if (!this.config.enabled) return;
     posthog.opt_out_capturing();
+    this.setUserConsent(false);
+    logger.info('Analytics', 'User opted out of tracking');
   }
 
   /**
@@ -230,6 +268,8 @@ class AnalyticsService {
   optIn(): void {
     if (!this.config.enabled) return;
     posthog.opt_in_capturing();
+    this.setUserConsent(true);
+    logger.info('Analytics', 'User opted in to tracking');
   }
 
   /**
@@ -245,6 +285,27 @@ class AnalyticsService {
   hasOptedOut(): boolean {
     if (!this.config.enabled) return true;
     return posthog.has_opted_out_capturing();
+  }
+
+  /**
+   * Check if user needs to provide consent
+   * Returns true if analytics is configured but user hasn't made a choice yet
+   */
+  needsConsent(): boolean {
+    if (!this.config.enabled) return false;
+    // Check if user has made a choice (localStorage has a value)
+    const consent = localStorage.getItem(CONSENT_STORAGE_KEY);
+    return consent === null;
+  }
+
+  /**
+   * Get the current consent status for UI display
+   */
+  getConsentStatus(): 'opted_in' | 'opted_out' | 'needs_choice' | 'disabled' {
+    if (!this.config.enabled) return 'disabled';
+    if (!this.hasUserConsent() && this.needsConsent()) return 'needs_choice';
+    if (this.hasUserConsent()) return 'opted_in';
+    return 'opted_out';
   }
 }
 

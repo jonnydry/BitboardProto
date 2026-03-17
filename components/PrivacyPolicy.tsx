@@ -108,9 +108,28 @@ export const PrivacyPolicy: React.FC = () => {
       <section className="space-y-4">
         <h2 className="text-2xl font-semibold">Cookies and Tracking</h2>
         <p>
-          BitBoard does not use cookies or tracking scripts. We do not track your browsing behavior
-          or collect analytics data.
+          BitBoard uses minimal local storage to function. For analytics, we use PostHog, an
+          open-source analytics platform that respects your privacy:
         </p>
+        <ul className="list-disc list-inside space-y-2 ml-4">
+          <li>
+            <strong>What we track:</strong> Anonymous usage data such as feature usage, interaction
+            patterns, and performance metrics. No personally identifiable information (PII) is
+            collected.
+          </li>
+          <li>
+            <strong>Data handling:</strong> Analytics data is processed by PostHog and follows their
+            privacy practices. We do not sell or share this data with third parties.
+          </li>
+          <li>
+            <strong>Opt-out:</strong> You can opt out of analytics at any time by clicking the "Opt
+            Out" button in the app settings. You can opt back in at any time.
+          </li>
+          <li>
+            <strong>No cookies required:</strong> PostHog works without requiring cookies for basic
+            analytics.
+          </li>
+        </ul>
       </section>
 
       <section className="space-y-4">

@@ -26,6 +26,7 @@ import {
   UserMinus,
   Copy,
   CheckCircle,
+  Trash2,
 } from 'lucide-react';
 import { FollowButton as _FollowButton, FollowStats as _FollowStats } from './FollowButton';
 import { ZapButton } from './ZapButton';
@@ -252,6 +253,47 @@ export const UserProfile: React.FC<UserProfileProps> = ({
     }
   };
 
+  const handleDeleteAllData = async () => {
+    const confirmed = window.confirm(
+      'Are you sure you want to delete all your data? This action cannot be undone!\n\n' +
+        'This will delete:\n' +
+        '- Your identity (you will lose access to your account)\n' +
+        '- All posts, bookmarks, and votes\n' +
+        '- All settings and preferences\n\n' +
+        'Make sure you have backed up your private key before proceeding.',
+    );
+
+    if (!confirmed) return;
+
+    const doubleConfirm = window.confirm(
+      'This is your final warning! ALL DATA WILL BE PERMANENTLY DELETED.\n\n' +
+        'Type "DELETE" in all caps to confirm:',
+    );
+
+    if (!doubleConfirm) return;
+
+    try {
+      dataExportService.deleteAllUserData();
+      toastService.push({
+        type: 'success',
+        message: 'All data deleted. Refreshing...',
+        durationMs: UIConfig.TOAST_DURATION_MS,
+        dedupeKey: 'data-deleted',
+      });
+      // Reload the page to reset the app state
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (error) {
+      console.error('[UserProfile] Delete error:', error);
+      toastService.push({
+        type: 'error',
+        message: 'Failed to delete data',
+        detail: error instanceof Error ? error.message : 'Unknown error',
+        durationMs: UIConfig.TOAST_DURATION_MS,
+        dedupeKey: 'delete-failed',
+      });
+    }
+  };
+
   const handleCopyPubkey = async () => {
     if (!authorPubkey) return;
 
@@ -396,6 +438,14 @@ export const UserProfile: React.FC<UserProfileProps> = ({
                   >
                     <Download size={12} />
                     EXPORT
+                  </button>
+                  <button
+                    onClick={handleDeleteAllData}
+                    className="flex items-center gap-1 text-xs border border-terminal-red/50 text-terminal-red/70 px-2 py-0.5 hover:border-terminal-red hover:text-terminal-red transition-colors uppercase"
+                    title="Delete all your data (GDPR - Right to be Forgotten)"
+                  >
+                    <Trash2 size={12} />
+                    DELETE
                   </button>
                 </>
               )}

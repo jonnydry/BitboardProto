@@ -4,6 +4,7 @@ import { SEOHead } from './components/SEOHead';
 import { KeyboardShortcutsHelp } from './components/KeyboardShortcutsHelp';
 import { OnboardingFlow } from './components/OnboardingFlow';
 import { OfflineBanner } from './components/OfflineBanner';
+import { ConsentBanner } from './components/ConsentBanner';
 import { AppProvider, useApp } from './features/layout/AppContext';
 import { AppHeader } from './features/layout/AppHeader';
 import { Sidebar } from './features/layout/Sidebar';
@@ -443,6 +444,8 @@ const AppContent: React.FC = () => {
         <ToastHost />
         {/* Offline Status Banner */}
         <OfflineBanner />
+        {/* Privacy Consent Banner */}
+        <ConsentBanner />
         {/* Scanline Overlay */}
         <div className="scanlines fixed inset-0 pointer-events-none z-40"></div>
 

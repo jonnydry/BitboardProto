@@ -1,53 +1,24 @@
-import { GoogleGenAI, Type } from "@google/genai";
+/**
+ * Gemini Link Scanning Service
+ *
+ * DISABLED: This feature has been removed.
+ * Link previews now use basic OpenGraph/meta tag fetching only.
+ *
+ * Reason for removal: VITE_ prefixed env vars are embedded in the client bundle,
+ * making API keys visible to anyone who visits the site.
+ */
 
-// Initialize Gemini client lazily to avoid errors when API key is missing
-let ai: GoogleGenAI | null = null;
+export interface LinkScanResult {
+  title: string;
+  description: string;
+  imageUrl: string;
+}
 
-const getAI = () => {
-  if (!ai) {
-    // Note: VITE_* env vars are embedded into the client bundle (public).
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
-    if (!apiKey) {
-      console.warn('[Gemini] No API key configured - link scanning disabled');
-      return null;
-    }
-    ai = new GoogleGenAI({ apiKey });
-  }
-  return ai;
-};
-
-export const scanLink = async (url: string) => {
-  const client = getAI();
-  if (!client) {
-    console.warn('[Gemini] Link scanning not available - no API key');
-    return null;
-  }
-
-  try {
-    const response = await client.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: `Analyze this URL: ${url}. Return a JSON object with the page title, a brief summary (description), and a relevant main image URL (imageUrl) if one can be found via search or context.`,
-      config: {
-        tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING, description: "The title of the web page" },
-            description: { type: Type.STRING, description: "A brief summary of the content" },
-            imageUrl: { type: Type.STRING, description: "A URL to a representative image for the page, or empty string if none found" }
-          },
-          required: ["title", "description"]
-        }
-      }
-    });
-
-    if (response.text) {
-      return JSON.parse(response.text);
-    }
-    return null;
-  } catch (error) {
-    console.error("[Gemini] Link scan failed:", error);
-    return null;
-  }
-};
+/**
+ * Returns null - Gemini link scanning is disabled.
+ * Link previews fall back to basic metadata fetching.
+ */
+export async function scanLink(_url: string): Promise<LinkScanResult | null> {
+  console.debug('[Gemini] Link scanning disabled - using basic metadata only');
+  return null;
+}

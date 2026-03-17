@@ -31,9 +31,6 @@ The app will be available at `http://localhost:3000`
 Optional environment variables (create `.env.local` for local development):
 
 ```bash
-# Optional: Gemini API key for link scanning/preview enrichment
-VITE_GEMINI_API_KEY=your_key_here
-
 # Optional: Sentry DSN for error tracking (production)
 VITE_SENTRY_DSN=your_sentry_dsn_here
 

@@ -15,6 +15,10 @@ const { nostrServiceMock, cryptoServiceMock, identityServiceMock } = vi.hoisted(
   identityServiceMock: {
     signEvent: vi.fn(),
     getIdentity: vi.fn(),
+    hasLocalIdentity: vi.fn().mockReturnValue(true),
+    decryptDM: vi.fn().mockImplementation(async (content: string) => `decrypted:${content}`),
+    unwrapDMGiftWrap: vi.fn().mockResolvedValue(null),
+    encryptDM: vi.fn().mockImplementation(async (content: string) => `encrypted:${content}`),
   },
 }));
 
@@ -54,6 +58,14 @@ describe('dmService', () => {
       npub: 'npub-test',
       displayName: 'test',
     });
+    identityServiceMock.hasLocalIdentity.mockReturnValue(true);
+    identityServiceMock.decryptDM.mockImplementation(
+      async (content: string) => `decrypted:${content}`,
+    );
+    identityServiceMock.encryptDM.mockImplementation(
+      async (content: string) => `encrypted:${content}`,
+    );
+    identityServiceMock.unwrapDMGiftWrap.mockResolvedValue(null);
     cryptoServiceMock.encryptNIP04.mockResolvedValue('encrypted-body');
     cryptoServiceMock.decryptNIP04.mockImplementation(
       async (content: string) => `decrypted:${content}`,
@@ -82,11 +94,7 @@ describe('dmService', () => {
       content: 'hello there',
     });
 
-    expect(cryptoServiceMock.encryptNIP04).toHaveBeenCalledWith(
-      'hello there',
-      'privkey-hex',
-      'recipient-pubkey',
-    );
+    expect(identityServiceMock.encryptDM).toHaveBeenCalledWith('hello there', 'recipient-pubkey');
     expect(identityServiceMock.signEvent).toHaveBeenCalled();
     expect(nostrServiceMock.publishSignedEvent).toHaveBeenCalled();
     expect(message?.nostrEventId).toBe('event-1');

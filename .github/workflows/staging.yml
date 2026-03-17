@@ -51,7 +51,6 @@ jobs:
       - name: Build application (staging)
         run: npm run build
         env:
-          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY_STAGING || '' }}
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN_STAGING || '' }}
           VITE_ENVIRONMENT: staging
 

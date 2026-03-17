@@ -21,6 +21,18 @@ const STORAGE_KEYS = {
   LEGACY_ENC_KEY: 'bitboard_enc_key',
 } as const;
 
+const MIN_PASSPHRASE_LENGTH = 12;
+
+function validatePassphraseStrength(passphrase: string): { valid: boolean; message?: string } {
+  if (!passphrase || passphrase.length < MIN_PASSPHRASE_LENGTH) {
+    return {
+      valid: false,
+      message: `Passphrase must be at least ${MIN_PASSPHRASE_LENGTH} characters`,
+    };
+  }
+  return { valid: true };
+}
+
 class IdentityService {
   private identity: NostrIdentity | null = null;
   private initialized: boolean = false;
@@ -177,6 +189,11 @@ class IdentityService {
       throw new Error('Passphrase is required');
     }
 
+    const validation = validatePassphraseStrength(passphrase.trim());
+    if (!validation.valid) {
+      throw new Error(validation.message);
+    }
+
     await cryptoService.deriveKeyFromPassphrase(passphrase.trim());
 
     const privateKeyBytes = generateSecretKey();
@@ -213,6 +230,11 @@ class IdentityService {
 
     if (!passphrase?.trim()) {
       throw new Error('Passphrase is required');
+    }
+
+    const validation = validatePassphraseStrength(passphrase.trim());
+    if (!validation.valid) {
+      throw new Error(validation.message);
     }
 
     try {
@@ -262,6 +284,11 @@ class IdentityService {
       throw new Error('Passphrase is required');
     }
 
+    const validation = validatePassphraseStrength(passphrase.trim());
+    if (!validation.valid) {
+      throw new Error(validation.message);
+    }
+
     try {
       await cryptoService.deriveKeyFromPassphrase(passphrase.trim());
       const privateKeyBytes = hexToBytes(hexPrivkey);
@@ -291,9 +318,16 @@ class IdentityService {
 
   /**
    * Get current identity (sync for backward compatibility)
-   * Note: May return null if still initializing
+   * WARNING: May return null if still initializing. Use getIdentityAsync() for
+   * guaranteed results after initialization.
    */
   getIdentity(): NostrIdentity | null {
+    if (!this.initialized && this.initPromise) {
+      logger.warn(
+        'Identity',
+        'getIdentity() called before initialization complete. Use getIdentityAsync() for guaranteed results.',
+      );
+    }
     return this.identity;
   }
 

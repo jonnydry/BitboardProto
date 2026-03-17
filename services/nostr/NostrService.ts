@@ -94,6 +94,7 @@ type FilterWithTags = Filter & { [K in `#${string}`]?: string[] };
 export const DEFAULT_RELAYS = NostrConfig.DEFAULT_RELAYS;
 
 const USER_RELAYS_STORAGE_KEY = 'bitboard_user_relays_v1';
+const MESSAGE_QUEUE_STORAGE_KEY = 'bitboard_message_queue_v1';
 
 interface RelayStatus {
   url: string;
@@ -167,6 +168,12 @@ class NostrService {
         nextReconnectTime: null,
       });
     });
+
+    // Load any persisted message queue from previous session
+    this.loadPersistedQueue();
+
+    // Schedule flush of any loaded messages once relays connect
+    this.scheduleQueueFlush();
   }
 
   /** Generate a unique subscription ID (monotonic counter avoids Date.now() collisions) */
@@ -563,6 +570,7 @@ class NostrService {
 
   private flushMessageQueue(relayUrl: string) {
     const now = Date.now();
+    let hasChanges = false;
 
     for (let i = this.messageQueue.length - 1; i >= 0; i--) {
       const item = this.messageQueue[i];
@@ -570,6 +578,7 @@ class NostrService {
       // Skip if too old
       if (now - item.timestamp > this.MESSAGE_QUEUE_MAX_AGE_MS) {
         this.messageQueue.splice(i, 1);
+        hasChanges = true;
         continue;
       }
 
@@ -585,9 +594,14 @@ class NostrService {
                 this.messageQueue.splice(idx, 1);
               }
             }
+            this.persistMessageQueue();
           })
           .catch((err) => logger.error('Nostr', 'Failed to flush message queue', err));
       }
+    }
+
+    if (hasChanges) {
+      this.persistMessageQueue();
     }
   }
 
@@ -596,6 +610,73 @@ class NostrService {
     this.messageQueue = this.messageQueue.filter(
       (item) => now - item.timestamp < this.MESSAGE_QUEUE_MAX_AGE_MS,
     );
+    this.persistMessageQueue();
+  }
+
+  private persistMessageQueue(): void {
+    try {
+      const data = this.messageQueue.map((m) => ({
+        event: m.event,
+        pendingRelays: Array.from(m.pendingRelays),
+        timestamp: m.timestamp,
+      }));
+      localStorage.setItem(MESSAGE_QUEUE_STORAGE_KEY, JSON.stringify(data));
+    } catch (error) {
+      logger.warn('Nostr', 'Failed to persist message queue', error);
+    }
+  }
+
+  private loadPersistedQueue(): void {
+    const stored = localStorage.getItem(MESSAGE_QUEUE_STORAGE_KEY);
+    if (!stored) return;
+
+    try {
+      const data = JSON.parse(stored);
+      if (!Array.isArray(data)) {
+        localStorage.removeItem(MESSAGE_QUEUE_STORAGE_KEY);
+        return;
+      }
+
+      const validMessages = data.filter((m: any) => m.event && m.pendingRelays && m.timestamp);
+
+      if (validMessages.length > 0) {
+        this.messageQueue = validMessages.map((m: any) => ({
+          event: m.event,
+          pendingRelays: new Set(m.pendingRelays),
+          timestamp: m.timestamp,
+        }));
+        logger.info('Nostr', `Loaded ${this.messageQueue.length} messages from queue`);
+      }
+
+      localStorage.removeItem(MESSAGE_QUEUE_STORAGE_KEY);
+    } catch (error) {
+      logger.warn('Nostr', 'Failed to load persisted message queue', error);
+      localStorage.removeItem(MESSAGE_QUEUE_STORAGE_KEY);
+    }
+  }
+
+  private clearPersistedQueue(): void {
+    localStorage.removeItem(MESSAGE_QUEUE_STORAGE_KEY);
+  }
+
+  private scheduleQueueFlush(): void {
+    if (this.messageQueue.length === 0) return;
+
+    logger.info('Nostr', `Scheduling flush for ${this.messageQueue.length} queued messages`);
+
+    const checkAndFlush = () => {
+      const connectedRelays = this.getPublishRelays().filter(
+        (url) => this.relayStatuses.get(url)?.isConnected,
+      );
+
+      if (connectedRelays.length > 0) {
+        connectedRelays.forEach((relay) => this.flushMessageQueue(relay));
+      } else {
+        setTimeout(checkAndFlush, 2000);
+      }
+    };
+
+    setTimeout(checkAndFlush, 1000);
   }
 
   private async publishEventToRelay(event: NostrEvent, relayUrl: string): Promise<NostrEvent> {
