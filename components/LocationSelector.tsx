@@ -1,6 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { MapPin, Navigation, RefreshCw, AlertTriangle, Check, Radio, Activity, Users } from 'lucide-react';
-import { geohashService, PRECISION_LABELS, PRECISION_DESCRIPTIONS } from '../services/geohashService';
+import {
+  MapPin,
+  Navigation,
+  RefreshCw,
+  AlertTriangle,
+  Check,
+  Radio,
+  Activity,
+  Users,
+} from 'lucide-react';
+import {
+  geohashService,
+  PRECISION_LABELS,
+  PRECISION_DESCRIPTIONS,
+} from '../services/geohashService';
 import { geonetDiscoveryService, type GeoChannel } from '../services/geonetDiscoveryService';
 import { GeohashPrecision, type Board } from '../types';
 
@@ -14,7 +27,9 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [locationBoards, setLocationBoards] = useState<Board[]>([]);
-  const [selectedPrecision, setSelectedPrecision] = useState<GeohashPrecision>(GeohashPrecision.NEIGHBORHOOD);
+  const [selectedPrecision, setSelectedPrecision] = useState<GeohashPrecision>(
+    GeohashPrecision.NEIGHBORHOOD,
+  );
   const [position, setPosition] = useState<{ lat: number; lon: number } | null>(null);
   const [activeChannels, setActiveChannels] = useState<GeoChannel[]>([]);
   const [showActiveChannels, setShowActiveChannels] = useState(true);
@@ -53,7 +68,7 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
       const lat = pos.coords.latitude;
       const lon = pos.coords.longitude;
       setPosition({ lat, lon });
-      
+
       const boards = geohashService.generateLocationBoards(lat, lon);
       setLocationBoards(boards);
     } catch (err: unknown) {
@@ -97,7 +112,7 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
           <MapPin size={20} />
           LOCATION_CHANNELS
         </h2>
-        <button 
+        <button
           onClick={onClose}
           className="text-terminal-dim hover:text-terminal-text transition-colors"
         >
@@ -108,8 +123,8 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
       {/* Info */}
       <div className="p-4 border border-terminal-dim/50 bg-terminal-dim/5 text-sm mb-6">
         <p className="text-terminal-dim leading-relaxed">
-          <span className="text-terminal-text">Location-based boards</span> use geohash technology 
-          (like BitChat) to create channels tied to your physical location. Connect with nearby 
+          <span className="text-terminal-text">Location-based boards</span> use geohash technology
+          (like BitChat) to create channels tied to your physical location. Connect with nearby
           users at different geographic scales.
         </p>
       </div>
@@ -141,7 +156,7 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
               </>
             )}
           </button>
-          
+
           <p className="text-xs text-terminal-dim text-center">
             Your exact location is never stored or shared. Only the geohash zone is used.
           </p>
@@ -151,7 +166,7 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
         <div className="space-y-6">
           {/* Current Location */}
           <div className="flex items-center gap-3 p-3 border border-terminal-dim/50 bg-terminal-dim/5">
-            <Navigation size={16} className="text-green-500" />
+            <Navigation size={16} className="text-terminal-text" />
             <div className="flex-1">
               <span className="text-xs text-terminal-dim">COORDINATES LOCKED</span>
               <div className="text-sm font-mono">
@@ -181,7 +196,7 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
                 [{showActiveChannels ? 'HIDE' : 'SHOW'}]
               </button>
             </div>
-            
+
             {showActiveChannels && (
               <div className="border border-terminal-dim/50 bg-terminal-dim/5">
                 {isDiscovering ? (
@@ -224,7 +239,9 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
                             <Users size={10} />
                             {channel.uniqueAuthors} users
                           </span>
-                          <span>{geonetDiscoveryService.formatLastActivity(channel.lastActivityAt)}</span>
+                          <span>
+                            {geonetDiscoveryService.formatLastActivity(channel.lastActivityAt)}
+                          </span>
                         </div>
                       </button>
                     ))}
@@ -236,27 +253,34 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
 
           {/* Precision Selector */}
           <div className="space-y-2">
-            <label className="text-xs text-terminal-dim uppercase font-bold">Or Select Range Manually</label>
+            <label className="text-xs text-terminal-dim uppercase font-bold">
+              Or Select Range Manually
+            </label>
             <div className="grid grid-cols-2 gap-2">
               {precisionLevels.map((precision) => {
-                const board = locationBoards.find(b => b.precision === precision);
+                const board = locationBoards.find((b) => b.precision === precision);
                 const isSelected = selectedPrecision === precision;
                 // Find if there's activity for this precision
-                const channelActivity = activeChannels.find(c => c.precision === precision);
-                
+                const channelActivity = activeChannels.find((c) => c.precision === precision);
+
                 return (
                   <button
                     key={precision}
                     onClick={() => setSelectedPrecision(precision)}
                     className={`p-3 border text-left transition-all ${
-                      isSelected 
-                        ? 'border-terminal-text bg-terminal-dim/20' 
+                      isSelected
+                        ? 'border-terminal-text bg-terminal-dim/20'
                         : 'border-terminal-dim/50 hover:border-terminal-dim'
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      <Radio size={12} className={isSelected ? 'text-terminal-text' : 'text-terminal-dim'} />
-                      <span className={`text-sm font-bold ${isSelected ? 'text-terminal-text' : 'text-terminal-dim'}`}>
+                      <Radio
+                        size={12}
+                        className={isSelected ? 'text-terminal-text' : 'text-terminal-dim'}
+                      />
+                      <span
+                        className={`text-sm font-bold ${isSelected ? 'text-terminal-text' : 'text-terminal-dim'}`}
+                      >
                         {PRECISION_LABELS[precision]}
                       </span>
                       {channelActivity && channelActivity.postCount > 0 && (
@@ -284,18 +308,16 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
             <div className="space-y-3 pt-4 border-t border-terminal-dim/30">
               <div className="text-xs text-terminal-dim uppercase font-bold">Selected Channel</div>
               {(() => {
-                const selectedBoard = locationBoards.find(b => b.precision === selectedPrecision);
+                const selectedBoard = locationBoards.find((b) => b.precision === selectedPrecision);
                 if (!selectedBoard) return null;
-                
+
                 return (
                   <div className="p-4 border border-terminal-text bg-terminal-dim/10">
                     <div className="flex items-center gap-2 mb-2">
                       <MapPin size={14} />
                       <span className="font-bold">{selectedBoard.name}</span>
                     </div>
-                    <p className="text-xs text-terminal-dim mb-4">
-                      {selectedBoard.description}
-                    </p>
+                    <p className="text-xs text-terminal-dim mb-4">{selectedBoard.description}</p>
                     <button
                       onClick={() => handleSelectBoard(selectedBoard)}
                       className="w-full bg-terminal-text text-black font-bold px-4 py-3 hover:bg-terminal-dim hover:text-white transition-colors uppercase tracking-widest flex items-center justify-center gap-2"
@@ -313,9 +335,3 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
     </div>
   );
 };
-
-
-
-
-
-

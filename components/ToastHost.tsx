@@ -29,7 +29,7 @@ export const ToastHost: React.FC = () => {
   if (limited.length === 0) return null;
 
   return (
-    <div className="fixed right-4 top-4 z-[60] w-full max-w-sm space-y-2">
+    <div className="fixed right-4 bottom-28 md:bottom-auto md:top-4 z-[60] w-full max-w-[calc(100vw-2rem)] md:max-w-sm max-h-[50vh] overflow-y-auto pr-1 space-y-2">
       {limited.map((t) => (
         <div
           key={t.id}
@@ -43,7 +43,9 @@ export const ToastHost: React.FC = () => {
                 {toastTitle(t.type)}
               </div>
               <div className="text-sm break-words">{t.message}</div>
-              {t.detail && <div className="text-[11px] text-terminal-dim mt-1 break-words">{t.detail}</div>}
+              {t.detail && (
+                <div className="text-[11px] text-terminal-dim mt-1 break-words">{t.detail}</div>
+              )}
             </div>
 
             <button
@@ -69,15 +71,19 @@ export const ToastHost: React.FC = () => {
       ))}
 
       {/* Local keyframes (tiny) */}
-      <style>
-        {`@keyframes toastbar { from { width: 100%; } to { width: 0%; } }`}
-      </style>
+      <style>{`@keyframes toastbar { from { width: 100%; } to { width: 0%; } }`}</style>
     </div>
   );
 };
 
 // Convenience wrapper for call sites
-export function pushToast(args: { type: Toast['type']; message: string; detail?: string; durationMs?: number; dedupeKey?: string }) {
+export function pushToast(args: {
+  type: Toast['type'];
+  message: string;
+  detail?: string;
+  durationMs?: number;
+  dedupeKey?: string;
+}) {
   return toastService.push({
     ...args,
     durationMs: args.durationMs ?? UIConfig.TOAST_DURATION_MS,

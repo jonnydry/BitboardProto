@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Users, ShieldCheck, ShieldAlert, Shield } from 'lucide-react';
 import { wotService } from '../services/wotService';
 import { FeatureFlags } from '../config';
@@ -14,8 +14,14 @@ export const TrustIndicator: React.FC<TrustIndicatorProps> = ({
   showDistance = true,
   compact = false,
 }) => {
-  const [wotInfo, setWotInfo] = useState<{ distance: number; score: number; followedBy: string[] } | null>(null);
+  const [wotInfo, setWotInfo] = useState<{
+    distance: number;
+    score: number;
+    followedBy: string[];
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [flipTooltip, setFlipTooltip] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!FeatureFlags.ENABLE_WOT || !pubkey) {
@@ -27,8 +33,9 @@ export const TrustIndicator: React.FC<TrustIndicatorProps> = ({
     let cancelled = false;
     setIsLoading(true);
 
-    wotService.getScore(pubkey)
-      .then(score => {
+    wotService
+      .getScore(pubkey)
+      .then((score) => {
         if (!cancelled) {
           if (score) {
             setWotInfo({
@@ -42,7 +49,7 @@ export const TrustIndicator: React.FC<TrustIndicatorProps> = ({
           setIsLoading(false);
         }
       })
-      .catch(error => {
+      .catch((error) => {
         if (!cancelled) {
           console.error('[TrustIndicator] Failed to fetch WoT score:', error);
           setWotInfo(null);
@@ -54,6 +61,21 @@ export const TrustIndicator: React.FC<TrustIndicatorProps> = ({
       cancelled = true;
     };
   }, [pubkey]);
+
+  useEffect(() => {
+    const updateFlipState = () => {
+      const top = rootRef.current?.getBoundingClientRect().top ?? 9999;
+      setFlipTooltip(top < 200);
+    };
+
+    updateFlipState();
+    window.addEventListener('scroll', updateFlipState, { passive: true });
+    window.addEventListener('resize', updateFlipState);
+    return () => {
+      window.removeEventListener('scroll', updateFlipState);
+      window.removeEventListener('resize', updateFlipState);
+    };
+  }, []);
 
   if (!FeatureFlags.ENABLE_WOT || (!isLoading && !wotInfo)) {
     return null;
@@ -69,7 +91,7 @@ export const TrustIndicator: React.FC<TrustIndicatorProps> = ({
   }
 
   const distance = wotInfo?.distance ?? Infinity;
-  
+
   // Terminal-style color logic based on distance
   const getTrustColor = (dist: number) => {
     if (dist === 0) return 'text-terminal-text border-terminal-text'; // Self
@@ -81,7 +103,11 @@ export const TrustIndicator: React.FC<TrustIndicatorProps> = ({
   const colorClass = getTrustColor(distance);
 
   return (
-    <div className={`group relative inline-flex items-center gap-1 cursor-help`}>
+    <div
+      ref={rootRef}
+      tabIndex={0}
+      className={`group relative inline-flex items-center gap-1 cursor-help focus:outline-none`}
+    >
       {distance <= 1 ? (
         <ShieldCheck size={compact ? 12 : 14} className="text-terminal-text" />
       ) : distance === 2 ? (
@@ -91,28 +117,36 @@ export const TrustIndicator: React.FC<TrustIndicatorProps> = ({
       )}
 
       {showDistance && !compact && (
-        <span className={`text-[9px] font-bold uppercase tracking-tighter px-1 border border-current rounded-sm ${colorClass}`}>
+        <span
+          className={`text-[9px] font-bold uppercase tracking-tighter px-1 border border-current rounded-sm ${colorClass}`}
+        >
           DIST_{distance === 0 ? 'SELF' : distance}
         </span>
       )}
 
       {/* Tooltip */}
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-3 bg-terminal-bg border-2 border-terminal-text shadow-glow opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-[10px] uppercase leading-tight">
+      <div
+        className={`absolute left-1/2 -translate-x-1/2 w-56 p-3 bg-terminal-bg border-2 border-terminal-text shadow-glow opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity z-50 text-[10px] uppercase leading-tight ${flipTooltip ? 'top-full mt-2' : 'bottom-full mb-2'}`}
+      >
         <div className="flex items-center gap-2 mb-2 pb-2 border-b border-terminal-dim/30">
           <Shield size={16} className="text-terminal-text" />
           <p className="font-bold text-terminal-text">Web_of_Trust_Report</p>
         </div>
-        
+
         <div className="space-y-2">
           <div className="flex justify-between">
             <span className="text-terminal-dim">Distance:</span>
-            <span className="text-terminal-text font-bold">{distance === 0 ? 'SELF' : `${distance} HOP(S)`}</span>
+            <span className="text-terminal-text font-bold">
+              {distance === 0 ? 'SELF' : `${distance} HOP(S)`}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="text-terminal-dim">Trust_Score:</span>
-            <span className="text-terminal-text font-bold">{(wotInfo!.score * 100).toFixed(0)}%</span>
+            <span className="text-terminal-text font-bold">
+              {(wotInfo!.score * 100).toFixed(0)}%
+            </span>
           </div>
-          
+
           {wotInfo!.followedBy.length > 0 && (
             <div className="mt-2 pt-2 border-t border-terminal-dim/20">
               <p className="text-terminal-dim mb-1 flex items-center gap-1">
@@ -128,9 +162,11 @@ export const TrustIndicator: React.FC<TrustIndicatorProps> = ({
         <div className="mt-2 pt-2 border-t border-terminal-dim/30 text-[8px] text-terminal-dim text-center">
           NOSTR_WOT_CALCULATION_ACTIVE
         </div>
-        
+
         {/* Arrow */}
-        <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-terminal-text" />
+        <div
+          className={`absolute left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent ${flipTooltip ? 'bottom-full border-b-[6px] border-b-terminal-text' : 'top-full border-t-[6px] border-t-terminal-text'}`}
+        />
       </div>
     </div>
   );

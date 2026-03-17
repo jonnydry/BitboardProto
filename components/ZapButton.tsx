@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Zap, Loader2 } from 'lucide-react';
+import { Zap } from 'lucide-react';
 import { zapService } from '../services/zapService';
 import { FeatureFlags } from '../config';
 import { ZapModal } from './ZapModal';
 import { createPortal } from 'react-dom';
+
+const zapCapabilityCache = new Map<string, boolean>();
 
 interface ZapButtonProps {
   authorPubkey: string;
@@ -25,7 +27,7 @@ export const ZapButton: React.FC<ZapButtonProps> = ({
   const [showModal, setShowModal] = useState(false);
   const [canZap, setCanZap] = useState<boolean>(false);
   const [zapTally, setZapTally] = useState({ total: initialZapTotal, count: initialZapCount });
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Check if author can receive zaps
   useEffect(() => {
@@ -35,19 +37,29 @@ export const ZapButton: React.FC<ZapButtonProps> = ({
       return;
     }
 
-    let cancelled = false;
-    setIsLoading(true);
+    const cachedCapability = zapCapabilityCache.get(authorPubkey);
+    if (typeof cachedCapability === 'boolean') {
+      setCanZap(cachedCapability);
+      setIsLoading(false);
+      return;
+    }
 
-    zapService.canReceiveZaps(authorPubkey)
-      .then(result => {
+    let cancelled = false;
+    setIsLoading(false);
+
+    zapService
+      .canReceiveZaps(authorPubkey)
+      .then((result) => {
         if (!cancelled) {
+          zapCapabilityCache.set(authorPubkey, result.canZap);
           setCanZap(result.canZap);
           setIsLoading(false);
         }
       })
-      .catch(error => {
+      .catch((error) => {
         if (!cancelled) {
           console.error('[ZapButton] Failed to check zap capability:', error);
+          zapCapabilityCache.set(authorPubkey, false);
           setCanZap(false);
           setIsLoading(false);
         }
@@ -66,13 +78,14 @@ export const ZapButton: React.FC<ZapButtonProps> = ({
 
     let cancelled = false;
 
-    zapService.getZapTally(eventId)
-      .then(tally => {
+    zapService
+      .getZapTally(eventId)
+      .then((tally) => {
         if (!cancelled) {
           setZapTally({ total: tally.totalSats, count: tally.zapCount });
         }
       })
-      .catch(error => {
+      .catch((error) => {
         if (!cancelled) {
           console.error('[ZapButton] Failed to fetch zap tally:', error);
         }
@@ -81,9 +94,9 @@ export const ZapButton: React.FC<ZapButtonProps> = ({
     // Subscribe to real-time zaps
     const unsubscribe = zapService.subscribeToZaps([eventId], (receipt) => {
       if (!cancelled) {
-        setZapTally(prev => ({
+        setZapTally((prev) => ({
           total: prev.total + receipt.amount,
-          count: prev.count + 1
+          count: prev.count + 1,
         }));
       }
     });
@@ -94,33 +107,35 @@ export const ZapButton: React.FC<ZapButtonProps> = ({
     };
   }, [eventId]);
 
-  const handleOpenModal = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (canZap) {
-      setShowModal(true);
-    }
-  }, [canZap]);
+  const handleOpenModal = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (canZap) {
+        setShowModal(true);
+      }
+    },
+    [canZap],
+  );
 
-  const handleZapSuccess = useCallback((amount: number) => {
-    // Optimistically update if we don't have an eventId (profile zap)
-    if (!eventId) {
-      setZapTally(prev => ({
-        total: prev.total + amount,
-        count: prev.count + 1
-      }));
-    }
-  }, [eventId]);
+  const handleZapSuccess = useCallback(
+    (amount: number) => {
+      // Optimistically update if we don't have an eventId (profile zap)
+      if (!eventId) {
+        setZapTally((prev) => ({
+          total: prev.total + amount,
+          count: prev.count + 1,
+        }));
+      }
+    },
+    [eventId],
+  );
 
   if (!FeatureFlags.ENABLE_ZAPS || (!isLoading && !canZap)) {
     return null;
   }
 
   if (isLoading) {
-    return (
-      <div className={`flex items-center gap-1 text-terminal-dim animate-pulse ${compact ? 'px-1' : 'px-2'}`}>
-        <Loader2 size={compact ? 14 : 16} className="animate-spin" />
-      </div>
-    );
+    return null;
   }
 
   return (
@@ -128,42 +143,42 @@ export const ZapButton: React.FC<ZapButtonProps> = ({
       <button
         onClick={handleOpenModal}
         className={`flex items-center gap-1.5 transition-all group rounded
-          ${compact 
-            ? 'p-1 hover:bg-terminal-text/10 text-terminal-dim hover:text-terminal-text' 
-            : 'px-3 py-1.5 border border-terminal-dim hover:border-terminal-text bg-terminal-bg text-terminal-dim hover:text-terminal-text shadow-sm hover:shadow-glow'
+          ${
+            compact
+              ? 'p-1 hover:bg-terminal-text/10 text-terminal-dim hover:text-terminal-text'
+              : 'px-3 py-1.5 border border-terminal-dim hover:border-terminal-text bg-terminal-bg text-terminal-dim hover:text-terminal-text shadow-sm hover:shadow-glow'
           }
         `}
         title={`Zap ${authorName || 'this creator'}`}
       >
-        <Zap 
-          size={compact ? 16 : 18} 
+        <Zap
+          size={compact ? 16 : 18}
           className={`transition-transform group-hover:scale-110 group-active:scale-95 ${zapTally.count > 0 ? 'text-terminal-text' : ''}`}
           fill={zapTally.count > 0 ? 'currentColor' : 'none'}
         />
-        
+
         {zapTally.total > 0 && (
           <span className={`font-mono font-bold ${compact ? 'text-[10px]' : 'text-xs'}`}>
             {zapService.formatSats(zapTally.total)}
           </span>
         )}
-        
+
         {!compact && zapTally.count === 0 && (
-          <span className="text-[10px] font-bold uppercase tracking-tighter opacity-70">
-            Zap
-          </span>
+          <span className="text-[10px] font-bold uppercase tracking-tighter opacity-70">Zap</span>
         )}
       </button>
 
-      {showModal && createPortal(
-        <ZapModal
-          recipientPubkey={authorPubkey}
-          recipientName={authorName}
-          eventId={eventId}
-          onClose={() => setShowModal(false)}
-          onSuccess={handleZapSuccess}
-        />,
-        document.body
-      )}
+      {showModal &&
+        createPortal(
+          <ZapModal
+            recipientPubkey={authorPubkey}
+            recipientName={authorName}
+            eventId={eventId}
+            onClose={() => setShowModal(false)}
+            onSuccess={handleZapSuccess}
+          />,
+          document.body,
+        )}
     </>
   );
 };

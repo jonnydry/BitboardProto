@@ -5,6 +5,7 @@ import { diagnosticsService } from '../services/diagnosticsService';
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
+  scope?: 'full' | 'section';
 }
 
 interface State {
@@ -17,7 +18,7 @@ interface State {
  * Error Boundary component for graceful error handling
  * Prevents entire app crashes and provides user-friendly error messages
  */
- 
+
 export class ErrorBoundary extends React.Component<Props, State> {
   declare state: State;
   declare props: Props;
@@ -45,23 +46,25 @@ export class ErrorBoundary extends React.Component<Props, State> {
     diagnosticsService.error(
       'ErrorBoundary',
       error?.message || 'Unknown error',
-      errorInfo?.componentStack || undefined
+      errorInfo?.componentStack || undefined,
     );
-    
+
     // Report to error tracking service if enabled
     try {
-      import('../services/errorTracking').then(({ errorTrackingService }) => {
-        errorTrackingService.captureException(error, {
-          componentStack: errorInfo?.componentStack,
-          source: 'ErrorBoundary',
+      import('../services/errorTracking')
+        .then(({ errorTrackingService }) => {
+          errorTrackingService.captureException(error, {
+            componentStack: errorInfo?.componentStack,
+            source: 'ErrorBoundary',
+          });
+        })
+        .catch(() => {
+          // Error tracking not available or not initialized
         });
-      }).catch(() => {
-        // Error tracking not available or not initialized
-      });
     } catch {
       // Error tracking not available or not initialized
     }
-    
+
     this.setState({
       error,
       errorInfo,
@@ -76,23 +79,40 @@ export class ErrorBoundary extends React.Component<Props, State> {
     });
   };
 
+  handleCopyError = async () => {
+    const payload = [this.state.error?.message, this.state.errorInfo?.componentStack]
+      .filter(Boolean)
+      .join('\n\n');
+
+    if (!payload) return;
+
+    try {
+      await navigator.clipboard.writeText(payload);
+    } catch {
+      // ignore clipboard failures
+    }
+  };
+
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) {
         return this.props.fallback;
       }
 
+      const isSectionScope = this.props.scope === 'section';
+
       return (
-        <div className="min-h-screen bg-terminal-bg text-terminal-text font-mono p-8 flex items-center justify-center">
+        <div
+          className={`${isSectionScope ? 'w-full' : 'min-h-screen'} bg-terminal-bg text-terminal-text font-mono p-8 flex items-center justify-center`}
+        >
           <div className="border-2 border-terminal-alert bg-terminal-bg p-6 max-w-2xl w-full shadow-hard-lg">
             <div className="flex items-center gap-3 mb-4">
               <AlertTriangle size={24} className="text-terminal-alert" />
-              <h2 className="text-2xl font-bold text-terminal-alert">
-                SYSTEM_ERROR
-              </h2>
+              <h2 className="text-2xl font-bold text-terminal-alert">SYSTEM_ERROR</h2>
             </div>
-            
+
             <div className="mb-4 space-y-2">
+              <p className="text-terminal-muted">Something went wrong loading this section.</p>
               <p className="text-terminal-text">
                 An unexpected error occurred. The application has been protected from crashing.
               </p>
@@ -118,6 +138,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
                 className="px-4 py-2 border border-terminal-dim text-terminal-dim hover:border-terminal-text hover:text-terminal-text transition-colors uppercase text-sm"
               >
                 [ RELOAD_PAGE ]
+              </button>
+              <button
+                onClick={this.handleCopyError}
+                className="px-4 py-2 border border-terminal-dim text-terminal-dim hover:border-terminal-text hover:text-terminal-text transition-colors uppercase text-sm"
+              >
+                [ COPY_ERROR ]
               </button>
             </div>
 

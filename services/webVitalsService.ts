@@ -137,16 +137,44 @@ class WebVitalsService {
   trackPageLoad(): void {
     if (!this.config.enabled) return;
 
-    // Use Performance API
-    if (window.performance && window.performance.timing) {
+    if (typeof window === 'undefined' || !window.performance) return;
+
+    const navigationEntry = performance.getEntriesByType('navigation')[0] as
+      | PerformanceNavigationTiming
+      | undefined;
+
+    if (navigationEntry) {
+      const pageLoadTime = navigationEntry.loadEventEnd;
+      const domReadyTime = navigationEntry.domContentLoadedEventEnd;
+      const renderTime = navigationEntry.domComplete - navigationEntry.responseEnd;
+
+      if (Number.isFinite(pageLoadTime) && pageLoadTime > 0) {
+        this.reportCustomMetric('page_load_time', pageLoadTime);
+      }
+      if (Number.isFinite(domReadyTime) && domReadyTime > 0) {
+        this.reportCustomMetric('dom_ready_time', domReadyTime);
+      }
+      if (Number.isFinite(renderTime) && renderTime >= 0) {
+        this.reportCustomMetric('render_time', renderTime);
+      }
+      return;
+    }
+
+    if (window.performance.timing) {
       const timing = window.performance.timing;
       const loadTime = timing.loadEventEnd - timing.navigationStart;
       const domReadyTime = timing.domContentLoadedEventEnd - timing.navigationStart;
       const renderTime = timing.domComplete - timing.domLoading;
 
-      this.reportCustomMetric('page_load_time', loadTime);
-      this.reportCustomMetric('dom_ready_time', domReadyTime);
-      this.reportCustomMetric('render_time', renderTime);
+      if (Number.isFinite(loadTime) && loadTime > 0) {
+        this.reportCustomMetric('page_load_time', loadTime);
+      }
+      if (Number.isFinite(domReadyTime) && domReadyTime > 0) {
+        this.reportCustomMetric('dom_ready_time', domReadyTime);
+      }
+      if (Number.isFinite(renderTime) && renderTime >= 0) {
+        this.reportCustomMetric('render_time', renderTime);
+      }
     }
   }
 

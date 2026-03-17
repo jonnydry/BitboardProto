@@ -357,78 +357,80 @@ export function FeedView(props: {
 
   return (
     <div className="space-y-2">
-      <div className="mb-4">
-        <SearchBar onSearch={handleSearch} placeholder="Search posts, users, tags..." />
-      </div>
-
-      <div className="flex flex-col gap-4 mb-6 pb-2 border-b border-terminal-dim/30">
-        <div className="flex justify-between items-end">
-          <div>
-            <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-terminal uppercase tracking-widest text-terminal-text flex items-center gap-2">
-                {activeBoard?.type === BoardType.GEOHASH && <MapPin size={20} />}
-                {activeBoard?.isEncrypted && <Lock size={18} className="text-terminal-text" />}
-                {searchQuery
-                  ? `SEARCH: "${searchQuery}"`
-                  : activeBoard
-                    ? activeBoard.type === BoardType.GEOHASH
-                      ? `#${activeBoard.geohash}`
-                      : `// ${activeBoard.name}`
-                    : feedFilter === 'location'
-                      ? 'GEO_CHANNELS'
-                      : feedFilter === 'topic'
-                        ? 'TOPIC_BOARDS'
-                        : 'GLOBAL_FEED'}
-              </h2>
-              {canShareBoard && (
-                <button
-                  onClick={() => setShowShareModal(true)}
-                  className="flex items-center gap-1 text-xs border border-terminal-dim px-2 py-1 text-terminal-dim hover:border-terminal-text hover:text-terminal-text transition-colors uppercase"
-                  title="Share this encrypted board"
-                >
-                  <Share2 size={12} />
-                  SHARE
-                </button>
-              )}
-            </div>
-            <p className="text-xs text-terminal-dim mt-1">
-              {searchQuery
-                ? `${sortedPosts.length} results found`
-                : activeBoard
-                  ? activeBoard.description
-                  : feedFilter === 'location'
-                    ? 'Location-based channels near you'
-                    : feedFilter === 'topic'
-                      ? 'Topic-based discussion boards'
-                      : 'AGGREGATING TOP SIGNALS FROM PUBLIC SECTORS'}
-            </p>
-          </div>
-          <span className="text-xs border border-terminal-dim px-2 py-1 text-terminal-muted">
-            POSTS: {sortedPosts.length}
-          </span>
+      <div className="sticky top-0 z-20 mb-6 border-b border-terminal-dim/40 bg-terminal-bg/90 backdrop-blur-sm">
+        <div className="px-0 py-4">
+          <SearchBar onSearch={handleSearch} placeholder="scan_network..." />
         </div>
 
-        <SortSelector currentSort={sortMode} onSortChange={handleSetSortMode} />
+        <div className="flex flex-col gap-4 pb-4">
+          <div className="border border-terminal-dim p-4 md:p-5 bg-terminal-bg/40">
+            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+              <div>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-2xl font-terminal uppercase tracking-widest text-terminal-text flex items-center gap-2">
+                    {activeBoard?.type === BoardType.GEOHASH && <MapPin size={20} />}
+                    {activeBoard?.isEncrypted && <Lock size={18} className="text-terminal-text" />}
+                    {searchQuery
+                      ? `SEARCH: "${searchQuery}"`
+                      : activeBoard
+                        ? activeBoard.type === BoardType.GEOHASH
+                          ? `#${activeBoard.geohash}`
+                          : `// ${activeBoard.name}`
+                        : feedFilter === 'location'
+                          ? 'GEO_CHANNELS'
+                          : feedFilter === 'topic'
+                            ? 'TOPIC_BOARDS'
+                            : '// GLOBAL_FEED'}
+                  </h2>
+                  <span className="text-sm text-terminal-muted">{sortedPosts.length} signals</span>
+                  {canShareBoard && (
+                    <button
+                      onClick={() => setShowShareModal(true)}
+                      className="flex items-center gap-1 text-xs border border-terminal-dim px-2 py-1 text-terminal-dim hover:border-terminal-text hover:text-terminal-text transition-colors uppercase"
+                      title="Share this encrypted board"
+                    >
+                      <Share2 size={12} />
+                      SHARE
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-terminal-dim mt-1 uppercase tracking-wide">
+                  {searchQuery
+                    ? `${sortedPosts.length} results found`
+                    : activeBoard
+                      ? activeBoard.description
+                      : feedFilter === 'location'
+                        ? 'Location-based channels near you'
+                        : feedFilter === 'topic'
+                          ? 'Topic-based discussion boards'
+                          : 'aggregating top signals from public sectors'}
+                </p>
+              </div>
 
-        {/* Time Chunk Navigation */}
-        {sortedPosts.length > 10 && availableChunks.length > 1 && (
-          <div className="flex items-center gap-1 mt-3 overflow-x-auto pb-1">
-            <Calendar size={12} className="text-terminal-dim flex-shrink-0" />
-            {availableChunks.map((chunk) => (
-              <button
-                key={chunk}
-                onClick={() => handleJumpToChunk(chunk)}
-                className={`text-[10px] px-2 py-0.5 border transition-colors whitespace-nowrap flex-shrink-0 ${
-                  activeTimeChunk === chunk
-                    ? 'border-terminal-text text-terminal-text bg-terminal-text/10'
-                    : 'border-terminal-dim/50 text-terminal-dim hover:border-terminal-text hover:text-terminal-text'
-                }`}
-              >
-                {TIME_CHUNK_LABELS[chunk]} ({postsByTimeChunk[chunk].posts.length})
-              </button>
-            ))}
+              <SortSelector currentSort={sortMode} onSortChange={handleSetSortMode} />
+            </div>
           </div>
-        )}
+
+          {/* Time Chunk Navigation */}
+          {sortedPosts.length > 10 && availableChunks.length > 1 && (
+            <div className="flex items-center gap-1 overflow-x-auto pb-1">
+              <Calendar size={12} className="text-terminal-dim flex-shrink-0" />
+              {availableChunks.map((chunk) => (
+                <button
+                  key={chunk}
+                  onClick={() => handleJumpToChunk(chunk)}
+                  className={`text-xs px-2 py-1 border transition-colors whitespace-nowrap flex-shrink-0 ${
+                    activeTimeChunk === chunk
+                      ? 'border-terminal-text text-terminal-text bg-terminal-text/10'
+                      : 'border-terminal-dim/50 text-terminal-dim hover:border-terminal-text hover:text-terminal-text'
+                  }`}
+                >
+                  {TIME_CHUNK_LABELS[chunk]} ({postsByTimeChunk[chunk].posts.length})
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Initial loading state with phase indicator */}

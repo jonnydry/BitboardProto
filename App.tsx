@@ -19,6 +19,8 @@ import { keyboardShortcutsService } from './services/keyboardShortcutsService';
 import { analyticsService, AnalyticsEvents } from './services/analyticsService';
 import { sentryService } from './services/sentryService';
 import type { Notification } from './services/notificationServiceV2';
+import { useUIStore } from './stores/uiStore';
+import { useUserStore } from './stores/userStore';
 
 // Lazy load components that are only used in specific views
 const IdentityManager = lazy(() =>
@@ -90,6 +92,12 @@ const AppContent: React.FC = () => {
   const [notificationDmTargetPubkey, setNotificationDmTargetPubkey] = useState<
     string | undefined
   >();
+  const keyboardModalStateRef = React.useRef({ showKeyboardHelp: false, showOnboarding: false });
+  const navigateToBoard = app.navigateToBoard;
+
+  useEffect(() => {
+    keyboardModalStateRef.current = { showKeyboardHelp, showOnboarding };
+  }, [showKeyboardHelp, showOnboarding]);
 
   // Initialize keyboard shortcuts
   useEffect(() => {
@@ -109,8 +117,8 @@ const AppContent: React.FC = () => {
       description: 'Go to feed',
       category: 'navigation',
       action: () => {
-        app.setViewMode(ViewMode.FEED);
-        app.navigateToBoard(null);
+        useUIStore.getState().setViewMode(ViewMode.FEED);
+        navigateToBoard(null);
       },
     });
 
@@ -119,8 +127,8 @@ const AppContent: React.FC = () => {
       description: 'Create new post',
       category: 'navigation',
       action: () => {
-        if (app.userState.identity) {
-          app.setViewMode(ViewMode.CREATE);
+        if (useUserStore.getState().userState.identity) {
+          useUIStore.getState().setViewMode(ViewMode.CREATE);
         }
       },
     });
@@ -129,7 +137,7 @@ const AppContent: React.FC = () => {
       key: 'b',
       description: 'Browse boards',
       category: 'navigation',
-      action: () => app.setViewMode(ViewMode.BROWSE_BOARDS),
+      action: () => useUIStore.getState().setViewMode(ViewMode.BROWSE_BOARDS),
     });
 
     const focusSearchInput = () => {
@@ -156,14 +164,18 @@ const AppContent: React.FC = () => {
       description: 'Close modal/dialog',
       category: 'navigation',
       action: () => {
-        if (showKeyboardHelp) setShowKeyboardHelp(false);
-        else if (showOnboarding) setShowOnboarding(false);
-        else if (app.viewMode !== ViewMode.FEED) app.setViewMode(ViewMode.FEED);
+        const currentState = keyboardModalStateRef.current;
+        const currentViewMode = useUIStore.getState().viewMode;
+
+        if (currentState.showKeyboardHelp) setShowKeyboardHelp(false);
+        else if (currentState.showOnboarding) setShowOnboarding(false);
+        else if (currentViewMode !== ViewMode.FEED)
+          useUIStore.getState().setViewMode(ViewMode.FEED);
       },
     });
 
     return () => keyboardShortcutsService.destroy();
-  }, [app, showKeyboardHelp, showOnboarding]);
+  }, [navigateToBoard]);
 
   // Check for first-time users
   useEffect(() => {
@@ -543,7 +555,7 @@ const AppContent: React.FC = () => {
         <footer className="hidden md:block text-center text-terminal-muted text-xs py-8">
           <div className="mb-2">
             BitBoard NOSTR PROTOCOL V3.0 // RELAYS: {nostrService.getRelays().length} // NODES
-            ACTIVE: {app.boards.length + app.locationBoards.length}
+            ACTIVE: {(app.boards?.length ?? 0) + (app.locationBoards?.length ?? 0)}
           </div>
           <div className="space-x-4">
             <button

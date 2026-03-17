@@ -17,13 +17,15 @@ import {
   ArrowBigDown,
   Trash2,
   MoreHorizontal,
+  Loader2,
 } from 'lucide-react';
 import { CommentThread, buildCommentTree } from './CommentThread';
-import { MentionText } from './MentionText';
+import { MarkdownRenderer } from './MarkdownRenderer';
 import { MentionInput } from './MentionInput';
 import { ShareButton } from './ShareButton';
 import { ReportModal } from './ReportModal';
 import { ZapButton } from './ZapButton';
+import { ReactionBar } from './ReactionPicker';
 
 interface PostDetailPageProps {
   post: Post;
@@ -462,10 +464,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
               </div>
             ) : (
               <div className="text-sm md:text-base text-terminal-muted font-mono leading-relaxed mb-2 break-words">
-                <MentionText
-                  content={post.content}
-                  onMentionClick={(username) => onViewProfile?.(username, undefined)}
-                />
+                <MarkdownRenderer content={post.content} />
               </div>
             )}
 
@@ -491,6 +490,13 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
                   eventId={post.id}
                   initialZapTotal={post.zapTotal}
                   initialZapCount={post.zapCount}
+                  compact={true}
+                />
+
+                <ReactionBar
+                  eventId={post.id}
+                  nostrEventId={post.nostrEventId}
+                  disabled={!userState.identity}
                   compact={true}
                 />
 
@@ -589,6 +595,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
                     knownUsers={knownUsers}
                     placeholder="Type response..."
                     minHeight="60px"
+                    disabled={isTransmitting}
                   />
                 </div>
                 <button
@@ -596,7 +603,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
                   disabled={!newComment.trim() || isTransmitting}
                   className="mt-auto h-full self-stretch border border-terminal-dim px-4 text-xs hover:bg-terminal-text hover:text-black disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-terminal-dim transition-all uppercase font-bold tracking-wider min-w-[80px]"
                 >
-                  {isTransmitting ? '...' : 'TRANSMIT'}
+                  {isTransmitting ? <Loader2 size={14} className="animate-spin" /> : 'TRANSMIT'}
                 </button>
               </form>
             </div>

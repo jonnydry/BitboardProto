@@ -21,12 +21,16 @@ class KeyboardShortcutsService {
   private shortcuts: Map<string, KeyboardShortcut> = new Map();
   private enabled = true;
   private helpModalOpen = false;
+  private initialized = false;
+  private boundKeyDownHandler = this.handleKeyDown.bind(this);
 
   /**
    * Initialize keyboard shortcuts
    */
   initialize(): void {
-    document.addEventListener('keydown', this.handleKeyDown.bind(this));
+    if (this.initialized) return;
+    document.addEventListener('keydown', this.boundKeyDownHandler);
+    this.initialized = true;
     logger.info('KeyboardShortcuts', 'Keyboard shortcuts initialized');
   }
 
@@ -68,11 +72,7 @@ class KeyboardShortcutsService {
 
     // Ignore if user is typing in an input field
     const target = event.target as HTMLElement;
-    if (
-      target.tagName === 'INPUT' ||
-      target.tagName === 'TEXTAREA' ||
-      target.isContentEditable
-    ) {
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
       // Exception: allow Escape to work in input fields
       if (event.key !== 'Escape') {
         return;
@@ -155,9 +155,10 @@ class KeyboardShortcutsService {
     if (shortcut.meta) parts.push(isMac ? '⌘' : 'Win');
 
     // Format key name
-    const keyName = shortcut.key.length === 1
-      ? shortcut.key.toUpperCase()
-      : shortcut.key.charAt(0).toUpperCase() + shortcut.key.slice(1);
+    const keyName =
+      shortcut.key.length === 1
+        ? shortcut.key.toUpperCase()
+        : shortcut.key.charAt(0).toUpperCase() + shortcut.key.slice(1);
 
     parts.push(keyName);
 
@@ -182,8 +183,10 @@ class KeyboardShortcutsService {
    * Clean up event listeners
    */
   destroy(): void {
-    document.removeEventListener('keydown', this.handleKeyDown.bind(this));
+    if (!this.initialized) return;
+    document.removeEventListener('keydown', this.boundKeyDownHandler);
     this.shortcuts.clear();
+    this.initialized = false;
     logger.info('KeyboardShortcuts', 'Keyboard shortcuts destroyed');
   }
 }

@@ -9,7 +9,7 @@ import { useAppNavigationHandlers } from './useAppNavigationHandlers';
 export function MobileNav() {
   const viewMode = useUIStore((s) => s.viewMode);
   const setViewMode = useUIStore((s) => s.setViewMode);
-  const bookmarkedCount = useUIStore((s) => s.bookmarkedIds).length;
+  const bookmarkedCount = useUIStore((s) => s.bookmarkedIds?.length ?? 0);
   const identity = useUserStore((s) => s.userState.identity);
   const { navigateToBoard } = useAppNavigationHandlers();
 

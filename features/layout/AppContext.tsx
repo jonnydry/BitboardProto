@@ -1,5 +1,14 @@
 import React, { createContext, useContext, useCallback, useMemo, useEffect } from 'react';
-import { Post, UserState, ViewMode, Board, NostrIdentity, SortMode, BoardType } from '../../types';
+import {
+  Post,
+  UserState,
+  ViewMode,
+  Board,
+  NostrIdentity,
+  SortMode,
+  BoardType,
+  ThemeId,
+} from '../../types';
 import { nostrService } from '../../services/nostrService';
 import { identityService } from '../../services/identityService';
 import { bookmarkService } from '../../services/bookmarkService';
@@ -30,6 +39,7 @@ interface AppContextType {
   posts: Post[];
   boards: Board[];
   viewMode: ViewMode;
+  theme: ThemeId;
   activeBoardId: string | null;
   locationBoards: Board[];
   profileUser: { username: string; pubkey?: string } | null;
@@ -50,7 +60,12 @@ interface AppContextType {
 
   // Actions
   setViewMode: (mode: ViewMode) => void;
+  setTheme: (theme: ThemeId) => void;
   setLocationBoards: React.Dispatch<React.SetStateAction<Board[]>>;
+  getThemeColor: (id: ThemeId) => string;
+  feedFilter: 'all' | 'topic' | 'location' | 'following';
+  setFeedFilter: (filter: 'all' | 'topic' | 'location' | 'following') => void;
+  isNostrConnected: boolean;
 
   // Event handlers
   handleCreatePost: (
@@ -96,6 +111,17 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | null>(null);
 
+const themeColorMap = new Map<ThemeId, string>([
+  [ThemeId.AMBER, '#ffb000'],
+  [ThemeId.PHOSPHOR, '#00ff41'],
+  [ThemeId.PLASMA, '#00f0ff'],
+  [ThemeId.VERMILION, '#ff4646'],
+  [ThemeId.SLATE, '#c8c8c8'],
+  [ThemeId.PATRIOT, '#ffffff'],
+  [ThemeId.SAKURA, '#ffb4dc'],
+  [ThemeId.BITBORING, '#ffffff'],
+]);
+
 // AppProvider now uses Zustand stores directly (no Context providers needed)
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Initialize user store effects (replaces useEffect from UserProvider)
@@ -128,8 +154,11 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
   const profileUser = useUIStore((state) => state.profileUser);
   const editingPostId = useUIStore((state) => state.editingPostId);
   const setViewMode = useUIStore((state) => state.setViewMode);
+  const setTheme = useUIStore((state) => state.setTheme);
   const setEditingPostId = useUIStore((state) => state.setEditingPostId);
   const feedFilter = useUIStore((state) => state.feedFilter);
+  const setFeedFilter = useUIStore((state) => state.setFeedFilter);
+  const isNostrConnected = useUIStore((state) => state.isNostrConnected);
   const setIsNostrConnected = useUIStore((state) => state.setIsNostrConnected);
   const hasMorePosts = useUIStore((state) => state.hasMorePosts);
   const setHasMorePosts = useUIStore((state) => state.setHasMorePosts);
@@ -360,6 +389,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     posts: postsCtx.posts,
     boards: boardsCtx.boards,
     viewMode: uiCtx.viewMode,
+    theme,
     activeBoardId: boardsCtx.activeBoardId,
     locationBoards: boardsCtx.locationBoards,
     profileUser: uiCtx.profileUser,
@@ -378,7 +408,12 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Actions (delegated to focused contexts)
     setViewMode: uiCtx.setViewMode,
+    setTheme,
     setLocationBoards: boardsCtx.setLocationBoards,
+    getThemeColor: (id: ThemeId) => themeColorMap.get(id) || '#ffffff',
+    feedFilter,
+    setFeedFilter,
+    isNostrConnected,
 
     // Event handlers
     handleCreatePost: eventHandlers.handleCreatePost,

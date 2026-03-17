@@ -696,6 +696,13 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 <Maximize2 size={10} className="opacity-50 hidden md:inline" />
               </button>
 
+              <ReactionBar
+                eventId={post.id}
+                nostrEventId={post.nostrEventId}
+                disabled={!userState.identity}
+                compact={true}
+              />
+
               {/* Zap Button (NIP-57 Layer 2 engagement) */}
               <ZapButton
                 authorPubkey={post.authorPubkey || ''}
@@ -743,18 +750,6 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                     className="absolute right-0 top-full z-20 mt-2 min-w-[190px] border border-terminal-dim bg-terminal-bg p-2 shadow-hard"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <div className="mb-2 border-b border-terminal-dim/30 pb-2">
-                      <div className="mb-1 text-xs uppercase tracking-wider text-terminal-muted">
-                        Reactions
-                      </div>
-                      <ReactionBar
-                        eventId={post.id}
-                        nostrEventId={post.nostrEventId}
-                        disabled={!userState.identity}
-                        compact={true}
-                      />
-                    </div>
-
                     {!isOwnPost && (
                       <button
                         onClick={(e) => {
@@ -887,6 +882,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                     knownUsers={knownUsers}
                     placeholder="Type response..."
                     minHeight="60px"
+                    disabled={isTransmitting}
                   />
                 </div>
                 <button
@@ -894,7 +890,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                   disabled={!newComment.trim() || isTransmitting}
                   className="mt-auto h-full self-stretch border border-terminal-dim px-4 text-xs hover:bg-terminal-text hover:text-black disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-terminal-dim transition-all uppercase font-bold tracking-wider min-w-[80px]"
                 >
-                  {isTransmitting ? '...' : 'TRANSMIT'}
+                  {isTransmitting ? <Loader2 size={14} className="animate-spin" /> : 'TRANSMIT'}
                 </button>
               </form>
             </div>

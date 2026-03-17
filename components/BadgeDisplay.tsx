@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Award, Star, Zap, Shield, CheckCircle, Info } from 'lucide-react';
 import { badgeService } from '../services/badgeService';
 import { FeatureFlags } from '../config';
@@ -16,6 +16,8 @@ export const BadgeDisplay: React.FC<BadgeDisplayProps> = ({
 }) => {
   const [badges, setBadges] = useState<Array<{ definition: any; award: any }>>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [flipTooltipId, setFlipTooltipId] = useState<string | null>(null);
+  const badgeRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     if (!FeatureFlags.ENABLE_BADGES || !pubkey) {
@@ -27,20 +29,21 @@ export const BadgeDisplay: React.FC<BadgeDisplayProps> = ({
     let cancelled = false;
     setIsLoading(true);
 
-    badgeService.getDisplayedBadges(pubkey)
-      .then(results => {
+    badgeService
+      .getDisplayedBadges(pubkey)
+      .then((results) => {
         if (!cancelled) {
-          // Map back to the expected format if needed, but getDisplayedBadges 
+          // Map back to the expected format if needed, but getDisplayedBadges
           // returns Array<{ profileBadge: ProfileBadge; definition: BadgeDefinition | null }>
           const validBadges = results
-            .filter(r => r.definition !== null)
-            .map(r => ({ definition: r.definition, award: r.profileBadge }));
-          
+            .filter((r) => r.definition !== null)
+            .map((r) => ({ definition: r.definition, award: r.profileBadge }));
+
           setBadges(validBadges as any);
           setIsLoading(false);
         }
       })
-      .catch(error => {
+      .catch((error) => {
         if (!cancelled) {
           console.error('[BadgeDisplay] Failed to fetch badges:', error);
           setBadges([]);
@@ -52,6 +55,25 @@ export const BadgeDisplay: React.FC<BadgeDisplayProps> = ({
       cancelled = true;
     };
   }, [pubkey]);
+
+  useEffect(() => {
+    const updateTooltipPositions = () => {
+      const nextFlipId =
+        Object.entries(badgeRefs.current).find(([, element]) => {
+          const badgeElement = element as HTMLDivElement | null;
+          return (badgeElement?.getBoundingClientRect().top ?? 9999) < 200;
+        })?.[0] ?? null;
+      setFlipTooltipId(nextFlipId);
+    };
+
+    updateTooltipPositions();
+    window.addEventListener('scroll', updateTooltipPositions, { passive: true });
+    window.addEventListener('resize', updateTooltipPositions);
+    return () => {
+      window.removeEventListener('scroll', updateTooltipPositions);
+      window.removeEventListener('resize', updateTooltipPositions);
+    };
+  }, [badges]);
 
   if (!FeatureFlags.ENABLE_BADGES || (!isLoading && badges.length === 0)) {
     return null;
@@ -74,19 +96,29 @@ export const BadgeDisplay: React.FC<BadgeDisplayProps> = ({
     <div className="flex items-center gap-1.5 flex-wrap">
       {isLoading ? (
         <div className="flex gap-1 animate-pulse">
-          <div className={`rounded-full bg-terminal-dim/20`} style={{ width: iconSize, height: iconSize }} />
-          <div className={`rounded-full bg-terminal-dim/20`} style={{ width: iconSize, height: iconSize }} />
+          <div
+            className={`rounded-full bg-terminal-dim/20`}
+            style={{ width: iconSize, height: iconSize }}
+          />
+          <div
+            className={`rounded-full bg-terminal-dim/20`}
+            style={{ width: iconSize, height: iconSize }}
+          />
         </div>
       ) : (
         badges.map((badge, idx) => (
-          <div 
+          <div
             key={`${badge.definition.id}-${idx}`}
-            className={`group relative flex items-center gap-1 px-1.5 py-0.5 rounded border border-terminal-dim/30 bg-terminal-dim/5 text-terminal-text transition-all hover:border-terminal-text hover:bg-terminal-dim/10 cursor-help`}
+            ref={(node) => {
+              badgeRefs.current[`${badge.definition.id}-${idx}`] = node;
+            }}
+            tabIndex={0}
+            className={`group relative flex items-center gap-1 px-1.5 py-0.5 rounded border border-terminal-dim/30 bg-terminal-dim/5 text-terminal-text transition-all hover:border-terminal-text hover:bg-terminal-dim/10 cursor-help focus:outline-none`}
             title={`${badge.definition.name}${badge.definition.description ? ': ' + badge.definition.description : ''}`}
           >
             {badge.definition.image ? (
-              <img 
-                src={badge.definition.image} 
+              <img
+                src={badge.definition.image}
                 alt={badge.definition.name}
                 className="object-contain"
                 style={{ width: iconSize, height: iconSize }}
@@ -99,15 +131,19 @@ export const BadgeDisplay: React.FC<BadgeDisplayProps> = ({
             <div className={badge.definition.image ? 'hidden' : ''}>
               {getBadgeIcon(badge.definition.id)}
             </div>
-            
+
             {showLabel && (
-              <span className={`uppercase font-bold tracking-tighter ${size === 'sm' ? 'text-[8px]' : 'text-[10px]'}`}>
+              <span
+                className={`uppercase font-bold tracking-tighter ${size === 'sm' ? 'text-[8px]' : 'text-[10px]'}`}
+              >
                 {badge.definition.name}
               </span>
             )}
 
             {/* Tooltip (CSS only for terminal feel) */}
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-terminal-bg border-2 border-terminal-text shadow-glow opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-[10px] uppercase leading-tight">
+            <div
+              className={`absolute left-1/2 -translate-x-1/2 w-48 p-2 bg-terminal-bg border-2 border-terminal-text shadow-glow opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity z-50 text-[10px] uppercase leading-tight ${flipTooltipId === `${badge.definition.id}-${idx}` ? 'top-full mt-2' : 'bottom-full mb-2'}`}
+            >
               <p className="font-bold text-terminal-text mb-1">{badge.definition.name}</p>
               {badge.definition.description && (
                 <p className="text-terminal-dim">{badge.definition.description}</p>
@@ -116,7 +152,9 @@ export const BadgeDisplay: React.FC<BadgeDisplayProps> = ({
                 <Info size={8} /> NOSTR_NIP_58_VERIFIED
               </div>
               {/* Arrow */}
-              <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-terminal-text" />
+              <div
+                className={`absolute left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent ${flipTooltipId === `${badge.definition.id}-${idx}` ? 'bottom-full border-b-[6px] border-b-terminal-text' : 'top-full border-t-[6px] border-t-terminal-text'}`}
+              />
             </div>
           </div>
         ))

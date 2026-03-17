@@ -99,7 +99,7 @@ export function Sidebar(props: SidebarProps) {
     setUserState,
     theme,
     setTheme,
-    getThemeColor,
+    getThemeColor = () => '#ffffff',
     viewMode,
     activeBoardId,
     feedFilter,

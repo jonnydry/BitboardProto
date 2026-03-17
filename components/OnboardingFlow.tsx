@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   ChevronRight,
   ChevronLeft,
@@ -155,6 +155,7 @@ export function OnboardingFlow({
   const [selectedBoards, setSelectedBoards] = useState<Set<string>>(
     new Set(DEFAULT_SELECTED_BOARDS),
   );
+  const [boardSearchQuery, setBoardSearchQuery] = useState('');
 
   // Check for NIP-07 extension on mount
   useEffect(() => {
@@ -342,6 +343,27 @@ export function OnboardingFlow({
       console.error('[Onboarding] Failed to publish board follows:', err);
     }
   };
+
+  const filteredBoardCategories = useMemo(() => {
+    const query = boardSearchQuery.trim().toLowerCase();
+
+    return Object.entries(BOARD_CATEGORIES)
+      .map(([category, boardIds]) => {
+        const categoryBoards = boardIds
+          .map((id) => INITIAL_BOARDS.find((b) => b.id === id))
+          .filter((b): b is Board => b !== undefined)
+          .filter((board) => {
+            if (!query) return true;
+            return (
+              board.name.toLowerCase().includes(query) ||
+              board.description.toLowerCase().includes(query)
+            );
+          });
+
+        return [category, categoryBoards] as const;
+      })
+      .filter(([, boards]) => boards.length > 0);
+  }, [boardSearchQuery]);
 
   if (!isOpen) return null;
 
@@ -1054,14 +1076,24 @@ export function OnboardingFlow({
                   </div>
                 )}
 
+                <div className="mb-4">
+                  <input
+                    type="text"
+                    value={boardSearchQuery}
+                    onChange={(e) => setBoardSearchQuery(e.target.value)}
+                    placeholder="Filter boards..."
+                    className="w-full border border-terminal-dim bg-terminal-bg px-4 py-3 text-sm text-terminal-text font-mono placeholder:text-terminal-dim/50 focus:border-terminal-text focus:outline-none"
+                  />
+                </div>
+
                 <div className="space-y-6 max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-track-terminal-dim/10 scrollbar-thumb-terminal-text/30">
-                  {Object.entries(BOARD_CATEGORIES).map(([category, boardIds]) => {
-                    const categoryBoards = boardIds
-                      .map((id) => INITIAL_BOARDS.find((b) => b.id === id))
-                      .filter((b): b is Board => b !== undefined);
+                  {filteredBoardCategories.length === 0 && (
+                    <div className="p-6 border border-terminal-dim/30 text-sm text-terminal-muted">
+                      No boards match &quot;{boardSearchQuery}&quot;.
+                    </div>
+                  )}
 
-                    if (categoryBoards.length === 0) return null;
-
+                  {filteredBoardCategories.map(([category, categoryBoards]) => {
                     return (
                       <div key={category}>
                         <div className="text-xs text-terminal-dim font-bold mb-3 uppercase tracking-wider flex items-center gap-2">
@@ -1077,7 +1109,7 @@ export function OnboardingFlow({
                                 key={board.id}
                                 onClick={() => toggleBoardSelection(board.id)}
                                 className={`
-                                  relative p-3 border text-left transition-all duration-200
+                                  relative p-3 border text-left transition-all duration-200 flex h-full flex-col
                                   ${
                                     isSelected
                                       ? 'border-terminal-text bg-terminal-text/10'
@@ -1121,7 +1153,7 @@ export function OnboardingFlow({
                 <div className="flex gap-3 mt-6 pt-4 border-t border-terminal-dim/20">
                   <button
                     onClick={() => setSelectedBoards(new Set())}
-                    className="px-4 py-2 text-xs border border-terminal-dim/50 hover:border-terminal-text transition-colors uppercase tracking-wider"
+                    className="px-4 py-2 text-xs border border-terminal-dim/50 hover:border-terminal-alert hover:text-terminal-alert transition-colors uppercase tracking-wider"
                   >
                     Clear All
                   </button>

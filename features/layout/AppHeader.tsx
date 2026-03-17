@@ -1,20 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Bookmark,
-  Zap,
-  Bell,
-  Globe,
-  Plus,
-  Menu,
-  Wifi,
-  WifiOff,
-  MessageCircle,
-  Search as _Search,
-} from 'lucide-react';
+import { Zap, Menu, Search as _Search } from 'lucide-react';
 import { ThemeId, ViewMode } from '../../types';
 import { notificationServiceV2 } from '../../services/notificationServiceV2';
+import { profileService } from '../../services/profileService';
 import { NotificationCenterV2 } from '../../components/NotificationCenterV2';
-import { NetworkIndicator } from '../../components/NetworkIndicator';
+import { InlineNetworkStatus, NetworkIndicator } from '../../components/NetworkIndicator';
 import { useUIStore } from '../../stores/uiStore';
 import { useUserStore } from '../../stores/userStore';
 import { useBoardStore } from '../../stores/boardStore';
@@ -29,7 +19,7 @@ export function AppHeader({ onOpenDrawer }: AppHeaderProps) {
   const isNostrConnected = useUIStore((s) => s.isNostrConnected);
   const viewMode = useUIStore((s) => s.viewMode);
   const setViewMode = useUIStore((s) => s.setViewMode);
-  const bookmarkedCount = useUIStore((s) => s.bookmarkedIds).length;
+  const bookmarkedCount = useUIStore((s) => s.bookmarkedIds?.length ?? 0);
   const activeBoardId = useBoardStore((s) => s.activeBoardId);
   const identity = useUserStore((s) => s.userState.identity);
   const userState = useUserStore((s) => s.userState);
@@ -37,6 +27,12 @@ export function AppHeader({ onOpenDrawer }: AppHeaderProps) {
 
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
+  const ownProfile = identity ? profileService.getCachedProfileSync(identity.pubkey) : null;
+  const identityDisplayName =
+    ownProfile?.display_name ||
+    ownProfile?.name ||
+    identity?.displayName ||
+    (identity ? `${identity.npub.slice(0, 10)}...` : 'CONNECT');
 
   useEffect(() => {
     const unsubscribe = notificationServiceV2.subscribe(() => {
@@ -206,197 +202,89 @@ export function AppHeader({ onOpenDrawer }: AppHeaderProps) {
       </button>
 
       {/* Desktop Navigation (hidden on mobile) */}
-      <nav className="hidden md:flex gap-2 lg:gap-4 text-xs lg:text-sm items-center flex-wrap">
-        {/* User Bit Balance Display */}
-        <div
-          className="flex items-center gap-1 lg:gap-2 px-1.5 lg:px-2 py-1 border border-terminal-dim/50 bg-terminal-dim/5 shrink-0"
-          title="Your Bit Balance (Influence)"
-        >
-          <Zap
-            size={12}
-            className={userState.bits === 0 ? 'text-terminal-alert' : 'text-terminal-text'}
-          />
-          <span className="font-mono font-bold text-[11px] lg:text-sm">
-            {userState.bits}/{userState.maxBits}
-          </span>
+      <nav className="hidden md:flex items-center justify-between gap-6 text-xs lg:text-sm">
+        <div className="flex items-center gap-2 lg:gap-4 flex-wrap">
+          <button
+            onClick={() => navigateToBoard(null)}
+            className={`uppercase border px-3 py-1.5 tracking-wider whitespace-nowrap transition-colors ${viewMode === ViewMode.FEED && activeBoardId === null ? 'border-terminal-text text-terminal-text bg-terminal-dim/10' : 'border-transparent text-terminal-dim hover:border-terminal-dim/40 hover:text-terminal-text'}`}
+            title="Global Feed"
+          >
+            <span>GLOBAL FEED</span>
+          </button>
+          <button
+            onClick={() => setViewMode(ViewMode.CREATE)}
+            className={`uppercase border px-3 py-1.5 tracking-wider whitespace-nowrap transition-colors ${viewMode === ViewMode.CREATE ? 'border-terminal-text text-terminal-text bg-terminal-dim/10' : 'border-transparent text-terminal-dim hover:border-terminal-dim/40 hover:text-terminal-text'}`}
+            title="Create New Bit"
+          >
+            <span>NEW BIT</span>
+          </button>
+          <button
+            onClick={() => setViewMode(ViewMode.BOOKMARKS)}
+            className={`uppercase border px-3 py-1.5 tracking-wider whitespace-nowrap transition-colors ${viewMode === ViewMode.BOOKMARKS ? 'border-terminal-text text-terminal-text bg-terminal-dim/10' : 'border-transparent text-terminal-dim hover:border-terminal-dim/40 hover:text-terminal-text'}`}
+            title="Saved Posts"
+          >
+            <span>SAVED{bookmarkedCount > 0 ? ` (${bookmarkedCount})` : ''}</span>
+          </button>
+          <button
+            onClick={() => setShowNotifications(true)}
+            className={`uppercase border px-3 py-1.5 tracking-wider whitespace-nowrap transition-colors ${showNotifications ? 'border-terminal-text text-terminal-text bg-terminal-dim/10' : 'border-transparent text-terminal-dim hover:border-terminal-dim/40 hover:text-terminal-text'}`}
+            title="Notifications"
+          >
+            <span>ALERTS{unreadCount > 0 ? ` (${unreadCount})` : ''}</span>
+          </button>
+          {identity && (
+            <button
+              onClick={() => setViewMode(ViewMode.DIRECT_MESSAGES)}
+              className={`uppercase border px-3 py-1.5 tracking-wider whitespace-nowrap transition-colors ${viewMode === ViewMode.DIRECT_MESSAGES ? 'border-terminal-text text-terminal-text bg-terminal-dim/10' : 'border-transparent text-terminal-dim hover:border-terminal-dim/40 hover:text-terminal-text'}`}
+              title="Direct Messages"
+            >
+              <span>DMs</span>
+            </button>
+          )}
+          <button
+            onClick={() => setViewMode(ViewMode.RELAYS)}
+            className={`uppercase border px-3 py-1.5 tracking-wider whitespace-nowrap transition-colors ${viewMode === ViewMode.RELAYS ? 'border-terminal-text text-terminal-text bg-terminal-dim/10' : 'border-transparent text-terminal-dim hover:border-terminal-dim/40 hover:text-terminal-text'}`}
+            title={isNostrConnected ? 'Relays Connected' : 'Relays Disconnected'}
+          >
+            <span>RELAYS</span>
+          </button>
         </div>
 
-        <button
-          onClick={() => navigateToBoard(null)}
-          className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${viewMode === ViewMode.FEED && activeBoardId === null ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
-          title="Global Feed"
-        >
-          <Globe size={12} style={{ color: 'rgb(var(--color-terminal-text))' }} />
-          <span className="hidden lg:inline">[ Global_Feed ]</span>
-          <span className="lg:hidden">FEED</span>
-        </button>
-        <button
-          onClick={() => setViewMode(ViewMode.CREATE)}
-          className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${viewMode === ViewMode.CREATE ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
-          title="Create New Bit"
-        >
-          <Plus size={12} style={{ color: 'rgb(var(--color-terminal-text))' }} />
-          <span className="hidden lg:inline">[ New_Bit ]</span>
-          <span className="lg:hidden">NEW</span>
-        </button>
-        <button
-          onClick={() => setViewMode(ViewMode.BOOKMARKS)}
-          className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${viewMode === ViewMode.BOOKMARKS ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
-          title="Saved Posts"
-        >
-          <Bookmark size={12} style={{ color: 'rgb(var(--color-terminal-text))' }} />
-          <span className="hidden lg:inline">
-            [ Saved{bookmarkedCount > 0 ? ` (${bookmarkedCount})` : ''} ]
-          </span>
-          <span className="lg:hidden">
-            {bookmarkedCount > 0 ? `(${bookmarkedCount})` : 'SAVED'}
-          </span>
-        </button>
-        <button
-          onClick={() => setViewMode(ViewMode.IDENTITY)}
-          className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${viewMode === ViewMode.IDENTITY ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
-          title={identity ? 'Identity Settings' : 'Connect Identity'}
-        >
-          {identity ? (
-            <Wifi size={12} style={{ color: 'rgb(var(--color-terminal-text))' }} />
-          ) : (
-            <WifiOff size={12} style={{ color: 'rgb(var(--color-terminal-text))' }} />
-          )}
-          <span className="hidden lg:inline">[ {identity ? 'IDENTITY' : 'CONNECT'} ]</span>
-          <span className="lg:hidden">{identity ? 'ID' : 'LINK'}</span>
-        </button>
-        <button
-          onClick={() => setShowNotifications(true)}
-          className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${showNotifications ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
-          title="Notifications"
-        >
-          <Bell size={12} style={{ color: 'rgb(var(--color-terminal-text))' }} />
-          <span className="hidden lg:inline">
-            [ ALERTS{unreadCount > 0 ? ` (${unreadCount})` : ''} ]
-          </span>
-          <span className="lg:hidden">{unreadCount > 0 ? `(${unreadCount})` : '!'}</span>
-        </button>
-        {identity && (
-          <button
-            onClick={() => setViewMode(ViewMode.DIRECT_MESSAGES)}
-            className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${viewMode === ViewMode.DIRECT_MESSAGES ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
-            title="Direct Messages"
+        <div className="hidden lg:flex items-center gap-3 shrink-0">
+          <div
+            className="flex items-center gap-2 border border-terminal-dim/50 bg-terminal-dim/5 px-3 py-1.5 font-mono text-terminal-text"
+            title="Available voting bits"
           >
-            <MessageCircle size={12} style={{ color: 'rgb(var(--color-terminal-text))' }} />
-            <span className="hidden lg:inline">[ DMs ]</span>
-            <span className="lg:hidden">DM</span>
+            <Zap
+              size={12}
+              className={userState.bits === 0 ? 'text-terminal-alert' : 'text-terminal-text'}
+            />
+            <span className="text-xs uppercase tracking-wide text-terminal-dim">BITS</span>
+            <span className="text-sm font-bold">
+              {userState.bits}/{userState.maxBits}
+            </span>
+          </div>
+          <NetworkIndicator compact />
+          <InlineNetworkStatus />
+          <button
+            type="button"
+            onClick={() => setViewMode(ViewMode.IDENTITY)}
+            className="flex items-center gap-2 border border-terminal-dim px-3 py-1.5 text-terminal-text hover:border-terminal-text hover:bg-terminal-dim/10 transition-colors font-mono"
+            title={identity ? 'Identity Settings' : 'Connect Identity'}
+          >
+            {identity && ownProfile?.picture ? (
+              <img
+                src={ownProfile.picture}
+                alt={identityDisplayName}
+                className="h-5 w-5 rounded-full object-cover border border-terminal-dim/40"
+              />
+            ) : identity ? (
+              <span className="flex h-5 w-5 items-center justify-center rounded-full border border-terminal-dim/40 bg-terminal-dim/10 text-[10px] uppercase">
+                {identityDisplayName.slice(0, 1)}
+              </span>
+            ) : null}
+            {identityDisplayName}
           </button>
-        )}
-        <button
-          onClick={() => setViewMode(ViewMode.RELAYS)}
-          className={`uppercase hover:underline flex items-center gap-1 whitespace-nowrap ${viewMode === ViewMode.RELAYS ? 'font-bold text-terminal-text' : 'text-terminal-dim'}`}
-          title={isNostrConnected ? 'Relays Connected' : 'Relays Disconnected'}
-        >
-          {isNostrConnected ? (
-            <svg
-              width="24"
-              height="12"
-              viewBox="0 0 32 12"
-              className="shrink-0"
-              style={{ color: 'rgb(var(--color-terminal-text))' }}
-            >
-              <rect x="0" y="8" width="2" height="4" fill="currentColor">
-                <animate
-                  attributeName="height"
-                  values="4;2;4"
-                  dur="0.6s"
-                  repeatCount="indefinite"
-                />
-                <animate attributeName="y" values="8;10;8" dur="0.6s" repeatCount="indefinite" />
-              </rect>
-              <rect x="4" y="6" width="2" height="6" fill="currentColor">
-                <animate
-                  attributeName="height"
-                  values="6;3;6"
-                  dur="0.8s"
-                  repeatCount="indefinite"
-                />
-                <animate attributeName="y" values="6;9;6" dur="0.8s" repeatCount="indefinite" />
-              </rect>
-              <rect x="8" y="4" width="2" height="8" fill="currentColor">
-                <animate
-                  attributeName="height"
-                  values="8;4;8"
-                  dur="0.7s"
-                  repeatCount="indefinite"
-                />
-                <animate attributeName="y" values="4;8;4" dur="0.7s" repeatCount="indefinite" />
-              </rect>
-              <rect x="12" y="5" width="2" height="7" fill="currentColor">
-                <animate
-                  attributeName="height"
-                  values="7;3;7"
-                  dur="0.65s"
-                  repeatCount="indefinite"
-                />
-                <animate attributeName="y" values="5;9;5" dur="0.65s" repeatCount="indefinite" />
-              </rect>
-              <rect x="16" y="7" width="2" height="5" fill="currentColor">
-                <animate
-                  attributeName="height"
-                  values="5;2;5"
-                  dur="0.75s"
-                  repeatCount="indefinite"
-                />
-                <animate attributeName="y" values="7;10;7" dur="0.75s" repeatCount="indefinite" />
-              </rect>
-              <rect x="20" y="3" width="2" height="9" fill="currentColor">
-                <animate
-                  attributeName="height"
-                  values="9;5;9"
-                  dur="0.85s"
-                  repeatCount="indefinite"
-                />
-                <animate attributeName="y" values="3;7;3" dur="0.85s" repeatCount="indefinite" />
-              </rect>
-              <rect x="24" y="6" width="2" height="6" fill="currentColor">
-                <animate
-                  attributeName="height"
-                  values="6;3;6"
-                  dur="0.7s"
-                  repeatCount="indefinite"
-                />
-                <animate attributeName="y" values="6;9;6" dur="0.7s" repeatCount="indefinite" />
-              </rect>
-              <rect x="28" y="9" width="2" height="3" fill="currentColor">
-                <animate
-                  attributeName="height"
-                  values="3;1;3"
-                  dur="0.6s"
-                  repeatCount="indefinite"
-                />
-                <animate attributeName="y" values="9;11;9" dur="0.6s" repeatCount="indefinite" />
-              </rect>
-            </svg>
-          ) : (
-            <svg
-              width="24"
-              height="12"
-              viewBox="0 0 32 12"
-              className="text-terminal-alert animate-pulse shrink-0"
-              style={{ color: 'rgb(var(--color-terminal-alert))' }}
-            >
-              <rect x="0" y="10" width="2" height="2" fill="currentColor" />
-              <rect x="4" y="10" width="2" height="2" fill="currentColor" />
-              <rect x="8" y="10" width="2" height="2" fill="currentColor" />
-              <rect x="12" y="10" width="2" height="2" fill="currentColor" />
-              <rect x="16" y="10" width="2" height="2" fill="currentColor" />
-              <rect x="20" y="10" width="2" height="2" fill="currentColor" />
-              <rect x="24" y="10" width="2" height="2" fill="currentColor" />
-              <rect x="28" y="10" width="2" height="2" fill="currentColor" />
-            </svg>
-          )}
-          <span className="hidden lg:inline">RELAYS</span>
-        </button>
-
-        {/* Real-time network activity indicator */}
-        <div className="hidden md:flex items-center ml-2 pl-2 border-l border-terminal-dim/30">
-          <NetworkIndicator />
         </div>
       </nav>
 

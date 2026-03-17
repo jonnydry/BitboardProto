@@ -14,6 +14,7 @@ import {
   UserX,
   VolumeX,
   MoreHorizontal,
+  Loader2,
 } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 // MentionText is used via MarkdownRenderer
@@ -201,7 +202,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
 
   // Visual indentation caps at maxVisualDepth
   const visualDepth = Math.min(depth, maxVisualDepth);
-  const indentPx = visualDepth * 16; // 16px per level
+  const indentPx = visualDepth * 20; // 20px per level
 
   const handleToggleCollapse = useCallback(() => {
     setIsCollapsed((prev) => {
@@ -252,13 +253,11 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
       if (!replyContent.trim()) return;
 
       setIsSubmitting(true);
-      // Simulate slight delay for UX
-      setTimeout(() => {
-        onReply(comment.id, replyContent.trim());
+      Promise.resolve(onReply(comment.id, replyContent.trim())).finally(() => {
         setReplyContent('');
         setIsReplying(false);
         setIsSubmitting(false);
-      }, 300);
+      });
     },
     [replyContent, comment.id, onReply],
   );
@@ -274,7 +273,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
       {/* Thread line connector */}
       {depth > 0 && (
         <div
-          className="absolute left-0 top-0 bottom-0 w-px bg-terminal-dim/30 -ml-4"
+          className="absolute left-0 top-0 bottom-0 w-0.5 bg-terminal-dim/50 -ml-4"
           style={{ height: '100%' }}
         />
       )}
@@ -391,7 +390,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
               {isCollapsed && hasReplies && (
                 <button
                   onClick={handleToggleCollapse}
-                  className="text-terminal-dim hover:text-terminal-text text-[10px] border border-terminal-dim hover:border-terminal-text px-1 transition-colors flex items-center gap-1"
+                  className="text-terminal-dim hover:text-terminal-text text-xs border border-terminal-dim hover:border-terminal-text px-2 py-0.5 transition-colors flex items-center gap-1 bg-terminal-dim/10"
                 >
                   {depth >= AUTO_COLLAPSE_DEPTH ? (
                     <>Continue thread → ({replyCount})</>
@@ -589,6 +588,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
                         placeholder={`Reply to ${comment.author}... (use @ to mention)`}
                         autoFocus
                         minHeight="50px"
+                        disabled={isSubmitting}
                       />
                     </div>
                     <button
@@ -596,7 +596,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
                       disabled={!replyContent.trim() || isSubmitting}
                       className="border border-terminal-dim px-3 py-1 text-xs hover:bg-terminal-text hover:text-black disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-terminal-dim transition-all uppercase font-bold"
                     >
-                      {isSubmitting ? '...' : 'SEND'}
+                      {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : 'SEND'}
                     </button>
                   </form>
                 )}
@@ -635,7 +635,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
               onClick={() =>
                 setVisibleReplies((n) => Math.min(n + REPLIES_PAGE_SIZE, comment.replies!.length))
               }
-              className="mt-1 ml-3 text-xs text-terminal-dim hover:text-terminal-text transition-colors border border-terminal-dim/30 px-2 py-1"
+              className="mt-3 ml-3 text-xs text-terminal-dim hover:text-terminal-text transition-colors border border-terminal-dim/30 px-2 py-1"
               title="Show more replies"
             >
               + SHOW {Math.min(REPLIES_PAGE_SIZE, comment.replies!.length - visibleReplies)} MORE

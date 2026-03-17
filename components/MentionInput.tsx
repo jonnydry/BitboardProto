@@ -9,6 +9,7 @@ interface MentionInputProps {
   className?: string;
   autoFocus?: boolean;
   minHeight?: string;
+  disabled?: boolean;
 }
 
 export const MentionInput: React.FC<MentionInputProps> = ({
@@ -19,6 +20,7 @@ export const MentionInput: React.FC<MentionInputProps> = ({
   className = '',
   autoFocus = false,
   minHeight = '60px',
+  disabled = false,
 }) => {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -55,66 +57,71 @@ export const MentionInput: React.FC<MentionInputProps> = ({
   );
 
   // Detect mention in progress and update suggestions
-  const handleInput = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newValue = e.target.value;
-    const cursorPos = e.target.selectionStart || 0;
-    
-    onChange(newValue);
+  const handleInput = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const newValue = e.target.value;
+      const cursorPos = e.target.selectionStart || 0;
 
-    // Check if typing a mention
-    const mentionInProgress = mentionService.detectMentionInProgress(newValue, cursorPos);
-    
-    if (mentionInProgress) {
-      const newSuggestions = mentionService.getAutocompleteSuggestions(
-        mentionInProgress.query,
-        knownUsers,
-        5
-      );
-      setSuggestions(newSuggestions);
-      setMentionStart(mentionInProgress.startIndex);
-      setSelectedIndex(0);
-    } else {
-      setSuggestions([]);
-      setMentionStart(null);
-    }
-  }, [onChange, knownUsers]);
+      onChange(newValue);
 
-  // Handle keyboard navigation in suggestions
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (suggestions.length === 0) return;
+      // Check if typing a mention
+      const mentionInProgress = mentionService.detectMentionInProgress(newValue, cursorPos);
 
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault();
-        setSelectedIndex(prev => 
-          prev < suggestions.length - 1 ? prev + 1 : 0
+      if (mentionInProgress) {
+        const newSuggestions = mentionService.getAutocompleteSuggestions(
+          mentionInProgress.query,
+          knownUsers,
+          5,
         );
-        break;
-      case 'ArrowUp':
-        e.preventDefault();
-        setSelectedIndex(prev => 
-          prev > 0 ? prev - 1 : suggestions.length - 1
-        );
-        break;
-      case 'Tab':
-      case 'Enter':
-        if (suggestions.length > 0 && mentionStart !== null) {
-          e.preventDefault();
-          insertSuggestion(suggestions[selectedIndex]);
-        }
-        break;
-      case 'Escape':
-        e.preventDefault();
+        setSuggestions(newSuggestions);
+        setMentionStart(mentionInProgress.startIndex);
+        setSelectedIndex(0);
+      } else {
         setSuggestions([]);
         setMentionStart(null);
-        break;
-    }
-  }, [suggestions, selectedIndex, mentionStart, insertSuggestion]);
+      }
+    },
+    [onChange, knownUsers],
+  );
+
+  // Handle keyboard navigation in suggestions
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (suggestions.length === 0) return;
+
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          setSelectedIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : 0));
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setSelectedIndex((prev) => (prev > 0 ? prev - 1 : suggestions.length - 1));
+          break;
+        case 'Tab':
+        case 'Enter':
+          if (suggestions.length > 0 && mentionStart !== null) {
+            e.preventDefault();
+            insertSuggestion(suggestions[selectedIndex]);
+          }
+          break;
+        case 'Escape':
+          e.preventDefault();
+          setSuggestions([]);
+          setMentionStart(null);
+          break;
+      }
+    },
+    [suggestions, selectedIndex, mentionStart, insertSuggestion],
+  );
 
   // Handle click on suggestion
-  const handleSuggestionClick = useCallback((username: string) => {
-    insertSuggestion(username);
-  }, [insertSuggestion]);
+  const handleSuggestionClick = useCallback(
+    (username: string) => {
+      insertSuggestion(username);
+    },
+    [insertSuggestion],
+  );
 
   // Close suggestions when clicking outside
   useEffect(() => {
@@ -139,8 +146,9 @@ export const MentionInput: React.FC<MentionInputProps> = ({
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         autoFocus={autoFocus}
+        disabled={disabled}
         className={`bg-terminal-bg border border-terminal-dim p-2 text-sm text-terminal-text 
-          focus:border-terminal-text focus:outline-none w-full font-mono resize-y ${className}`}
+          focus:border-terminal-text focus:outline-none w-full font-mono resize-y disabled:opacity-60 disabled:cursor-not-allowed ${className}`}
         style={{ minHeight }}
       />
 
@@ -152,9 +160,10 @@ export const MentionInput: React.FC<MentionInputProps> = ({
               key={username}
               onClick={() => handleSuggestionClick(username)}
               className={`w-full text-left px-3 py-2 text-sm font-mono transition-colors
-                ${index === selectedIndex 
-                  ? 'bg-terminal-dim/30 text-terminal-text' 
-                  : 'text-terminal-dim hover:bg-terminal-dim/20 hover:text-terminal-text'
+                ${
+                  index === selectedIndex
+                    ? 'bg-terminal-dim/30 text-terminal-text'
+                    : 'text-terminal-dim hover:bg-terminal-dim/20 hover:text-terminal-text'
                 }`}
             >
               <span className="text-terminal-text">@</span>

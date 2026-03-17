@@ -61,26 +61,34 @@ nostrService.preconnect().catch(() => {
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
-  throw new Error("Could not find root element to mount to");
+  throw new Error('Could not find root element to mount to');
 }
 
 const root = ReactDOM.createRoot(rootElement);
-
-// Wrap with Sentry ErrorBoundary if available
-const SentryErrorBoundary = sentryService.isEnabled()
-  ? sentryService.getErrorBoundary()
-  : React.Fragment;
+const SentryBoundary = sentryService.isEnabled() ? sentryService.getErrorBoundary() : null;
 
 root.render(
   <React.StrictMode>
     <HelmetProvider>
-      <SentryErrorBoundary fallback={<div className="p-4 text-terminal-alert font-mono">An error occurred. Please refresh the page.</div>}>
+      {SentryBoundary ? (
+        <SentryBoundary
+          fallback={
+            <div className="p-4 text-terminal-alert font-mono">
+              An error occurred. Please refresh the page.
+            </div>
+          }
+        >
+          <ErrorBoundary>
+            <App />
+          </ErrorBoundary>
+        </SentryBoundary>
+      ) : (
         <ErrorBoundary>
           <App />
         </ErrorBoundary>
-      </SentryErrorBoundary>
+      )}
     </HelmetProvider>
-  </React.StrictMode>
+  </React.StrictMode>,
 );
 
 // ============================================
