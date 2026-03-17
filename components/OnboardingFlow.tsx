@@ -649,10 +649,11 @@ export function OnboardingFlow({
                 {/* Value proposition */}
                 <div className="max-w-2xl mx-auto">
                   <p className="text-xl md:text-2xl leading-relaxed text-terminal-text/90 font-light">
-                    Access the global information commons.
+                    Spend limited influence on what deserves attention.
                     <br />
                     <span className="text-terminal-dim">
-                      No gatekeepers. No algorithms. No surveillance.
+                      Verified identities allocate scarce bits. The global feed rises from
+                      deliberate public judgment, not opaque ranking.
                     </span>
                   </p>
                 </div>
@@ -661,12 +662,20 @@ export function OnboardingFlow({
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
                   {[
                     {
-                      icon: Shield,
-                      label: 'CRYPTOGRAPHIC',
-                      desc: 'Every post signed with your keys',
+                      icon: Zap,
+                      label: 'SCARCE INFLUENCE',
+                      desc: 'Every vote costs a limited bit, so influence is spent deliberately',
                     },
-                    { icon: Globe, label: 'DECENTRALIZED', desc: 'No single point of failure' },
-                    { icon: Zap, label: 'INSTANT', desc: 'Real-time global propagation' },
+                    {
+                      icon: Shield,
+                      label: 'VERIFIED IDENTITY',
+                      desc: 'Votes are tied to signed Nostr identities, making influence accountable',
+                    },
+                    {
+                      icon: Globe,
+                      label: 'GLOBAL FEED',
+                      desc: 'The strongest content surfaces globally when many users choose the same winners',
+                    },
                   ].map(({ icon: Icon, label, desc }, i) => (
                     <div
                       key={label}
@@ -707,10 +716,13 @@ export function OnboardingFlow({
                   </h2>
                   <p className="text-terminal-dim text-sm">
                     {identityMode === 'select' &&
-                      'Choose how to establish your cryptographic identity'}
-                    {identityMode === 'generate' && 'Generate a fresh keypair'}
-                    {identityMode === 'import' && 'Import your existing Nostr key'}
-                    {identityMode === 'nip07' && 'Connect your browser extension'}
+                      'Choose how to establish the identity that will sign your posts and votes'}
+                    {identityMode === 'generate' &&
+                      'Generate a fresh Nostr identity for accountable voting'}
+                    {identityMode === 'import' &&
+                      'Import your existing Nostr identity to keep your reputation and influence'}
+                    {identityMode === 'nip07' &&
+                      'Connect a browser extension so your key never leaves the wallet'}
                     {identityMode === 'success' && 'Identity established successfully'}
                   </p>
                 </div>
@@ -755,8 +767,8 @@ export function OnboardingFlow({
                               Generate New Keys
                             </div>
                             <div className="text-terminal-dim text-sm">
-                              Create a fresh cryptographic identity. We'll generate secure keys for
-                              you.
+                              Create a fresh identity so your votes and posts are signed, public,
+                              and accountable.
                             </div>
                           </div>
                           <ChevronRight
@@ -781,8 +793,8 @@ export function OnboardingFlow({
                               Import Existing Key
                             </div>
                             <div className="text-terminal-dim text-sm">
-                              Already on Nostr? Paste your nsec private key to use your existing
-                              identity.
+                              Already on Nostr? Bring your existing identity, reputation, and social
+                              graph with you.
                             </div>
                           </div>
                           <ChevronRight
@@ -808,8 +820,8 @@ export function OnboardingFlow({
                                 Browser Extension
                               </div>
                               <div className="text-terminal-dim text-sm">
-                                Connect via Alby, nos2x, or other NIP-07 extension. Your key stays
-                                secure.
+                                Connect via Alby, nos2x, or another NIP-07 extension so your voting
+                                key stays secure.
                               </div>
                             </div>
                             <ChevronRight
@@ -1194,8 +1206,9 @@ export function OnboardingFlow({
                   You're In
                 </h2>
                 <p className="text-terminal-dim mb-8 max-w-md mx-auto">
-                  Welcome to Bitboard. Powered by Nostr. Decentralized, encrypted, uncensorable.
-                  Discuss anything. Vote with your bits to get the best content on the board.
+                  Welcome to BitBoard. Your identity signs your actions, and your limited bits
+                  decide what deserves more attention. Use them well — the global feed is shaped by
+                  choices like yours.
                 </p>
 
                 {/* Status summary */}

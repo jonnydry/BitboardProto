@@ -83,7 +83,7 @@ class GeohashService {
    * Check if geolocation is available
    */
   isGeolocationAvailable(): boolean {
-    return 'geolocation' in navigator;
+    return typeof navigator !== 'undefined' && 'geolocation' in navigator;
   }
 
   /**

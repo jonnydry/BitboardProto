@@ -18,9 +18,9 @@ export interface GeoChannel {
   precision: GeohashPrecision;
   postCount: number;
   uniqueAuthors: number;
-  lastActivityAt: number;  // timestamp ms
-  label: string;           // e.g., "NEIGHBORHOOD"
-  description: string;     // e.g., "~9.7km radius"
+  lastActivityAt: number; // timestamp ms
+  label: string; // e.g., "NEIGHBORHOOD"
+  description: string; // e.g., "~9.7km radius"
 }
 
 export interface DiscoveryResult {
@@ -54,6 +54,7 @@ class GeonetDiscoveryService {
 
   private loadCache(): void {
     try {
+      if (typeof localStorage === 'undefined') return;
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored) as DiscoveryResult;
@@ -69,6 +70,10 @@ class GeonetDiscoveryService {
 
   private saveCache(result: DiscoveryResult): void {
     try {
+      if (typeof localStorage === 'undefined') {
+        this.cache = result;
+        return;
+      }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(result));
       this.cache = result;
     } catch (error) {
@@ -90,7 +95,7 @@ class GeonetDiscoveryService {
     options: {
       forceRefresh?: boolean;
       includeNeighbors?: boolean;
-    } = {}
+    } = {},
   ): Promise<DiscoveryResult> {
     const { forceRefresh = false, includeNeighbors = true } = options;
 
@@ -108,7 +113,7 @@ class GeonetDiscoveryService {
     }
 
     this.discoveryInProgress = this._doDiscover(lat, lon, includeNeighbors);
-    
+
     try {
       const result = await this.discoveryInProgress;
       return result;
@@ -120,7 +125,7 @@ class GeonetDiscoveryService {
   private async _doDiscover(
     lat: number,
     lon: number,
-    includeNeighbors: boolean
+    includeNeighbors: boolean,
   ): Promise<DiscoveryResult> {
     logger.debug('GeonetDiscovery', `Starting discovery for ${lat}, ${lon}`);
 
@@ -131,7 +136,7 @@ class GeonetDiscoveryService {
     const geohashesToQuery = new Set<string>();
 
     // Add user's geohashes at each precision
-    Object.values(userGeohashes).forEach(gh => geohashesToQuery.add(gh));
+    Object.values(userGeohashes).forEach((gh) => geohashesToQuery.add(gh));
 
     // Optionally add neighboring geohashes for broader discovery
     if (includeNeighbors) {
@@ -142,8 +147,8 @@ class GeonetDiscoveryService {
         userGeohashes[GeohashPrecision.BLOCK],
       ];
 
-      localGeohashes.forEach(gh => {
-        geohashService.getNeighbors(gh).forEach(neighbor => {
+      localGeohashes.forEach((gh) => {
+        geohashService.getNeighbors(gh).forEach((neighbor) => {
           geohashesToQuery.add(neighbor);
         });
       });
@@ -155,12 +160,12 @@ class GeonetDiscoveryService {
 
     // Group queries by precision for efficiency
     const geohashArray = Array.from(geohashesToQuery);
-    
+
     // Query in batches to avoid overwhelming relays
     const BATCH_SIZE = 5;
     for (let i = 0; i < geohashArray.length; i += BATCH_SIZE) {
       const batch = geohashArray.slice(i, i + BATCH_SIZE);
-      
+
       const batchPromise = Promise.all(
         batch.map(async (geohash) => {
           try {
@@ -171,7 +176,7 @@ class GeonetDiscoveryService {
           } catch (error) {
             logger.warn('GeonetDiscovery', `Failed to query ${geohash}`, error);
           }
-        })
+        }),
       );
 
       queryPromises.push(batchPromise.then(() => {}));
@@ -180,8 +185,9 @@ class GeonetDiscoveryService {
     await Promise.all(queryPromises);
 
     // Convert to array and sort by recent activity
-    const channels = Array.from(channelMap.values())
-      .sort((a, b) => b.lastActivityAt - a.lastActivityAt);
+    const channels = Array.from(channelMap.values()).sort(
+      (a, b) => b.lastActivityAt - a.lastActivityAt,
+    );
 
     const result: DiscoveryResult = {
       channels,
@@ -214,7 +220,7 @@ class GeonetDiscoveryService {
     const authors = new Set<string>();
     let lastActivityAt = 0;
 
-    posts.forEach(post => {
+    posts.forEach((post) => {
       authors.add(post.pubkey);
       const postTime = post.created_at * 1000;
       if (postTime > lastActivityAt) {
@@ -256,7 +262,9 @@ class GeonetDiscoveryService {
    */
   clearCache(): void {
     this.cache = null;
-    localStorage.removeItem(STORAGE_KEY);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(STORAGE_KEY);
+    }
   }
 
   /**
@@ -288,9 +296,3 @@ class GeonetDiscoveryService {
 
 // Export singleton instance
 export const geonetDiscoveryService = new GeonetDiscoveryService();
-
-
-
-
-
-

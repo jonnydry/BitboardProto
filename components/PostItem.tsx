@@ -419,12 +419,12 @@ const PostItemComponent: React.FC<PostItemProps> = ({
             aria-pressed={isUpvoted}
             title={
               !userState.identity
-                ? 'CONNECT IDENTITY TO VOTE'
+                ? 'Connect identity to vote with bits'
                 : isUpvoted
-                  ? 'RETRACT BIT (+1 REFUND)'
+                  ? 'Retract upvote and refund 1 bit'
                   : hasInvested
-                    ? 'SWITCH VOTE (0 COST)'
-                    : 'INVEST 1 BIT (-1)'
+                    ? 'Switch vote direction at no extra bit cost'
+                    : 'Spend 1 bit to upvote this post'
             }
           >
             <ArrowBigUp
@@ -449,12 +449,12 @@ const PostItemComponent: React.FC<PostItemProps> = ({
             aria-pressed={isDownvoted}
             title={
               !userState.identity
-                ? 'CONNECT IDENTITY TO VOTE'
+                ? 'Connect identity to vote with bits'
                 : isDownvoted
-                  ? 'RETRACT BIT (+1 REFUND)'
+                  ? 'Retract downvote and refund 1 bit'
                   : hasInvested
-                    ? 'SWITCH VOTE (0 COST)'
-                    : 'INVEST 1 BIT (-1)'
+                    ? 'Switch vote direction at no extra bit cost'
+                    : 'Spend 1 bit to downvote this post'
             }
           >
             <ArrowBigDown

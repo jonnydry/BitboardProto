@@ -26,6 +26,9 @@ import { ShareButton } from './ShareButton';
 import { ReportModal } from './ReportModal';
 import { ZapButton } from './ZapButton';
 import { ReactionBar } from './ReactionPicker';
+import { BadgeDisplay } from './BadgeDisplay';
+import { TrustIndicator } from './TrustIndicator';
+import { profileService } from '../services/profileService';
 
 interface PostDetailPageProps {
   post: Post;
@@ -184,6 +187,16 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
     return false;
   }, [post]);
 
+  const authorProfile = useMemo(
+    () => (post.authorPubkey ? profileService.getCachedProfileSync(post.authorPubkey) : null),
+    [post.authorPubkey],
+  );
+
+  const authorDisplayName = useMemo(
+    () => profileService.getDisplayName(post.author, authorProfile ?? undefined),
+    [post.author, authorProfile],
+  );
+
   const handleCommentSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
@@ -268,12 +281,12 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
               aria-pressed={isUpvoted}
               title={
                 !userState.identity
-                  ? 'CONNECT IDENTITY TO VOTE'
+                  ? 'Connect identity to vote with bits'
                   : isUpvoted
-                    ? 'RETRACT BIT (+1 REFUND)'
+                    ? 'Retract upvote and refund 1 bit'
                     : hasInvested
-                      ? 'SWITCH VOTE (0 COST)'
-                      : 'INVEST 1 BIT (-1)'
+                      ? 'Switch vote direction at no extra bit cost'
+                      : 'Spend 1 bit to upvote this post'
               }
             >
               <ArrowBigUp size={20} fill={isUpvoted ? 'currentColor' : 'none'} />
@@ -294,12 +307,12 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
               aria-pressed={isDownvoted}
               title={
                 !userState.identity
-                  ? 'CONNECT IDENTITY TO VOTE'
+                  ? 'Connect identity to vote with bits'
                   : isDownvoted
-                    ? 'RETRACT BIT (+1 REFUND)'
+                    ? 'Retract downvote and refund 1 bit'
                     : hasInvested
-                      ? 'SWITCH VOTE (0 COST)'
-                      : 'INVEST 1 BIT (-1)'
+                      ? 'Switch vote direction at no extra bit cost'
+                      : 'Spend 1 bit to downvote this post'
               }
             >
               <ArrowBigDown size={20} fill={isDownvoted ? 'currentColor' : 'none'} />
@@ -348,7 +361,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
           </div>
 
           <div className="flex-1 flex flex-col min-w-0">
-            <div className="text-xs text-terminal-dim mb-1 flex flex-wrap items-center gap-2 uppercase tracking-wider">
+            <div className="text-xs text-terminal-dim mb-2 flex flex-wrap items-center gap-2 uppercase tracking-wider">
               {boardName && (
                 <span className="bg-terminal-dim/20 px-1 text-terminal-text font-bold mr-2">
                   //{boardName}
@@ -356,11 +369,24 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
               )}
               <button
                 onClick={handleAuthorClick}
-                className="font-bold text-terminal-dim hover:text-terminal-text hover:underline transition-colors cursor-pointer"
-                title={`View ${post.author}'s profile`}
+                className="flex items-center gap-2 font-bold text-terminal-dim hover:text-terminal-text hover:underline transition-colors cursor-pointer"
+                title={`View ${authorDisplayName}'s profile`}
               >
-                {post.author}
+                {authorProfile?.picture ? (
+                  <img
+                    src={authorProfile.picture}
+                    alt={`${authorDisplayName}'s avatar`}
+                    className="w-6 h-6 rounded-full object-cover border border-terminal-dim/40"
+                  />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-terminal-dim/20 border border-terminal-dim/40 flex items-center justify-center text-[10px] text-terminal-dim font-bold">
+                    {authorDisplayName.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <span>{authorDisplayName}</span>
               </button>
+              <BadgeDisplay pubkey={post.authorPubkey || ''} size="sm" />
+              <TrustIndicator pubkey={post.authorPubkey || ''} compact={true} />
               <span>::</span>
               <span className="flex items-center gap-1">
                 <Clock size={12} /> {formatTime(post.timestamp)}
@@ -467,6 +493,12 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
                 <MarkdownRenderer content={post.content} />
               </div>
             )}
+
+            <div className="mb-4 flex items-center gap-2 border border-terminal-dim/40 bg-terminal-dim/5 px-3 py-2 text-xs text-terminal-muted">
+              <Shield size={12} className="text-terminal-text flex-shrink-0" />
+              Verified identities spend scarce bits to move posts up or down. Influence is limited,
+              public, and accountable.
+            </div>
 
             <div className="mt-2 flex items-center justify-between border-t border-terminal-dim pt-1">
               <div className="flex gap-2 flex-wrap">

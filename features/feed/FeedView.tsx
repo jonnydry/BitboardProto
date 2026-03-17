@@ -18,6 +18,7 @@ import {
   useHasMorePosts,
 } from '../../stores/uiStore';
 import { useActiveBoard } from '../../stores/boardStore';
+import { useUserStore } from '../../stores/userStore';
 import { useAppNavigationHandlers } from '../layout/useAppNavigationHandlers';
 import {
   FeedLoaderRow,
@@ -80,6 +81,7 @@ export function FeedView(props: {
   const setSortModeStore = useUIStore((state) => state.setSortMode);
   const setSearchQueryStore = useUIStore((state) => state.setSearchQuery);
   const setViewMode = useUIStore((state) => state.setViewMode);
+  const userState = useUserStore((state) => state.userState);
 
   // Navigation handlers from Zustand-based hook
   const { handleViewBit, handleViewProfile, handleEditPost, handleTagClick } =
@@ -363,6 +365,16 @@ export function FeedView(props: {
         </div>
 
         <div className="flex flex-col gap-4 pb-4">
+          {!activeBoard && !searchQuery && feedFilter === 'all' && (
+            <div className="border border-terminal-dim/40 bg-terminal-dim/5 px-4 py-3 text-xs md:text-sm text-terminal-muted leading-relaxed">
+              <span className="text-terminal-text font-bold">Bit-weighted global feed:</span>{' '}
+              verified identities spend limited bits to push the best posts upward. You currently
+              have <span className="text-terminal-text font-bold">{userState.bits}</span> of{' '}
+              <span className="text-terminal-text font-bold">{userState.maxBits}</span> bits
+              available.
+            </div>
+          )}
+
           <div className="border border-terminal-dim p-4 md:p-5 bg-terminal-bg/40">
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
               <div>
