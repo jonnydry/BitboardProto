@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Globe,
@@ -10,6 +10,9 @@ import {
   MapPin,
   Zap,
   MessageSquare,
+  Target,
+  Undo2,
+  Users,
 } from 'lucide-react';
 import { ViewMode } from '../../types';
 
@@ -39,6 +42,12 @@ export function MobileDrawer({
   children,
 }: MobileDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
+  const [showBitsInfo, setShowBitsInfo] = useState(false);
+
+  // Reset bits info when drawer closes
+  useEffect(() => {
+    if (!isOpen) setShowBitsInfo(false);
+  }, [isOpen]);
 
   // Close on escape key
   useEffect(() => {
@@ -174,20 +183,91 @@ export function MobileDrawer({
 
         {/* User Status */}
         <div className="p-4 border-b border-terminal-dim/30">
+          {/* Bits row */}
           <div className="flex items-center gap-3 mb-2">
             <Zap
               size={16}
               className={userState.bits === 0 ? 'text-terminal-alert' : 'text-terminal-text'}
             />
-            <span className="font-mono text-sm">
-              <span className="text-terminal-dim">BITS:</span>{' '}
-              <span className="font-bold">
-                {userState.bits}/{userState.maxBits}
+            <div className="flex-1 flex items-center justify-between">
+              <span className="font-mono text-sm">
+                <span className="text-terminal-dim">BITS:</span>{' '}
+                <span className="font-bold">
+                  {userState.bits}/{userState.maxBits}
+                </span>
               </span>
-            </span>
+              <button
+                type="button"
+                onClick={() => setShowBitsInfo((p) => !p)}
+                className="text-[10px] uppercase tracking-wide text-terminal-dim hover:text-terminal-text transition-colors"
+              >
+                {showBitsInfo ? 'Hide ▴' : 'How bits work ▾'}
+              </button>
+            </div>
           </div>
+
+          {/* Progress bar */}
+          <div className="h-1.5 w-full overflow-hidden border border-terminal-dim/30 bg-terminal-bg/70 mb-2">
+            <div
+              className={`h-full transition-all duration-300 ${userState.bits === 0 ? 'bg-terminal-alert' : 'bg-terminal-text'}`}
+              style={{
+                width: `${Math.max(0, Math.min(100, (userState.bits / Math.max(1, userState.maxBits)) * 100))}%`,
+              }}
+            />
+          </div>
+
+          {/* Expandable bits guide */}
+          {showBitsInfo && (
+            <div className="mt-3 pt-3 border-t border-terminal-dim/30 space-y-2.5">
+              <div className="flex gap-2.5">
+                <Zap size={13} className="text-terminal-dim shrink-0 mt-0.5" />
+                <p className="text-[11px] text-terminal-muted leading-relaxed">
+                  <span className="text-terminal-text font-bold">Bit-weighted global feed:</span>{' '}
+                  verified identities spend limited bits to push the best posts upward.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <div className="flex gap-2.5">
+                  <Target size={13} className="text-terminal-dim shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-[11px] text-terminal-text font-bold uppercase tracking-wide mb-0.5">
+                      Spend deliberately
+                    </div>
+                    <div className="text-[11px] text-terminal-muted leading-relaxed">
+                      Each new vote locks 1 bit, so influence goes where you think it matters most.
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2.5">
+                  <Undo2 size={13} className="text-terminal-dim shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-[11px] text-terminal-text font-bold uppercase tracking-wide mb-0.5">
+                      Refund by retracting
+                    </div>
+                    <div className="text-[11px] text-terminal-muted leading-relaxed">
+                      Remove your vote to refund the bit. Switching directions keeps the same bit
+                      locked in place.
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2.5">
+                  <Users size={13} className="text-terminal-dim shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-[11px] text-terminal-text font-bold uppercase tracking-wide mb-0.5">
+                      Verified consensus
+                    </div>
+                    <div className="text-[11px] text-terminal-muted leading-relaxed">
+                      The global feed improves when many verified identities choose the same
+                      high-signal posts.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {identity && (
-            <div className="text-[10px] text-terminal-dim truncate">
+            <div className="text-[10px] text-terminal-dim truncate mt-2">
               KEY: {identity.npub.slice(0, 20)}...
             </div>
           )}

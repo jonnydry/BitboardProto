@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Zap, Menu, Search as _Search } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Zap, Menu, Search as _Search, Target, Undo2, Users } from 'lucide-react';
 import { ThemeId, ViewMode } from '../../types';
 import { notificationServiceV2 } from '../../services/notificationServiceV2';
 import { profileService } from '../../services/profileService';
@@ -27,6 +27,8 @@ export function AppHeader({ onOpenDrawer }: AppHeaderProps) {
 
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showBitsPanel, setShowBitsPanel] = useState(false);
+  const bitsPanelRef = useRef<HTMLDivElement>(null);
   const ownProfile = identity ? profileService.getCachedProfileSync(identity.pubkey) : null;
   const identityDisplayName =
     ownProfile?.display_name ||
@@ -57,6 +59,27 @@ export function AppHeader({ onOpenDrawer }: AppHeaderProps) {
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
   }, [showNotifications]);
+
+  // Close bits panel on Escape or outside click
+  useEffect(() => {
+    if (!showBitsPanel) return;
+
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowBitsPanel(false);
+    };
+    const handleClick = (e: MouseEvent) => {
+      if (bitsPanelRef.current && !bitsPanelRef.current.contains(e.target as Node)) {
+        setShowBitsPanel(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKey);
+    document.addEventListener('mousedown', handleClick);
+    return () => {
+      document.removeEventListener('keydown', handleKey);
+      document.removeEventListener('mousedown', handleClick);
+    };
+  }, [showBitsPanel]);
 
   return (
     <header className="flex flex-col mb-4 md:mb-6 lg:mb-8 border-b-2 border-terminal-dim py-[5px] gap-2 md:gap-3 lg:gap-4">
@@ -251,32 +274,93 @@ export function AppHeader({ onOpenDrawer }: AppHeaderProps) {
         </div>
 
         <div className="hidden lg:flex items-center gap-3 shrink-0">
-          <div
-            className="flex items-center gap-3 border border-terminal-dim/50 bg-terminal-dim/5 px-3 py-1.5 font-mono text-terminal-text"
-            title="Available voting bits"
-          >
-            <Zap
-              size={12}
-              className={userState.bits === 0 ? 'text-terminal-alert' : 'text-terminal-text'}
-            />
-            <div className="flex flex-col gap-1 min-w-[120px]">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] uppercase tracking-wide text-terminal-dim">
-                  Bits available
-                </span>
-                <span className="text-sm font-bold">
-                  {userState.bits}/{userState.maxBits}
-                </span>
+          {/* Bits widget + popover */}
+          <div className="relative" ref={bitsPanelRef}>
+            <button
+              type="button"
+              onClick={() => setShowBitsPanel((p) => !p)}
+              className={`flex items-center gap-3 border px-3 py-1.5 font-mono text-terminal-text transition-colors bg-terminal-dim/5 ${showBitsPanel ? 'border-terminal-text' : 'border-terminal-dim/50 hover:border-terminal-dim'}`}
+              title="Bits — click to learn more"
+            >
+              <Zap
+                size={12}
+                className={userState.bits === 0 ? 'text-terminal-alert' : 'text-terminal-text'}
+              />
+              <div className="flex flex-col gap-1 min-w-[120px]">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] uppercase tracking-wide text-terminal-dim">
+                    Bits available
+                  </span>
+                  <span className="text-sm font-bold">
+                    {userState.bits}/{userState.maxBits}
+                  </span>
+                </div>
+                <div className="h-1.5 overflow-hidden border border-terminal-dim/30 bg-terminal-bg/70">
+                  <div
+                    className={`h-full transition-all duration-300 ${userState.bits === 0 ? 'bg-terminal-alert' : 'bg-terminal-text'}`}
+                    style={{
+                      width: `${Math.max(0, Math.min(100, (userState.bits / Math.max(1, userState.maxBits)) * 100))}%`,
+                    }}
+                  />
+                </div>
               </div>
-              <div className="h-1.5 overflow-hidden border border-terminal-dim/30 bg-terminal-bg/70">
-                <div
-                  className={`h-full ${userState.bits === 0 ? 'bg-terminal-alert' : 'bg-terminal-text'}`}
-                  style={{
-                    width: `${Math.max(0, Math.min(100, (userState.bits / Math.max(1, userState.maxBits)) * 100))}%`,
-                  }}
-                />
+            </button>
+
+            {/* Bits info popover */}
+            {showBitsPanel && (
+              <div className="absolute right-0 top-full mt-1 z-50 w-80 border border-terminal-dim/60 bg-terminal-bg shadow-lg">
+                <div className="px-4 py-3 border-b border-terminal-dim/30 flex gap-2.5">
+                  <Zap size={14} className="text-terminal-dim shrink-0 mt-0.5" />
+                  <p className="text-xs text-terminal-muted leading-relaxed">
+                    <span className="text-terminal-text font-bold">Bit-weighted global feed:</span>{' '}
+                    verified identities spend limited bits to push the best posts upward.
+                  </p>
+                </div>
+                <div className="px-4 py-3 space-y-3">
+                  <div className="text-[10px] uppercase tracking-widest text-terminal-dim">
+                    How bits work
+                  </div>
+                  <div className="space-y-2.5">
+                    <div className="flex gap-2.5">
+                      <Target size={14} className="text-terminal-dim shrink-0 mt-0.5" />
+                      <div>
+                        <div className="text-xs text-terminal-text font-bold uppercase tracking-wide mb-0.5">
+                          Spend deliberately
+                        </div>
+                        <div className="text-xs text-terminal-muted leading-relaxed">
+                          Each new vote locks 1 bit, so influence goes where you think it matters
+                          most.
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2.5">
+                      <Undo2 size={14} className="text-terminal-dim shrink-0 mt-0.5" />
+                      <div>
+                        <div className="text-xs text-terminal-text font-bold uppercase tracking-wide mb-0.5">
+                          Refund by retracting
+                        </div>
+                        <div className="text-xs text-terminal-muted leading-relaxed">
+                          Remove your vote to refund the bit. Switching directions keeps the same
+                          bit locked in place.
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2.5">
+                      <Users size={14} className="text-terminal-dim shrink-0 mt-0.5" />
+                      <div>
+                        <div className="text-xs text-terminal-text font-bold uppercase tracking-wide mb-0.5">
+                          Verified consensus
+                        </div>
+                        <div className="text-xs text-terminal-muted leading-relaxed">
+                          The global feed improves when many verified identities choose the same
+                          high-signal posts.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
           <NetworkIndicator compact />
           <InlineNetworkStatus />
