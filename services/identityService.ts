@@ -7,47 +7,151 @@ import {
   type EventTemplate,
 } from 'nostr-tools';
 import { bytesToHex, hexToBytes } from 'nostr-tools/utils';
-import type { NostrIdentity, UnsignedNostrEvent } from '../types';
+import type { NostrIdentity, PublicNostrIdentity, UnsignedNostrEvent } from '../types';
 import { cryptoService } from './cryptoService';
 import { logger } from './loggingService';
 
 const STORAGE_KEYS = {
-  // Legacy key (unencrypted) - for migration
+  // Legacy unencrypted identity (pre-encryption era)
   IDENTITY_LEGACY: 'bitboard_identity',
-  // New encrypted storage key
+  // AES-GCM encrypted identity blob
   IDENTITY_ENCRYPTED: 'bitboard_identity_v2',
   DISPLAY_NAME: 'bitboard_display_name',
+  // Legacy insecure AES key (present on old installs, deleted on first load)
+  LEGACY_ENC_KEY: 'bitboard_enc_key',
 } as const;
 
 class IdentityService {
   private identity: NostrIdentity | null = null;
   private initialized: boolean = false;
   private initPromise: Promise<void> | null = null;
+  /**
+   * True when an encrypted blob exists but no passphrase has been provided yet.
+   * The app should prompt the user to unlock before doing anything else.
+   */
+  private _needsPassphrase: boolean = false;
+  /**
+   * True when this is a brand-new install that had the old insecure key scheme.
+   * The user must set a passphrase so we can re-encrypt under it.
+   */
+  private _needsMigration: boolean = false;
+  /** The legacy plaintext to re-encrypt once the user sets a passphrase. */
+  private _migrationPlaintext: string | null = null;
+  /** Keep the old insecure key until migration succeeds, then delete it. */
+  private _legacyKeyB64: string | null = null;
 
   constructor() {
-    // Start async initialization
     this.initPromise = this.initializeAsync();
   }
 
-  /**
-   * Async initialization - loads identity with encryption support
-   */
   private async initializeAsync(): Promise<void> {
     try {
-      await this.loadIdentity();
+      // Delete the legacy insecure AES key if it is still lying around.
+      // We keep the encrypted blob — it will be re-encrypted under the
+      // passphrase-derived key after the user sets one.
+      const legacyKey = localStorage.getItem(STORAGE_KEYS.LEGACY_ENC_KEY);
+      if (legacyKey) {
+        await this.handleLegacyMigration(legacyKey);
+      } else {
+        await this.loadIdentity();
+      }
       this.initialized = true;
     } catch (error) {
       logger.error('Identity', 'Failed to initialize', error);
-      this.initialized = true; // Mark as initialized even on error
+      this.initialized = true;
     }
   }
 
   /**
-   * Ensure service is initialized before operations
+   * Called when we find the old insecure key in localStorage.
+   * Decrypts the identity with the old key and flags that a passphrase
+   * must be set before we re-save. We do NOT delete the old key yet,
+   * so a failed migration cannot strand the user.
    */
+  private async handleLegacyMigration(legacyKeyB64: string): Promise<void> {
+    const encryptedBlob = localStorage.getItem(STORAGE_KEYS.IDENTITY_ENCRYPTED);
+    if (encryptedBlob) {
+      const plaintext = await cryptoService.decryptWithLegacyKey(encryptedBlob, legacyKeyB64);
+      if (plaintext) {
+        this._migrationPlaintext = plaintext;
+        this._needsMigration = true;
+        this._legacyKeyB64 = legacyKeyB64;
+        // Don't load the identity into memory yet — wait for passphrase
+        return;
+      }
+    }
+
+    logger.warn('Identity', 'Legacy identity migration data was incomplete or unreadable');
+  }
+
   private async ensureInitialized(): Promise<void> {
     if (this.initPromise) {
       await this.initPromise;
+    }
+  }
+
+  // ----------------------------------------
+  // PASSPHRASE LOCK / UNLOCK
+  // ----------------------------------------
+
+  /** True when the app must prompt the user for their passphrase. */
+  needsPassphrase(): boolean {
+    return this._needsPassphrase || this._needsMigration;
+  }
+
+  /** True specifically for the migration case (user must SET a new passphrase). */
+  needsMigration(): boolean {
+    return this._needsMigration;
+  }
+
+  /**
+   * Attempt to unlock with the given passphrase.
+   * Returns true on success, false if the passphrase was wrong.
+   */
+  async unlockWithPassphrase(passphrase: string): Promise<boolean> {
+    await this.ensureInitialized();
+    try {
+      await cryptoService.deriveKeyFromPassphrase(passphrase);
+      const encryptedBlob = localStorage.getItem(STORAGE_KEYS.IDENTITY_ENCRYPTED);
+      if (!encryptedBlob) {
+        // Nothing stored — passphrase was accepted, nothing to decrypt
+        this._needsPassphrase = false;
+        return true;
+      }
+      const plaintext = await cryptoService.decrypt(encryptedBlob);
+      const parsed = JSON.parse(plaintext);
+      this.identity = parsed?.kind ? parsed : { ...parsed, kind: 'local' };
+      this._needsPassphrase = false;
+      return true;
+    } catch {
+      // Wrong passphrase — AES-GCM auth tag mismatch
+      cryptoService.clearKey();
+      return false;
+    }
+  }
+
+  /**
+   * Migrate an old install: derive a new key from the given passphrase,
+   * re-encrypt the decrypted plaintext, and load the identity.
+   * Returns true on success.
+   */
+  async migrateWithPassphrase(passphrase: string): Promise<boolean> {
+    if (!this._needsMigration || !this._migrationPlaintext) return false;
+    try {
+      await cryptoService.deriveKeyFromPassphrase(passphrase);
+      const parsed = JSON.parse(this._migrationPlaintext);
+      this.identity = parsed?.kind ? parsed : { ...parsed, kind: 'local' };
+      await this.saveIdentity(); // re-encrypts under new passphrase-derived key
+      if (this._legacyKeyB64) {
+        cryptoService.deleteLegacyKey();
+      }
+      this._needsMigration = false;
+      this._migrationPlaintext = null;
+      this._legacyKeyB64 = null;
+      return true;
+    } catch (err) {
+      logger.error('Identity', 'Migration failed', err);
+      return false;
     }
   }
 
@@ -66,8 +170,14 @@ class IdentityService {
   /**
    * Generate a new Nostr keypair
    */
-  async generateIdentity(displayName?: string): Promise<NostrIdentity> {
+  async generateIdentity(displayName?: string, passphrase?: string): Promise<NostrIdentity> {
     await this.ensureInitialized();
+
+    if (!passphrase?.trim()) {
+      throw new Error('Passphrase is required');
+    }
+
+    await cryptoService.deriveKeyFromPassphrase(passphrase.trim());
 
     const privateKeyBytes = generateSecretKey();
     const pubkey = getPublicKey(privateKeyBytes);
@@ -94,10 +204,19 @@ class IdentityService {
   /**
    * Import existing identity from nsec
    */
-  async importFromNsec(nsec: string, displayName?: string): Promise<NostrIdentity | null> {
+  async importFromNsec(
+    nsec: string,
+    displayName?: string,
+    passphrase?: string,
+  ): Promise<NostrIdentity | null> {
     await this.ensureInitialized();
 
+    if (!passphrase?.trim()) {
+      throw new Error('Passphrase is required');
+    }
+
     try {
+      await cryptoService.deriveKeyFromPassphrase(passphrase.trim());
       const decoded = nip19.decode(nsec);
       if (decoded.type !== 'nsec') {
         throw new Error('Invalid nsec format');
@@ -132,10 +251,19 @@ class IdentityService {
   /**
    * Import from hex private key
    */
-  async importFromHex(hexPrivkey: string, displayName?: string): Promise<NostrIdentity | null> {
+  async importFromHex(
+    hexPrivkey: string,
+    displayName?: string,
+    passphrase?: string,
+  ): Promise<NostrIdentity | null> {
     await this.ensureInitialized();
 
+    if (!passphrase?.trim()) {
+      throw new Error('Passphrase is required');
+    }
+
     try {
+      await cryptoService.deriveKeyFromPassphrase(passphrase.trim());
       const privateKeyBytes = hexToBytes(hexPrivkey);
       const pubkey = getPublicKey(privateKeyBytes);
       const npub = nip19.npubEncode(pubkey);
@@ -187,6 +315,55 @@ class IdentityService {
   }
 
   /**
+   * Returns the identity with privkey stripped — safe to store in shared
+   * React/Zustand state. All key operations must go through identityService.
+   */
+  getPublicIdentity(): PublicNostrIdentity | null {
+    if (!this.identity) return null;
+    if (this.identity.kind === 'local') {
+      const { privkey: _stripped, ...pub } = this.identity;
+      return pub as PublicNostrIdentity;
+    }
+    return this.identity;
+  }
+
+  // ----------------------------------------
+  // DM ENCRYPTION (keeps privkey inside this service)
+  // ----------------------------------------
+
+  /**
+   * Encrypt a plaintext message for a recipient using NIP-04.
+   * The private key never leaves this service.
+   */
+  async encryptDM(plaintext: string, recipientPubkey: string): Promise<string | null> {
+    if (!this.identity || this.identity.kind !== 'local') return null;
+    return cryptoService.encryptNIP04(plaintext, this.identity.privkey, recipientPubkey);
+  }
+
+  /**
+   * Decrypt a NIP-04 ciphertext from a counterparty.
+   * The private key never leaves this service.
+   */
+  async decryptDM(ciphertext: string, counterpartyPubkey: string): Promise<string | null> {
+    if (!this.identity || this.identity.kind !== 'local') return null;
+    return cryptoService.decryptNIP04(ciphertext, this.identity.privkey, counterpartyPubkey);
+  }
+
+  /**
+   * Unwrap a NIP-17 gift-wrap event addressed to the current user.
+   * The private key never leaves this service.
+   */
+  async unwrapDMGiftWrap(
+    giftWrapEvent: NostrEvent,
+  ): Promise<{ content: string; senderPubkey: string } | null> {
+    if (!this.identity || this.identity.kind !== 'local') return null;
+    return cryptoService.unwrapGiftWrap({
+      giftWrapEvent,
+      recipientPrivkey: this.identity.privkey,
+    });
+  }
+
+  /**
    * Export nsec for backup
    */
   exportNsec(): string | null {
@@ -201,6 +378,13 @@ class IdentityService {
    */
   hasIdentity(): boolean {
     return this.identity !== null;
+  }
+
+  /**
+   * Check if the current identity is a local keypair (can perform DM crypto)
+   */
+  hasLocalIdentity(): boolean {
+    return this.identity?.kind === 'local';
   }
 
   /**
@@ -225,6 +409,12 @@ class IdentityService {
     // Remove both legacy and encrypted storage
     localStorage.removeItem(STORAGE_KEYS.IDENTITY_LEGACY);
     localStorage.removeItem(STORAGE_KEYS.IDENTITY_ENCRYPTED);
+    cryptoService.deleteEncryptionKey();
+    cryptoService.clearKey();
+    this._needsPassphrase = false;
+    this._needsMigration = false;
+    this._migrationPlaintext = null;
+    this._legacyKeyB64 = null;
   }
 
   // ----------------------------------------
@@ -239,7 +429,6 @@ class IdentityService {
     if (this.identity.kind !== 'local') return;
 
     try {
-      // Check if crypto is available
       if (!cryptoService.isAvailable()) {
         logger.warn('Identity', 'Web Crypto not available, falling back to unencrypted storage');
         const data = JSON.stringify(this.identity);
@@ -247,15 +436,15 @@ class IdentityService {
         return;
       }
 
-      // Encrypt identity data
+      if (!cryptoService.hasKey()) {
+        throw new Error('Passphrase key not loaded');
+      }
+
       const plaintext = JSON.stringify(this.identity);
       const encrypted = await cryptoService.encrypt(plaintext);
-
-      // Store encrypted data
       localStorage.setItem(STORAGE_KEYS.IDENTITY_ENCRYPTED, encrypted);
-
-      // Remove legacy unencrypted data if it exists
       localStorage.removeItem(STORAGE_KEYS.IDENTITY_LEGACY);
+      this._needsPassphrase = false;
     } catch (error) {
       logger.error('Identity', 'Failed to save identity', error);
       throw error;
@@ -267,37 +456,36 @@ class IdentityService {
    */
   private async loadIdentity(): Promise<void> {
     try {
-      // First, try to load encrypted identity (v2)
       const encryptedData = localStorage.getItem(STORAGE_KEYS.IDENTITY_ENCRYPTED);
 
       if (encryptedData) {
-        // Decrypt and parse
-        if (cryptoService.isAvailable()) {
-          const decrypted = await cryptoService.decrypt(encryptedData);
-          const parsed = JSON.parse(decrypted);
-          // Backward-compat: older identities won't have kind
-          this.identity = parsed?.kind ? parsed : { ...parsed, kind: 'local' };
-          return;
-        } else {
+        if (!cryptoService.isAvailable()) {
           logger.warn('Identity', 'Cannot decrypt - Web Crypto not available');
+          return;
         }
-      }
 
-      // Migration: Check for legacy unencrypted identity
-      const legacyData = localStorage.getItem(STORAGE_KEYS.IDENTITY_LEGACY);
+        if (!cryptoService.hasKey()) {
+          this._needsPassphrase = true;
+          this.identity = null;
+          return;
+        }
 
-      if (legacyData) {
-        const parsed = JSON.parse(legacyData);
+        const decrypted = await cryptoService.decrypt(encryptedData);
+        const parsed = JSON.parse(decrypted);
         this.identity = parsed?.kind ? parsed : { ...parsed, kind: 'local' };
-
-        // Migrate to encrypted storage
-        if (cryptoService.isAvailable()) {
-          await this.saveIdentity();
-        }
+        this._needsPassphrase = false;
         return;
       }
 
-      // No identity found
+      const legacyData = localStorage.getItem(STORAGE_KEYS.IDENTITY_LEGACY);
+
+      if (legacyData) {
+        this._migrationPlaintext = legacyData;
+        this._needsMigration = true;
+        this.identity = null;
+        return;
+      }
+
       this.identity = null;
     } catch (error) {
       logger.error('Identity', 'Failed to load identity', error);

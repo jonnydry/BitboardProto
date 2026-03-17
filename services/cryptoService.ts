@@ -1,109 +1,153 @@
 // ============================================
 // CRYPTO SERVICE
 // ============================================
-// AES-256-GCM encryption for identity storage
-// Adopts patterns from BitChat's SecureIdentityStateManager
+// AES-256-GCM encryption for identity storage.
 //
-// Security Properties:
-// - AES-256-GCM authenticated encryption
-// - Random 12-byte IV per encryption operation
-// - Encryption key stored separately from encrypted data
-// - Browser-derived key (no password needed)
+// Security model:
+//   The AES key is derived from a user-supplied passphrase via PBKDF2
+//   (310 000 iterations, SHA-256) and is NEVER written to storage.
+//   Only a random 16-byte salt (not secret) is persisted.  Without the
+//   passphrase the localStorage blob is unreadable.
+//
+// Storage layout:
+//   bitboard_salt          – 16-byte random salt (base64), written once
+//   bitboard_identity_v2   – AES-GCM encrypted identity blob (managed by identityService)
+//   bitboard_enc_key       – DELETED on first load (legacy, insecure)
 
 import { logger } from './loggingService';
 
-// ============================================
-// STORAGE KEYS
-// ============================================
-
 const STORAGE_KEYS = {
-  ENCRYPTION_KEY: 'bitboard_enc_key',
+  SALT: 'bitboard_salt',
+  // Legacy key — present on old installs, deleted during migration
+  LEGACY_ENC_KEY: 'bitboard_enc_key',
 } as const;
 
-// ============================================
-// CRYPTO SERVICE CLASS
-// ============================================
+// PBKDF2 iteration count — high enough to be slow on commodity hardware
+const PBKDF2_ITERATIONS = 310_000;
 
 class CryptoService {
+  /** In-memory AES-GCM key derived from the passphrase. Never persisted. */
   private encryptionKey: CryptoKey | null = null;
-  private initPromise: Promise<void> | null = null;
 
   // ----------------------------------------
-  // INITIALIZATION
-  // ----------------------------------------
-
-  /**
-   * Initialize the crypto service by loading or creating encryption key
-   */
-  async initialize(): Promise<void> {
-    // Prevent multiple simultaneous initializations
-    if (this.initPromise) {
-      return this.initPromise;
-    }
-
-    this.initPromise = this._doInitialize();
-    return this.initPromise;
-  }
-
-  private async _doInitialize(): Promise<void> {
-    try {
-      // Try to load existing key from storage
-      const storedKey = localStorage.getItem(STORAGE_KEYS.ENCRYPTION_KEY);
-      
-      if (storedKey) {
-        this.encryptionKey = await this.importKey(storedKey);
-        logger.debug('Crypto', 'Loaded existing encryption key');
-      } else {
-        // Generate new key
-        this.encryptionKey = await this.generateKey();
-        const exportedKey = await this.exportKey(this.encryptionKey);
-        localStorage.setItem(STORAGE_KEYS.ENCRYPTION_KEY, exportedKey);
-        logger.debug('Crypto', 'Generated new encryption key');
-      }
-    } catch (error) {
-      logger.error('Crypto', 'Failed to initialize', error);
-      throw error;
-    }
-  }
-
-  // ----------------------------------------
-  // KEY MANAGEMENT
+  // PASSPHRASE-BASED KEY DERIVATION
   // ----------------------------------------
 
   /**
-   * Generate a new AES-256-GCM encryption key
+   * Derive an AES-256-GCM key from a passphrase + stored salt using PBKDF2.
+   * Stores the result in memory; does NOT write the key to storage.
+   * Creates a new random salt if one does not already exist.
    */
-  private async generateKey(): Promise<CryptoKey> {
-    return await crypto.subtle.generateKey(
+  async deriveKeyFromPassphrase(passphrase: string): Promise<void> {
+    const salt = this.getOrCreateSalt();
+
+    const encoder = new TextEncoder();
+    const passphraseBytes = encoder.encode(passphrase);
+
+    // Import passphrase as raw key material
+    const keyMaterial = await crypto.subtle.importKey('raw', passphraseBytes, 'PBKDF2', false, [
+      'deriveKey',
+    ]);
+
+    // Derive an AES-GCM key — non-extractable so it can never be exported
+    this.encryptionKey = await crypto.subtle.deriveKey(
       {
-        name: 'AES-GCM',
-        length: 256, // 256-bit key (matches BitChat's SymmetricKey.bits256)
+        name: 'PBKDF2',
+        salt,
+        iterations: PBKDF2_ITERATIONS,
+        hash: 'SHA-256',
       },
-      true, // extractable (needed for storage)
-      ['encrypt', 'decrypt']
-    );
-  }
-
-  /**
-   * Export key to base64 string for storage
-   */
-  private async exportKey(key: CryptoKey): Promise<string> {
-    const rawKey = await crypto.subtle.exportKey('raw', key);
-    return this.arrayBufferToBase64(rawKey);
-  }
-
-  /**
-   * Import key from base64 string
-   */
-  private async importKey(base64Key: string): Promise<CryptoKey> {
-    const rawKey = this.base64ToArrayBuffer(base64Key);
-    return await crypto.subtle.importKey(
-      'raw',
-      rawKey,
+      keyMaterial,
       { name: 'AES-GCM', length: 256 },
-      true,
-      ['encrypt', 'decrypt']
+      false, // non-extractable
+      ['encrypt', 'decrypt'],
     );
+
+    logger.debug('Crypto', 'Key derived from passphrase');
+  }
+
+  /**
+   * Returns true if a passphrase-derived key is currently in memory.
+   */
+  hasKey(): boolean {
+    return this.encryptionKey !== null;
+  }
+
+  /**
+   * Wipe the in-memory key (e.g. on logout or lock).
+   */
+  clearKey(): void {
+    this.encryptionKey = null;
+  }
+
+  // ----------------------------------------
+  // SALT MANAGEMENT
+  // ----------------------------------------
+
+  /**
+   * Returns the stored salt, or generates + stores a new one.
+   * The salt is not secret — it prevents pre-computation attacks.
+   */
+  getOrCreateSalt(): Uint8Array {
+    const stored = localStorage.getItem(STORAGE_KEYS.SALT);
+    if (stored) {
+      return this.base64ToUint8Array(stored);
+    }
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    localStorage.setItem(STORAGE_KEYS.SALT, this.uint8ArrayToBase64(salt));
+    return salt;
+  }
+
+  /**
+   * Returns true if a salt exists in storage, meaning this device has
+   * previously stored an identity and will require a passphrase to unlock.
+   */
+  hasSalt(): boolean {
+    return !!localStorage.getItem(STORAGE_KEYS.SALT);
+  }
+
+  // ----------------------------------------
+  // LEGACY MIGRATION
+  // ----------------------------------------
+
+  /**
+   * If the legacy insecure encryption key is present, delete it.
+   * Called once on app startup — the identity blob remains and will
+   * be re-encrypted under the passphrase key on next save.
+   */
+  deleteLegacyKey(): void {
+    if (localStorage.getItem(STORAGE_KEYS.LEGACY_ENC_KEY)) {
+      localStorage.removeItem(STORAGE_KEYS.LEGACY_ENC_KEY);
+      logger.info('Crypto', 'Deleted legacy insecure encryption key from localStorage');
+    }
+  }
+
+  /**
+   * Attempt to decrypt with the legacy key (used during migration so we
+   * can re-encrypt under the new passphrase-derived key).
+   */
+  async decryptWithLegacyKey(encryptedData: string, legacyKeyB64: string): Promise<string | null> {
+    try {
+      const rawKey = this.base64ToArrayBuffer(legacyKeyB64);
+      const legacyKey = await crypto.subtle.importKey(
+        'raw',
+        rawKey,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['decrypt'],
+      );
+      const combined = new Uint8Array(this.base64ToArrayBuffer(encryptedData));
+      const iv = combined.slice(0, 12);
+      const ciphertext = combined.slice(12);
+      const plaintextBytes = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv, tagLength: 128 },
+        legacyKey,
+        ciphertext,
+      );
+      return new TextDecoder().decode(plaintextBytes);
+    } catch {
+      return null;
+    }
   }
 
   // ----------------------------------------
@@ -111,131 +155,311 @@ class CryptoService {
   // ----------------------------------------
 
   /**
-   * Encrypt data using AES-256-GCM
-   * Returns base64 encoded string: IV (12 bytes) + ciphertext + tag (16 bytes)
-   * Matches BitChat's AES.GCM.seal pattern
+   * Encrypt data using the in-memory AES-256-GCM key.
+   * Throws if no key has been derived yet.
    */
   async encrypt(plaintext: string): Promise<string> {
-    await this.ensureInitialized();
-
     if (!this.encryptionKey) {
-      throw new Error('Encryption key not available');
+      throw new Error('No encryption key — call deriveKeyFromPassphrase first');
     }
 
-    // Generate random 12-byte IV (standard for AES-GCM)
     const iv = crypto.getRandomValues(new Uint8Array(12));
-    
-    // Encode plaintext to bytes
     const encoder = new TextEncoder();
     const plaintextBytes = encoder.encode(plaintext);
 
-    // Encrypt with AES-GCM (includes authentication tag)
     const ciphertext = await crypto.subtle.encrypt(
-      {
-        name: 'AES-GCM',
-        iv: iv,
-        tagLength: 128, // 16-byte authentication tag
-      },
+      { name: 'AES-GCM', iv, tagLength: 128 },
       this.encryptionKey,
-      plaintextBytes
+      plaintextBytes,
     );
 
-    // Combine IV + ciphertext (tag is appended by Web Crypto)
-    // Format: [IV (12 bytes)][ciphertext + tag]
     const combined = new Uint8Array(iv.length + ciphertext.byteLength);
     combined.set(iv, 0);
     combined.set(new Uint8Array(ciphertext), iv.length);
 
-    return this.arrayBufferToBase64(combined.buffer);
+    return this.uint8ArrayToBase64(combined);
   }
 
   /**
-   * Decrypt data using AES-256-GCM
-   * Expects base64 encoded string: IV (12 bytes) + ciphertext + tag (16 bytes)
-   * Matches BitChat's AES.GCM.open pattern
+   * Decrypt data using the in-memory AES-256-GCM key.
+   * Throws if no key has been derived yet, or if decryption fails
+   * (wrong passphrase produces an auth-tag mismatch error).
    */
   async decrypt(encryptedData: string): Promise<string> {
-    await this.ensureInitialized();
-
     if (!this.encryptionKey) {
-      throw new Error('Encryption key not available');
+      throw new Error('No encryption key — call deriveKeyFromPassphrase first');
     }
 
-    // Decode from base64
     const combined = new Uint8Array(this.base64ToArrayBuffer(encryptedData));
-
-    // Extract IV (first 12 bytes)
     const iv = combined.slice(0, 12);
-    
-    // Extract ciphertext + tag (remaining bytes)
     const ciphertext = combined.slice(12);
 
-    // Decrypt with AES-GCM
     const plaintextBytes = await crypto.subtle.decrypt(
-      {
-        name: 'AES-GCM',
-        iv: iv,
-        tagLength: 128,
-      },
+      { name: 'AES-GCM', iv, tagLength: 128 },
       this.encryptionKey,
-      ciphertext
+      ciphertext,
     );
 
-    // Decode plaintext
-    const decoder = new TextDecoder();
-    return decoder.decode(plaintextBytes);
+    return new TextDecoder().decode(plaintextBytes);
   }
 
   // ----------------------------------------
-  // SECURE CLEAR (Best effort in JS)
+  // FULL WIPE
   // ----------------------------------------
 
   /**
-   * Attempt to securely clear sensitive string data
-   * Note: JavaScript doesn't guarantee memory clearing like Swift's memset_s,
-   * but we do our best to overwrite and dereference
+   * Delete all crypto state — salt + in-memory key.
+   * The identity blob becomes permanently unrecoverable.
    */
-  secureClear(sensitiveData: string): void {
-    // In JavaScript, strings are immutable and we can't directly overwrite memory
-    // The best we can do is ensure the reference is cleared and hope for GC
-    // This is a limitation of the browser environment vs native (BitChat's KeychainManager)
-    
-    // For typed arrays, we can overwrite:
-    if (sensitiveData && typeof sensitiveData === 'string') {
-      // Create a temporary array to overwrite any cached encoder buffers
-      const encoder = new TextEncoder();
-      const bytes = encoder.encode(sensitiveData);
-      crypto.getRandomValues(bytes); // Overwrite with random data
-    }
+  deleteEncryptionKey(): void {
+    localStorage.removeItem(STORAGE_KEYS.SALT);
+    localStorage.removeItem(STORAGE_KEYS.LEGACY_ENC_KEY);
+    this.encryptionKey = null;
+    logger.info('Crypto', 'Encryption state wiped');
   }
 
-  /**
-   * Securely clear a Uint8Array by overwriting with zeros
-   */
+  // ----------------------------------------
+  // AVAILABILITY CHECK
+  // ----------------------------------------
+
+  isAvailable(): boolean {
+    return (
+      typeof crypto !== 'undefined' &&
+      typeof crypto.subtle !== 'undefined' &&
+      typeof crypto.subtle.encrypt === 'function'
+    );
+  }
+
+  // ----------------------------------------
+  // SECURE CLEAR (best-effort in JS)
+  // ----------------------------------------
+
+  secureClear(_sensitiveData: string): void {
+    // JS strings are immutable — we can't overwrite the backing memory.
+    // This is a no-op kept for call-site compatibility.
+  }
+
   secureClearBytes(data: Uint8Array): void {
     if (data) {
-      crypto.getRandomValues(data); // First overwrite with random
-      data.fill(0); // Then zero out
+      crypto.getRandomValues(data);
+      data.fill(0);
     }
   }
 
   // ----------------------------------------
-  // UTILITY METHODS
+  // NIP-04 ENCRYPTION (Legacy)
   // ----------------------------------------
 
-  private async ensureInitialized(): Promise<void> {
-    if (!this.encryptionKey) {
-      await this.initialize();
+  async encryptNIP04(
+    plaintext: string,
+    senderPrivkey: string,
+    recipientPubkey: string,
+  ): Promise<string | null> {
+    try {
+      const { nip04 } = await import('nostr-tools');
+      return await nip04.encrypt(senderPrivkey, recipientPubkey, plaintext);
+    } catch (error) {
+      logger.error('Crypto', 'NIP-04 encryption failed', error);
+      return null;
     }
   }
 
-  private arrayBufferToBase64(buffer: ArrayBuffer): string {
-    const bytes = new Uint8Array(buffer);
+  async decryptNIP04(
+    encryptedContent: string,
+    receiverPrivkey: string,
+    senderPubkey: string,
+  ): Promise<string | null> {
+    try {
+      const { nip04 } = await import('nostr-tools');
+      return await nip04.decrypt(receiverPrivkey, senderPubkey, encryptedContent);
+    } catch (error) {
+      logger.error('Crypto', 'NIP-04 decryption failed', error);
+      return null;
+    }
+  }
+
+  async decryptNIP04Async(
+    encryptedContent: string,
+    receiverPrivkey: string,
+    senderPubkey: string,
+  ): Promise<string | null> {
+    return this.decryptNIP04(encryptedContent, receiverPrivkey, senderPubkey);
+  }
+
+  // ----------------------------------------
+  // NIP-44 ENCRYPTION (Modern)
+  // ----------------------------------------
+
+  private hexToBytes(hex: string): Uint8Array {
+    const bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+    }
+    return bytes;
+  }
+
+  async encryptNIP44(
+    plaintext: string,
+    senderPrivkey: string,
+    recipientPubkey: string,
+  ): Promise<string | null> {
+    try {
+      const { nip44 } = await import('nostr-tools');
+      const privkeyBytes = this.hexToBytes(senderPrivkey);
+      const conversationKey = nip44.getConversationKey(privkeyBytes, recipientPubkey);
+      return nip44.encrypt(plaintext, conversationKey);
+    } catch (error) {
+      logger.error('Crypto', 'NIP-44 encryption failed', error);
+      return null;
+    }
+  }
+
+  async decryptNIP44(
+    encryptedContent: string,
+    receiverPrivkey: string,
+    senderPubkey: string,
+  ): Promise<string | null> {
+    try {
+      const { nip44 } = await import('nostr-tools');
+      const privkeyBytes = this.hexToBytes(receiverPrivkey);
+      const conversationKey = nip44.getConversationKey(privkeyBytes, senderPubkey);
+      return nip44.decrypt(encryptedContent, conversationKey);
+    } catch (error) {
+      logger.error('Crypto', 'NIP-44 decryption failed', error);
+      return null;
+    }
+  }
+
+  // ----------------------------------------
+  // NIP-17 GIFT WRAPPING
+  // ----------------------------------------
+
+  async createGiftWrap(args: {
+    content: string;
+    senderPrivkey: string;
+    senderPubkey: string;
+    recipientPubkey: string;
+    replyToId?: string;
+  }): Promise<{ giftWrap: unknown; sealEvent: unknown; rumor: unknown } | null> {
+    try {
+      const { nip44, finalizeEvent, generateSecretKey, getPublicKey } = await import('nostr-tools');
+
+      const rumor: {
+        kind: number;
+        created_at: number;
+        tags: string[][];
+        content: string;
+        pubkey: string;
+      } = {
+        kind: 14,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [['p', args.recipientPubkey]],
+        content: args.content,
+        pubkey: args.senderPubkey,
+      };
+
+      if (args.replyToId) {
+        rumor.tags.push(['e', args.replyToId, '', 'reply']);
+      }
+
+      const senderPrivkeyBytes = this.hexToBytes(args.senderPrivkey);
+      const sealConversationKey = nip44.getConversationKey(
+        senderPrivkeyBytes,
+        args.recipientPubkey,
+      );
+      const encryptedRumor = nip44.encrypt(JSON.stringify(rumor), sealConversationKey);
+
+      const sealEvent = finalizeEvent(
+        { kind: 13, created_at: Math.floor(Date.now() / 1000), tags: [], content: encryptedRumor },
+        senderPrivkeyBytes,
+      );
+
+      const randomPrivkey = generateSecretKey();
+      const _randomPubkey = getPublicKey(randomPrivkey);
+      const wrapConversationKey = nip44.getConversationKey(randomPrivkey, args.recipientPubkey);
+      const encryptedSeal = nip44.encrypt(JSON.stringify(sealEvent), wrapConversationKey);
+
+      const giftWrap = finalizeEvent(
+        {
+          kind: 1059,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [['p', args.recipientPubkey]],
+          content: encryptedSeal,
+        },
+        randomPrivkey,
+      );
+
+      return { giftWrap, sealEvent, rumor };
+    } catch (error) {
+      logger.error('Crypto', 'Failed to create gift wrap', error);
+      return null;
+    }
+  }
+
+  async unwrapGiftWrap(args: {
+    giftWrapEvent: { pubkey: string; content: string };
+    recipientPrivkey: string;
+  }): Promise<{
+    content: string;
+    senderPubkey: string;
+    timestamp: number;
+    replyToId?: string;
+  } | null> {
+    try {
+      const { nip44 } = await import('nostr-tools');
+      const recipientPrivkeyBytes = this.hexToBytes(args.recipientPrivkey);
+
+      const wrapConversationKey = nip44.getConversationKey(
+        recipientPrivkeyBytes,
+        args.giftWrapEvent.pubkey,
+      );
+      const sealJson = nip44.decrypt(args.giftWrapEvent.content, wrapConversationKey);
+      const sealEvent = JSON.parse(sealJson) as { pubkey: string; content: string };
+
+      const sealConversationKey = nip44.getConversationKey(recipientPrivkeyBytes, sealEvent.pubkey);
+      const rumorJson = nip44.decrypt(sealEvent.content, sealConversationKey);
+      const rumor = JSON.parse(rumorJson) as {
+        content: string;
+        created_at: number;
+        tags?: string[][];
+      };
+
+      const replyTag = rumor.tags?.find((t) => t[0] === 'e' && t[3] === 'reply');
+
+      return {
+        content: rumor.content,
+        senderPubkey: sealEvent.pubkey,
+        timestamp: rumor.created_at * 1000,
+        replyToId: replyTag?.[1],
+      };
+    } catch (error) {
+      logger.error('Crypto', 'Failed to unwrap gift wrap', error);
+      return null;
+    }
+  }
+
+  isGiftWrap(event: { kind?: number }): boolean {
+    return event?.kind === 1059;
+  }
+
+  isLegacyDM(event: { kind?: number }): boolean {
+    return event?.kind === 4;
+  }
+
+  // ----------------------------------------
+  // INTERNAL UTILITIES
+  // ----------------------------------------
+
+  private uint8ArrayToBase64(bytes: Uint8Array): string {
     let binary = '';
     for (let i = 0; i < bytes.byteLength; i++) {
       binary += String.fromCharCode(bytes[i]);
     }
     return btoa(binary);
+  }
+
+  private arrayBufferToBase64(buffer: ArrayBuffer): string {
+    return this.uint8ArrayToBase64(new Uint8Array(buffer));
   }
 
   private base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -247,292 +471,10 @@ class CryptoService {
     return bytes.buffer;
   }
 
-  // ----------------------------------------
-  // KEY MANAGEMENT (for panic/reset)
-  // ----------------------------------------
-
-  /**
-   * Delete the encryption key (for panic mode / identity reset)
-   * Warning: This will make any encrypted data unrecoverable!
-   */
-  deleteEncryptionKey(): void {
-    localStorage.removeItem(STORAGE_KEYS.ENCRYPTION_KEY);
-    this.encryptionKey = null;
-    this.initPromise = null;
-    logger.info('Crypto', 'Encryption key deleted');
-  }
-
-  /**
-   * Check if encryption is available (Web Crypto API supported)
-   */
-  isAvailable(): boolean {
-    return typeof crypto !== 'undefined' && 
-           typeof crypto.subtle !== 'undefined' &&
-           typeof crypto.subtle.encrypt === 'function';
-  }
-
-  // ----------------------------------------
-  // NIP-04 ENCRYPTION (Legacy - for backward compatibility)
-  // ----------------------------------------
-
-  /**
-   * Encrypt a message using NIP-04 (secp256k1 ECDH + AES-256-CBC)
-   * Format: base64(ciphertext)?iv=base64(iv)
-   * 
-   * NOTE: NIP-04 is legacy. Prefer NIP-44 for new messages.
-   */
-  async encryptNIP04(
-    plaintext: string,
-    senderPrivkey: string,
-    recipientPubkey: string
-  ): Promise<string | null> {
-    try {
-      const { nip04 } = await import('nostr-tools');
-      const encrypted = await nip04.encrypt(senderPrivkey, recipientPubkey, plaintext);
-      return encrypted;
-    } catch (error) {
-      logger.error('Crypto', 'NIP-04 encryption failed', error);
-      return null;
-    }
-  }
-
-  /**
-   * Decrypt a NIP-04 encrypted message (async)
-   */
-  async decryptNIP04(
-    encryptedContent: string,
-    receiverPrivkey: string,
-    senderPubkey: string
-  ): Promise<string | null> {
-    try {
-      const { nip04 } = await import('nostr-tools');
-      const decrypted = await nip04.decrypt(receiverPrivkey, senderPubkey, encryptedContent);
-      return decrypted;
-    } catch (error) {
-      logger.error('Crypto', 'NIP-04 decryption failed', error);
-      return null;
-    }
-  }
-
-  // Alias for backward compatibility
-  async decryptNIP04Async(
-    encryptedContent: string,
-    receiverPrivkey: string,
-    senderPubkey: string
-  ): Promise<string | null> {
-    return this.decryptNIP04(encryptedContent, receiverPrivkey, senderPubkey);
-  }
-
-  // ----------------------------------------
-  // NIP-44 ENCRYPTION (Modern - Recommended)
-  // ----------------------------------------
-
-  /**
-   * Convert hex string to Uint8Array
-   */
-  private hexToBytes(hex: string): Uint8Array {
-    const bytes = new Uint8Array(hex.length / 2);
-    for (let i = 0; i < bytes.length; i++) {
-      bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
-    }
-    return bytes;
-  }
-
-  /**
-   * Encrypt a message using NIP-44 (versioned encryption)
-   * 
-   * Benefits over NIP-04:
-   * - Message padding (hides message length)
-   * - ChaCha20-Poly1305 (modern AEAD)
-   * - Versioned for future upgrades
-   * - Better key derivation
-   */
-  async encryptNIP44(
-    plaintext: string,
-    senderPrivkey: string,
-    recipientPubkey: string
-  ): Promise<string | null> {
-    try {
-      const { nip44 } = await import('nostr-tools');
-      
-      // Convert hex string to Uint8Array
-      const privkeyBytes = this.hexToBytes(senderPrivkey);
-      
-      // Derive conversation key using ECDH
-      const conversationKey = nip44.getConversationKey(privkeyBytes, recipientPubkey);
-      
-      // Encrypt with NIP-44
-      const encrypted = nip44.encrypt(plaintext, conversationKey);
-      return encrypted;
-    } catch (error) {
-      logger.error('Crypto', 'NIP-44 encryption failed', error);
-      return null;
-    }
-  }
-
-  /**
-   * Decrypt a NIP-44 encrypted message
-   */
-  async decryptNIP44(
-    encryptedContent: string,
-    receiverPrivkey: string,
-    senderPubkey: string
-  ): Promise<string | null> {
-    try {
-      const { nip44 } = await import('nostr-tools');
-      
-      // Convert hex string to Uint8Array
-      const privkeyBytes = this.hexToBytes(receiverPrivkey);
-      
-      // Derive conversation key using ECDH
-      const conversationKey = nip44.getConversationKey(privkeyBytes, senderPubkey);
-      
-      // Decrypt with NIP-44
-      const decrypted = nip44.decrypt(encryptedContent, conversationKey);
-      return decrypted;
-    } catch (error) {
-      logger.error('Crypto', 'NIP-44 decryption failed', error);
-      return null;
-    }
-  }
-
-  // ----------------------------------------
-  // NIP-17 GIFT WRAPPING (Most Private DMs)
-  // ----------------------------------------
-
-  /**
-   * Create a NIP-17 gift-wrapped DM
-   * 
-   * Structure:
-   * 1. Rumor (unsigned kind 14) - actual message content
-   * 2. Seal (kind 13) - encrypted rumor, signed by sender
-   * 3. Gift Wrap (kind 1059) - encrypted seal, signed by random key
-   * 
-   * Benefits:
-   * - Hides sender/recipient from relays
-   * - Provides plausible deniability
-   * - Combines NIP-44 encryption for security
-   */
-  async createGiftWrap(args: {
-    content: string;
-    senderPrivkey: string;
-    senderPubkey: string;
-    recipientPubkey: string;
-    replyToId?: string;
-  }): Promise<{ giftWrap: any; sealEvent: any; rumor: any } | null> {
-    try {
-      const { nip44, nip59: _nip59, finalizeEvent, generateSecretKey, getPublicKey } = await import('nostr-tools');
-      
-      // 1. Create the rumor (unsigned kind 14 event)
-      const rumor = {
-        kind: 14, // NIP-17 private DM kind
-        created_at: Math.floor(Date.now() / 1000),
-        tags: [['p', args.recipientPubkey]],
-        content: args.content,
-        pubkey: args.senderPubkey,
-      };
-
-      // Add reply reference if applicable
-      if (args.replyToId) {
-        rumor.tags.push(['e', args.replyToId, '', 'reply']);
-      }
-
-      // 2. Create the seal (kind 13) - encrypted rumor
-      const senderPrivkeyBytes = this.hexToBytes(args.senderPrivkey);
-      const sealConversationKey = nip44.getConversationKey(senderPrivkeyBytes, args.recipientPubkey);
-      const encryptedRumor = nip44.encrypt(JSON.stringify(rumor), sealConversationKey);
-      
-      const sealEvent = finalizeEvent({
-        kind: 13,
-        created_at: Math.floor(Date.now() / 1000),
-        tags: [],
-        content: encryptedRumor,
-      }, senderPrivkeyBytes);
-
-      // 3. Create the gift wrap (kind 1059) - encrypted seal with random key
-      const randomPrivkey = generateSecretKey();
-      const _randomPubkey = getPublicKey(randomPrivkey);
-      
-      const wrapConversationKey = nip44.getConversationKey(randomPrivkey, args.recipientPubkey);
-      const encryptedSeal = nip44.encrypt(JSON.stringify(sealEvent), wrapConversationKey);
-
-      const giftWrap = finalizeEvent({
-        kind: 1059,
-        created_at: Math.floor(Date.now() / 1000),
-        tags: [['p', args.recipientPubkey]],
-        content: encryptedSeal,
-      }, randomPrivkey);
-
-      return { giftWrap, sealEvent, rumor };
-    } catch (error) {
-      logger.error('Crypto', 'Failed to create gift wrap', error);
-      return null;
-    }
-  }
-
-  /**
-   * Unwrap a NIP-17 gift-wrapped DM
-   * 
-   * @returns The decrypted rumor (message content) or null
-   */
-  async unwrapGiftWrap(args: {
-    giftWrapEvent: any;
-    recipientPrivkey: string;
-  }): Promise<{
-    content: string;
-    senderPubkey: string;
-    timestamp: number;
-    replyToId?: string;
-  } | null> {
-    try {
-      const { nip44 } = await import('nostr-tools');
-      
-      // Convert hex string to Uint8Array
-      const recipientPrivkeyBytes = this.hexToBytes(args.recipientPrivkey);
-      
-      // 1. Decrypt the gift wrap to get the seal
-      const wrapperPubkey = args.giftWrapEvent.pubkey;
-      const wrapConversationKey = nip44.getConversationKey(recipientPrivkeyBytes, wrapperPubkey);
-      const sealJson = nip44.decrypt(args.giftWrapEvent.content, wrapConversationKey);
-      const sealEvent = JSON.parse(sealJson);
-
-      // 2. Decrypt the seal to get the rumor
-      const sealConversationKey = nip44.getConversationKey(recipientPrivkeyBytes, sealEvent.pubkey);
-      const rumorJson = nip44.decrypt(sealEvent.content, sealConversationKey);
-      const rumor = JSON.parse(rumorJson);
-
-      // 3. Extract message details
-      const replyTag = rumor.tags?.find((t: string[]) => t[0] === 'e' && t[3] === 'reply');
-
-      return {
-        content: rumor.content,
-        senderPubkey: sealEvent.pubkey, // Actual sender from seal
-        timestamp: rumor.created_at * 1000,
-        replyToId: replyTag?.[1],
-      };
-    } catch (error) {
-      logger.error('Crypto', 'Failed to unwrap gift wrap', error);
-      return null;
-    }
-  }
-
-  /**
-   * Detect if an event is a NIP-17 gift wrap
-   */
-  isGiftWrap(event: any): boolean {
-    return event?.kind === 1059;
-  }
-
-  /**
-   * Detect if an event is a NIP-04 DM (legacy)
-   */
-  isLegacyDM(event: any): boolean {
-    return event?.kind === 4;
+  private base64ToUint8Array(base64: string): Uint8Array {
+    return new Uint8Array(this.base64ToArrayBuffer(base64));
   }
 }
 
-// Export singleton instance
 export const cryptoService = new CryptoService();
-
-// Export the class for testing
 export { CryptoService };

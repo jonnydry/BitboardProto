@@ -86,7 +86,7 @@ class ProfileService {
    * Update profile metadata and publish to Nostr
    */
   async updateProfile(profile: ProfileMetadata): Promise<void> {
-    const identity = identityService.getIdentity();
+    const identity = identityService.getPublicIdentity();
     if (!identity) {
       throw new Error('No identity available');
     }
@@ -100,13 +100,8 @@ class ProfileService {
       const signed = await identityService.signEvent(event);
       await nostrService.publishSignedEvent(signed);
 
-      // Update local identity with new display name if provided
       if (profile.name || profile.display_name) {
-        const updatedIdentity = {
-          ...identity,
-          displayName: profile.display_name || profile.name,
-        };
-        identityService.setSessionIdentity(updatedIdentity);
+        await identityService.setDisplayName(profile.display_name || profile.name || '');
       }
     } catch (error) {
       logger.error('ProfileService', 'Failed to update profile', error);

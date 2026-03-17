@@ -18,6 +18,8 @@ import { nip19 } from 'nostr-tools';
 import { identityService } from '../services/identityService';
 import { listService, LIST_KINDS } from '../services/listService';
 import { nostrService } from '../services/nostr/NostrService';
+import { toastService } from '../services/toastService';
+import { UIConfig } from '../config';
 import { INITIAL_BOARDS } from '../constants';
 import type { NostrIdentity, Board } from '../types';
 
@@ -146,6 +148,8 @@ export function OnboardingFlow({
   const [identityMode, setIdentityMode] = useState<IdentityMode>('select');
   const [displayName, setDisplayName] = useState('');
   const [importKey, setImportKey] = useState('');
+  const [passphrase, setPassphrase] = useState('');
+  const [confirmPassphrase, setConfirmPassphrase] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasNip07, setHasNip07] = useState(false);
@@ -215,8 +219,19 @@ export function OnboardingFlow({
     setError(null);
 
     try {
+      if (!passphrase.trim()) {
+        setError('Create a passphrase to protect your local key on this device.');
+        return;
+      }
+      if (passphrase !== confirmPassphrase) {
+        setError('Passphrases do not match.');
+        return;
+      }
       await new Promise((resolve) => setTimeout(resolve, 800));
-      const newIdentity = await identityService.generateIdentity(displayName || undefined);
+      const newIdentity = await identityService.generateIdentity(
+        displayName || undefined,
+        passphrase,
+      );
       setIdentity(newIdentity);
       setIdentityMode('success');
       onIdentityChange?.(newIdentity);
@@ -238,6 +253,18 @@ export function OnboardingFlow({
       return;
     }
 
+    if (!passphrase.trim()) {
+      setError('Enter a passphrase to encrypt your imported key on this device.');
+      setIsLoading(false);
+      return;
+    }
+
+    if (passphrase !== confirmPassphrase) {
+      setError('Passphrases do not match.');
+      setIsLoading(false);
+      return;
+    }
+
     try {
       let newIdentity: NostrIdentity | null = null;
 
@@ -245,11 +272,13 @@ export function OnboardingFlow({
         newIdentity = await identityService.importFromNsec(
           importKey.trim(),
           displayName || undefined,
+          passphrase,
         );
       } else {
         newIdentity = await identityService.importFromHex(
           importKey.trim(),
           displayName || undefined,
+          passphrase,
         );
       }
 
@@ -258,6 +287,12 @@ export function OnboardingFlow({
         setIdentityMode('success');
         setImportKey('');
         onIdentityChange?.(newIdentity);
+        toastService.push({
+          type: 'success',
+          message: 'Identity imported',
+          detail: 'Your key is now encrypted locally with your passphrase.',
+          durationMs: UIConfig.TOAST_DURATION_MS,
+        });
       } else {
         setError('Invalid key format. Use nsec1... or hex format.');
       }
@@ -871,6 +906,27 @@ export function OnboardingFlow({
                       </div>
                     </div>
 
+                    <div className="space-y-3">
+                      <input
+                        type="password"
+                        value={passphrase}
+                        onChange={(e) => setPassphrase(e.target.value)}
+                        className="w-full bg-transparent border border-terminal-dim/50 focus:border-terminal-text p-4 text-terminal-text font-mono focus:outline-none transition-colors"
+                        placeholder="Create local passphrase"
+                      />
+                      <input
+                        type="password"
+                        value={confirmPassphrase}
+                        onChange={(e) => setConfirmPassphrase(e.target.value)}
+                        className="w-full bg-transparent border border-terminal-dim/50 focus:border-terminal-text p-4 text-terminal-text font-mono focus:outline-none transition-colors"
+                        placeholder="Confirm passphrase"
+                      />
+                      <p className="text-xs text-terminal-dim">
+                        This passphrase stays on this device and is required to unlock your stored
+                        key later.
+                      </p>
+                    </div>
+
                     <div className="flex gap-3">
                       <button
                         onClick={() => {
@@ -919,6 +975,23 @@ export function OnboardingFlow({
                       <p className="text-xs text-terminal-dim mt-2">
                         Your key is encrypted locally and never transmitted.
                       </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <input
+                        type="password"
+                        value={passphrase}
+                        onChange={(e) => setPassphrase(e.target.value)}
+                        className="w-full bg-transparent border border-terminal-dim/50 focus:border-terminal-text p-4 text-terminal-text font-mono focus:outline-none transition-colors"
+                        placeholder="Create local passphrase"
+                      />
+                      <input
+                        type="password"
+                        value={confirmPassphrase}
+                        onChange={(e) => setConfirmPassphrase(e.target.value)}
+                        className="w-full bg-transparent border border-terminal-dim/50 focus:border-terminal-text p-4 text-terminal-text font-mono focus:outline-none transition-colors"
+                        placeholder="Confirm passphrase"
+                      />
                     </div>
 
                     <div className="flex gap-3">

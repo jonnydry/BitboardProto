@@ -4,7 +4,7 @@ import { zapService } from '../services/zapService';
 import { identityService } from '../services/identityService';
 import { toastService } from '../services/toastService';
 import { NostrConfig } from '../config';
-import type { NostrIdentity } from '../types';
+import type { PublicNostrIdentity } from '../types';
 
 interface ZapModalProps {
   recipientPubkey: string;
@@ -29,19 +29,21 @@ export const ZapModal: React.FC<ZapModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [identity, setIdentity] = useState<NostrIdentity | null>(null);
+  const [identity, setIdentity] = useState<PublicNostrIdentity | null>(null);
 
   const modalRef = useRef<HTMLDivElement>(null);
 
   // Load identity
   useEffect(() => {
-    identityService.getIdentityAsync().then(setIdentity);
+    identityService.getIdentityAsync().then(() => {
+      setIdentity(identityService.getPublicIdentity());
+    });
   }, []);
 
   // Check if recipient can receive zaps
   useEffect(() => {
     setIsLoading(true);
-    zapService.canReceiveZaps(recipientPubkey).then(result => {
+    zapService.canReceiveZaps(recipientPubkey).then((result) => {
       if (result.canZap && result.lnurl) {
         setLnurl(result.lnurl);
       } else {
@@ -53,7 +55,7 @@ export const ZapModal: React.FC<ZapModalProps> = ({
 
   const handleGetInvoice = async () => {
     if (!lnurl || !identity) return;
-    
+
     setIsLoading(true);
     setError(null);
 
@@ -83,7 +85,7 @@ export const ZapModal: React.FC<ZapModalProps> = ({
       } else {
         setInvoice(result.invoice);
         setStatus('invoice');
-        
+
         // Attempt to open in wallet automatically
         window.location.href = `lightning:${result.invoice}`;
       }
@@ -114,14 +116,14 @@ export const ZapModal: React.FC<ZapModalProps> = ({
   const suggestedAmounts = zapService.getSuggestedAmounts();
 
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 animate-fade-in"
       onClick={handleBackdropClick}
     >
-      <div 
+      <div
         ref={modalRef}
         className="bg-terminal-bg border-2 border-terminal-text p-6 max-w-md w-full shadow-hard-lg font-mono relative overflow-hidden"
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* CRT Scanline effect overlay */}
         <div className="absolute inset-0 pointer-events-none opacity-5 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%]" />
@@ -130,11 +132,12 @@ export const ZapModal: React.FC<ZapModalProps> = ({
         <div className="flex items-center justify-between mb-6 pb-3 border-b border-terminal-dim relative z-10">
           <div className="flex items-center gap-2 text-terminal-text">
             <Zap size={20} fill="currentColor" />
-            <h2 className="text-xl font-bold uppercase tracking-widest">
-              Transmit_Zap
-            </h2>
+            <h2 className="text-xl font-bold uppercase tracking-widest">Transmit_Zap</h2>
           </div>
-          <button onClick={onClose} className="text-terminal-dim hover:text-terminal-text transition-colors">
+          <button
+            onClick={onClose}
+            className="text-terminal-dim hover:text-terminal-text transition-colors"
+          >
             <X size={24} />
           </button>
         </div>
@@ -142,7 +145,9 @@ export const ZapModal: React.FC<ZapModalProps> = ({
         {isLoading && step === 'amount' && (
           <div className="py-12 flex flex-col items-center justify-center gap-4">
             <Loader2 size={40} className="animate-spin text-terminal-text" />
-            <p className="text-sm text-terminal-dim uppercase animate-pulse">Establishing_Connection...</p>
+            <p className="text-sm text-terminal-dim uppercase animate-pulse">
+              Establishing_Connection...
+            </p>
           </div>
         )}
 
@@ -166,16 +171,20 @@ export const ZapModal: React.FC<ZapModalProps> = ({
             </div>
 
             <div className="mb-6">
-              <label className="text-xs text-terminal-dim uppercase mb-2 block">Select_Amount (SATS):</label>
+              <label className="text-xs text-terminal-dim uppercase mb-2 block">
+                Select_Amount (SATS):
+              </label>
               <div className="grid grid-cols-3 gap-2 mb-4">
-                {suggestedAmounts.map(amt => (
+                {suggestedAmounts.map((amt) => (
                   <button
                     key={amt}
                     onClick={() => setAmount(amt)}
                     className={`py-2 border-2 text-sm font-bold transition-all
-                      ${amount === amt 
-                        ? 'border-terminal-text bg-terminal-text text-black' 
-                        : 'border-terminal-dim text-terminal-dim hover:border-terminal-text hover:text-terminal-text'}`}
+                      ${
+                        amount === amt
+                          ? 'border-terminal-text bg-terminal-text text-black'
+                          : 'border-terminal-dim text-terminal-dim hover:border-terminal-text hover:text-terminal-text'
+                      }`}
                   >
                     {amt}
                   </button>
@@ -185,19 +194,23 @@ export const ZapModal: React.FC<ZapModalProps> = ({
                 <input
                   type="number"
                   value={amount}
-                  onChange={e => setAmount(parseInt(e.target.value) || 0)}
+                  onChange={(e) => setAmount(parseInt(e.target.value) || 0)}
                   className="w-full bg-terminal-bg border-2 border-terminal-dim p-3 text-terminal-text focus:border-terminal-text outline-none font-bold"
                   placeholder="Custom amount..."
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-terminal-dim font-bold">SATS</span>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-terminal-dim font-bold">
+                  SATS
+                </span>
               </div>
             </div>
 
             <div className="mb-8">
-              <label className="text-xs text-terminal-dim uppercase mb-2 block">Message (Optional):</label>
+              <label className="text-xs text-terminal-dim uppercase mb-2 block">
+                Message (Optional):
+              </label>
               <textarea
                 value={comment}
-                onChange={e => setComment(e.target.value)}
+                onChange={(e) => setComment(e.target.value)}
                 maxLength={280}
                 className="w-full bg-terminal-bg border-2 border-terminal-dim p-3 text-sm text-terminal-text focus:border-terminal-text outline-none resize-none h-20"
                 placeholder="Add a comment to your zap..."
@@ -225,8 +238,10 @@ export const ZapModal: React.FC<ZapModalProps> = ({
 
         {step === 'invoice' && invoice && (
           <div className="relative z-10 text-center animate-fade-in">
-            <p className="text-xs text-terminal-dim uppercase mb-4 font-bold">Lightning_Invoice_Ready</p>
-            
+            <p className="text-xs text-terminal-dim uppercase mb-4 font-bold">
+              Lightning_Invoice_Ready
+            </p>
+
             {/* Invoice box */}
             <div className="bg-terminal-highlight border-2 border-terminal-dim p-4 mb-6 relative group">
               <p className="text-[10px] text-terminal-text font-mono break-all line-clamp-4 mb-4 text-left opacity-70">
@@ -284,7 +299,9 @@ export const ZapModal: React.FC<ZapModalProps> = ({
             <div className="w-20 h-20 border-4 border-terminal-text rounded-full flex items-center justify-center mx-auto mb-6 shadow-glow">
               <Check size={40} className="text-terminal-text" />
             </div>
-            <h3 className="text-2xl font-bold text-terminal-text mb-4 uppercase tracking-widest">Zap_Transmitted</h3>
+            <h3 className="text-2xl font-bold text-terminal-text mb-4 uppercase tracking-widest">
+              Zap_Transmitted
+            </h3>
             <p className="text-sm text-terminal-dim mb-8">
               Transmission of {amount} SATS to {recipientName || 'creator'} completed successfully.
             </p>

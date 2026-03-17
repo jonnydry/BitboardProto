@@ -67,17 +67,20 @@ export function useAppLifecycle(args: UseAppLifecycleArgs): void {
       .then((loadedIdentity) => {
         if (cancelled || !loadedIdentity) return;
 
+        const publicIdentity = identityService.getPublicIdentity();
+        if (!publicIdentity) return;
+
         setUserState((prev: any) => {
           if (prev.hasIdentity || prev.identity) return prev;
 
           const isGuestHandle = prev.username.startsWith('u/guest_');
           return {
             ...prev,
-            identity: loadedIdentity,
+            identity: publicIdentity,
             hasIdentity: true,
             username:
-              loadedIdentity.displayName && isGuestHandle
-                ? loadedIdentity.displayName
+              publicIdentity.displayName && isGuestHandle
+                ? publicIdentity.displayName
                 : prev.username,
           };
         });

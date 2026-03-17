@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { nip19 } from 'nostr-tools';
 import { identityService } from '../services/identityService';
+import { toastService } from '../services/toastService';
+import { UIConfig } from '../config';
 import type { NostrIdentity } from '../types';
 
 interface IdentityManagerProps {
@@ -33,6 +35,9 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
   const [copied, setCopied] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [passphrase, setPassphrase] = useState('');
+  const [confirmPassphrase, setConfirmPassphrase] = useState('');
   const [hasNip07, setHasNip07] = useState(false);
   const [isConfirmingLogout, setIsConfirmingLogout] = useState(false);
 
@@ -53,9 +58,20 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
     setError(null);
 
     try {
+      if (!passphrase.trim()) {
+        setError('Please create a passphrase to protect your local key.');
+        return;
+      }
+      if (passphrase !== confirmPassphrase) {
+        setError('Passphrases do not match.');
+        return;
+      }
       // Small delay for UX feedback
       await new Promise((resolve) => setTimeout(resolve, 300));
-      const newIdentity = await identityService.generateIdentity(displayName || undefined);
+      const newIdentity = await identityService.generateIdentity(
+        displayName || undefined,
+        passphrase,
+      );
       setIdentity(newIdentity);
       onIdentityChange(newIdentity);
     } catch (err) {
@@ -67,25 +83,42 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
   };
 
   const handleImport = async () => {
+    setIsImporting(true);
     setError(null);
 
     if (!importKey.trim()) {
       setError('Please enter your nsec or hex private key');
+      setIsImporting(false);
+      return;
+    }
+
+    if (!passphrase.trim()) {
+      setError('Please enter a passphrase to encrypt your imported key.');
+      setIsImporting(false);
+      return;
+    }
+
+    if (passphrase !== confirmPassphrase) {
+      setError('Passphrases do not match.');
+      setIsImporting(false);
       return;
     }
 
     try {
+      await new Promise((resolve) => setTimeout(resolve, 300));
       let newIdentity: NostrIdentity | null = null;
 
       if (importKey.startsWith('nsec')) {
         newIdentity = await identityService.importFromNsec(
           importKey.trim(),
           displayName || undefined,
+          passphrase,
         );
       } else {
         newIdentity = await identityService.importFromHex(
           importKey.trim(),
           displayName || undefined,
+          passphrase,
         );
       }
 
@@ -93,12 +126,20 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
         setIdentity(newIdentity);
         onIdentityChange(newIdentity);
         setImportKey('');
+        toastService.push({
+          type: 'success',
+          message: 'Identity imported',
+          detail: 'Your key is now encrypted locally with your passphrase.',
+          durationMs: UIConfig.TOAST_DURATION_MS,
+        });
       } else {
         setError('Invalid key format. Use nsec1... or hex format.');
       }
     } catch (err) {
       setError('Failed to import key');
       console.error('[IdentityManager] Import failed:', err);
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -277,6 +318,16 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
                   </button>
                 )}
               </div>
+              {/* Storage security notice */}
+              <div className="flex gap-2 p-2 border border-terminal-alert/40 bg-terminal-alert/5 text-[11px] text-terminal-muted leading-relaxed">
+                <AlertTriangle size={12} className="text-terminal-alert shrink-0 mt-0.5" />
+                <span>
+                  Your key is stored in browser localStorage — it is protected by the browser's
+                  origin isolation but is accessible to any script running on this page. For maximum
+                  security, use a <span className="text-terminal-text">browser extension</span>{' '}
+                  (e.g. Alby or nos2x) that keeps your key outside the page entirely.
+                </span>
+              </div>
             </div>
           )}
 
@@ -351,13 +402,22 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
         // ========== NO IDENTITY ==========
         <div className="space-y-6">
           {/* Info */}
-          <div className="p-4 border border-terminal-dim/50 bg-terminal-dim/5 text-sm">
+          <div className="p-4 border border-terminal-dim/50 bg-terminal-dim/5 text-sm space-y-3">
             <p className="text-terminal-dim leading-relaxed">
               Your identity on BitBoard is a{' '}
               <span className="text-terminal-text">Nostr keypair</span>. No email, no password, no
-              server. Your private key is your password -
-              <span className="text-terminal-alert"> back it up and never share it</span>.
+              server. Your private key is your password —{' '}
+              <span className="text-terminal-alert">back it up and never share it</span>.
             </p>
+            <div className="flex gap-2 pt-1 border-t border-terminal-dim/30 text-[11px] text-terminal-muted leading-relaxed">
+              <AlertTriangle size={12} className="text-terminal-alert shrink-0 mt-0.5" />
+              <span>
+                Keys generated here are stored in browser localStorage. This is convenient but means
+                your key is accessible to scripts on this page. For stronger security, use a{' '}
+                <span className="text-terminal-text">Nostr browser extension</span> such as Alby or
+                nos2x — your key never leaves the extension.
+              </span>
+            </div>
           </div>
 
           {/* Display Name (optional) */}
@@ -372,6 +432,30 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
               className="w-full bg-terminal-bg border border-terminal-dim p-3 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
               placeholder="anon_xxxxxx"
             />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs text-terminal-dim uppercase font-bold">
+              Local passphrase
+            </label>
+            <input
+              type="password"
+              value={passphrase}
+              onChange={(e) => setPassphrase(e.target.value)}
+              className="w-full bg-terminal-bg border border-terminal-dim p-3 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
+              placeholder="Required to unlock this device"
+            />
+            <input
+              type="password"
+              value={confirmPassphrase}
+              onChange={(e) => setConfirmPassphrase(e.target.value)}
+              className="w-full bg-terminal-bg border border-terminal-dim p-3 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
+              placeholder="Confirm passphrase"
+            />
+            <p className="text-[11px] leading-relaxed text-terminal-muted">
+              This passphrase is not sent anywhere. It is only used to decrypt your local key on
+              this browser.
+            </p>
           </div>
 
           {/* Generate New Key */}
@@ -413,11 +497,37 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
               className="w-full bg-terminal-bg border border-terminal-dim p-3 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
               placeholder="nsec1... or hex private key"
             />
+            <input
+              type="password"
+              value={passphrase}
+              onChange={(e) => setPassphrase(e.target.value)}
+              className="w-full bg-terminal-bg border border-terminal-dim p-3 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
+              placeholder="Local passphrase"
+            />
+            <input
+              type="password"
+              value={confirmPassphrase}
+              onChange={(e) => setConfirmPassphrase(e.target.value)}
+              className="w-full bg-terminal-bg border border-terminal-dim p-3 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
+              placeholder="Confirm local passphrase"
+            />
+            <p className="text-[11px] leading-relaxed text-terminal-muted">
+              This passphrase encrypts the imported key on this browser and will be required after
+              reload.
+            </p>
             <button
               onClick={handleImport}
-              className="w-full px-4 py-3 border border-terminal-dim hover:border-terminal-text hover:bg-terminal-dim/10 transition-colors text-sm uppercase"
+              disabled={isImporting || !importKey.trim()}
+              className="w-full px-4 py-3 border border-terminal-dim hover:border-terminal-text hover:bg-terminal-dim/10 transition-colors text-sm uppercase disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              IMPORT_KEY
+              {isImporting ? (
+                <>
+                  <RefreshCw size={16} className="animate-spin" />
+                  IMPORTING_KEY...
+                </>
+              ) : (
+                'IMPORT_KEY'
+              )}
             </button>
           </div>
 

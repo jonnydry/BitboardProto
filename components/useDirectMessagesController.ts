@@ -17,8 +17,7 @@ export function useDirectMessagesController(args: UseDirectMessagesControllerArg
   const [showNewModal, setShowNewModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  const identity = identityService.getIdentity();
-  const hasLocalIdentity = identity?.kind === 'local';
+  const hasLocalIdentity = identityService.hasLocalIdentity();
 
   const loadConversations = async () => {
     setIsLoading(true);

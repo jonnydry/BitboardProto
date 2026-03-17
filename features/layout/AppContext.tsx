@@ -107,6 +107,7 @@ interface AppContextType {
   // Hooks
   loaderRef: React.RefObject<HTMLDivElement>;
   isLoadingMore: boolean;
+  isInitialLoading: boolean;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -321,7 +322,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   // Nostr feed hook with focused context setters
-  useNostrFeed({
+  const { isInitialLoading } = useNostrFeed({
     setPosts: postsCtx.setPosts,
     setBoards: boardsCtx.setBoards,
     setIsNostrConnected,
@@ -461,6 +462,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     // Hooks
     loaderRef,
     isLoadingMore,
+    isInitialLoading,
   };
 
   return <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>;

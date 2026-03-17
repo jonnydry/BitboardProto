@@ -19,6 +19,7 @@ import { keyboardShortcutsService } from './services/keyboardShortcutsService';
 import { analyticsService, AnalyticsEvents } from './services/analyticsService';
 import { sentryService } from './services/sentryService';
 import type { Notification } from './services/notificationServiceV2';
+import { identityService } from './services/identityService';
 import { useUIStore } from './stores/uiStore';
 import { useUserStore } from './stores/userStore';
 
@@ -64,9 +65,8 @@ const _AdvancedSearchView = lazy(() =>
   import('./components/AdvancedSearch').then((module) => ({ default: module.AdvancedSearch })),
 );
 
-// Loading skeletons are available for future use when implementing progressive loading
+import { PostSkeleton } from './components/PostSkeleton';
 import {
-  FeedSkeleton as _FeedSkeleton,
   UserProfileSkeleton as _UserProfileSkeleton,
   BoardListSkeleton as _BoardListSkeleton,
   NotificationListSkeleton as _NotificationListSkeleton,
@@ -83,12 +83,97 @@ const LoadingFallback = () => (
   </div>
 );
 
+const IdentityUnlockModal = (props: {
+  isMigration: boolean;
+  passphrase: string;
+  confirmPassphrase: string;
+  error: string | null;
+  isSubmitting: boolean;
+  onPassphraseChange: (value: string) => void;
+  onConfirmPassphraseChange: (value: string) => void;
+  onSubmit: () => void;
+  onReset: () => void;
+}) => (
+  <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 px-4">
+    <div className="w-full max-w-md border-2 border-terminal-text bg-terminal-bg p-6 shadow-hard-lg">
+      <h2 className="text-lg font-terminal uppercase tracking-widest text-terminal-text">
+        {props.isMigration ? 'Secure Your Identity' : 'Unlock Identity'}
+      </h2>
+      <p className="mt-2 text-sm leading-relaxed text-terminal-muted">
+        {props.isMigration
+          ? 'BitBoard no longer stores the unlock key in localStorage. Set a passphrase to re-encrypt your existing identity securely.'
+          : 'Enter your identity passphrase to decrypt your stored keypair on this device.'}
+      </p>
+
+      <div className="mt-4 space-y-3">
+        <input
+          type="password"
+          value={props.passphrase}
+          onChange={(e) => props.onPassphraseChange(e.target.value)}
+          className="w-full border border-terminal-dim bg-terminal-bg p-3 text-terminal-text focus:border-terminal-text focus:outline-none"
+          placeholder={props.isMigration ? 'Create a passphrase' : 'Enter passphrase'}
+        />
+
+        {props.isMigration && (
+          <input
+            type="password"
+            value={props.confirmPassphrase}
+            onChange={(e) => props.onConfirmPassphraseChange(e.target.value)}
+            className="w-full border border-terminal-dim bg-terminal-bg p-3 text-terminal-text focus:border-terminal-text focus:outline-none"
+            placeholder="Repeat passphrase"
+          />
+        )}
+
+        <div className="border border-terminal-alert/40 bg-terminal-alert/5 p-3 text-xs leading-relaxed text-terminal-muted">
+          If you forget this passphrase, BitBoard cannot recover your locally stored private key.
+        </div>
+
+        {props.error && (
+          <div className="border border-terminal-alert/40 bg-terminal-alert/5 p-3 text-sm text-terminal-alert">
+            {props.error}
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={props.onSubmit}
+          disabled={props.isSubmitting}
+          className="w-full border border-terminal-text bg-terminal-text px-4 py-3 font-bold uppercase tracking-wide text-black transition-colors hover:bg-terminal-dim hover:text-terminal-bg disabled:opacity-60"
+        >
+          {props.isSubmitting
+            ? props.isMigration
+              ? 'Securing...'
+              : 'Unlocking...'
+            : props.isMigration
+              ? 'Secure Identity'
+              : 'Unlock Identity'}
+        </button>
+
+        <button
+          type="button"
+          onClick={props.onReset}
+          disabled={props.isSubmitting}
+          className="w-full border border-terminal-dim px-4 py-3 text-xs uppercase tracking-wide text-terminal-dim transition-colors hover:border-terminal-alert hover:text-terminal-alert disabled:opacity-60"
+        >
+          Reset Local Identity
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
 // Main App component that uses context
 const AppContent: React.FC = () => {
   const app = useApp();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showIdentityUnlock, setShowIdentityUnlock] = useState(false);
+  const [identityUnlockMode, setIdentityUnlockMode] = useState<'unlock' | 'migrate'>('unlock');
+  const [unlockPassphrase, setUnlockPassphrase] = useState('');
+  const [unlockPassphraseConfirm, setUnlockPassphraseConfirm] = useState('');
+  const [unlockError, setUnlockError] = useState<string | null>(null);
+  const [isUnlockingIdentity, setIsUnlockingIdentity] = useState(false);
   const [notificationDmTargetPubkey, setNotificationDmTargetPubkey] = useState<
     string | undefined
   >();
@@ -98,6 +183,76 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     keyboardModalStateRef.current = { showKeyboardHelp, showOnboarding };
   }, [showKeyboardHelp, showOnboarding]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    identityService.getIdentityAsync().then(() => {
+      if (cancelled) return;
+      if (identityService.needsMigration()) {
+        setIdentityUnlockMode('migrate');
+        setShowIdentityUnlock(true);
+      } else if (identityService.needsPassphrase()) {
+        setIdentityUnlockMode('unlock');
+        setShowIdentityUnlock(true);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleIdentityUnlock = async () => {
+    const passphrase = unlockPassphrase.trim();
+    if (!passphrase) {
+      setUnlockError('Passphrase is required.');
+      return;
+    }
+    if (identityUnlockMode === 'migrate' && passphrase !== unlockPassphraseConfirm.trim()) {
+      setUnlockError('Passphrases do not match.');
+      return;
+    }
+
+    setIsUnlockingIdentity(true);
+    setUnlockError(null);
+
+    try {
+      const ok =
+        identityUnlockMode === 'migrate'
+          ? await identityService.migrateWithPassphrase(passphrase)
+          : await identityService.unlockWithPassphrase(passphrase);
+
+      if (!ok) {
+        setUnlockError(
+          identityUnlockMode === 'migrate'
+            ? 'Failed to secure identity with that passphrase.'
+            : 'Incorrect passphrase.',
+        );
+        return;
+      }
+
+      const unlockedIdentity = await identityService.getIdentityAsync();
+      if (unlockedIdentity) {
+        app.handleIdentityChange(unlockedIdentity);
+      }
+
+      setUnlockPassphrase('');
+      setUnlockPassphraseConfirm('');
+      setShowIdentityUnlock(false);
+    } finally {
+      setIsUnlockingIdentity(false);
+    }
+  };
+
+  const handleResetLockedIdentity = () => {
+    identityService.clearIdentity();
+    app.handleIdentityChange(null);
+    setUnlockPassphrase('');
+    setUnlockPassphraseConfirm('');
+    setUnlockError(null);
+    setShowIdentityUnlock(false);
+  };
 
   // Initialize keyboard shortcuts
   useEffect(() => {
@@ -256,6 +411,20 @@ const AppContent: React.FC = () => {
 
   return (
     <>
+      {showIdentityUnlock && (
+        <IdentityUnlockModal
+          isMigration={identityUnlockMode === 'migrate'}
+          passphrase={unlockPassphrase}
+          confirmPassphrase={unlockPassphraseConfirm}
+          error={unlockError}
+          isSubmitting={isUnlockingIdentity}
+          onPassphraseChange={setUnlockPassphrase}
+          onConfirmPassphraseChange={setUnlockPassphraseConfirm}
+          onSubmit={handleIdentityUnlock}
+          onReset={handleResetLockedIdentity}
+        />
+      )}
+
       {/* SEO meta tags */}
       <SEOHead />
 
@@ -325,6 +494,7 @@ const AppContent: React.FC = () => {
                   knownUsers={app.knownUsers}
                   loaderRef={app.loaderRef}
                   isLoadingMore={app.isLoadingMore}
+                  isInitialLoading={app.isInitialLoading}
                   onVote={app.handleVote}
                   onComment={app.handleComment}
                   onEditComment={app.handleEditComment}
@@ -339,7 +509,7 @@ const AppContent: React.FC = () => {
               )}
 
               {/* Single Post View */}
-              {app.viewMode === ViewMode.SINGLE_BIT && app.selectedPost && (
+              {app.viewMode === ViewMode.SINGLE_BIT && (
                 <div className="animate-fade-in">
                   <button
                     onClick={app.returnToFeed}
@@ -358,28 +528,30 @@ const AppContent: React.FC = () => {
                   </button>
 
                   <div className="border-t border-terminal-dim/30 pt-2">
-                    <PostItem
-                      post={app.selectedPost}
-                      boardName={
-                        app.selectedPost ? app.getBoardName(app.selectedPost.id) : undefined
-                      }
-                      userState={app.userState}
-                      knownUsers={app.knownUsers}
-                      onVote={app.handleVote}
-                      onComment={app.handleComment}
-                      onEditComment={app.handleEditComment}
-                      onDeleteComment={app.handleDeleteComment}
-                      onCommentVote={app.handleCommentVote}
-                      onViewBit={() => {}}
-                      onViewProfile={app.handleViewProfile}
-                      onEditPost={app.handleEditPost}
-                      onTagClick={app.handleTagClick}
-                      onToggleBookmark={app.handleToggleBookmark}
-                      isFullPage={true}
-                      onToggleMute={app.toggleMute}
-                      isMuted={app.isMuted}
-                      onRetryPost={app.handleRetryPost}
-                    />
+                    {app.selectedPost ? (
+                      <PostItem
+                        post={app.selectedPost}
+                        boardName={app.getBoardName(app.selectedPost.id)}
+                        userState={app.userState}
+                        knownUsers={app.knownUsers}
+                        onVote={app.handleVote}
+                        onComment={app.handleComment}
+                        onEditComment={app.handleEditComment}
+                        onDeleteComment={app.handleDeleteComment}
+                        onCommentVote={app.handleCommentVote}
+                        onViewBit={() => {}}
+                        onViewProfile={app.handleViewProfile}
+                        onEditPost={app.handleEditPost}
+                        onTagClick={app.handleTagClick}
+                        onToggleBookmark={app.handleToggleBookmark}
+                        isFullPage={true}
+                        onToggleMute={app.toggleMute}
+                        isMuted={app.isMuted}
+                        onRetryPost={app.handleRetryPost}
+                      />
+                    ) : (
+                      <PostSkeleton />
+                    )}
                   </div>
                 </div>
               )}

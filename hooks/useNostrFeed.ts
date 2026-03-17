@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { Event as NostrEvent } from 'nostr-tools';
 import type { Board, Post } from '../types';
 import { UIConfig } from '../config';
@@ -13,8 +13,9 @@ export function useNostrFeed(args: {
   setIsNostrConnected: (connected: boolean) => void;
   setOldestTimestamp: (timestamp: number | null) => void;
   setHasMorePosts: (hasMore: boolean) => void;
-}) {
+}): { isInitialLoading: boolean } {
   const { setPosts, setBoards, setIsNostrConnected, setOldestTimestamp, setHasMorePosts } = args;
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
 
   // Initialize Nostr connection and fetch posts
   useEffect(() => {
@@ -128,6 +129,7 @@ export function useNostrFeed(args: {
         });
 
         setIsNostrConnected(true);
+        setIsInitialLoading(false);
         logger.mark('nostr-init-end');
         logger.measure('nostr-initialization', 'nostr-init-start', 'nostr-init-end');
 
@@ -165,6 +167,7 @@ export function useNostrFeed(args: {
         }
       } catch (error) {
         logger.error('NostrFeed', 'Failed to initialize Nostr', error);
+        setIsInitialLoading(false);
         setIsNostrConnected(false);
         const connected = nostrService.getConnectedCount();
         const total = nostrService.getRelays().length;
@@ -236,4 +239,6 @@ export function useNostrFeed(args: {
       votingService.cleanup();
     };
   }, []);
+
+  return { isInitialLoading };
 }

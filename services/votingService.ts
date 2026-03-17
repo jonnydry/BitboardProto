@@ -48,7 +48,7 @@ import { rateLimiter } from './rateLimiter';
 import { voteDeduplicator } from './messageDeduplicator';
 import { logger } from './loggingService';
 import { NOSTR_KINDS } from '../types';
-import type { NostrIdentity } from '../types';
+import type { NostrIdentity, PublicNostrIdentity } from '../types';
 import { identityService } from './identityService';
 
 // ============================================
@@ -56,12 +56,12 @@ import { identityService } from './identityService';
 // ============================================
 
 export interface Vote {
-  eventId: string;        // Nostr event ID of the vote
-  postId: string;         // Post being voted on
-  voterPubkey: string;    // Voter's public key (unique identifier)
+  eventId: string; // Nostr event ID of the vote
+  postId: string; // Post being voted on
+  voterPubkey: string; // Voter's public key (unique identifier)
   direction: 'up' | 'down';
   timestamp: number;
-  isVerified: boolean;    // Whether signature was verified
+  isVerified: boolean; // Whether signature was verified
 }
 
 export interface VoteTally {
@@ -69,7 +69,7 @@ export interface VoteTally {
   upvotes: number;
   downvotes: number;
   score: number;
-  uniqueVoters: number;   // Number of unique pubkeys that voted
+  uniqueVoters: number; // Number of unique pubkeys that voted
   votes: Map<string, Vote>; // pubkey -> vote (ensures one per user)
   lastUpdated: number;
 }
@@ -83,7 +83,12 @@ export interface VoteResult {
 
 // Pure helpers (exported for UI + unit tests)
 export type { OptimisticVoteUpdate, VoteRollback } from './voteMath';
-export { computeBitCost, computeOptimisticUpdate, computeRollback, computeVoteScoreDelta } from './voteMath';
+export {
+  computeBitCost,
+  computeOptimisticUpdate,
+  computeRollback,
+  computeVoteScoreDelta,
+} from './voteMath';
 
 // ============================================
 // VOTING SERVICE CLASS
@@ -93,7 +98,7 @@ class VotingService {
   // Cache of vote tallies per post (LRU cache with max 1000 entries)
   private voteTallies: Map<string, VoteTally> = new Map();
   private readonly MAX_CACHE_SIZE = 1000;
-  
+
   // Track user's own votes (for UI state)
   private userVotes: Map<string, Map<string, 'up' | 'down'>> = new Map(); // pubkey -> (postId -> direction)
 
@@ -106,14 +111,17 @@ class VotingService {
 
   // Web Worker for vote verification
   private worker: Worker | null = null;
-  private workerPromises = new Map<string, { resolve: (results: any) => void; reject: (error: any) => void }>();
+  private workerPromises = new Map<
+    string,
+    { resolve: (results: any) => void; reject: (error: any) => void }
+  >();
   private workerRequestId = 0;
   private workerReady = false;
 
   constructor() {
     // Start periodic cleanup
     this.startPeriodicCleanup();
-    
+
     // Try to initialize Web Worker
     this.initWorker();
   }
@@ -123,7 +131,7 @@ class VotingService {
    */
   private startPeriodicCleanup(): void {
     if (this.cleanupInterval) return;
-    
+
     this.cleanupInterval = setInterval(() => {
       this.invalidateStaleCache(5 * 60 * 1000); // 5 minutes
     }, this.CLEANUP_INTERVAL_MS);
@@ -139,10 +147,9 @@ class VotingService {
     }
 
     try {
-      this.worker = new Worker(
-        new URL('./workers/voteVerifier.worker.ts', import.meta.url),
-        { type: 'module' }
-      );
+      this.worker = new Worker(new URL('./workers/voteVerifier.worker.ts', import.meta.url), {
+        type: 'module',
+      });
 
       this.worker.onmessage = (e: MessageEvent) => {
         const { type, id, results, error } = e.data;
@@ -194,7 +201,7 @@ class VotingService {
   private verifyVoteEventsWorker(events: NostrEvent[]): Promise<Map<string, boolean>> {
     return new Promise((resolve, reject) => {
       const id = `verify-${this.workerRequestId++}`;
-      
+
       this.workerPromises.set(id, { resolve, reject });
 
       // Send batch to worker
@@ -248,7 +255,7 @@ class VotingService {
     // Sort by lastUpdated and remove oldest entries
     const entries = Array.from(this.voteTallies.entries());
     entries.sort((a, b) => a[1].lastUpdated - b[1].lastUpdated);
-    
+
     // Remove oldest 10% of entries
     const removeCount = Math.floor(this.MAX_CACHE_SIZE * 0.1);
     for (let i = 0; i < removeCount; i++) {
@@ -284,7 +291,7 @@ class VotingService {
     }
 
     // 4. Verify it references a post (has 'e' tag)
-    const postTag = event.tags.find(t => t[0] === 'e');
+    const postTag = event.tags.find((t) => t[0] === 'e');
     if (!postTag || !postTag[1]) {
       logger.warn('Voting', 'Vote missing post reference');
       return false;
@@ -297,7 +304,7 @@ class VotingService {
    * Extract vote data from a verified Nostr event
    */
   private eventToVote(event: NostrEvent, isVerified: boolean): Vote | null {
-    const postTag = event.tags.find(t => t[0] === 'e');
+    const postTag = event.tags.find((t) => t[0] === 'e');
     if (!postTag) return null;
 
     return {
@@ -343,7 +350,7 @@ class VotingService {
 
     // Check if this user already voted
     const existingVote = tally.votes.get(vote.voterPubkey);
-    
+
     if (existingVote) {
       // User already voted - only update if newer timestamp
       if (vote.timestamp > existingVote.timestamp) {
@@ -353,14 +360,14 @@ class VotingService {
         } else {
           tally.downvotes--;
         }
-        
+
         // Add new vote
         if (vote.direction === 'up') {
           tally.upvotes++;
         } else {
           tally.downvotes++;
         }
-        
+
         tally.votes.set(vote.voterPubkey, vote);
       }
     } else {
@@ -370,7 +377,7 @@ class VotingService {
       } else {
         tally.downvotes++;
       }
-      
+
       tally.votes.set(vote.voterPubkey, vote);
       tally.uniqueVoters++;
     }
@@ -391,7 +398,8 @@ class VotingService {
   async fetchVotesForPost(postId: string): Promise<VoteTally> {
     // Check cache first
     const cached = this.voteTallies.get(postId);
-    if (cached && Date.now() - cached.lastUpdated < 30000) { // 30 second cache
+    if (cached && Date.now() - cached.lastUpdated < 30000) {
+      // 30 second cache
       return cached;
     }
 
@@ -419,7 +427,7 @@ class VotingService {
   private async _fetchVotesForPostInternal(postId: string): Promise<VoteTally> {
     // Fetch raw vote events from Nostr
     const voteEvents = await nostrService.fetchVoteEvents(postId);
-    
+
     // Create fresh tally
     const tally: VoteTally = {
       postId,
@@ -436,14 +444,12 @@ class VotingService {
 
     // Process each vote event
     // Sort by timestamp to ensure latest vote per user wins
-    const sortedEvents = [...voteEvents].sort(
-      (a, b) => a.created_at - b.created_at
-    );
+    const sortedEvents = [...voteEvents].sort((a, b) => a.created_at - b.created_at);
 
     for (const event of sortedEvents) {
       // Check verification result from batch
       const isSignatureValid = verificationResults.get(event.id) ?? false;
-      
+
       if (!isSignatureValid) {
         logger.warn('Voting', `Invalid signature for vote from: ${event.pubkey.slice(0, 8)}`);
         continue;
@@ -460,7 +466,7 @@ class VotingService {
         continue;
       }
 
-      const postTag = event.tags.find(t => t[0] === 'e');
+      const postTag = event.tags.find((t) => t[0] === 'e');
       if (!postTag || !postTag[1]) {
         logger.warn('Voting', 'Vote missing post reference');
         continue;
@@ -471,7 +477,7 @@ class VotingService {
 
       // Check for existing vote from this pubkey (one vote per user)
       const existingVote = tally.votes.get(vote.voterPubkey);
-      
+
       if (existingVote) {
         // User changed their vote - remove old count
         if (existingVote.direction === 'up') {
@@ -490,17 +496,20 @@ class VotingService {
       } else {
         tally.downvotes++;
       }
-      
+
       tally.votes.set(vote.voterPubkey, vote);
     }
 
     tally.score = tally.upvotes - tally.downvotes;
     this.voteTallies.set(postId, tally);
-    
+
     // Enforce cache limit (LRU eviction)
     this.enforceCacheLimit();
 
-    logger.debug('Voting', `Post ${postId.slice(0, 8)}: ${tally.uniqueVoters} unique voters, score ${tally.score}`);
+    logger.debug(
+      'Voting',
+      `Post ${postId.slice(0, 8)}: ${tally.uniqueVoters} unique voters, score ${tally.score}`,
+    );
 
     return tally;
   }
@@ -512,11 +521,11 @@ class VotingService {
    */
   async fetchVotesForPosts(postIds: string[]): Promise<Map<string, VoteTally>> {
     const results = new Map<string, VoteTally>();
-    
+
     // Filter out cached posts
     const uncachedPostIds: string[] = [];
     const now = Date.now();
-    
+
     for (const postId of postIds) {
       const cached = this.voteTallies.get(postId);
       if (cached && now - cached.lastUpdated < 30000) {
@@ -532,11 +541,11 @@ class VotingService {
 
     // Batch fetch vote events for all uncached posts
     // Note: nostr-tools SimplePool can handle multiple queries efficiently
-    const voteEventPromises = uncachedPostIds.map(postId => 
-      nostrService.fetchVoteEvents(postId).catch(error => {
+    const voteEventPromises = uncachedPostIds.map((postId) =>
+      nostrService.fetchVoteEvents(postId).catch((error) => {
         logger.error('Voting', `Failed to fetch votes for post ${postId.slice(0, 8)}`, error);
         return [];
-      })
+      }),
     );
 
     const voteEventArrays = await Promise.all(voteEventPromises);
@@ -544,7 +553,7 @@ class VotingService {
     // Collect all events for batch verification
     const allEvents: NostrEvent[] = [];
     const eventToPostMap = new Map<string, string>(); // event.id -> postId
-    
+
     for (let i = 0; i < uncachedPostIds.length; i++) {
       const postId = uncachedPostIds[i];
       const events = voteEventArrays[i];
@@ -573,14 +582,12 @@ class VotingService {
       };
 
       // Sort by timestamp to ensure latest vote per user wins
-      const sortedEvents = [...voteEvents].sort(
-        (a, b) => a.created_at - b.created_at
-      );
+      const sortedEvents = [...voteEvents].sort((a, b) => a.created_at - b.created_at);
 
       for (const event of sortedEvents) {
         // Check verification result from batch
         const isSignatureValid = verificationResults.get(event.id) ?? false;
-        
+
         if (!isSignatureValid) {
           logger.warn('Voting', `Invalid signature for vote from: ${event.pubkey.slice(0, 8)}`);
           continue;
@@ -595,7 +602,7 @@ class VotingService {
           continue;
         }
 
-        const postTag = event.tags.find(t => t[0] === 'e');
+        const postTag = event.tags.find((t) => t[0] === 'e');
         if (!postTag || !postTag[1]) {
           continue;
         }
@@ -604,7 +611,7 @@ class VotingService {
         if (!vote) continue;
 
         const existingVote = tally.votes.get(vote.voterPubkey);
-        
+
         if (existingVote) {
           if (existingVote.direction === 'up') {
             tally.upvotes--;
@@ -620,7 +627,7 @@ class VotingService {
         } else {
           tally.downvotes++;
         }
-        
+
         tally.votes.set(vote.voterPubkey, vote);
       }
 
@@ -655,8 +662,8 @@ class VotingService {
   async castVote(
     postId: string,
     direction: 'up' | 'down',
-    identity: NostrIdentity,
-    postAuthorPubkey?: string
+    identity: NostrIdentity | PublicNostrIdentity,
+    postAuthorPubkey?: string,
   ): Promise<VoteResult> {
     const userPubkey = identity.pubkey;
     // Rate limit check
@@ -675,10 +682,12 @@ class VotingService {
 
     try {
       // Build + sign + publish vote to Nostr
-      const unsigned = nostrService.buildVoteEvent(postId, direction, userPubkey, { postAuthorPubkey });
+      const unsigned = nostrService.buildVoteEvent(postId, direction, userPubkey, {
+        postAuthorPubkey,
+      });
       const signed = await identityService.signEvent(unsigned);
       const event = await nostrService.publishSignedEvent(signed);
-      
+
       // Mark as processed
       voteDeduplicator.markVoteProcessed(userPubkey, postId);
 
@@ -725,7 +734,7 @@ class VotingService {
       } else {
         tally.downvotes++;
       }
-      
+
       tally.votes.set(userPubkey, vote);
       tally.score = tally.upvotes - tally.downvotes;
       tally.lastUpdated = Date.now();
@@ -872,4 +881,3 @@ class VotingService {
 
 // Export singleton instance
 export const votingService = new VotingService();
-

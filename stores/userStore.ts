@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { useEffect } from 'react';
-import type { UserState, NostrIdentity } from '../types';
+import type { UserState, NostrIdentity, PublicNostrIdentity } from '../types';
 import { MAX_DAILY_BITS } from '../constants';
 import { listService } from '../services/listService';
 import { identityService } from '../services/identityService';
@@ -20,7 +20,7 @@ interface UserStoreState {
   setUserState: (state: UserState | ((prev: UserState) => UserState)) => void;
   setFollowingPubkeys: (pubkeys: string[] | ((prev: string[]) => string[])) => void;
   toggleMute: (pubkey: string) => Promise<void>;
-  handleIdentityChange: (identity: NostrIdentity | null) => void;
+  handleIdentityChange: (identity: NostrIdentity | PublicNostrIdentity | null) => void;
   isMuted: (pubkey: string) => boolean;
 }
 
@@ -107,11 +107,15 @@ export const useUserStore = create<UserStoreState>()(
       }
     },
 
-    handleIdentityChange: (identity: NostrIdentity | null) => {
+    handleIdentityChange: (identity: NostrIdentity | PublicNostrIdentity | null) => {
+      // Always strip privkey before storing in shared state — key ops go through identityService
+      const publicIdentity: PublicNostrIdentity | undefined = identity
+        ? (identityService.getPublicIdentity() ?? undefined)
+        : undefined;
       set((state) => ({
         userState: {
           ...state.userState,
-          identity: identity || undefined,
+          identity: publicIdentity,
           username: identity?.displayName || state.userState.username,
           hasIdentity: !!identity,
         },

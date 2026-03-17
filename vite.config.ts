@@ -27,10 +27,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       VitePWA({
-        // Plugin updated to v1.2.0, but workbox-build terser issue persists
-        // Service worker disabled to prevent build failures
-        // TODO: Investigate workbox-build terser configuration or use injectManifest mode
-        disable: true,
+        disable: false,
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'robots.txt', 'apple-touch-icon.png'],
         manifest: {
@@ -138,49 +135,61 @@ export default defineConfig(({ mode }) => {
             if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) {
               return 'react';
             }
-            
+
             // Nostr libraries
             if (id.includes('node_modules/nostr-tools/') || id.includes('node_modules/@noble/')) {
               return 'nostr';
             }
-            
+
             // Google AI
             if (id.includes('node_modules/@google/genai')) {
               return 'genai';
             }
-            
+
             // Markdown rendering
-            if (id.includes('react-markdown') || id.includes('react-syntax-highlighter') || 
-                id.includes('remark') || id.includes('rehype') || id.includes('unified') ||
-                id.includes('micromark') || id.includes('mdast') || id.includes('hast')) {
+            if (
+              id.includes('react-markdown') ||
+              id.includes('react-syntax-highlighter') ||
+              id.includes('remark') ||
+              id.includes('rehype') ||
+              id.includes('unified') ||
+              id.includes('micromark') ||
+              id.includes('mdast') ||
+              id.includes('hast')
+            ) {
               return 'markdown';
             }
-            
+
             // Virtualization
             if (id.includes('@tanstack/react-virtual') || id.includes('@tanstack/virtual-core')) {
               return 'virtual';
             }
-            
+
             // Icons - only frequently used ones in main bundle
             if (id.includes('lucide-react')) {
               return 'icons';
             }
-            
+
             // Date/time utilities
             if (id.includes('date-fns') || id.includes('luxon') || id.includes('dayjs')) {
               return 'datetime';
             }
-            
+
             // Form/validation libraries
-            if (id.includes('zod') || id.includes('yup') || id.includes('formik') || id.includes('react-hook-form')) {
+            if (
+              id.includes('zod') ||
+              id.includes('yup') ||
+              id.includes('formik') ||
+              id.includes('react-hook-form')
+            ) {
               return 'forms';
             }
-            
+
             // Crypto libraries
             if (id.includes('@scure/') || id.includes('secp256k1') || id.includes('bech32')) {
               return 'crypto';
             }
-            
+
             // All other vendor modules in a separate chunk
             if (id.includes('node_modules')) {
               // Extract package name

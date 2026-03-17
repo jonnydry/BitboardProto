@@ -24,7 +24,7 @@ class FollowService {
     this.loadFromStorage();
 
     // Then fetch from Nostr if we have an identity
-    const identity = identityService.getIdentity();
+    const identity = identityService.getPublicIdentity();
     if (identity) {
       try {
         const contactList = await nostrService.fetchContactListEvent(identity.pubkey);
@@ -62,7 +62,7 @@ class FollowService {
   async follow(pubkey: string): Promise<void> {
     if (this.follows.has(pubkey)) return;
 
-    const identity = identityService.getIdentity();
+    const identity = identityService.getPublicIdentity();
     if (!identity) {
       throw new Error('No identity available');
     }
@@ -114,7 +114,7 @@ class FollowService {
   async unfollow(pubkey: string): Promise<void> {
     if (!this.follows.has(pubkey)) return;
 
-    const identity = identityService.getIdentity();
+    const identity = identityService.getPublicIdentity();
     if (!identity) {
       throw new Error('No identity available');
     }
