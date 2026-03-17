@@ -45,6 +45,7 @@ describe('NostrService', () => {
       publish: vi.fn(),
       querySync: vi.fn(),
       subscribeMany: vi.fn(),
+      close: vi.fn(),
     };
     (SimplePool as Mock).mockImplementation(() => mockPool);
 
@@ -63,8 +64,26 @@ describe('NostrService', () => {
     (inputValidator.validateTitle as Mock).mockImplementation((title) => title);
     (inputValidator.validatePostContent as Mock).mockImplementation((content) => content);
     (inputValidator.validateCommentContent as Mock).mockImplementation((content) => content);
-    (inputValidator.validateTags as Mock).mockImplementation((tags) => tags);
-    (inputValidator.validateUrl as Mock).mockImplementation((url) => url);
+    (inputValidator.validateTags as Mock).mockImplementation((tags: string[]) => {
+      if (!Array.isArray(tags)) return [];
+      return tags.filter((tag) => {
+        if (typeof tag !== 'string') return false;
+        const normalized = tag.toLowerCase();
+        return /^[a-z0-9][a-z0-9_-]*$/.test(normalized);
+      });
+    });
+    (inputValidator.validateUrl as Mock).mockImplementation((url: string) => {
+      if (!url) return null;
+      try {
+        const parsed = new URL(url);
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          return null;
+        }
+        return url;
+      } catch {
+        return null;
+      }
+    });
     (diagnosticsService.warn as Mock).mockImplementation(() => {});
     (diagnosticsService.error as Mock).mockImplementation(() => {});
     (logger.mark as Mock).mockImplementation(() => {});
@@ -84,7 +103,9 @@ describe('NostrService', () => {
     it('should initialize with default relays', () => {
       const relays = service.getRelays();
       expect(relays.length).toBeGreaterThan(0);
-      expect(relays.every(r => r.url.startsWith('wss://') || r.url.startsWith('ws://'))).toBe(true);
+      expect(relays.every((r) => r.url.startsWith('wss://') || r.url.startsWith('ws://'))).toBe(
+        true,
+      );
     });
 
     it('should load user relays from localStorage', () => {
@@ -105,7 +126,7 @@ describe('NostrService', () => {
     it('should initialize relay statuses for all relays', () => {
       const statuses = service.getRelayStatuses();
       expect(statuses.length).toBeGreaterThan(0);
-      statuses.forEach(status => {
+      statuses.forEach((status) => {
         expect(status).toHaveProperty('url');
         expect(status).toHaveProperty('isConnected', false);
         expect(status).toHaveProperty('lastError', null);
@@ -121,7 +142,7 @@ describe('NostrService', () => {
       expect(service.getUserRelays()).toEqual(userRelays);
       expect(localStorageMock.setItem).toHaveBeenCalledWith(
         'bitboard_user_relays_v1',
-        JSON.stringify(userRelays)
+        JSON.stringify(userRelays),
       );
     });
 
@@ -136,7 +157,7 @@ describe('NostrService', () => {
       const userRelays = ['wss://user.relay.com'];
       service.setUserRelays(userRelays);
 
-      const allRelays = service.getRelays().map(r => r.url);
+      const allRelays = service.getRelays().map((r) => r.url);
       expect(allRelays).toContain('wss://user.relay.com');
       expect(allRelays.length).toBeGreaterThan(1); // Should include defaults
     });
@@ -146,7 +167,7 @@ describe('NostrService', () => {
       service.setUserRelays(userRelays);
 
       // Both should include user relays first, then defaults
-      expect(service.getRelays().some(r => r.url === 'wss://user.relay.com')).toBe(true);
+      expect(service.getRelays().some((r) => r.url === 'wss://user.relay.com')).toBe(true);
     });
 
     it('should track connection status', () => {
@@ -165,7 +186,7 @@ describe('NostrService', () => {
 
       service['handleRelayDisconnection'](relayUrl, error);
 
-      const status = service.getRelayStatuses().find(s => s.url === relayUrl);
+      const status = service.getRelayStatuses().find((s) => s.url === relayUrl);
       expect(status?.isConnected).toBe(false);
       expect(status?.lastError).toBe(error);
       expect(status?.reconnectAttempts).toBe(1);
@@ -180,7 +201,7 @@ describe('NostrService', () => {
       kind: 1,
       tags: [],
       content: 'test content',
-      sig: 'test-signature'
+      sig: 'test-signature',
     };
 
     it('should publish event successfully', async () => {
@@ -189,7 +210,7 @@ describe('NostrService', () => {
       await expect(service.publishSignedEvent(mockEvent)).resolves.toBe(mockEvent);
       expect(mockPool.publish).toHaveBeenCalledWith(
         expect.any(Array), // relays array
-        mockEvent
+        mockEvent,
       );
     });
 
@@ -211,7 +232,7 @@ describe('NostrService', () => {
       const relayUrl = service.getRelays()[0].url;
       // Mock publish to succeed for retry
       mockPool.publish.mockResolvedValue(mockEvent);
-      
+
       // Simulate relay connection - this should trigger flushMessageQueue
       // Relay statuses are initialized in constructor, so they should exist
       service['updateRelayStatus'](relayUrl, true);
@@ -227,20 +248,20 @@ describe('NostrService', () => {
       // The queue item is only removed when pendingRelays.size === 0.
       // So if there are multiple relays, the queue item will remain until all relays succeed.
       // But the test expects the queue to be empty, so let's connect all relays.
-      const allRelayUrls = service.getRelays().map(r => r.url);
-      allRelayUrls.forEach(url => {
+      const allRelayUrls = service.getRelays().map((r) => r.url);
+      allRelayUrls.forEach((url) => {
         service['updateRelayStatus'](url, true);
       });
 
       // Wait for all async operations to complete
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
       // After all relays are connected and publish succeeds, the queue should be empty
       expect(service.getQueuedMessageCount()).toBe(0);
     });
 
     it('should handle partial publish failures', async () => {
-      const _relays = service.getRelays().map(r => r.url);
+      const _relays = service.getRelays().map((r) => r.url);
       mockPool.publish
         .mockResolvedValueOnce(mockEvent) // First relay succeeds
         .mockRejectedValueOnce(new Error('Second relay failed')); // Second fails
@@ -270,10 +291,10 @@ describe('NostrService', () => {
       tags: [
         ['title', 'Test Post'],
         ['board', 'test-board'],
-        ['client', 'bitboard']
+        ['client', 'bitboard'],
       ],
       content: 'Post content',
-      sig: 'signature'
+      sig: 'signature',
     };
 
     it('should fetch posts with default filters', async () => {
@@ -286,8 +307,8 @@ describe('NostrService', () => {
         expect.objectContaining({
           kinds: [1],
           '#client': ['bitboard'],
-          limit: expect.any(Number)
-        })
+          limit: expect.any(Number),
+        }),
       );
       expect(posts).toHaveLength(1);
     });
@@ -300,8 +321,8 @@ describe('NostrService', () => {
       expect(mockPool.querySync).toHaveBeenCalledWith(
         expect.any(Array),
         expect.objectContaining({
-          '#board': ['test-board']
-        })
+          '#board': ['test-board'],
+        }),
       );
     });
 
@@ -313,14 +334,14 @@ describe('NostrService', () => {
       expect(mockPool.querySync).toHaveBeenCalledWith(
         expect.any(Array),
         expect.objectContaining({
-          '#g': ['abc123']
-        })
+          '#g': ['abc123'],
+        }),
       );
     });
 
     it('should handle query timeouts gracefully', async () => {
-      mockPool.querySync.mockImplementation(() =>
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000))
+      mockPool.querySync.mockImplementation(
+        () => new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000)),
       );
 
       const posts = await service.fetchPosts();
@@ -329,7 +350,9 @@ describe('NostrService', () => {
 
     it('should deduplicate events', async () => {
       mockPool.querySync.mockResolvedValue([mockPostEvent, mockPostEvent]);
-      (nostrEventDeduplicator.isEventDuplicate as Mock).mockReturnValueOnce(false).mockReturnValueOnce(true);
+      (nostrEventDeduplicator.isEventDuplicate as Mock)
+        .mockReturnValueOnce(false)
+        .mockReturnValueOnce(true);
 
       const posts = await service.fetchPosts();
 
@@ -356,10 +379,10 @@ describe('NostrService', () => {
       kind: 1,
       tags: [
         ['e', 'post-1', '', 'root'],
-        ['client', 'bitboard']
+        ['client', 'bitboard'],
       ],
       content: 'Comment content',
-      sig: 'signature'
+      sig: 'signature',
     };
 
     it('should fetch comments for a post', async () => {
@@ -372,8 +395,8 @@ describe('NostrService', () => {
         expect.objectContaining({
           kinds: [1],
           '#e': ['post-1'],
-          '#client': ['bitboard']
-        })
+          '#client': ['bitboard'],
+        }),
       );
       expect(comments).toHaveLength(1);
     });
@@ -396,7 +419,7 @@ describe('NostrService', () => {
       kind: 7,
       tags: [['e', 'post-1']],
       content: '+',
-      sig: 'signature'
+      sig: 'signature',
     };
 
     const mockDownvote = {
@@ -406,7 +429,7 @@ describe('NostrService', () => {
       kind: 7,
       tags: [['e', 'post-1']],
       content: '-',
-      sig: 'signature'
+      sig: 'signature',
     };
 
     it('should fetch vote events', async () => {
@@ -419,8 +442,8 @@ describe('NostrService', () => {
         expect.any(Array),
         expect.objectContaining({
           kinds: [7],
-          '#e': ['post-1']
-        })
+          '#e': ['post-1'],
+        }),
       );
     });
 
@@ -440,7 +463,7 @@ describe('NostrService', () => {
         ...mockUpvote,
         id: 'vote-1-later',
         created_at: mockUpvote.created_at + 100,
-        content: '-' // Changed from upvote to downvote
+        content: '-', // Changed from upvote to downvote
       };
 
       mockPool.querySync.mockResolvedValue([mockUpvote, laterDownvote]);
@@ -463,15 +486,17 @@ describe('NostrService', () => {
       expect(subId).toMatch(/^feed-\d+$/);
       expect(mockPool.subscribeMany).toHaveBeenCalledWith(
         expect.any(Array), // relays
-        [expect.objectContaining({
-          kinds: [1],
-          '#client': ['bitboard'],
-          since: expect.any(Number)
-        })],
+        [
+          expect.objectContaining({
+            kinds: [1],
+            '#client': ['bitboard'],
+            since: expect.any(Number),
+          }),
+        ],
         expect.objectContaining({
           onevent: expect.any(Function),
-          oneose: expect.any(Function)
-        })
+          oneose: expect.any(Function),
+        }),
       );
     });
 
@@ -484,10 +509,12 @@ describe('NostrService', () => {
 
       expect(mockPool.subscribeMany).toHaveBeenCalledWith(
         expect.any(Array),
-        [expect.objectContaining({
-          '#board': ['test-board']
-        })],
-        expect.any(Object)
+        [
+          expect.objectContaining({
+            '#board': ['test-board'],
+          }),
+        ],
+        expect.any(Object),
       );
     });
 
@@ -506,27 +533,25 @@ describe('NostrService', () => {
     it('should unsubscribe all subscriptions', async () => {
       // Ensure clean state - clear any existing subscriptions from previous tests
       service.unsubscribeAll();
-      
+
       // Create mock subscriptions that will be returned by subscribeMany
       // Use a Map to track which mock corresponds to which call
       const mockSub1 = { close: vi.fn() };
       const mockSub2 = { close: vi.fn() };
-      
+
       // Reset and configure subscribeMany to return our mocks in order
       mockPool.subscribeMany.mockReset();
       // Use mockReturnValueOnce which is more reliable for sequential calls
-      mockPool.subscribeMany
-        .mockReturnValueOnce(mockSub1)
-        .mockReturnValueOnce(mockSub2);
+      mockPool.subscribeMany.mockReturnValueOnce(mockSub1).mockReturnValueOnce(mockSub2);
 
       // Create subscriptions and capture the returned subscription objects
       // Add a small delay to ensure unique subscription IDs (they're based on Date.now())
       const onEvent1 = vi.fn();
       const subId1 = service.subscribeToFeed(onEvent1);
-      
+
       // Wait a bit to ensure the second subscription gets a different ID
-      await new Promise(resolve => setTimeout(resolve, 1));
-      
+      await new Promise((resolve) => setTimeout(resolve, 1));
+
       const onEvent2 = vi.fn();
       const subId2 = service.subscribeToFeed(onEvent2);
 
@@ -535,7 +560,7 @@ describe('NostrService', () => {
       expect(subId1).toBeDefined();
       expect(subId2).toBeDefined();
       expect(subId1).not.toBe(subId2); // Ensure they're different IDs
-      
+
       // Verify that the correct mocks were returned
       expect(mockPool.subscribeMany.mock.results[0].value).toBe(mockSub1);
       expect(mockPool.subscribeMany.mock.results[1].value).toBe(mockSub2);
@@ -561,10 +586,10 @@ describe('NostrService', () => {
         kind: 1,
         tags: [
           ['title', 'Test Post'],
-          ['client', 'bitboard']
+          ['client', 'bitboard'],
         ],
         content: 'Post content',
-        sig: 'signature'
+        sig: 'signature',
       };
 
       const post = service.eventToPost(event);
@@ -585,10 +610,10 @@ describe('NostrService', () => {
           ['title', 'Encrypted Title'],
           ['encrypted', 'true'],
           ['encrypted_title', 'encrypted-title-data'],
-          ['client', 'bitboard']
+          ['client', 'bitboard'],
         ],
         content: 'encrypted-content-data',
-        sig: 'signature'
+        sig: 'signature',
       };
 
       const post = service.eventToPost(event);
@@ -608,10 +633,10 @@ describe('NostrService', () => {
         kind: 1,
         tags: [
           ['e', 'parent-post-id', '', 'root'],
-          ['client', 'bitboard']
+          ['client', 'bitboard'],
         ],
         content: 'Comment content',
-        sig: 'signature'
+        sig: 'signature',
       };
 
       const comment = service.eventToComment(event);
@@ -630,10 +655,10 @@ describe('NostrService', () => {
         tags: [
           ['e', 'parent-post-id', '', 'root'],
           ['encrypted', 'true'],
-          ['client', 'bitboard']
+          ['client', 'bitboard'],
         ],
         content: 'encrypted-comment-content',
-        sig: 'signature'
+        sig: 'signature',
       };
 
       const comment = service.eventToComment(event);
@@ -654,10 +679,10 @@ describe('NostrService', () => {
         tags: [
           ['title', 'Test'],
           ['board', 'test'],
-          ['client', 'bitboard']
+          ['client', 'bitboard'],
         ],
         content: 'content',
-        sig: 'sig'
+        sig: 'sig',
       };
 
       expect(service.isBitboardPostEvent(postEvent)).toBe(true);
@@ -671,10 +696,10 @@ describe('NostrService', () => {
         kind: 1,
         tags: [
           ['e', 'post-id', '', 'root'],
-          ['client', 'bitboard']
+          ['client', 'bitboard'],
         ],
         content: 'content',
-        sig: 'sig'
+        sig: 'sig',
       };
 
       expect(service.isBitboardCommentEvent(commentEvent)).toBe(true);
@@ -690,10 +715,10 @@ describe('NostrService', () => {
         tags: [
           ['bb', 'post_edit'],
           ['e', 'original-post-id'],
-          ['client', 'bitboard']
+          ['client', 'bitboard'],
         ],
         content: 'content',
-        sig: 'sig'
+        sig: 'sig',
       };
 
       expect(service.isBitboardPostEditEvent(editEvent)).toBe(true);
@@ -709,10 +734,10 @@ describe('NostrService', () => {
           ['bb', 'comment_edit'],
           ['e', 'post-id'],
           ['e', 'comment-id', '', 'edit'],
-          ['client', 'bitboard']
+          ['client', 'bitboard'],
         ],
         content: 'content',
-        sig: 'sig'
+        sig: 'sig',
       };
 
       expect(service.isBitboardCommentEditEvent(editEvent)).toBe(true);
@@ -728,10 +753,10 @@ describe('NostrService', () => {
           ['bb', 'comment_delete'],
           ['e', 'post-id'],
           ['e', 'comment-id', '', 'delete'],
-          ['client', 'bitboard']
+          ['client', 'bitboard'],
         ],
         content: '',
-        sig: 'sig'
+        sig: 'sig',
       };
 
       expect(service.isBitboardCommentDeleteEvent(deleteEvent)).toBe(true);
@@ -777,7 +802,7 @@ describe('NostrService', () => {
       kind: 1,
       tags: [],
       content: 'content',
-      sig: 'sig'
+      sig: 'sig',
     };
 
     it('should queue messages when publishing fails', async () => {
@@ -793,7 +818,7 @@ describe('NostrService', () => {
       service['messageQueue'].push({
         event: mockEvent,
         pendingRelays: new Set(['wss://relay.com']),
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
 
       mockPool.publish.mockResolvedValue(mockEvent);
@@ -802,7 +827,7 @@ describe('NostrService', () => {
       service['flushMessageQueue']('wss://relay.com');
 
       // Wait for async publish to complete
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       expect(service.getQueuedMessageCount()).toBe(0);
     });
 
@@ -811,12 +836,33 @@ describe('NostrService', () => {
       service['messageQueue'].push({
         event: mockEvent,
         pendingRelays: new Set(['wss://relay.com']),
-        timestamp: Date.now() - (25 * 60 * 1000) // 25 minutes ago
+        timestamp: Date.now() - 25 * 60 * 1000, // 25 minutes ago
       });
 
       service['cleanupMessageQueue']();
 
       expect(service.getQueuedMessageCount()).toBe(0);
+    });
+
+    it('should restore queued messages from storage on startup', () => {
+      localStorageMock.getItem.mockImplementation((key: string) => {
+        if (key === 'bitboard_message_queue_v1') {
+          return JSON.stringify([
+            {
+              event: mockEvent,
+              pendingRelays: ['wss://relay.com'],
+              timestamp: Date.now(),
+            },
+          ]);
+        }
+        return null;
+      });
+
+      const reloadedService = new NostrService();
+
+      expect(reloadedService.getQueuedMessageCount()).toBe(1);
+      expect(localStorageMock.removeItem).toHaveBeenCalledWith('bitboard_message_queue_v1');
+      reloadedService.cleanup();
     });
   });
 
@@ -846,6 +892,7 @@ describe('NostrService', () => {
 
       expect(mockSub.close).toHaveBeenCalled();
       expect(mockProfileCache.destroy).toHaveBeenCalled();
+      expect(mockPool.close).toHaveBeenCalled();
     });
 
     it('should reset relay statuses on cleanup', () => {
@@ -854,7 +901,7 @@ describe('NostrService', () => {
 
       service.cleanup();
 
-      const status = service.getRelayStatuses().find(s => s.url === relayUrl);
+      const status = service.getRelayStatuses().find((s) => s.url === relayUrl);
       expect(status?.isConnected).toBe(false);
       expect(status?.lastDisconnectedAt).toBeDefined();
     });
@@ -862,10 +909,16 @@ describe('NostrService', () => {
 
   describe('Network Status', () => {
     it('should track active publishes', async () => {
-      mockPool.publish.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+      mockPool.publish.mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 100)));
 
       const publishPromise = service.publishSignedEvent({
-        id: '1', pubkey: '1', created_at: 1, kind: 1, tags: [], content: 'test', sig: 'sig'
+        id: '1',
+        pubkey: '1',
+        created_at: 1,
+        kind: 1,
+        tags: [],
+        content: 'test',
+        sig: 'sig',
       });
 
       const status = service.getNetworkStatus();
@@ -878,7 +931,9 @@ describe('NostrService', () => {
     });
 
     it('should track active fetches', async () => {
-      mockPool.querySync.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100, [])));
+      mockPool.querySync.mockImplementation(
+        () => new Promise((resolve) => setTimeout(resolve, 100, [])),
+      );
 
       const fetchPromise = service.fetchPosts();
 
@@ -899,16 +954,24 @@ describe('NostrService', () => {
 
       service['handleRelayDisconnection'](relayUrl, error);
 
-      const status = service.getRelayStatuses().find(s => s.url === relayUrl);
+      const status = service.getRelayStatuses().find((s) => s.url === relayUrl);
       expect(status?.reconnectAttempts).toBe(10); // MAX_RECONNECT_ATTEMPTS = 10
     });
 
     it('should handle publish failures gracefully', async () => {
       mockPool.publish.mockRejectedValue(new Error('Network error'));
 
-      await expect(service.publishSignedEvent({
-        id: '1', pubkey: '1', created_at: 1, kind: 1, tags: [], content: 'test', sig: 'sig'
-      })).rejects.toThrow();
+      await expect(
+        service.publishSignedEvent({
+          id: '1',
+          pubkey: '1',
+          created_at: 1,
+          kind: 1,
+          tags: [],
+          content: 'test',
+          sig: 'sig',
+        }),
+      ).rejects.toThrow();
 
       // Should not crash the service
       expect(service.getNetworkStatus()).toBeDefined();
@@ -920,6 +983,141 @@ describe('NostrService', () => {
       const posts = await service.fetchPosts();
 
       expect(posts).toEqual([]); // Should return empty array
+    });
+  });
+
+  describe('Post Edit Events', () => {
+    function makeEvent(
+      partial: Partial<{
+        id: string;
+        pubkey: string;
+        kind: number;
+        created_at: number;
+        tags: string[][];
+        content: string;
+        sig: string;
+      }>,
+    ) {
+      return {
+        id: partial.id ?? 'evt1',
+        pubkey: partial.pubkey ?? 'pubkey1',
+        kind: partial.kind ?? 1,
+        created_at: partial.created_at ?? Math.floor(Date.now() / 1000),
+        tags: partial.tags ?? [],
+        content: partial.content ?? '',
+        sig: partial.sig ?? 'sig',
+      };
+    }
+
+    it('should not treat explicit post_edit events as comments', () => {
+      const rootId = 'root123';
+      const edit = makeEvent({
+        id: 'edit1',
+        tags: [
+          ['client', 'bitboard'],
+          ['bb', 'post_edit'],
+          ['e', rootId, '', 'edit'],
+          ['title', 'New title'],
+          ['board', 'b-tech'],
+        ],
+        content: 'updated',
+      });
+
+      expect(service.isBitboardPostEditEvent(edit)).toBe(true);
+      expect(service.isBitboardCommentEvent(edit, rootId)).toBe(false);
+      expect(service.isBitboardPostEvent(edit)).toBe(false);
+    });
+
+    it('should parse post edit updates and sanitize URLs', () => {
+      const rootId = 'root123';
+      const edit = makeEvent({
+        id: 'edit2',
+        tags: [
+          ['client', 'bitboard'],
+          ['bb', 'post_edit'],
+          ['e', rootId, '', 'edit'],
+          ['title', 'Hello'],
+          ['board', 'b-tech'],
+          ['r', 'javascript:alert(1)'],
+          ['image', 'https://example.com/img.png'],
+          ['t', 'valid_tag'],
+          ['t', 'INVALID TAG'],
+        ],
+        content: 'content',
+      });
+
+      const parsed = service.eventToPostEditUpdate(edit);
+      expect(parsed?.rootPostEventId).toBe(rootId);
+      expect(parsed?.updates.title).toBe('Hello');
+      expect(parsed?.updates.url).toBeUndefined();
+      expect(parsed?.updates.imageUrl).toBe('https://example.com/img.png');
+      expect(parsed?.updates.tags).toEqual(['valid_tag']);
+    });
+  });
+
+  describe('Feed Subscriptions', () => {
+    it('flushes pending post events on oneose and ignores duplicates/non-posts', () => {
+      const handlers: { onevent?: (event: any) => void; oneose?: () => void } = {};
+      const mockSub = { close: vi.fn() };
+      mockPool.subscribeMany.mockImplementation(
+        (_relays: unknown, _filters: unknown, opts: any) => {
+          handlers.onevent = opts.onevent;
+          handlers.oneose = opts.oneose;
+          return mockSub;
+        },
+      );
+
+      const onEvent = vi.fn();
+      service.subscribeToFeed(onEvent);
+
+      (nostrEventDeduplicator.isEventDuplicate as Mock)
+        .mockReturnValueOnce(false)
+        .mockReturnValueOnce(true)
+        .mockReturnValueOnce(false);
+
+      handlers.onevent?.({
+        id: 'post-1',
+        pubkey: 'author-1',
+        created_at: 1,
+        kind: 1,
+        tags: [
+          ['client', 'bitboard'],
+          ['title', 'Valid Post'],
+          ['board', 'test-board'],
+        ],
+        content: 'post one',
+        sig: 'sig',
+      });
+      handlers.onevent?.({
+        id: 'post-1',
+        pubkey: 'author-1',
+        created_at: 1,
+        kind: 1,
+        tags: [
+          ['client', 'bitboard'],
+          ['title', 'Valid Post'],
+          ['board', 'test-board'],
+        ],
+        content: 'duplicate',
+        sig: 'sig',
+      });
+      handlers.onevent?.({
+        id: 'not-a-post',
+        pubkey: 'author-2',
+        created_at: 2,
+        kind: 1,
+        tags: [['client', 'other']],
+        content: 'ignore me',
+        sig: 'sig',
+      });
+
+      expect(onEvent).not.toHaveBeenCalled();
+      handlers.oneose?.();
+
+      expect(onEvent).toHaveBeenCalledTimes(1);
+      expect(onEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'post-1', content: 'post one' }),
+      );
     });
   });
 });

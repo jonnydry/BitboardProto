@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import type { Board, Post, UserState } from '../../types';
 import { ViewMode } from '../../types';
-import { nostrService } from '../../services/nostrService';
+import { nostrService } from '../../services/nostr/NostrService';
 import { identityService } from '../../services/identityService';
 import { toastService } from '../../services/toastService';
 import { logger } from '../../services/loggingService';

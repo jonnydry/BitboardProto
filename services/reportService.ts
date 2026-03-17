@@ -4,7 +4,7 @@
 // Handles content reporting (posts and comments)
 // Supports both local storage and NIP-56 Nostr reports
 
-import { nostrService } from './nostrService';
+import { nostrService } from './nostr/NostrService';
 import { identityService } from './identityService';
 import { logger } from './loggingService';
 import { ReportType, type NostrIdentity, type NostrEvent } from '../types';

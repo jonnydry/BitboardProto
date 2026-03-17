@@ -93,7 +93,7 @@ interface SidebarProps {
   inMobileDrawer?: boolean;
 }
 
-export function Sidebar(props: SidebarProps) {
+export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
   const {
     userState,
     setUserState,
@@ -833,4 +833,4 @@ export function Sidebar(props: SidebarProps) {
       </div>
     </aside>
   );
-}
+});

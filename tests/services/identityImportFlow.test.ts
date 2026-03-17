@@ -163,4 +163,44 @@ describe('identity import flow', () => {
     expect(reloadedIdentityService.getPrivateKeyBytes()).toBeInstanceOf(Uint8Array);
     expect(reloadedIdentityService.exportNsec()).toBe(expectedNsec);
   });
+
+  it('keeps key material inaccessible after wrong unlock attempts and clears encrypted state', async () => {
+    const { nip19 } = await import('nostr-tools');
+    const { identityService } = await import('../../services/identityService');
+    const privateKeyBytes = new Uint8Array(32).fill(13);
+    const nsec = nip19.nsecEncode(privateKeyBytes);
+
+    await identityService.importFromNsec(nsec, 'carol', 'strong passphrase');
+    vi.resetModules();
+
+    const reloadedModule = await import('../../services/identityService');
+    const reloadedIdentityService = reloadedModule.identityService;
+    await reloadedIdentityService.getIdentityAsync();
+
+    expect(await reloadedIdentityService.unlockWithPassphrase('wrong passphrase')).toBe(false);
+    expect(reloadedIdentityService.getIdentity()).toBeNull();
+    expect(reloadedIdentityService.getPrivateKeyBytes()).toBeNull();
+
+    reloadedIdentityService.clearIdentity();
+    expect(localStorage.getItem('bitboard_identity_v2')).toBeNull();
+    expect(localStorage.getItem('bitboard_identity')).toBeNull();
+    expect(localStorage.getItem('bitboard_salt')).toBeNull();
+  });
+
+  it('does not persist session identities across reloads', async () => {
+    const { identityService } = await import('../../services/identityService');
+    identityService.setSessionIdentity({
+      kind: 'nip07',
+      pubkey: 'a'.repeat(64),
+      npub: 'npub-session',
+      displayName: 'session-user',
+    });
+
+    expect(identityService.getIdentity()?.kind).toBe('nip07');
+    expect(localStorage.getItem('bitboard_identity_v2')).toBeNull();
+
+    vi.resetModules();
+    const reloadedModule = await import('../../services/identityService');
+    expect(await reloadedModule.identityService.getIdentityAsync()).toBeNull();
+  });
 });

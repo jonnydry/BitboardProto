@@ -9,7 +9,7 @@ import {
   BoardType,
   ThemeId,
 } from '../../types';
-import { nostrService } from '../../services/nostrService';
+import { nostrService } from '../../services/nostr/NostrService';
 import { identityService } from '../../services/identityService';
 import { bookmarkService } from '../../services/bookmarkService';
 import { listService } from '../../services/listService';

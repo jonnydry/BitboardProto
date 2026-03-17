@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Home, PlusSquare, Bookmark, Bell, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import { ViewMode } from '../../types';
-import { notificationServiceV2 } from '../../services/notificationServiceV2';
+import { notificationService } from '../../services/notificationService';
 import { useUIStore } from '../../stores/uiStore';
 import { useUserStore } from '../../stores/userStore';
 import { useAppNavigationHandlers } from './useAppNavigationHandlers';
 
-export function MobileNav() {
+export const MobileNav = React.memo(function MobileNav() {
   const viewMode = useUIStore((s) => s.viewMode);
   const setViewMode = useUIStore((s) => s.setViewMode);
   const bookmarkedCount = useUIStore((s) => s.bookmarkedIds?.length ?? 0);
@@ -18,10 +18,10 @@ export function MobileNav() {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = notificationServiceV2.subscribe(() => {
-      setUnreadCount(notificationServiceV2.getUnreadCount());
+    const unsubscribe = notificationService.subscribe(() => {
+      setUnreadCount(notificationService.getUnreadCount());
     });
-    setUnreadCount(notificationServiceV2.getUnreadCount());
+    setUnreadCount(notificationService.getUnreadCount());
     return unsubscribe;
   }, []);
 
@@ -127,4 +127,4 @@ export function MobileNav() {
       </div>
     </nav>
   );
-}
+});

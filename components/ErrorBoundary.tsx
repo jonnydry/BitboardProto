@@ -1,6 +1,7 @@
 import React, { ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { diagnosticsService } from '../services/diagnosticsService';
+import { sentryService } from '../services/sentryService';
 
 interface Props {
   children: ReactNode;
@@ -49,20 +50,14 @@ export class ErrorBoundary extends React.Component<Props, State> {
       errorInfo?.componentStack || undefined,
     );
 
-    // Report to error tracking service if enabled
+    // Report to Sentry if enabled
     try {
-      import('../services/errorTracking')
-        .then(({ errorTrackingService }) => {
-          errorTrackingService.captureException(error, {
-            componentStack: errorInfo?.componentStack,
-            source: 'ErrorBoundary',
-          });
-        })
-        .catch(() => {
-          // Error tracking not available or not initialized
-        });
+      sentryService.captureException(error, {
+        componentStack: errorInfo?.componentStack,
+        source: 'ErrorBoundary',
+      });
     } catch {
-      // Error tracking not available or not initialized
+      // Sentry not available or not initialized
     }
 
     this.setState({

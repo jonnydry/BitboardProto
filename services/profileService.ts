@@ -1,4 +1,4 @@
-import { nostrService } from './nostrService';
+import { nostrService } from './nostr/NostrService';
 import { identityService } from './identityService';
 import { logger } from './loggingService';
 

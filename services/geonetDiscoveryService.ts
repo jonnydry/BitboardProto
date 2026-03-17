@@ -5,7 +5,7 @@
 // Nostr relays for posts tagged with geohash prefixes.
 
 import { geohashService, PRECISION_LABELS, PRECISION_DESCRIPTIONS } from './geohashService';
-import { nostrService } from './nostrService';
+import { nostrService } from './nostr/NostrService';
 import { logger } from './loggingService';
 import { GeohashPrecision, type Board } from '../types';
 

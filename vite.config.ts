@@ -141,11 +141,6 @@ export default defineConfig(({ mode }) => {
               return 'nostr';
             }
 
-            // Google AI
-            if (id.includes('node_modules/@google/genai')) {
-              return 'genai';
-            }
-
             // Markdown rendering
             if (
               id.includes('react-markdown') ||
@@ -168,11 +163,6 @@ export default defineConfig(({ mode }) => {
             // Icons - only frequently used ones in main bundle
             if (id.includes('lucide-react')) {
               return 'icons';
-            }
-
-            // Date/time utilities
-            if (id.includes('date-fns') || id.includes('luxon') || id.includes('dayjs')) {
-              return 'datetime';
             }
 
             // Form/validation libraries

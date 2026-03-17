@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import type { Comment, Post, UserState } from '../types';
-import { nostrService } from '../services/nostrService';
+import { nostrService } from '../services/nostr/NostrService';
 import { votingService } from '../services/votingService';
 import { profileService } from '../services/profileService';
 import { logger } from '../services/loggingService';

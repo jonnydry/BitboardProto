@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import type { Event as NostrEvent } from 'nostr-tools';
 import type { Board, Post } from '../types';
 import { UIConfig } from '../config';
-import { nostrService } from '../services/nostrService';
+import { nostrService } from '../services/nostr/NostrService';
 import { votingService } from '../services/votingService';
 import { toastService } from '../services/toastService';
 import { logger } from '../services/loggingService';

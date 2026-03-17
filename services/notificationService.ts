@@ -113,7 +113,7 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
 // NOTIFICATION SERVICE
 // ============================================
 
-class NotificationServiceV2 {
+class NotificationService {
   private notifications: Map<string, Notification> = new Map();
   private preferences: NotificationPreferences = { ...DEFAULT_PREFERENCES };
   private currentUserPubkey: string | null = null;
@@ -817,5 +817,5 @@ class NotificationServiceV2 {
 }
 
 // Export singleton
-export const notificationServiceV2 = new NotificationServiceV2();
-export { NotificationServiceV2 };
+export const notificationService = new NotificationService();
+export { NotificationService };

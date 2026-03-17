@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { HelmetProvider } from 'react-helmet-async';
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { nostrService } from './services/nostrService';
+import { nostrService } from './services/nostr/NostrService';
 import { sentryService } from './services/sentryService';
 import { analyticsService } from './services/analyticsService';
 import { webVitalsService } from './services/webVitalsService';

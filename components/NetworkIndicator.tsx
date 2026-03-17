@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Wifi, WifiOff, Upload, Download, Loader2 } from 'lucide-react';
-import { nostrService } from '../services/nostrService';
+import { nostrService } from '../services/nostr/NostrService';
 
 /**
  * NetworkIndicator - Shows real-time network activity status
- * 
+ *
  * Provides immediate feedback on:
  * - Relay connection status
  * - Active publishing operations
@@ -34,17 +34,22 @@ export const NetworkIndicator: React.FC<{ compact?: boolean }> = ({ compact = fa
   useEffect(() => {
     const updateStatus = () => {
       const relays = nostrService.getRelays();
-      const connected = relays.filter(r => r.status === 'connected').length;
-      const networkStatus = nostrService.getNetworkStatus?.() ?? { isPublishing: false, isFetching: false, pendingOps: 0 };
+      const connected = relays.filter((r) => r.status === 'connected').length;
+      const networkStatus = nostrService.getNetworkStatus?.() ?? {
+        isPublishing: false,
+        isFetching: false,
+        pendingOps: 0,
+      };
 
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         connectedRelays: connected,
         totalRelays: relays.length,
         isPublishing: networkStatus.isPublishing,
         isFetching: networkStatus.isFetching,
         pendingOps: networkStatus.pendingOps,
-        lastActivity: networkStatus.isPublishing || networkStatus.isFetching ? Date.now() : prev.lastActivity,
+        lastActivity:
+          networkStatus.isPublishing || networkStatus.isFetching ? Date.now() : prev.lastActivity,
       }));
     };
 
@@ -71,11 +76,9 @@ export const NetworkIndicator: React.FC<{ compact?: boolean }> = ({ compact = fa
           }`}
           title={`${state.connectedRelays}/${state.totalRelays} relays`}
         />
-        
+
         {/* Activity spinner */}
-        {isActive && (
-          <Loader2 size={10} className="animate-spin text-terminal-text" />
-        )}
+        {isActive && <Loader2 size={10} className="animate-spin text-terminal-text" />}
       </div>
     );
   }
@@ -83,7 +86,10 @@ export const NetworkIndicator: React.FC<{ compact?: boolean }> = ({ compact = fa
   return (
     <div className="flex items-center gap-2 text-xs font-mono text-terminal-dim">
       {/* Connection status */}
-      <div className="flex items-center gap-1" title={`${state.connectedRelays}/${state.totalRelays} relays connected`}>
+      <div
+        className="flex items-center gap-1"
+        title={`${state.connectedRelays}/${state.totalRelays} relays connected`}
+      >
         {isConnected ? (
           <Wifi size={12} className={isActive ? 'text-terminal-text' : 'text-terminal-dim'} />
         ) : (
@@ -96,14 +102,20 @@ export const NetworkIndicator: React.FC<{ compact?: boolean }> = ({ compact = fa
 
       {/* Activity indicators */}
       {state.isPublishing && (
-        <div className="flex items-center gap-0.5 text-terminal-text animate-pulse" title="Publishing to relays...">
+        <div
+          className="flex items-center gap-0.5 text-terminal-text animate-pulse"
+          title="Publishing to relays..."
+        >
           <Upload size={10} />
           <span>TX</span>
         </div>
       )}
-      
+
       {state.isFetching && (
-        <div className="flex items-center gap-0.5 text-terminal-text animate-pulse" title="Fetching from relays...">
+        <div
+          className="flex items-center gap-0.5 text-terminal-text animate-pulse"
+          title="Fetching from relays..."
+        >
           <Download size={10} />
           <span>RX</span>
         </div>
@@ -117,9 +129,7 @@ export const NetworkIndicator: React.FC<{ compact?: boolean }> = ({ compact = fa
       )}
 
       {/* Recent activity flash */}
-      {recentActivity && !isActive && (
-        <span className="text-terminal-text/50 text-[10px]">•</span>
-      )}
+      {recentActivity && !isActive && <span className="text-terminal-text/50 text-[10px]">•</span>}
     </div>
   );
 };
@@ -134,7 +144,7 @@ export const InlineNetworkStatus: React.FC = () => {
   useEffect(() => {
     const updateStatus = () => {
       const relays = nostrService.getRelays();
-      setConnected(relays.filter(r => r.status === 'connected').length);
+      setConnected(relays.filter((r) => r.status === 'connected').length);
       setTotal(relays.length);
     };
 

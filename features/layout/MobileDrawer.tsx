@@ -10,11 +10,9 @@ import {
   MapPin,
   Zap,
   MessageSquare,
-  Target,
-  Undo2,
-  Users,
 } from 'lucide-react';
 import { ViewMode } from '../../types';
+import { BitsExplanation } from '../../components/BitsExplanation';
 
 interface MobileDrawerProps {
   isOpen: boolean;
@@ -29,7 +27,7 @@ interface MobileDrawerProps {
   children?: React.ReactNode;
 }
 
-export function MobileDrawer({
+export const MobileDrawer = React.memo(function MobileDrawer({
   isOpen,
   onClose,
   viewMode,
@@ -219,50 +217,7 @@ export function MobileDrawer({
           {/* Expandable bits guide */}
           {showBitsInfo && (
             <div className="mt-3 pt-3 border-t border-terminal-dim/30 space-y-2.5">
-              <div className="flex gap-2.5">
-                <Zap size={13} className="text-terminal-dim shrink-0 mt-0.5" />
-                <p className="text-[11px] text-terminal-muted leading-relaxed">
-                  <span className="text-terminal-text font-bold">Bit-weighted global feed:</span>{' '}
-                  verified identities spend limited bits to push the best posts upward.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <div className="flex gap-2.5">
-                  <Target size={13} className="text-terminal-dim shrink-0 mt-0.5" />
-                  <div>
-                    <div className="text-[11px] text-terminal-text font-bold uppercase tracking-wide mb-0.5">
-                      Spend deliberately
-                    </div>
-                    <div className="text-[11px] text-terminal-muted leading-relaxed">
-                      Each new vote locks 1 bit, so influence goes where you think it matters most.
-                    </div>
-                  </div>
-                </div>
-                <div className="flex gap-2.5">
-                  <Undo2 size={13} className="text-terminal-dim shrink-0 mt-0.5" />
-                  <div>
-                    <div className="text-[11px] text-terminal-text font-bold uppercase tracking-wide mb-0.5">
-                      Refund by retracting
-                    </div>
-                    <div className="text-[11px] text-terminal-muted leading-relaxed">
-                      Remove your vote to refund the bit. Switching directions keeps the same bit
-                      locked in place.
-                    </div>
-                  </div>
-                </div>
-                <div className="flex gap-2.5">
-                  <Users size={13} className="text-terminal-dim shrink-0 mt-0.5" />
-                  <div>
-                    <div className="text-[11px] text-terminal-text font-bold uppercase tracking-wide mb-0.5">
-                      Verified consensus
-                    </div>
-                    <div className="text-[11px] text-terminal-muted leading-relaxed">
-                      The global feed improves when many verified identities choose the same
-                      high-signal posts.
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <BitsExplanation size="mobile" />
             </div>
           )}
 
@@ -311,4 +266,4 @@ export function MobileDrawer({
       </div>
     </>
   );
-}
+});

@@ -11,6 +11,8 @@ const { nostrServiceMock, cryptoServiceMock, identityServiceMock } = vi.hoisted(
     encryptNIP04: vi.fn(),
     decryptNIP04: vi.fn(),
     unwrapGiftWrap: vi.fn(),
+    isGiftWrap: vi.fn(),
+    isLegacyDM: vi.fn(),
   },
   identityServiceMock: {
     signEvent: vi.fn(),
@@ -71,6 +73,10 @@ describe('dmService', () => {
       async (content: string) => `decrypted:${content}`,
     );
     cryptoServiceMock.unwrapGiftWrap.mockResolvedValue(null);
+    cryptoServiceMock.isGiftWrap.mockImplementation(
+      (event: { kind?: number }) => event.kind === 1059,
+    );
+    cryptoServiceMock.isLegacyDM.mockImplementation((event: { kind?: number }) => event.kind === 4);
     identityServiceMock.signEvent.mockImplementation(async (event: unknown) => ({
       ...(event as Record<string, unknown>),
       id: 'signed-id',
@@ -160,5 +166,114 @@ describe('dmService', () => {
     expect(dmService.getConversation('recipient-pubkey')?.messages.at(-1)?.content).toBe(
       'decrypted:enc-live',
     );
+  });
+
+  it('throws when sending without a local identity and returns null when uninitialized', async () => {
+    await expect(
+      dmService.sendMessage({ recipientPubkey: 'recipient-pubkey', content: 'hello there' }),
+    ).resolves.toBeNull();
+
+    dmService.initialize('author-pubkey');
+    identityServiceMock.hasLocalIdentity.mockReturnValue(false);
+
+    await expect(
+      dmService.sendMessage({ recipientPubkey: 'recipient-pubkey', content: 'hello there' }),
+    ).rejects.toThrow('No identity available for sending DM');
+  });
+
+  it('keeps placeholder content when decryption fails and deduplicates repeated live events', async () => {
+    dmService.initialize('author-pubkey');
+    identityServiceMock.decryptDM.mockResolvedValueOnce(null);
+
+    let onEvent: ((event: any) => void) | undefined;
+    nostrServiceMock.subscribeToFilters.mockImplementation((_, handlers) => {
+      onEvent = handlers.onEvent;
+      return 'sub-1';
+    });
+
+    dmService.subscribeToMessages();
+
+    onEvent?.({
+      id: 'recv-fail',
+      kind: 4,
+      pubkey: 'recipient-pubkey',
+      created_at: 44,
+      tags: [['p', 'author-pubkey']],
+      content: 'enc-fail',
+      sig: 'sig',
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(dmService.getConversation('recipient-pubkey')?.messages[0]?.content).toBe(
+      '[Encrypted Message]',
+    );
+    expect(dmService.getConversation('recipient-pubkey')?.messages[0]?.isDecrypted).toBe(false);
+    expect(dmService.getUnreadCount()).toBe(1);
+
+    onEvent?.({
+      id: 'recv-fail',
+      kind: 4,
+      pubkey: 'recipient-pubkey',
+      created_at: 44,
+      tags: [['p', 'author-pubkey']],
+      content: 'enc-fail',
+      sig: 'sig',
+    });
+    await Promise.resolve();
+
+    expect(dmService.getConversation('recipient-pubkey')?.messages).toHaveLength(1);
+  });
+
+  it('supports gift-wrap messages, read state, deletion, and cleanup', async () => {
+    dmService.initialize('author-pubkey');
+    identityServiceMock.unwrapDMGiftWrap.mockResolvedValue({
+      content: 'wrapped hello',
+      senderPubkey: 'gift-sender',
+    });
+
+    const wrapped = await dmService.processIncomingDM({
+      event: {
+        id: 'gift-1',
+        kind: 1059,
+        pubkey: 'wrap-pubkey',
+        created_at: 55,
+        tags: [['p', 'author-pubkey']],
+        content: 'wrapped-content',
+        sig: 'sig',
+      },
+    });
+
+    expect(wrapped?.content).toBe('wrapped hello');
+    expect(dmService.getConversation('gift-sender')?.unreadCount).toBe(1);
+
+    dmService.markConversationAsRead('gift-sender');
+    expect(dmService.getConversation('gift-sender')?.unreadCount).toBe(0);
+    expect(dmService.getUnreadCount()).toBe(0);
+
+    const unsub = dmService.subscribe(() => undefined);
+    unsub();
+
+    dmService.subscribeToMessages();
+    dmService.cleanup();
+
+    expect(nostrServiceMock.unsubscribe).toHaveBeenCalledWith('sub-1');
+    expect(dmService.getConversations()).toHaveLength(0);
+  });
+
+  it('persists conversations for the active user only and can delete them', async () => {
+    dmService.initialize('author-pubkey');
+    await dmService.sendMessage({ recipientPubkey: 'recipient-pubkey', content: 'saved locally' });
+    dmService.cleanup();
+
+    dmService.initialize('author-pubkey');
+    expect(dmService.getConversation('recipient-pubkey')?.messages).toHaveLength(1);
+
+    dmService.deleteConversation('recipient-pubkey');
+    expect(dmService.getConversation('recipient-pubkey')).toBeNull();
+
+    dmService.cleanup();
+    dmService.initialize('another-user');
+    expect(dmService.getConversations()).toHaveLength(0);
   });
 });

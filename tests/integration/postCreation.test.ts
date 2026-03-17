@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockBoard, createMockUserState, createMockIdentity } from '../utils/testHelpers';
 import { encryptedBoardService } from '../../services/encryptedBoardService';
-import { nostrService } from '../../services/nostrService';
+import { nostrService } from '../../services/nostr/NostrService';
 import { identityService } from '../../services/identityService';
 // Types available for use in tests
 import { BoardType } from '../../types';
 
 // Mock services
 vi.mock('../../services/encryptedBoardService');
-vi.mock('../../services/nostrService');
+vi.mock('../../services/nostr/NostrService');
 vi.mock('../../services/identityService');
 
 describe('Post Creation Integration', () => {
@@ -96,13 +96,3 @@ describe('Post Creation Integration', () => {
     expect(boardKey).toBeNull();
   });
 });
-
-
-
-
-
-
-
-
-
-

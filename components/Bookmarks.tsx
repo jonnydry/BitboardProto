@@ -6,7 +6,7 @@ import { ArrowLeft, Bookmark, Trash2, Globe, Loader2, AlertTriangle } from 'luci
 import { bookmarkService } from '../services/bookmarkService';
 import { listService } from '../services/listService';
 import { identityService } from '../services/identityService';
-import { nostrService } from '../services/nostrService';
+import { nostrService } from '../services/nostr/NostrService';
 import { toastService } from '../services/toastService';
 import { FeatureFlags, UIConfig } from '../config';
 import { useUIStore } from '../stores/uiStore';

@@ -43,7 +43,7 @@
 //   - Both systems enforce "one vote per user per post" independently
 
 import { type Event as NostrEvent, verifyEvent } from 'nostr-tools';
-import { nostrService } from './nostrService';
+import { nostrService } from './nostr/NostrService';
 import { rateLimiter } from './rateLimiter';
 import { voteDeduplicator } from './messageDeduplicator';
 import { logger } from './loggingService';

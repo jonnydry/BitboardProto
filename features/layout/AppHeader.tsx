@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Zap, Menu, Search as _Search, Target, Undo2, Users } from 'lucide-react';
+import { Zap, Menu, Search as _Search } from 'lucide-react';
 import { ThemeId, ViewMode } from '../../types';
-import { notificationServiceV2 } from '../../services/notificationServiceV2';
+import { notificationService } from '../../services/notificationService';
 import { profileService } from '../../services/profileService';
 import { NotificationCenterV2 } from '../../components/NotificationCenterV2';
 import { InlineNetworkStatus, NetworkIndicator } from '../../components/NetworkIndicator';
+import { BitsExplanation } from '../../components/BitsExplanation';
 import { useUIStore } from '../../stores/uiStore';
 import { useUserStore } from '../../stores/userStore';
 import { useBoardStore } from '../../stores/boardStore';
@@ -14,7 +15,7 @@ interface AppHeaderProps {
   onOpenDrawer?: () => void;
 }
 
-export function AppHeader({ onOpenDrawer }: AppHeaderProps) {
+export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHeaderProps) {
   const theme = useUIStore((s) => s.theme);
   const isNostrConnected = useUIStore((s) => s.isNostrConnected);
   const viewMode = useUIStore((s) => s.viewMode);
@@ -37,11 +38,11 @@ export function AppHeader({ onOpenDrawer }: AppHeaderProps) {
     (identity ? `${identity.npub.slice(0, 10)}...` : 'CONNECT');
 
   useEffect(() => {
-    const unsubscribe = notificationServiceV2.subscribe(() => {
-      setUnreadCount(notificationServiceV2.getUnreadCount());
+    const unsubscribe = notificationService.subscribe(() => {
+      setUnreadCount(notificationService.getUnreadCount());
     });
 
-    setUnreadCount(notificationServiceV2.getUnreadCount());
+    setUnreadCount(notificationService.getUnreadCount());
 
     return unsubscribe;
   }, []);
@@ -320,44 +321,7 @@ export function AppHeader({ onOpenDrawer }: AppHeaderProps) {
                   <div className="text-[10px] uppercase tracking-widest text-terminal-dim">
                     How bits work
                   </div>
-                  <div className="space-y-2.5">
-                    <div className="flex gap-2.5">
-                      <Target size={14} className="text-terminal-dim shrink-0 mt-0.5" />
-                      <div>
-                        <div className="text-xs text-terminal-text font-bold uppercase tracking-wide mb-0.5">
-                          Spend deliberately
-                        </div>
-                        <div className="text-xs text-terminal-muted leading-relaxed">
-                          Each new vote locks 1 bit, so influence goes where you think it matters
-                          most.
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex gap-2.5">
-                      <Undo2 size={14} className="text-terminal-dim shrink-0 mt-0.5" />
-                      <div>
-                        <div className="text-xs text-terminal-text font-bold uppercase tracking-wide mb-0.5">
-                          Refund by retracting
-                        </div>
-                        <div className="text-xs text-terminal-muted leading-relaxed">
-                          Remove your vote to refund the bit. Switching directions keeps the same
-                          bit locked in place.
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex gap-2.5">
-                      <Users size={14} className="text-terminal-dim shrink-0 mt-0.5" />
-                      <div>
-                        <div className="text-xs text-terminal-text font-bold uppercase tracking-wide mb-0.5">
-                          Verified consensus
-                        </div>
-                        <div className="text-xs text-terminal-muted leading-relaxed">
-                          The global feed improves when many verified identities choose the same
-                          high-signal posts.
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <BitsExplanation size="desktop" />
                 </div>
               </div>
             )}
@@ -390,4 +354,4 @@ export function AppHeader({ onOpenDrawer }: AppHeaderProps) {
       {showNotifications && <NotificationCenterV2 onClose={() => setShowNotifications(false)} />}
     </header>
   );
-}
+});

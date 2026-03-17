@@ -6,13 +6,16 @@ import { bookmarkService } from '../../services/bookmarkService';
 import { encryptedBoardService } from '../../services/encryptedBoardService';
 import { followServiceV2 } from '../../services/followServiceV2';
 import { identityService } from '../../services/identityService';
+import { keyboardShortcutsService } from '../../services/keyboardShortcutsService';
 import { logger } from '../../services/loggingService';
-import { nostrService } from '../../services/nostrService';
+import { nostrService } from '../../services/nostr/NostrService';
 import { nostrEventDeduplicator, voteDeduplicator } from '../../services/messageDeduplicator';
 import { rateLimiter } from '../../services/rateLimiter';
 import { reportService } from '../../services/reportService';
+import { searchService } from '../../services/searchService';
 import { toastService } from '../../services/toastService';
 import { votingService } from '../../services/votingService';
+import { advancedSearchService } from '../../services/advancedSearchService';
 import { FeatureFlags, StorageKeys, UIConfig } from '../../config';
 
 interface UseAppLifecycleArgs {
@@ -124,6 +127,9 @@ export function useAppLifecycle(args: UseAppLifecycleArgs): void {
       rateLimiter.stopCleanup();
       nostrEventDeduplicator.stopCleanup();
       voteDeduplicator.stopCleanup();
+      searchService.destroy();
+      keyboardShortcutsService.destroy();
+      advancedSearchService.cleanup();
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);

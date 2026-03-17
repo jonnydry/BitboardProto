@@ -16,11 +16,11 @@ import {
   Filter as _Filter,
 } from 'lucide-react';
 import {
-  notificationServiceV2,
+  notificationService,
   type Notification,
   type NotificationPreferences,
   NotificationType,
-} from '../services/notificationServiceV2';
+} from '../services/notificationService';
 
 // ============================================
 // TYPES
@@ -47,34 +47,34 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
 
   const loadNotifications = useCallback(() => {
     const opts = filter === 'all' ? {} : { type: filter };
-    setNotifications(notificationServiceV2.getAll({ ...opts, limit: 100 }));
-    setUnreadCount(notificationServiceV2.getUnreadCount());
+    setNotifications(notificationService.getAll({ ...opts, limit: 100 }));
+    setUnreadCount(notificationService.getUnreadCount());
   }, [filter]);
 
   // Load notifications
   useEffect(() => {
     loadNotifications();
-    const unsubscribe = notificationServiceV2.subscribe(loadNotifications);
+    const unsubscribe = notificationService.subscribe(loadNotifications);
     return unsubscribe;
   }, [loadNotifications]);
 
   const handleMarkAsRead = (id: string) => {
-    notificationServiceV2.markAsRead(id);
+    notificationService.markAsRead(id);
     loadNotifications();
   };
 
   const handleMarkAllAsRead = () => {
-    notificationServiceV2.markAllAsRead();
+    notificationService.markAllAsRead();
     loadNotifications();
   };
 
   const handleDelete = (id: string) => {
-    notificationServiceV2.delete(id);
+    notificationService.delete(id);
     loadNotifications();
   };
 
   const handleClearAll = () => {
-    notificationServiceV2.clearAll();
+    notificationService.clearAll();
     setIsConfirmingClearAll(false);
     loadNotifications();
   };
@@ -82,7 +82,7 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
   const handleNotificationClick = (notification: Notification) => {
     // Mark as read
     if (!notification.isRead) {
-      notificationServiceV2.markAsRead(notification.id);
+      notificationService.markAsRead(notification.id);
       loadNotifications();
     }
 
@@ -308,9 +308,7 @@ const NotificationItem: React.FC<{
 // ============================================
 
 const NotificationSettings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const [prefs, setPrefs] = useState<NotificationPreferences>(
-    notificationServiceV2.getPreferences(),
-  );
+  const [prefs, setPrefs] = useState<NotificationPreferences>(notificationService.getPreferences());
   const [_isSaving, setIsSaving] = useState(false);
 
   const handleToggle = async (key: keyof NotificationPreferences) => {
@@ -319,7 +317,7 @@ const NotificationSettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     setPrefs(newPrefs);
 
     setIsSaving(true);
-    await notificationServiceV2.updatePreferences({ [key]: newValue });
+    await notificationService.updatePreferences({ [key]: newValue });
     setIsSaving(false);
   };
 
@@ -423,11 +421,11 @@ export const NotificationBadge: React.FC<{
 
   useEffect(() => {
     const updateCount = () => {
-      setUnreadCount(notificationServiceV2.getUnreadCount());
+      setUnreadCount(notificationService.getUnreadCount());
     };
 
     updateCount();
-    const unsubscribe = notificationServiceV2.subscribe(updateCount);
+    const unsubscribe = notificationService.subscribe(updateCount);
 
     return unsubscribe;
   }, []);

@@ -4,7 +4,7 @@ import type { Board, Post, UserState } from '../../types';
 import { identityService } from '../../services/identityService';
 import { encryptedBoardService } from '../../services/encryptedBoardService';
 import { logger } from '../../services/loggingService';
-import { nostrService } from '../../services/nostrService';
+import { nostrService } from '../../services/nostr/NostrService';
 import { toastService } from '../../services/toastService';
 import { inputValidator } from '../../services/inputValidator';
 import { UIConfig } from '../../config';

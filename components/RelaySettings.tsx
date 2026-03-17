@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Plus, RefreshCw, Trash2, AlertTriangle } from 'lucide-react';
-import { nostrService } from '../services/nostrService';
+import { nostrService } from '../services/nostr/NostrService';
 import { diagnosticsService, type DiagnosticEvent } from '../services/diagnosticsService';
 
 type RelayStatus = ReturnType<typeof nostrService.getRelayStatuses>[number];

@@ -12,7 +12,7 @@ import ReactDOM from 'react-dom/client';
 import { HelmetProvider } from 'react-helmet-async';
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { nostrService } from './services/nostrService';
+import { nostrService } from './services/nostr/NostrService';
 import { sentryService } from './services/sentryService';
 import { analyticsService } from './services/analyticsService';
 import { webVitalsService } from './services/webVitalsService';
@@ -278,7 +278,7 @@ const handleVote = (postId, direction) => {
     {
       postId,
       direction,
-    }
+    },
   );
 };
 
@@ -366,6 +366,7 @@ function BoardPage({ board }) {
 ## Step 7: Test the Integration
 
 1. **Start the dev server:**
+
    ```bash
    npm run dev
    ```
@@ -376,10 +377,12 @@ function BoardPage({ board }) {
    - Should see Web Vitals measurements
 
 3. **Test Sentry:**
+
    ```javascript
    // In browser console:
    throw new Error('Test error for Sentry');
    ```
+
    Check Sentry dashboard for the error.
 
 4. **Test Analytics:**
@@ -408,25 +411,30 @@ function BoardPage({ board }) {
 ## Troubleshooting
 
 ### Sentry not tracking errors
+
 - Check `.env.local` has `VITE_SENTRY_DSN`
 - Check browser console for Sentry init message
 - Verify DSN is correct in Sentry dashboard
 
 ### Analytics not tracking events
+
 - Check `.env.local` has `VITE_POSTHOG_API_KEY`
 - Check browser console for PostHog init message
 - Check PostHog dashboard is accessible
 
 ### Keyboard shortcuts not working
+
 - Check browser console for errors
 - Verify `keyboardShortcutsService.initialize()` is called
 - Make sure you're not typing in an input field
 
 ### Onboarding not showing
+
 - Clear localStorage: `localStorage.removeItem('bitboard_onboarding_complete')`
 - Reload page
 
 ### Type errors with HelmetProvider
+
 ```bash
 npm install @types/react-helmet-async
 ```
@@ -434,6 +442,7 @@ npm install @types/react-helmet-async
 ## Next Steps
 
 After integration:
+
 1. Deploy to staging environment
 2. Verify monitoring works in production
 3. Add more analytics events for key actions

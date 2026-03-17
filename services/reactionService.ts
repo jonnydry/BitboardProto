@@ -7,7 +7,7 @@
 import { type Event as NostrEvent, type Filter } from 'nostr-tools';
 import type { UnsignedNostrEvent } from '../types';
 import { logger } from './loggingService';
-import { nostrService } from './nostrService';
+import { nostrService } from './nostr/NostrService';
 import { identityService } from './identityService';
 
 // ============================================

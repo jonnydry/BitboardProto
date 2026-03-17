@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { dmService } from '../../services/dmService';
 import { followServiceV2 } from '../../services/followServiceV2';
-import { notificationServiceV2 } from '../../services/notificationServiceV2';
+import { notificationService } from '../../services/notificationService';
 import { advancedSearchService } from '../../services/advancedSearchService';
 import { logger } from '../../services/loggingService';
 
@@ -17,10 +17,10 @@ export function usePhaseTwoServices({ pubkey }: UsePhaseTwoServicesArgs): void {
       try {
         await dmService.initialize(pubkey);
         await followServiceV2.initialize(pubkey);
-        await notificationServiceV2.initialize(pubkey);
+        await notificationService.initialize(pubkey);
         advancedSearchService.initialize(pubkey);
         dmService.setNotificationHandler((notification) => {
-          notificationServiceV2.createDM({
+          notificationService.createDM({
             fromPubkey: notification.senderPubkey,
             messageId: notification.messageId,
             preview: notification.preview,
@@ -38,7 +38,7 @@ export function usePhaseTwoServices({ pubkey }: UsePhaseTwoServicesArgs): void {
       dmService.setNotificationHandler(() => undefined);
       dmService.cleanup();
       followServiceV2.cleanup();
-      notificationServiceV2.cleanup();
+      notificationService.cleanup();
       advancedSearchService.cleanup();
     };
   }, [pubkey]);
