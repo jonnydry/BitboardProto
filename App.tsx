@@ -61,6 +61,9 @@ const TermsOfService = lazy(() =>
 const DirectMessages = lazy(() =>
   import('./components/DirectMessages').then((module) => ({ default: module.DirectMessages })),
 );
+const About = lazy(() =>
+  import('./components/About').then((module) => ({ default: module.About })),
+);
 // AdvancedSearchView is available for future use when advanced search UI is implemented
 const _AdvancedSearchView = lazy(() =>
   import('./components/AdvancedSearch').then((module) => ({ default: module.AdvancedSearch })),
@@ -694,6 +697,11 @@ const AppContent: React.FC = () => {
                   <TermsOfService />
                 </Suspense>
               )}
+              {app.viewMode === ViewMode.ABOUT && (
+                <Suspense fallback={<LoadingFallback />}>
+                  <About />
+                </Suspense>
+              )}
               {/* Direct Messages View */}
               {app.viewMode === ViewMode.DIRECT_MESSAGES && app.userState.identity?.pubkey && (
                 <Suspense fallback={<LoadingFallback />}>
@@ -737,7 +745,28 @@ const AppContent: React.FC = () => {
             BitBoard NOSTR PROTOCOL V3.0 // RELAYS: {nostrService.getRelays().length} // NODES
             ACTIVE: {(app.boards?.length ?? 0) + (app.locationBoards?.length ?? 0)}
           </div>
-          <div className="space-x-4">
+          <div className="flex items-center justify-center gap-4">
+            <button
+              onClick={() => app.setViewMode(ViewMode.ABOUT)}
+              className="flex items-center gap-1.5 hover:text-terminal-text transition-colors underline"
+            >
+              <span
+                className="inline-block w-3.5 h-3.5 shrink-0"
+                style={{
+                  backgroundColor: 'rgb(var(--color-terminal-dim))',
+                  maskImage: "url('/assets/bitboard-logo.png')",
+                  WebkitMaskImage: "url('/assets/bitboard-logo.png')",
+                  maskSize: 'contain',
+                  WebkitMaskSize: 'contain',
+                  maskRepeat: 'no-repeat',
+                  WebkitMaskRepeat: 'no-repeat',
+                  maskPosition: 'center',
+                  WebkitMaskPosition: 'center',
+                }}
+              />
+              About
+            </button>
+            <span>•</span>
             <button
               onClick={() => app.setViewMode(ViewMode.PRIVACY_POLICY)}
               className="hover:text-terminal-text transition-colors underline"

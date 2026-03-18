@@ -18,7 +18,17 @@ export const TermsOfService: React.FC = () => {
 
       <h1 className="text-3xl font-bold mb-6 font-terminal tracking-wide">Terms of Service</h1>
 
-      <p className="text-sm text-terminal-muted">Last Updated: 2026-03-15</p>
+      <p className="text-sm text-terminal-muted">Last Updated: 2026-03-17</p>
+
+      <div className="border border-terminal-alert/40 bg-terminal-alert/5 p-4 text-sm leading-relaxed">
+        <span className="text-terminal-alert font-bold uppercase tracking-wider text-xs">
+          ⚠ Prototype Software
+        </span>
+        <p className="mt-2 text-terminal-muted">
+          BitBoard is experimental software under active development. Features may change, break, or
+          be removed without notice. Use accordingly and back up your private key (nsec).
+        </p>
+      </div>
 
       <section className="space-y-4">
         <h2 className="text-2xl font-semibold">Acceptance of Terms</h2>

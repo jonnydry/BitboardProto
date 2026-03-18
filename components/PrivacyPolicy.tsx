@@ -18,154 +18,180 @@ export const PrivacyPolicy: React.FC = () => {
 
       <h1 className="text-3xl font-bold mb-6 font-terminal tracking-wide">Privacy Policy</h1>
 
-      <p className="text-sm text-terminal-muted">Last Updated: 2026-03-15</p>
+      <p className="text-sm text-terminal-muted">Last Updated: 2026-03-17</p>
+
+      <div className="border border-terminal-alert/40 bg-terminal-alert/5 p-4 text-sm leading-relaxed">
+        <span className="text-terminal-alert font-bold uppercase tracking-wider text-xs">
+          ⚠ Prototype Software
+        </span>
+        <p className="mt-2 text-terminal-muted">
+          BitBoard is experimental software under active development. This privacy policy reflects
+          the current state of the application as accurately as possible.
+        </p>
+      </div>
 
       <section className="space-y-4">
         <h2 className="text-2xl font-semibold">Overview</h2>
         <p>
-          BitBoard is a decentralized message board built on the Nostr protocol. We are committed to
-          protecting your privacy and being transparent about how the application works.
+          BitBoard is a decentralized message board built on the Nostr protocol. It runs entirely in
+          your browser — there are no BitBoard backend servers that collect or store your data. Your
+          identity is a cryptographic keypair that only you control.
         </p>
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-2xl font-semibold">What We Collect</h2>
+        <h2 className="text-2xl font-semibold">What Is Stored Locally</h2>
         <p>
-          BitBoard is a <strong>client-side only application</strong> that runs entirely in your
-          browser. We do not operate any backend servers that collect or store your data.
+          The following data is stored only in your browser's <code>localStorage</code>. It never
+          leaves your device except as described under "Nostr Network" below.
         </p>
 
-        <h3 className="text-xl font-semibold mt-4">Local Storage</h3>
-        <p>The following data is stored locally in your browser's storage:</p>
+        <h3 className="text-xl font-semibold mt-4">Identity &amp; Keys</h3>
         <ul className="list-disc list-inside space-y-2 ml-4">
           <li>
-            <strong>Nostr Keys:</strong> Your private and public keys for the Nostr protocol
+            <strong>Encrypted private key:</strong> Your secp256k1 Nostr private key is encrypted
+            with AES-256-GCM before being written to localStorage. The encryption key is derived
+            from a passphrase you choose using PBKDF2 with 310,000 iterations and a random 32-byte
+            salt. The plaintext private key is never written to disk.
           </li>
           <li>
-            <strong>User Preferences:</strong> Theme selection, relay settings, bookmarks
+            <strong>Public key &amp; display name:</strong> Stored in plaintext (these are public by
+            design).
           </li>
           <li>
-            <strong>Cached Content:</strong> Posts, boards, and comments for faster loading
-          </li>
-          <li>
-            <strong>Draft Content:</strong> Unsent posts and comments
+            <strong>PBKDF2 salt:</strong> Stored alongside the encrypted key so the same passphrase
+            can re-derive the decryption key on future sessions.
           </li>
         </ul>
-        <p className="text-sm text-terminal-muted mt-2">
-          This data never leaves your device unless you explicitly publish content to the Nostr
-          network.
+
+        <h3 className="text-xl font-semibold mt-4">Direct Messages</h3>
+        <p>
+          Decrypted DM content is <strong>never written to localStorage</strong>. Only the
+          encrypted ciphertext received from the Nostr network is persisted. Each session
+          re-decrypts messages in memory using your unlocked key. If your key is not unlocked, DMs
+          are displayed as <em>[Encrypted Message]</em> until you enter your passphrase.
         </p>
+
+        <h3 className="text-xl font-semibold mt-4">Preferences &amp; Cache</h3>
+        <ul className="list-disc list-inside space-y-2 ml-4">
+          <li>Theme selection, relay list, and UI preferences</li>
+          <li>Bookmarks (stored as a list of Nostr event IDs)</li>
+          <li>Mute list (validated as 64-character hex pubkeys on load)</li>
+          <li>Guest username (persisted for stability across reloads)</li>
+          <li>Onboarding completion flag</li>
+        </ul>
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-2xl font-semibold">How Data is Shared</h2>
+        <h2 className="text-2xl font-semibold">How Data Is Shared</h2>
 
         <h3 className="text-xl font-semibold mt-4">Nostr Network</h3>
         <p>
-          When you create posts, comments, or votes, this content is published to the Nostr network
-          through relay servers you configure. This is inherent to how the Nostr protocol works:
+          When you create posts, comments, votes, or follow lists, this content is signed with your
+          private key and published to the Nostr relay servers you have configured. This is
+          inherent to how the Nostr protocol works:
         </p>
         <ul className="list-disc list-inside space-y-2 ml-4">
           <li>Public posts are visible to anyone on the Nostr network</li>
-          <li>Your public key is associated with your content</li>
-          <li>Relay servers may store your published content</li>
-          <li>Content on Nostr is designed to be permanent and distributed</li>
+          <li>Your public key is permanently associated with your content</li>
+          <li>Relay servers may store and re-broadcast your published events indefinitely</li>
+          <li>
+            <strong>
+              Content published to Nostr cannot be reliably deleted from relay servers
+            </strong>{' '}
+            — this is a fundamental property of the decentralized protocol
+          </li>
         </ul>
+
+        <h3 className="text-xl font-semibold mt-4">Direct Messages</h3>
+        <p>
+          DMs are encrypted before leaving your device using NIP-04 (legacy, for relay
+          compatibility) or NIP-17 gift-wrap (for stronger privacy, with randomized timestamps to
+          resist traffic analysis). Neither BitBoard nor relay operators can read DM content without
+          your private key.
+        </p>
 
         <h3 className="text-xl font-semibold mt-4">Encrypted Boards</h3>
         <p>
-          Encrypted boards use end-to-end encryption. Only users with the encryption key can read
-          the content. The encrypted data is still published to Nostr relays, but it cannot be read
-          without the key.
+          Encrypted board content is AES-256 encrypted client-side. The encryption key is shared
+          via URL fragment (never sent to servers). Relay operators cannot read the content.
         </p>
       </section>
 
       <section className="space-y-4">
         <h2 className="text-2xl font-semibold">Third-Party Services</h2>
 
-        <h3 className="text-xl font-semibold mt-4">Optional Services</h3>
-        <p>BitBoard may use the following optional third-party services:</p>
+        <h3 className="text-xl font-semibold mt-4">Sentry (Error Monitoring)</h3>
+        <p>
+          BitBoard uses Sentry for crash and error reporting. Before any identity data is sent to
+          Sentry, your Nostr public key is <strong>SHA-256 hashed</strong> — the raw pubkey is
+          never transmitted. This prevents Sentry from linking error reports to your pseudonymous
+          Nostr identity. No private key material is ever sent.
+        </p>
+
+        <h3 className="text-xl font-semibold mt-4">PostHog (Analytics)</h3>
+        <p>
+          Analytics are <strong>opt-in only</strong>. You must explicitly consent before any usage
+          data is collected. If you opt in:
+        </p>
         <ul className="list-disc list-inside space-y-2 ml-4">
-          <li>
-            <strong>Google Gemini API:</strong> If configured, used for AI-powered link content
-            scanning (requires API key)
-          </li>
-          <li>
-            <strong>Sentry:</strong> If configured, used for error tracking and monitoring (requires
-            DSN)
-          </li>
-          <li>
-            <strong>Nostr Relays:</strong> Third-party servers that relay Nostr protocol messages
-            (you choose which relays to use)
-          </li>
+          <li>Anonymous feature usage, interaction patterns, and performance metrics are tracked</li>
+          <li>No personally identifiable information (PII) is collected</li>
+          <li>Your Nostr pubkey is pseudonymized before being passed to PostHog</li>
+          <li>You can opt out at any time in app settings</li>
         </ul>
         <p className="text-sm text-terminal-muted mt-2">
-          These services are only used if you explicitly configure them. Check their respective
-          privacy policies for more information.
+          If you have not explicitly opted in, PostHog is not initialized and no data is sent.
         </p>
-      </section>
 
-      <section className="space-y-4">
-        <h2 className="text-2xl font-semibold">Cookies and Tracking</h2>
+        <h3 className="text-xl font-semibold mt-4">Nostr Relay Servers</h3>
         <p>
-          BitBoard uses minimal local storage to function. For analytics, we use PostHog, an
-          open-source analytics platform that respects your privacy:
+          You connect to relay servers of your own choice. BitBoard ships with a default list of
+          six public relays. Relay operators can see your IP address and all events you publish or
+          subscribe to. Review each relay's own privacy policy for their data handling practices.
         </p>
-        <ul className="list-disc list-inside space-y-2 ml-4">
-          <li>
-            <strong>What we track:</strong> Anonymous usage data such as feature usage, interaction
-            patterns, and performance metrics. No personally identifiable information (PII) is
-            collected.
-          </li>
-          <li>
-            <strong>Data handling:</strong> Analytics data is processed by PostHog and follows their
-            privacy practices. We do not sell or share this data with third parties.
-          </li>
-          <li>
-            <strong>Opt-out:</strong> You can opt out of analytics at any time by clicking the "Opt
-            Out" button in the app settings. You can opt back in at any time.
-          </li>
-          <li>
-            <strong>No cookies required:</strong> PostHog works without requiring cookies for basic
-            analytics.
-          </li>
-        </ul>
       </section>
 
       <section className="space-y-4">
         <h2 className="text-2xl font-semibold">Data Security</h2>
         <p>
-          Your Nostr private keys are stored encrypted in your browser's local storage. However, you
-          are responsible for:
+          BitBoard is designed to minimize trust requirements. Key security properties of the
+          current implementation:
         </p>
         <ul className="list-disc list-inside space-y-2 ml-4">
-          <li>Keeping your private keys secure</li>
-          <li>Backing up your keys (we cannot recover lost keys)</li>
-          <li>Using secure devices and browsers</li>
-          <li>Not sharing your private keys with anyone</li>
+          <li>Private key encrypted at rest with AES-256-GCM (never stored as plaintext)</li>
+          <li>PBKDF2 key derivation with 310,000 iterations and a 32-byte random salt</li>
+          <li>Decrypted DM content held only in memory, never written to localStorage</li>
+          <li>Sentry receives only a SHA-256 hash of your pubkey</li>
+          <li>Vote signatures verified in a background Web Worker using the Nostr protocol</li>
+          <li>NIP-07 browser extension support (Alby, nos2x) — private key never touches the app</li>
         </ul>
+        <p className="text-sm text-terminal-muted mt-2">
+          You are responsible for keeping your passphrase and device secure. BitBoard cannot recover
+          a lost or forgotten passphrase.
+        </p>
       </section>
 
       <section className="space-y-4">
         <h2 className="text-2xl font-semibold">Your Rights</h2>
-        <p>Since BitBoard is a client-side application with no backend:</p>
+        <p>Since BitBoard has no backend, all locally stored data is under your direct control:</p>
         <ul className="list-disc list-inside space-y-2 ml-4">
           <li>
-            <strong>Access:</strong> All your data is in your browser's local storage, which you can
-            access directly
+            <strong>Access:</strong> Your data lives in your browser's localStorage — inspect it
+            directly via browser developer tools
           </li>
           <li>
-            <strong>Deletion:</strong> You can clear your browser's local storage at any time to
-            delete all local data
+            <strong>Deletion:</strong> Clearing localStorage removes all locally stored data
+            including your encrypted key
           </li>
           <li>
-            <strong>Portability:</strong> You can export your Nostr keys and use them with other
-            Nostr clients
+            <strong>Portability:</strong> Export your Nostr keypair (nsec) and import it into any
+            other Nostr client
           </li>
         </ul>
         <p className="text-sm text-terminal-muted mt-2">
-          Note: Content published to the Nostr network cannot be deleted from relay servers, as this
-          is a fundamental aspect of the decentralized protocol.
+          Content already published to Nostr relays cannot be deleted by BitBoard, as the app has
+          no authority over relay operators.
         </p>
       </section>
 
@@ -180,23 +206,23 @@ export const PrivacyPolicy: React.FC = () => {
       <section className="space-y-4">
         <h2 className="text-2xl font-semibold">Changes to This Policy</h2>
         <p>
-          We may update this privacy policy from time to time. The "Last Updated" date at the top of
-          this page will reflect when changes were made.
+          We may update this privacy policy as the application evolves. The "Last Updated" date at
+          the top reflects when changes were last made.
         </p>
       </section>
 
       <section className="space-y-4">
         <h2 className="text-2xl font-semibold">Contact</h2>
         <p>
-          If you have questions about this privacy policy, you can reach out through the Nostr
-          network or open an issue on our GitHub repository.
+          For questions about this privacy policy, reach out through the Nostr network or open an
+          issue on our GitHub repository.
         </p>
       </section>
 
       <div className="mt-8 pt-6 border-t border-terminal-dim/30">
         <p className="text-sm text-terminal-muted">
-          BitBoard is open source software. You can review the code to verify how your data is
-          handled at our GitHub repository.
+          BitBoard is open-source software. You can review the full source code to independently
+          verify how your data is handled.
         </p>
       </div>
     </div>
