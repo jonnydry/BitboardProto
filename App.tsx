@@ -748,12 +748,11 @@ const AppContent: React.FC = () => {
           <div className="flex items-center justify-center gap-4">
             <button
               onClick={() => app.setViewMode(ViewMode.ABOUT)}
-              className="flex items-center gap-1.5 hover:text-terminal-text transition-colors underline"
+              className="group flex items-center gap-1.5 hover:text-terminal-text transition-colors underline"
             >
               <span
-                className="inline-block w-3.5 h-3.5 shrink-0"
+                className="inline-block w-[26px] h-[26px] shrink-0 bg-terminal-dim group-hover:bg-terminal-text transition-colors"
                 style={{
-                  backgroundColor: 'rgb(var(--color-terminal-dim))',
                   maskImage: "url('/assets/bitboard-logo.png')",
                   WebkitMaskImage: "url('/assets/bitboard-logo.png')",
                   maskSize: 'contain',
