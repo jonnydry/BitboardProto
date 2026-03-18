@@ -821,6 +821,12 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
               />
             </div>
           </div>
+          <button
+            onClick={() => onSetViewMode(ViewMode.SETTINGS)}
+            className="text-xs text-terminal-dim hover:text-terminal-text flex items-center gap-1 mt-2 border border-terminal-dim/30 hover:border-terminal-dim p-1.5 justify-center transition-all"
+          >
+            <HelpCircle size={10} /> Settings
+          </button>
           {userState.identity && (
             <button
               onClick={() => onSetViewMode(ViewMode.IDENTITY)}

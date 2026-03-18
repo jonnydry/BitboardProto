@@ -120,6 +120,23 @@ export function useAppLifecycle(args: UseAppLifecycleArgs): void {
     });
   }, [setActiveBoardId, setViewMode]);
 
+  // Handle PWA shortcut ?action= params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const action = params.get('action');
+    if (!action) return;
+
+    if (action === 'new-post') {
+      setViewMode(ViewMode.CREATE);
+    } else if (action === 'notifications') {
+      setViewMode(ViewMode.NOTIFICATIONS);
+    }
+
+    params.delete('action');
+    const newSearch = params.toString();
+    window.history.replaceState(null, '', newSearch ? `?${newSearch}` : window.location.pathname);
+  }, [setViewMode]);
+
   useEffect(() => {
     const handleBeforeUnload = () => {
       nostrService.cleanup();

@@ -10,7 +10,9 @@ import {
   MapPin,
   Zap,
   MessageSquare,
+  Search,
 } from 'lucide-react';
+import { useUIStore } from '../../stores/uiStore';
 import { ViewMode } from '../../types';
 import { BitsExplanation } from '../../components/BitsExplanation';
 
@@ -41,6 +43,7 @@ export const MobileDrawer = React.memo(function MobileDrawer({
 }: MobileDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
   const [showBitsInfo, setShowBitsInfo] = useState(false);
+  const setShowSearch = useUIStore((s) => s.setShowSearch);
 
   // Reset bits info when drawer closes
   useEffect(() => {
@@ -135,6 +138,20 @@ export const MobileDrawer = React.memo(function MobileDrawer({
       label: 'RELAYS',
       isActive: viewMode === ViewMode.RELAYS,
       onClick: () => handleNavClick(() => onSetViewMode(ViewMode.RELAYS)),
+    },
+    {
+      id: 'search',
+      icon: Search,
+      label: 'SEARCH',
+      isActive: false,
+      onClick: () => handleNavClick(() => setShowSearch(true)),
+    },
+    {
+      id: 'settings',
+      icon: Settings,
+      label: 'SETTINGS',
+      isActive: viewMode === ViewMode.SETTINGS,
+      onClick: () => handleNavClick(() => onSetViewMode(ViewMode.SETTINGS)),
     },
   ];
 

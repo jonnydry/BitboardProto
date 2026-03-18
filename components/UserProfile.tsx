@@ -32,6 +32,9 @@ import { FollowButton as _FollowButton, FollowStats as _FollowStats } from './Fo
 import { ZapButton } from './ZapButton';
 import { BadgeDisplay } from './BadgeDisplay';
 import { TrustIndicator } from './TrustIndicator';
+import { wotService } from '../services/wotService';
+import { FeatureFlags } from '../config';
+import type { WoTScore } from '../types';
 import { useUIStore } from '../stores/uiStore';
 import { useUserStore } from '../stores/userStore';
 import { usePostStore } from '../stores/postStore';
@@ -84,7 +87,19 @@ export const UserProfile: React.FC<UserProfileProps> = ({
   const [showAvatarFallback, setShowAvatarFallback] = useState(false);
   const [showBannerImage, setShowBannerImage] = useState(true);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [wotScore, setWotScore] = useState<WoTScore | null>(null);
   const { follow, unfollow, isFollowing, isLoading: isFollowLoading } = useFollows();
+
+  // Load WoT score for this profile
+  useEffect(() => {
+    if (!FeatureFlags.ENABLE_WOT) return;
+    if (!wotService.getUserPubkey()) return;
+    if (!authorPubkey) return;
+
+    wotService.getScore(authorPubkey).then((score) => {
+      setWotScore(score);
+    }).catch(() => {});
+  }, [authorPubkey]);
   // Filter posts by this user
   const userPosts = useMemo(() => {
     return posts
@@ -483,6 +498,22 @@ export const UserProfile: React.FC<UserProfileProps> = ({
                   {copiedField === 'pubkey' ? 'COPIED' : 'COPY'}
                 </button>
                 <TrustIndicator pubkey={authorPubkey} compact={false} />
+              </div>
+            )}
+
+            {/* WoT score row */}
+            {FeatureFlags.ENABLE_WOT && wotService.getUserPubkey() && wotScore && (
+              <div className="flex items-center gap-2 text-xs text-terminal-dim font-mono mb-3">
+                <span className="text-terminal-text font-bold">WOT:</span>
+                <span>{Math.round(wotScore.score * 100)}%</span>
+                <span>·</span>
+                <span>DIST_{wotScore.distance}</span>
+                {wotScore.followedBy.length > 0 && (
+                  <>
+                    <span>·</span>
+                    <span>{wotScore.followedBy.length} mutual{wotScore.followedBy.length !== 1 ? 's' : ''}</span>
+                  </>
+                )}
               </div>
             )}
 

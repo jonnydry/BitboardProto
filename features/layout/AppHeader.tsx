@@ -1,5 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Zap, Menu, Search as _Search } from 'lucide-react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { Zap, Menu, Settings as SettingsIcon, Search } from 'lucide-react';
+
+const AdvancedSearch = lazy(() =>
+  import('../../components/AdvancedSearch').then((m) => ({ default: m.AdvancedSearch })),
+);
 import { ThemeId, ViewMode } from '../../types';
 import { notificationService } from '../../services/notificationService';
 import { profileService } from '../../services/profileService';
@@ -20,10 +24,13 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
   const isNostrConnected = useUIStore((s) => s.isNostrConnected);
   const viewMode = useUIStore((s) => s.viewMode);
   const setViewMode = useUIStore((s) => s.setViewMode);
+  const showSearch = useUIStore((s) => s.showSearch);
+  const setShowSearch = useUIStore((s) => s.setShowSearch);
   const bookmarkedCount = useUIStore((s) => s.bookmarkedIds?.length ?? 0);
   const activeBoardId = useBoardStore((s) => s.activeBoardId);
   const identity = useUserStore((s) => s.userState.identity);
   const userState = useUserStore((s) => s.userState);
+  const setProfileUser = useUIStore((s) => s.setProfileUser);
   const { navigateToBoard } = useAppNavigationHandlers();
 
   const [unreadCount, setUnreadCount] = useState(0);
@@ -82,6 +89,28 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
     };
   }, [showBitsPanel]);
 
+  // Close search modal on Escape
+  useEffect(() => {
+    if (!showSearch) return;
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowSearch(false);
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [showSearch, setShowSearch]);
+
+  const handleSearchResultClick = (result: { type: string; authorPubkey: string; authorName?: string }) => {
+    setShowSearch(false);
+    if (result.type === 'post' || result.type === 'comment') {
+      setViewMode(ViewMode.SINGLE_BIT);
+    } else {
+      setProfileUser({ username: result.authorName ?? result.authorPubkey.slice(0, 12), pubkey: result.authorPubkey });
+      setViewMode(ViewMode.USER_PROFILE);
+    }
+  };
+
   return (
     <header className="flex flex-col mb-4 md:mb-6 lg:mb-8 border-b-2 border-terminal-dim py-[5px] gap-2 md:gap-3 lg:gap-4">
       {/* Mobile Header Row */}
@@ -107,7 +136,7 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
             <span className="text-xl font-bold">BitBoring</span>
           ) : theme === ThemeId.PATRIOT ? (
             <img
-              src="/assets/BitBoardTESTFINAL.png"
+              src="/assets/bitboard-patriot.png"
               alt="BitBoard Logo"
               className="h-8 w-auto object-contain"
             />
@@ -178,7 +207,7 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
           <>
             {theme === ThemeId.PATRIOT ? (
               <img
-                src="/assets/BitBoardTESTFINAL.png"
+                src="/assets/bitboard-patriot.png"
                 alt="BitBoard Logo"
                 className="h-10 lg:h-16 w-auto object-contain transition-all duration-200 hover:brightness-125"
               />
@@ -272,6 +301,13 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
           >
             <span>RELAYS</span>
           </button>
+          <button
+            onClick={() => setShowSearch(true)}
+            className="border-transparent text-terminal-dim hover:border-terminal-dim/40 hover:text-terminal-text border px-3 py-1.5 transition-colors"
+            title="Search"
+          >
+            <Search size={14} />
+          </button>
         </div>
 
         <div className="hidden lg:flex items-center gap-3 shrink-0">
@@ -347,8 +383,30 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
             ) : null}
             {identityDisplayName}
           </button>
+          <button
+            type="button"
+            onClick={() => setViewMode(ViewMode.SETTINGS)}
+            className={`p-1.5 border transition-colors ${viewMode === ViewMode.SETTINGS ? 'border-terminal-text text-terminal-text bg-terminal-dim/10' : 'border-transparent text-terminal-dim hover:border-terminal-dim/40 hover:text-terminal-text'}`}
+            title="Settings"
+          >
+            <SettingsIcon size={16} />
+          </button>
         </div>
       </nav>
+
+      {/* Search Modal */}
+      {showSearch && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-start justify-center pt-20 px-4">
+          <div className="bg-terminal-bg border-2 border-terminal-text w-full max-w-2xl max-h-[80vh] overflow-auto">
+            <Suspense fallback={<div className="p-8 text-center text-terminal-muted animate-pulse">LOADING...</div>}>
+              <AdvancedSearch
+                onClose={() => setShowSearch(false)}
+                onResultClick={handleSearchResultClick}
+              />
+            </Suspense>
+          </div>
+        </div>
+      )}
 
       {/* Notification Center Modal */}
       {showNotifications && <NotificationCenterV2 onClose={() => setShowNotifications(false)} />}

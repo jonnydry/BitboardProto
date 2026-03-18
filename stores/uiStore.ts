@@ -18,6 +18,7 @@ interface UIState {
   oldestTimestamp: number | null;
   bookmarkedIds: string[];
   reportedPostIds: string[];
+  showSearch: boolean;
 
   // Actions
   setViewMode: (mode: ViewMode) => void;
@@ -32,6 +33,7 @@ interface UIState {
   setOldestTimestamp: (timestamp: number | null) => void;
   setBookmarkedIds: (ids: string[] | ((prev: string[]) => string[])) => void;
   setReportedPostIds: (ids: string[] | ((prev: string[]) => string[])) => void;
+  setShowSearch: (v: boolean) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -48,6 +50,7 @@ export const useUIStore = create<UIState>()(
     oldestTimestamp: null,
     bookmarkedIds: [],
     reportedPostIds: [],
+    showSearch: false,
 
     setViewMode: (mode) => set({ viewMode: mode }),
     setTheme: (theme) => set({ theme }),
@@ -69,6 +72,7 @@ export const useUIStore = create<UIState>()(
       const next = typeof updater === 'function' ? updater(current) : updater;
       set({ reportedPostIds: next });
     },
+    setShowSearch: (v) => set({ showSearch: v }),
   })),
 );
 
@@ -85,3 +89,4 @@ export const useHasMorePosts = () => useUIStore((state) => state.hasMorePosts);
 export const useOldestTimestamp = () => useUIStore((state) => state.oldestTimestamp);
 export const useBookmarkedIds = () => useUIStore((state) => state.bookmarkedIds);
 export const useReportedPostIds = () => useUIStore((state) => state.reportedPostIds);
+export const useShowSearch = () => useUIStore((state) => state.showSearch);

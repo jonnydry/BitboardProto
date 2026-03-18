@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { NotificationListSkeleton } from './LoadingSkeletons';
 import {
   Bell,
   BellOff,
@@ -44,6 +45,7 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
   const [showSettings, setShowSettings] = useState(false);
   const [isConfirmingClearAll, setIsConfirmingClearAll] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
   const loadNotifications = useCallback(() => {
     const opts = filter === 'all' ? {} : { type: filter };
@@ -54,6 +56,7 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
   // Load notifications
   useEffect(() => {
     loadNotifications();
+    setIsLoading(false);
     const unsubscribe = notificationService.subscribe(loadNotifications);
     return unsubscribe;
   }, [loadNotifications]);
@@ -201,7 +204,9 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
 
         {/* Notification List */}
         <div className="flex-1 overflow-y-auto">
-          {notifications.length === 0 ? (
+          {isLoading ? (
+            <NotificationListSkeleton />
+          ) : notifications.length === 0 ? (
             <div className="p-8 text-center text-terminal-dim">
               <BellOff size={32} className="mx-auto mb-2 opacity-50" />
               <p>No notifications</p>
@@ -307,7 +312,7 @@ const NotificationItem: React.FC<{
 // NOTIFICATION SETTINGS
 // ============================================
 
-const NotificationSettings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+export const NotificationSettings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [prefs, setPrefs] = useState<NotificationPreferences>(notificationService.getPreferences());
   const [_isSaving, setIsSaving] = useState(false);
 

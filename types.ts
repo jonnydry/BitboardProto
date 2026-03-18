@@ -177,6 +177,7 @@ export enum ViewMode {
   DIRECT_MESSAGES = 'DIRECT_MESSAGES', // NIP-04 encrypted DMs
   PRIVACY_POLICY = 'PRIVACY_POLICY',
   TERMS_OF_SERVICE = 'TERMS_OF_SERVICE',
+  SETTINGS = 'SETTINGS',
 }
 
 export enum SortMode {

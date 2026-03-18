@@ -64,9 +64,8 @@ const DirectMessages = lazy(() =>
 const About = lazy(() =>
   import('./components/About').then((module) => ({ default: module.About })),
 );
-// AdvancedSearchView is available for future use when advanced search UI is implemented
-const _AdvancedSearchView = lazy(() =>
-  import('./components/AdvancedSearch').then((module) => ({ default: module.AdvancedSearch })),
+const Settings = lazy(() =>
+  import('./components/Settings').then((module) => ({ default: module.Settings })),
 );
 
 import { PostSkeleton } from './components/PostSkeleton';
@@ -700,6 +699,11 @@ const AppContent: React.FC = () => {
               {app.viewMode === ViewMode.ABOUT && (
                 <Suspense fallback={<LoadingFallback />}>
                   <About />
+                </Suspense>
+              )}
+              {app.viewMode === ViewMode.SETTINGS && (
+                <Suspense fallback={<LoadingFallback />}>
+                  <Settings />
                 </Suspense>
               )}
               {/* Direct Messages View */}

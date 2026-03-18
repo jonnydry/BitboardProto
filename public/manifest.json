@@ -23,7 +23,20 @@
   ],
   "categories": ["social", "communication"],
   "screenshots": [],
-  "shortcuts": []
+  "shortcuts": [
+    {
+      "name": "New Post",
+      "short_name": "New Bit",
+      "url": "/?action=new-post",
+      "icons": [{ "src": "/assets/bitboard-logo.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Notifications",
+      "short_name": "Alerts",
+      "url": "/?action=notifications",
+      "icons": [{ "src": "/assets/bitboard-logo.png", "sizes": "96x96" }]
+    }
+  ]
 }
 
 
