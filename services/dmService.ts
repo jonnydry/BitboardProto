@@ -151,7 +151,7 @@ class DMService {
   markConversationAsRead(participantPubkey: string) {
     const conversation = this.conversations.get(participantPubkey);
     if (conversation) {
-      this._unreadCount -= conversation.unreadCount;
+      this._unreadCount = Math.max(0, this._unreadCount - conversation.unreadCount);
       conversation.unreadCount = 0;
       conversation.messages.forEach((m) => {
         m.isRead = true;
@@ -167,7 +167,7 @@ class DMService {
   deleteConversation(participantPubkey: string) {
     const conversation = this.conversations.get(participantPubkey);
     if (conversation) {
-      this._unreadCount -= conversation.unreadCount;
+      this._unreadCount = Math.max(0, this._unreadCount - conversation.unreadCount);
       this.conversations.delete(participantPubkey);
       this.saveConversationsToStorage();
       this.notifyListeners();
@@ -219,7 +219,7 @@ class DMService {
 
     if (!identityService.hasLocalIdentity()) {
       logger.error('DM', 'Cannot send message: No identity available');
-      throw new Error('No identity available for sending DM');
+      return null;
     }
 
     try {
@@ -293,7 +293,8 @@ class DMService {
             recipientPubkey: this.currentUserPubkey,
             content: unwrapped.content,
             encryptedContent: args.event.content,
-            timestamp: args.event.created_at,
+            // created_at is Unix seconds — multiply by 1000 for milliseconds
+            timestamp: args.event.created_at * 1000,
             isRead: false,
             isSent: false,
             isDecrypted: true,
@@ -636,11 +637,25 @@ class DMService {
         return;
       }
 
-      // Reconstruct conversations map
+      // Reconstruct conversations map with field validation to guard against
+      // corrupted or tampered localStorage data.
       this.conversations.clear();
       for (const conv of data.conversations || []) {
-        // Validate required fields exist
         if (conv && typeof conv.id === 'string' && typeof conv.participantPubkey === 'string') {
+          // Validate individual messages — reject any with missing required fields
+          if (Array.isArray(conv.messages)) {
+            conv.messages = conv.messages.filter(
+              (m: unknown) =>
+                m !== null &&
+                typeof m === 'object' &&
+                typeof (m as Record<string, unknown>).id === 'string' &&
+                typeof (m as Record<string, unknown>).senderPubkey === 'string' &&
+                typeof (m as Record<string, unknown>).recipientPubkey === 'string' &&
+                typeof (m as Record<string, unknown>).timestamp === 'number',
+            );
+          } else {
+            conv.messages = [];
+          }
           this.conversations.set(conv.id, conv);
         }
       }
@@ -654,9 +669,21 @@ class DMService {
 
   private saveConversationsToStorage() {
     try {
+      // SECURITY: Never persist decrypted message content to localStorage.
+      // Only the encryptedContent (ciphertext) is stored; the plaintext content
+      // is re-derived by fetchMessages/eventToDirectMessageAsync on next load.
+      const sanitizedConversations = Array.from(this.conversations.values()).map((conv) => ({
+        ...conv,
+        messages: conv.messages.map((msg) => ({
+          ...msg,
+          content: '[Encrypted]',
+          isDecrypted: false,
+        })),
+      }));
+
       const data = {
         userPubkey: this.currentUserPubkey,
-        conversations: Array.from(this.conversations.values()),
+        conversations: sanitizedConversations,
         savedAt: Date.now(),
       };
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));

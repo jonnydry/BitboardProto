@@ -1,8 +1,15 @@
 // ============================================
 // RATE LIMITER SERVICE
 // ============================================
-// Token bucket rate limiting for BitBoard
-// Prevents spam, DoS attacks, and abuse
+// Token bucket rate limiting for BitBoard.
+//
+// IMPORTANT – SECURITY SCOPE:
+//   This rate limiter is a CLIENT-SIDE UX GUARDRAIL only.
+//   It can be bypassed by any user with DevTools access (resetAll(),
+//   page reload, etc.). True rate limiting for spam/abuse prevention
+//   must be enforced at the Nostr relay level.
+//   Do NOT rely on this service as a security control.
+//
 // Adopted from BitChat's MessageRateLimiter.swift and NoiseRateLimiter.swift
 
 import { logger } from './loggingService';

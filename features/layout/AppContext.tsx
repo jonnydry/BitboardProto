@@ -244,6 +244,31 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     handleIdentityChange,
   };
 
+  const handleToggleBookmark = useCallback(
+    async (postId: string) => {
+      // 1. Update locally
+      bookmarkService.toggleBookmark(postId);
+
+      // 2. Persist to Nostr (NIP-51) if identity is available
+      if (userCtx.userState.identity && FeatureFlags.ENABLE_LISTS) {
+        try {
+          const currentBookmarked = bookmarkService.getBookmarkedIds();
+          const unsigned = listService.buildBookmarksList({
+            eventIds: currentBookmarked,
+            pubkey: userCtx.userState.identity.pubkey,
+          });
+          const signed = await identityService.signEvent(unsigned);
+          nostrService.publishSignedEvent(signed).catch((err) => {
+            logger.warn('AppContext', 'Failed to publish bookmarks to Nostr', err);
+          });
+        } catch (err) {
+          logger.warn('AppContext', 'Failed to sign bookmarks event', err);
+        }
+      }
+    },
+    [userCtx.userState.identity],
+  );
+
   // Get relay hint helper
   const getRelayHint = useCallback(() => {
     const connected = nostrService.getConnectedCount();
@@ -384,8 +409,10 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     setViewMode: uiCtx.setViewMode,
   });
 
-  // Create aggregated context value from focused contexts
-  const contextValue: AppContextType = {
+  // Memoize contextValue so that consumers only re-render when the specific
+  // slice they depend on actually changes, rather than on every render of
+  // AppProviderInternal (which re-renders whenever any Zustand store changes).
+  const contextValue: AppContextType = useMemo(() => ({
     // State (aggregated from focused contexts)
     posts: postsCtx.posts,
     boards: boardsCtx.boards,
@@ -432,27 +459,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     handleTagClick: eventHandlers.handleTagClick,
     handleVote,
     handleCommentVote,
-    handleToggleBookmark: async (postId: string) => {
-      // 1. Update locally
-      bookmarkService.toggleBookmark(postId);
-
-      // 2. Persist to Nostr (NIP-51) if identity is available
-      if (userCtx.userState.identity && FeatureFlags.ENABLE_LISTS) {
-        try {
-          const currentBookmarked = bookmarkService.getBookmarkedIds();
-          const unsigned = listService.buildBookmarksList({
-            eventIds: currentBookmarked,
-            pubkey: userCtx.userState.identity.pubkey,
-          });
-          const signed = await identityService.signEvent(unsigned);
-          nostrService.publishSignedEvent(signed).catch((err) => {
-            logger.warn('AppContext', 'Failed to publish bookmarks to Nostr', err);
-          });
-        } catch (err) {
-          logger.warn('AppContext', 'Failed to sign bookmarks event', err);
-        }
-      }
-    },
+    handleToggleBookmark,
     getBoardName: eventHandlers.getBoardName,
     refreshProfileMetadata: eventHandlers.refreshProfileMetadata,
     handleRetryPost: eventHandlers.handleRetryPost,
@@ -463,7 +470,23 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     loaderRef,
     isLoadingMore,
     isInitialLoading,
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [
+    postsCtx.posts, postsCtx.postsById, postsCtx.setPosts, postsCtx.markPostAccessed,
+    boardsCtx.boards, boardsCtx.locationBoards, boardsCtx.activeBoardId, boardsCtx.topicBoards,
+    boardsCtx.activeBoard, boardsCtx.setBoards, boardsCtx.setLocationBoards, boardsCtx.setActiveBoardId,
+    uiCtx.viewMode, theme, uiCtx.profileUser, uiCtx.editingPostId, uiCtx.setViewMode, uiCtx.setEditingPostId,
+    userCtx.userState, userCtx.toggleMute, userCtx.isMuted, userCtx.handleIdentityChange,
+    sortedPosts, knownUsers, selectedPost, decryptionFailedBoardIds, removeFailedKey,
+    feedFilter, setFeedFilter, isNostrConnected, setTheme,
+    eventHandlers.handleCreatePost, eventHandlers.handleCreateBoard, eventHandlers.handleComment,
+    eventHandlers.handleEditComment, eventHandlers.handleDeleteComment, eventHandlers.navigateToBoard,
+    eventHandlers.returnToFeed, eventHandlers.handleViewProfile, eventHandlers.handleEditPost,
+    eventHandlers.handleSavePost, eventHandlers.handleDeletePost, eventHandlers.handleTagClick,
+    eventHandlers.getBoardName, eventHandlers.refreshProfileMetadata, eventHandlers.handleRetryPost,
+    handleVote, handleCommentVote, handleToggleBookmark,
+    loaderRef, isLoadingMore, isInitialLoading,
+  ]);
 
   return <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>;
 };

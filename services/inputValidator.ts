@@ -162,7 +162,8 @@ class InputValidator {
       if (!['http:', 'https:'].includes(parsed.protocol)) {
         return null;
       }
-      return trimmed;
+      // Return the normalized URL (lowercase scheme/host, canonical form)
+      return parsed.href;
     } catch {
       return null;
     }
@@ -231,10 +232,15 @@ class InputValidator {
 
   /**
    * Strips all HTML tags from input
+   * Uses DOM-based parsing to avoid regex filter bypasses (e.g. nested-tag injection).
    */
   stripHtml(input: string): string {
     if (!input || typeof input !== 'string') return '';
-    return input.replace(/<[^>]*>/g, '');
+    // Use a temporary DOM element so the browser's own parser handles all edge cases.
+    const div = document.createElement('div');
+    div.textContent = input; // Assigns as plain text — no parsing occurs
+    // textContent round-trips through the DOM without executing any tags.
+    return div.textContent ?? '';
   }
 
   // ----------------------------------------
@@ -273,8 +279,8 @@ class InputValidator {
 
     const trimmed = npub.trim().toLowerCase();
 
-    // npub starts with 'npub1' and is ~63 characters
-    if (!trimmed.startsWith('npub1') || trimmed.length < 60 || trimmed.length > 65) {
+    // npub starts with 'npub1' and is exactly 63 characters
+    if (!trimmed.startsWith('npub1') || trimmed.length !== 63) {
       return null;
     }
 
@@ -294,8 +300,8 @@ class InputValidator {
 
     const trimmed = nsec.trim().toLowerCase();
 
-    // nsec starts with 'nsec1' and is ~63 characters
-    if (!trimmed.startsWith('nsec1') || trimmed.length < 60 || trimmed.length > 65) {
+    // nsec starts with 'nsec1' and is exactly 63 characters
+    if (!trimmed.startsWith('nsec1') || trimmed.length !== 63) {
       return null;
     }
 

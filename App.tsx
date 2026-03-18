@@ -345,17 +345,22 @@ const AppContent: React.FC = () => {
   // Track identity creation
   useEffect(() => {
     if (app.userState.identity) {
-      const userId = app.userState.identity.pubkey;
+      const rawPubkey = app.userState.identity.pubkey;
       const username = app.userState.username || 'Anonymous';
 
-      // Set user context in monitoring
-      sentryService.setUser({
-        id: userId,
-        username: username,
-        pubkey: userId,
-      });
+      // Hash the pubkey before sending to Sentry to avoid associating a
+      // pseudonymous Nostr identity with error reports, IP addresses, and
+      // browser fingerprints stored on third-party infrastructure.
+      void crypto.subtle
+        .digest('SHA-256', new TextEncoder().encode(rawPubkey))
+        .then((hashBuf) => {
+          const hashHex = Array.from(new Uint8Array(hashBuf))
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join('');
+          sentryService.setUser({ id: hashHex, username });
+        });
 
-      analyticsService.identify(userId, {
+      analyticsService.identify(rawPubkey, {
         username: username,
         createdAt: new Date().toISOString(),
       });

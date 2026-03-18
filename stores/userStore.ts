@@ -30,22 +30,41 @@ function loadInitialUserState(): UserState {
   try {
     if (typeof localStorage !== 'undefined') {
       const rawMuted = localStorage.getItem('bitboard_muted_users');
-      if (rawMuted) mutedPubkeys = JSON.parse(rawMuted);
+      if (rawMuted) {
+        const parsed = JSON.parse(rawMuted);
+        // Validate each entry is a 64-char hex pubkey to prevent tampered storage from
+        // injecting invalid values into the mute list.
+        if (Array.isArray(parsed)) {
+          mutedPubkeys = parsed.filter(
+            (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v),
+          );
+        }
+      }
     }
   } catch {
     // Silently ignore localStorage errors
   }
 
-  const existingIdentity = null; // Will be loaded asynchronously
+  // Persist the guest username so it remains stable across reloads.
+  let guestUsername: string;
+  try {
+    guestUsername = localStorage.getItem('bitboard_guest_username') || '';
+    if (!guestUsername) {
+      guestUsername = 'u/guest_' + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem('bitboard_guest_username', guestUsername);
+    }
+  } catch {
+    guestUsername = 'u/guest_' + Math.random().toString(36).slice(2, 10);
+  }
 
   return {
-    username: 'u/guest_' + Math.floor(Math.random() * 10000).toString(16),
+    username: guestUsername,
     bits: MAX_DAILY_BITS,
     maxBits: MAX_DAILY_BITS,
     votedPosts: {},
     votedComments: {},
-    identity: existingIdentity || undefined,
-    hasIdentity: !!existingIdentity,
+    identity: undefined,
+    hasIdentity: false,
     mutedPubkeys,
   };
 }
@@ -89,13 +108,15 @@ export const useUserStore = create<UserStoreState>()(
         logger.warn('userStore', 'Failed to save mute list to localStorage', e);
       }
 
-      // 3. Persist to Nostr (NIP-51) if identity is available
-      const updatedState = get().userState;
-      if (updatedState.identity && FeatureFlags.ENABLE_LISTS) {
+      // 3. Persist to Nostr (NIP-51) if identity is available.
+      // Use the locally-computed nextState rather than get() to avoid reading
+      // a potentially stale snapshot written by a concurrent update.
+      const nextUserState = { ...currentState, mutedPubkeys: newMuted };
+      if (nextUserState.identity && FeatureFlags.ENABLE_LISTS) {
         try {
           const unsigned = listService.buildMuteList({
             pubkeys: newMuted,
-            pubkey: updatedState.identity.pubkey,
+            pubkey: nextUserState.identity.pubkey,
           });
           const signed = await identityService.signEvent(unsigned);
           nostrService.publishSignedEvent(signed).catch((err) => {

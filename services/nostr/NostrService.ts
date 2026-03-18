@@ -646,9 +646,12 @@ class NostrService {
           timestamp: m.timestamp,
         }));
         logger.info('Nostr', `Loaded ${this.messageQueue.length} messages from queue`);
+        // Do NOT remove the storage key here — if the page closes during flush the
+        // messages would be lost. persistMessageQueue() keeps the storage in sync as
+        // items are flushed, and will write an empty array when the queue drains.
+      } else {
+        localStorage.removeItem(MESSAGE_QUEUE_STORAGE_KEY);
       }
-
-      localStorage.removeItem(MESSAGE_QUEUE_STORAGE_KEY);
     } catch (error) {
       logger.warn('Nostr', 'Failed to load persisted message queue', error);
       localStorage.removeItem(MESSAGE_QUEUE_STORAGE_KEY);
@@ -664,6 +667,12 @@ class NostrService {
 
     logger.info('Nostr', `Scheduling flush for ${this.messageQueue.length} queued messages`);
 
+    // Cap retries so the loop doesn't run forever when offline.
+    // 30 attempts × 2 s = 1 minute. After that, we rely on the 'online' event
+    // or the next explicit publish to re-trigger the flush.
+    const MAX_ATTEMPTS = 30;
+    let attempts = 0;
+
     const checkAndFlush = () => {
       const connectedRelays = this.getPublishRelays().filter(
         (url) => this.relayStatuses.get(url)?.isConnected,
@@ -671,8 +680,12 @@ class NostrService {
 
       if (connectedRelays.length > 0) {
         connectedRelays.forEach((relay) => this.flushMessageQueue(relay));
-      } else {
+      } else if (++attempts < MAX_ATTEMPTS) {
         setTimeout(checkAndFlush, 2000);
+      } else {
+        logger.warn('Nostr', 'Queue flush gave up after 30 attempts — will retry on next publish');
+        // Resume automatically when connectivity is restored
+        window.addEventListener('online', () => this.scheduleQueueFlush(), { once: true });
       }
     };
 
@@ -719,7 +732,8 @@ class NostrService {
       });
 
       if (succeeded.length === 0) {
-        // Queue for later + surface error
+        // Queue for retry and surface the error.
+        // Do NOT also queue in the catch block below — the event is already queued here.
         this.queueMessage(signedEvent, publishRelays);
         const first = failed[0]?.error;
         throw first instanceof Error ? first : new Error('Failed to publish to any relay');
@@ -743,8 +757,15 @@ class NostrService {
 
       return signedEvent;
     } catch (error) {
-      // Queue the message for retry
-      this.queueMessage(signedEvent, this.getPublishRelays());
+      // Only queue here if the event was NOT already queued in the try block above.
+      // Events reach this catch from errors other than "all relays failed" (e.g.
+      // network setup failures before any relay is tried), so queue them for retry.
+      // The "all relays failed" path already called queueMessage and then threw, which
+      // is caught here — we detect this by checking whether the event is already queued.
+      const alreadyQueued = this.messageQueue.some((m) => m.event.id === signedEvent.id);
+      if (!alreadyQueued) {
+        this.queueMessage(signedEvent, this.getPublishRelays());
+      }
       throw error;
     } finally {
       this._activePublishes--;

@@ -176,9 +176,9 @@ describe('dmService', () => {
     dmService.initialize('author-pubkey');
     identityServiceMock.hasLocalIdentity.mockReturnValue(false);
 
-    await expect(
-      dmService.sendMessage({ recipientPubkey: 'recipient-pubkey', content: 'hello there' }),
-    ).rejects.toThrow('No identity available for sending DM');
+    // sendMessage now returns null instead of throwing when no identity is present
+    const result = await dmService.sendMessage({ recipientPubkey: 'recipient-pubkey', content: 'hello there' });
+    expect(result).toBeNull();
   });
 
   it('keeps placeholder content when decryption fails and deduplicates repeated live events', async () => {

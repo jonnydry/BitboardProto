@@ -93,7 +93,10 @@ class IdentityService {
       }
     }
 
-    logger.warn('Identity', 'Legacy identity migration data was incomplete or unreadable');
+    // No encrypted blob found (or decryption failed) — fall through to the
+    // standard load path which handles plain-text legacy identities.
+    logger.warn('Identity', 'Legacy key found but no encrypted blob — falling through to loadIdentity');
+    await this.loadIdentity();
   }
 
   private async ensureInitialized(): Promise<void> {
@@ -211,9 +214,6 @@ class IdentityService {
 
     this.identity = identity;
     await this.saveIdentity();
-
-    // Attempt to clear sensitive data from memory
-    cryptoService.secureClear(privkey);
 
     return identity;
   }
@@ -428,7 +428,13 @@ class IdentityService {
     await this.ensureInitialized();
 
     if (this.identity) {
-      this.identity.displayName = name;
+      // Validate and sanitize before persisting
+      const { inputValidator } = await import('./inputValidator');
+      const sanitized = inputValidator.validateUsername(name);
+      if (!sanitized) {
+        throw new Error('Invalid display name');
+      }
+      this.identity.displayName = sanitized;
       if (this.identity.kind === 'local') {
         await this.saveIdentity();
       }
@@ -464,10 +470,10 @@ class IdentityService {
 
     try {
       if (!cryptoService.isAvailable()) {
-        logger.warn('Identity', 'Web Crypto not available, falling back to unencrypted storage');
-        const data = JSON.stringify(this.identity);
-        localStorage.setItem(STORAGE_KEYS.IDENTITY_LEGACY, data);
-        return;
+        // Never store the private key in plaintext — this browser is not supported.
+        throw new Error(
+          'Web Crypto API is not available in this browser. Your identity cannot be stored securely.',
+        );
       }
 
       if (!cryptoService.hasKey()) {

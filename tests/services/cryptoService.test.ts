@@ -44,6 +44,8 @@ vi.mock('nostr-tools', () => ({
   })),
   generateSecretKey: vi.fn(() => new Uint8Array(32).fill(7)),
   getPublicKey: vi.fn((privkey: Uint8Array) => `pub-${privkey[0] ?? 0}`),
+  // Always return true in tests — real signature verification is tested in nostrService.test.ts
+  verifyEvent: vi.fn(() => true),
 }));
 
 import { CryptoService } from '../../services/cryptoService';
@@ -163,7 +165,7 @@ describe('CryptoService', () => {
       'hello',
     );
     await expect(
-      service.decryptNIP04Async(ciphertext!, 'sender-priv', 'recipient-pub'),
+      service.decryptNIP04(ciphertext!, 'sender-priv', 'recipient-pub'),
     ).resolves.toBe('hello');
   });
 

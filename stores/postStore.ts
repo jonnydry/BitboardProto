@@ -24,17 +24,18 @@ interface PostState {
 }
 
 /**
- * Enforce LRU cache limit on posts array
- * Preserves selected post and most recently accessed posts
+ * Enforce LRU cache limit on posts array.
+ * Returns both the trimmed posts array and a new access-times Map (no mutation).
+ * Preserves selected post and most recently accessed posts.
  */
 function enforceLRULimit(
   posts: Post[],
   postAccessTimes: Map<string, number>,
   selectedPostId: string | null,
-): Post[] {
+): { posts: Post[]; postAccessTimes: Map<string, number> } {
   // If we're under the limit, no eviction needed
   if (posts.length <= MAX_POSTS_IN_MEMORY) {
-    return posts;
+    return { posts, postAccessTimes };
   }
 
   logger.debug(
@@ -61,12 +62,13 @@ function enforceLRULimit(
   const evictedPosts = postsWithScore.slice(MAX_POSTS_IN_MEMORY);
   const keptPosts = postsWithScore.slice(0, MAX_POSTS_IN_MEMORY).map((item) => item.post);
 
-  // Clean up access times for evicted posts
+  // Build a new Map without the evicted entries (never mutate the input Map)
+  const newAccessTimes = new Map(postAccessTimes);
   for (const item of evictedPosts) {
-    postAccessTimes.delete(item.post.id);
+    newAccessTimes.delete(item.post.id);
   }
 
-  return keptPosts;
+  return { posts: keptPosts, postAccessTimes: newAccessTimes };
 }
 
 export const usePostStore = create<PostState>()(
@@ -76,17 +78,19 @@ export const usePostStore = create<PostState>()(
     postAccessTimes: new Map(),
 
     setPosts: (updater) => {
-      const currentPosts = get().posts;
-      const newPosts = typeof updater === 'function' ? updater(currentPosts) : updater;
-      const evicted = enforceLRULimit(newPosts, get().postAccessTimes, get().selectedPostId);
-      set({ posts: evicted });
+      // Wrap inside set() so get() snapshot is atomic with the subsequent write.
+      set((state) => {
+        const newPosts = typeof updater === 'function' ? updater(state.posts) : updater;
+        const result = enforceLRULimit(newPosts, state.postAccessTimes, state.selectedPostId);
+        return { posts: result.posts, postAccessTimes: result.postAccessTimes };
+      });
     },
 
     addPost: (post) => {
       set((state) => {
         const newPosts = [...state.posts, post];
-        const evicted = enforceLRULimit(newPosts, state.postAccessTimes, state.selectedPostId);
-        return { posts: evicted };
+        const result = enforceLRULimit(newPosts, state.postAccessTimes, state.selectedPostId);
+        return { posts: result.posts, postAccessTimes: result.postAccessTimes };
       });
     },
 

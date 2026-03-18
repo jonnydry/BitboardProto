@@ -174,6 +174,11 @@ class VotingService {
 
       this.worker.onerror = (error) => {
         logger.error('Voting', 'Web Worker error', error);
+        // Reject all in-flight promises so callers don't hang forever
+        for (const promise of this.workerPromises.values()) {
+          promise.reject(new Error('Vote verification worker crashed'));
+        }
+        this.workerPromises.clear();
         this.worker = null;
         this.workerReady = false;
       };
@@ -245,19 +250,19 @@ class VotingService {
   }
 
   /**
-   * Ensure cache doesn't exceed max size (LRU eviction)
+   * Ensure cache doesn't exceed max size (LRU eviction).
+   * Trims to exactly MAX_CACHE_SIZE by removing the oldest entries.
    */
   private enforceCacheLimit(): void {
     if (this.voteTallies.size <= this.MAX_CACHE_SIZE) {
       return;
     }
 
-    // Sort by lastUpdated and remove oldest entries
+    // Sort by lastUpdated and remove oldest entries until at the limit
     const entries = Array.from(this.voteTallies.entries());
     entries.sort((a, b) => a[1].lastUpdated - b[1].lastUpdated);
 
-    // Remove oldest 10% of entries
-    const removeCount = Math.floor(this.MAX_CACHE_SIZE * 0.1);
+    const removeCount = this.voteTallies.size - this.MAX_CACHE_SIZE;
     for (let i = 0; i < removeCount; i++) {
       this.voteTallies.delete(entries[i][0]);
     }

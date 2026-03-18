@@ -101,7 +101,8 @@ export function useNostrFeed(args: {
 
           const timestamps = postsWithVotes.map((p) => p.timestamp);
           if (timestamps.length > 0) {
-            setOldestTimestamp(Math.min(...timestamps));
+            // Avoid spread-into-Math.min which throws RangeError for very large arrays
+            setOldestTimestamp(timestamps.reduce((min, t) => (t < min ? t : min), Infinity));
           }
 
           setHasMorePosts(nostrPosts.length >= initialLimit);
@@ -135,12 +136,8 @@ export function useNostrFeed(args: {
 
         // PHASE 3: Defer profile fetching to after initial render
         if (processedPosts.length > 0) {
-          // Use requestIdleCallback if available, otherwise setTimeout
-          const scheduleProfiles =
-            typeof requestIdleCallback !== 'undefined'
-              ? () => requestIdleCallback(fetchProfiles)
-              : () => setTimeout(fetchProfiles, 100);
-
+          // fetchProfiles must be declared before scheduleProfiles to avoid the
+          // temporal dead zone — const is block-scoped, not hoisted like var.
           const fetchProfiles = () => {
             const pubkeys = Array.from(
               new Set(processedPosts.map((p) => p.authorPubkey).filter(Boolean) as string[]),
@@ -162,6 +159,12 @@ export function useNostrFeed(args: {
                 });
             }
           };
+
+          // Use requestIdleCallback if available, otherwise setTimeout
+          const scheduleProfiles =
+            typeof requestIdleCallback !== 'undefined'
+              ? () => requestIdleCallback(fetchProfiles)
+              : () => setTimeout(fetchProfiles, 100);
 
           scheduleProfiles();
         }
@@ -224,7 +227,9 @@ export function useNostrFeed(args: {
     };
   }, [setBoards, setHasMorePosts, setIsNostrConnected, setOldestTimestamp, setPosts]);
 
-  // Cleanup on unmount and beforeunload
+  // Full cleanup only on page unload — the useEffect teardown only removes the listener.
+  // Calling nostrService.cleanup() on React unmount (e.g. StrictMode double-invoke or
+  // hot-reload) destroys the pool and prevents reconnection on remount.
   useEffect(() => {
     const handleBeforeUnload = () => {
       nostrService.cleanup();
@@ -235,8 +240,7 @@ export function useNostrFeed(args: {
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      nostrService.cleanup();
-      votingService.cleanup();
+      // Do NOT call nostrService.cleanup() here — it destroys the pool permanently.
     };
   }, []);
 

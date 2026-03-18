@@ -15,6 +15,7 @@
 //   bitboard_enc_key       – DELETED on first load (legacy, insecure)
 
 import { logger } from './loggingService';
+import { hexToBytes as _nostrHexToBytes } from 'nostr-tools/utils';
 
 const STORAGE_KEYS = {
   SALT: 'bitboard_salt',
@@ -87,13 +88,14 @@ class CryptoService {
   /**
    * Returns the stored salt, or generates + stores a new one.
    * The salt is not secret — it prevents pre-computation attacks.
+   * New installs get a 32-byte salt; legacy 16-byte salts are preserved as-is.
    */
   getOrCreateSalt(): Uint8Array {
     const stored = localStorage.getItem(STORAGE_KEYS.SALT);
     if (stored) {
       return this.base64ToUint8Array(stored);
     }
-    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const salt = crypto.getRandomValues(new Uint8Array(32));
     localStorage.setItem(STORAGE_KEYS.SALT, this.uint8ArrayToBase64(salt));
     return salt;
   }
@@ -278,24 +280,12 @@ class CryptoService {
     }
   }
 
-  async decryptNIP04Async(
-    encryptedContent: string,
-    receiverPrivkey: string,
-    senderPubkey: string,
-  ): Promise<string | null> {
-    return this.decryptNIP04(encryptedContent, receiverPrivkey, senderPubkey);
-  }
-
   // ----------------------------------------
   // NIP-44 ENCRYPTION (Modern)
   // ----------------------------------------
 
   private hexToBytes(hex: string): Uint8Array {
-    const bytes = new Uint8Array(hex.length / 2);
-    for (let i = 0; i < bytes.length; i++) {
-      bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
-    }
-    return bytes;
+    return _nostrHexToBytes(hex);
   }
 
   async encryptNIP44(
@@ -379,10 +369,13 @@ class CryptoService {
       const wrapConversationKey = nip44.getConversationKey(randomPrivkey, args.recipientPubkey);
       const encryptedSeal = nip44.encrypt(JSON.stringify(sealEvent), wrapConversationKey);
 
+      // Per NIP-17, the gift-wrap created_at must be randomized within a plausible
+      // range (±2 days) to prevent traffic analysis by timing correlation.
+      const jitterSeconds = Math.floor((Math.random() * 2 - 1) * 2 * 24 * 60 * 60);
       const giftWrap = finalizeEvent(
         {
           kind: 1059,
-          created_at: Math.floor(Date.now() / 1000),
+          created_at: Math.floor(Date.now() / 1000) + jitterSeconds,
           tags: [['p', args.recipientPubkey]],
           content: encryptedSeal,
         },
@@ -406,7 +399,7 @@ class CryptoService {
     replyToId?: string;
   } | null> {
     try {
-      const { nip44 } = await import('nostr-tools');
+      const { nip44, verifyEvent: verifyNostrEvent } = await import('nostr-tools');
       const recipientPrivkeyBytes = this.hexToBytes(args.recipientPrivkey);
 
       const wrapConversationKey = nip44.getConversationKey(
@@ -415,6 +408,12 @@ class CryptoService {
       );
       const sealJson = nip44.decrypt(args.giftWrapEvent.content, wrapConversationKey);
       const sealEvent = JSON.parse(sealJson) as { pubkey: string; content: string };
+
+      // Verify the seal event's cryptographic signature to prevent relay-injected forgeries.
+      if (!verifyNostrEvent(sealEvent as Parameters<typeof verifyNostrEvent>[0])) {
+        logger.warn('Crypto', 'Gift-wrap seal signature verification failed — discarding');
+        return null;
+      }
 
       const sealConversationKey = nip44.getConversationKey(recipientPrivkeyBytes, sealEvent.pubkey);
       const rumorJson = nip44.decrypt(sealEvent.content, sealConversationKey);
@@ -456,10 +455,6 @@ class CryptoService {
       binary += String.fromCharCode(bytes[i]);
     }
     return btoa(binary);
-  }
-
-  private arrayBufferToBase64(buffer: ArrayBuffer): string {
-    return this.uint8ArrayToBase64(new Uint8Array(buffer));
   }
 
   private base64ToArrayBuffer(base64: string): ArrayBuffer {

@@ -15,9 +15,12 @@ describe('inputValidator', () => {
   });
 
   it('validateUrl only allows http/https', () => {
-    expect(inputValidator.validateUrl('https://example.com')).toBe('https://example.com');
-    expect(inputValidator.validateUrl('http://example.com')).toBe('http://example.com');
+    // The URL constructor normalizes bare origins to include a trailing slash
+    expect(inputValidator.validateUrl('https://example.com')).toBe('https://example.com/');
+    expect(inputValidator.validateUrl('http://example.com')).toBe('http://example.com/');
     expect(inputValidator.validateUrl('ftp://example.com')).toBeNull();
+    // Paths are preserved as-is after normalization
+    expect(inputValidator.validateUrl('https://example.com/path')).toBe('https://example.com/path');
   });
 
   it('validatePubkeyHex enforces 64 hex', () => {

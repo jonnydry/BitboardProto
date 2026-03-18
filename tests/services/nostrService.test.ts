@@ -861,7 +861,9 @@ describe('NostrService', () => {
       const reloadedService = new NostrService();
 
       expect(reloadedService.getQueuedMessageCount()).toBe(1);
-      expect(localStorageMock.removeItem).toHaveBeenCalledWith('bitboard_message_queue_v1');
+      // The queue storage key is NOT removed on load — it is only cleared as items
+      // are flushed (via persistMessageQueue). This prevents message loss if the
+      // page is closed mid-flush.
       reloadedService.cleanup();
     });
   });
