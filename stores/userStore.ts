@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { UserState, NostrIdentity, PublicNostrIdentity } from '../types';
 import { MAX_DAILY_BITS } from '../constants';
 import { listService } from '../services/listService';
@@ -22,6 +22,34 @@ interface UserStoreState {
   toggleMute: (pubkey: string) => Promise<void>;
   handleIdentityChange: (identity: NostrIdentity | PublicNostrIdentity | null) => void;
   isMuted: (pubkey: string) => boolean;
+}
+
+const BITS_KEY = 'bitboard_bits';
+const BITS_REFRESH_KEY = 'bitboard_bits_last_refresh';
+
+function todayString(): string {
+  return new Date().toISOString().slice(0, 10); // "YYYY-MM-DD" in UTC
+}
+
+/** Read persisted bits, resetting to MAX_DAILY_BITS if it's a new day. */
+function loadPersistedBits(): number {
+  try {
+    const lastRefresh = localStorage.getItem(BITS_REFRESH_KEY);
+    const stored = localStorage.getItem(BITS_KEY);
+    const today = todayString();
+    if (lastRefresh === today && stored !== null) {
+      const parsed = parseInt(stored, 10);
+      if (!isNaN(parsed) && parsed >= 0 && parsed <= MAX_DAILY_BITS) {
+        return parsed;
+      }
+    }
+    // New day or missing/corrupt data — reset
+    localStorage.setItem(BITS_KEY, String(MAX_DAILY_BITS));
+    localStorage.setItem(BITS_REFRESH_KEY, today);
+    return MAX_DAILY_BITS;
+  } catch {
+    return MAX_DAILY_BITS;
+  }
 }
 
 // Load initial user state from localStorage
@@ -57,9 +85,12 @@ function loadInitialUserState(): UserState {
     guestUsername = 'u/guest_' + Math.random().toString(36).slice(2, 10);
   }
 
+  const bits =
+    typeof localStorage !== 'undefined' ? loadPersistedBits() : MAX_DAILY_BITS;
+
   return {
     username: guestUsername,
-    bits: MAX_DAILY_BITS,
+    bits,
     maxBits: MAX_DAILY_BITS,
     votedPosts: {},
     votedComments: {},
@@ -150,10 +181,24 @@ export const useUserStore = create<UserStoreState>()(
   })),
 );
 
-// Hook to initialize services when identity changes
+// Persist bits to localStorage whenever they change.
+useUserStore.subscribe(
+  (state) => state.userState.bits,
+  (bits) => {
+    try {
+      localStorage.setItem(BITS_KEY, String(bits));
+    } catch {
+      // Silently ignore storage errors
+    }
+  },
+);
+
+// Hook to initialize services when identity changes and schedule daily bit refresh.
 export function useUserStoreEffects() {
   const identity = useUserStore((state) => state.userState.identity);
   const setUserState = useUserStore((state) => state.setUserState);
+  // Ref to hold the scheduled timer so cleanup can cancel it.
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const pubkey = identity?.pubkey || null;
@@ -169,6 +214,35 @@ export function useUserStoreEffects() {
       });
     }
   }, [identity?.pubkey, setUserState]);
+
+  // Schedule a bit refresh at midnight each day.
+  useEffect(() => {
+    function scheduleNextRefresh() {
+      const now = new Date();
+      // Next midnight in local time + 1 s buffer to avoid landing exactly on the boundary.
+      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1);
+      const delay = midnight.getTime() - now.getTime();
+
+      refreshTimerRef.current = setTimeout(() => {
+        const today = todayString();
+        try {
+          localStorage.setItem(BITS_KEY, String(MAX_DAILY_BITS));
+          localStorage.setItem(BITS_REFRESH_KEY, today);
+        } catch {
+          // Ignore storage errors
+        }
+        useUserStore.getState().setUserState((prev) => ({ ...prev, bits: MAX_DAILY_BITS }));
+        scheduleNextRefresh();
+      }, delay);
+    }
+
+    scheduleNextRefresh();
+    return () => {
+      if (refreshTimerRef.current !== null) {
+        clearTimeout(refreshTimerRef.current);
+      }
+    };
+  }, []);
 }
 
 // Selective selectors prevent unnecessary re-renders

@@ -97,9 +97,9 @@ export const About: React.FC = () => {
         <div className="border border-terminal-text/40 p-5 space-y-4">
           <p className="text-sm leading-relaxed text-terminal-text/90">
             Every identity starts with{' '}
-            <span className="text-terminal-text font-bold">100 bits</span>. Each upvote or
-            downvote costs 1 bit. Retracting a vote refunds it. Switching direction is free — the
-            bit stays locked on that post.
+            <span className="text-terminal-text font-bold">100 bits</span>, refreshed every day.
+            Each upvote or downvote costs 1 bit. Retracting a vote refunds it. Switching direction
+            is free — the bit stays locked on that post.
           </p>
           <p className="text-sm leading-relaxed text-terminal-text/90">
             This is what makes BitBoard different. On most platforms, votes are free and
@@ -113,7 +113,7 @@ export const About: React.FC = () => {
                 ▸ Spend deliberately
               </div>
               <p className="text-xs text-terminal-muted leading-relaxed">
-                1 bit per vote. Influence is finite — put it where it counts.
+                1 bit per vote. You have 100 a day — put them where they count.
               </p>
             </div>
             <div className="border border-terminal-dim/40 p-3 space-y-1">
