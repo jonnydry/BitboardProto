@@ -3,22 +3,6 @@ import { ArrowLeft } from 'lucide-react';
 import { useUIStore } from '../stores/uiStore';
 import { ViewMode } from '../types';
 
-const FeatureBlock: React.FC<{ label: string; items: string[] }> = ({ label, items }) => (
-  <div className="border border-terminal-dim/40 p-4 space-y-2">
-    <div className="text-xs tracking-[0.2em] uppercase text-terminal-dim font-bold mb-3">
-      ▸ {label}
-    </div>
-    <ul className="space-y-1">
-      {items.map((item) => (
-        <li key={item} className="text-sm text-terminal-text flex gap-2">
-          <span className="text-terminal-dim shrink-0">—</span>
-          <span>{item}</span>
-        </li>
-      ))}
-    </ul>
-  </div>
-);
-
 const StatPill: React.FC<{ value: string; label: string }> = ({ value, label }) => (
   <div className="border border-terminal-dim/40 px-4 py-3 text-center">
     <div className="text-lg font-terminal text-terminal-text">{value}</div>
@@ -48,7 +32,6 @@ export const About: React.FC = () => {
         <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-terminal-text" />
 
         <div className="flex items-center gap-5 mb-5">
-          {/* Mini eagle logo */}
           <div className="relative w-14 h-14 shrink-0">
             <div
               className="absolute inset-0"
@@ -77,19 +60,17 @@ export const About: React.FC = () => {
         </div>
 
         <p className="text-sm md:text-base leading-relaxed text-terminal-text/90 max-w-2xl">
-          BitBoard is a Reddit-style bulletin board built entirely on the{' '}
-          <span className="text-terminal-text font-bold">Nostr protocol</span> — an open,
-          censorship-resistant network with no central servers. There are no accounts, no
-          passwords, and no company holding your data. Your identity is a cryptographic keypair
-          that only you control.
+          BitBoard is a Reddit-style bulletin board with no company behind it. No accounts, no
+          passwords, no servers storing your data. Your identity is a key that lives only on your
+          device — you own it completely.
         </p>
       </div>
 
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatPill value="6" label="Default relays" />
-        <StatPill value="NIP-04/17" label="DM encryption" />
-        <StatPill value="AES-256" label="Key storage" />
+        <StatPill value="100" label="Bits per identity" />
+        <StatPill value="E2E" label="Encrypted DMs" />
         <StatPill value="0" label="Backend servers" />
       </div>
 
@@ -99,34 +80,32 @@ export const About: React.FC = () => {
           // HOW IT WORKS
         </h2>
         <p className="text-sm leading-relaxed">
-          When you create an identity, BitBoard generates a secp256k1 keypair in your browser.
-          Your private key is encrypted with AES-256-GCM using a passphrase you choose and stored
-          only in your local browser storage — it never leaves your device. Every post, vote, and
-          comment you make is signed with that key and published to a network of{' '}
-          <span className="text-terminal-text font-bold">Nostr relay servers</span> that anyone
-          can run. Anyone with your public key can verify your content is authentic. No one can
-          forge it.
+          When you create an identity, BitBoard generates a keypair in your browser. Your private
+          key is encrypted with a passphrase you choose and stored only in your browser — it never
+          leaves your device. Every post, vote, and comment is signed with your key and broadcast
+          to a network of{' '}
+          <span className="text-terminal-text font-bold">relay servers</span> that anyone can run.
+          Anyone can verify your content is authentic. No one can forge it.
         </p>
       </section>
 
-      {/* Bits — the distinguishing mechanic */}
+      {/* Bits */}
       <section className="space-y-3">
         <h2 className="text-sm tracking-[0.3em] uppercase text-terminal-dim border-b border-terminal-dim/30 pb-2">
           // BITS — LIMITED VOTING CURRENCY
         </h2>
         <div className="border border-terminal-text/40 p-5 space-y-4">
           <p className="text-sm leading-relaxed text-terminal-text/90">
-            Every verified identity starts with{' '}
+            Every identity starts with{' '}
             <span className="text-terminal-text font-bold">100 bits</span>. Each upvote or
             downvote costs 1 bit. Retracting a vote refunds it. Switching direction is free — the
             bit stays locked on that post.
           </p>
           <p className="text-sm leading-relaxed text-terminal-text/90">
-            Bits are the thing that makes BitBoard different from every other Nostr client.
-            On most platforms, votes are free and unlimited — bots, sock-puppets, and coordinated
-            brigades can flood any post with synthetic signal. On BitBoard, every vote has a cost.
-            A user with 100 bits can influence at most 100 posts before they run out. That scarcity
-            forces prioritization: you spend where you actually think it matters.
+            This is what makes BitBoard different. On most platforms, votes are free and
+            unlimited — bots and coordinated brigades can flood any post with fake signal. On
+            BitBoard, every vote has a cost. You can influence at most 100 posts before you run
+            out. That scarcity forces you to spend where you actually think it matters.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
             <div className="border border-terminal-dim/40 p-3 space-y-1">
@@ -134,7 +113,7 @@ export const About: React.FC = () => {
                 ▸ Spend deliberately
               </div>
               <p className="text-xs text-terminal-muted leading-relaxed">
-                1 bit locks per new vote. Influence is finite — put it where it counts.
+                1 bit per vote. Influence is finite — put it where it counts.
               </p>
             </div>
             <div className="border border-terminal-dim/40 p-3 space-y-1">
@@ -142,117 +121,98 @@ export const About: React.FC = () => {
                 ▸ Retract to refund
               </div>
               <p className="text-xs text-terminal-muted leading-relaxed">
-                Changed your mind? Remove the vote and the bit comes back. Switching direction
-                keeps the bit locked.
+                Changed your mind? Remove the vote and the bit comes back.
               </p>
             </div>
             <div className="border border-terminal-dim/40 p-3 space-y-1">
               <div className="text-xs tracking-[0.2em] uppercase text-terminal-dim font-bold">
-                ▸ Sybil resistance
+                ▸ One vote per post
               </div>
               <p className="text-xs text-terminal-muted leading-relaxed">
-                Votes are signed Nostr events — one per pubkey per post, enforced
-                cryptographically. Bits add an economic layer on top.
+                Each identity can only vote once per post — enforced by cryptographic signatures,
+                not a database rule.
               </p>
             </div>
           </div>
           <p className="text-xs text-terminal-dim leading-relaxed border-t border-terminal-dim/20 pt-3">
-            The feed you see is shaped by verified identities who chose to spend their limited
-            budget on specific posts. That signal is harder to fake than a free click.
+            The feed you see is shaped by people who chose to spend their limited budget on
+            specific posts. That signal is harder to fake than a free click.
           </p>
         </div>
       </section>
 
-      {/* Features grid */}
+      {/* Features */}
       <section className="space-y-3">
         <h2 className="text-sm tracking-[0.3em] uppercase text-terminal-dim border-b border-terminal-dim/30 pb-2">
-          // FEATURES
+          // WHAT YOU CAN DO
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <FeatureBlock
-            label="Boards"
-            items={[
-              '//TOPIC boards — like subreddits, created on-chain',
-              '#geohash boards — location-based, e.g. #9q8y',
-              'Encrypted boards — AES-256 key shared via URL fragment',
-              'Board definitions stored as Nostr kind-30001 events',
-            ]}
-          />
-          <FeatureBlock
-            label="Posts & Votes"
-            items={[
-              'Posts are signed Nostr kind-1 events',
-              'Votes are kind-7 reactions — one per pubkey, enforced cryptographically',
-              'Each vote costs 1 bit; retracting refunds it — switching direction is free',
-              'Edits are companion events; originals are immutable',
-              'Signature verification runs in a background Web Worker',
-            ]}
-          />
-          <FeatureBlock
-            label="Private Messaging"
-            items={[
-              'NIP-04 legacy DMs for relay compatibility',
-              'NIP-17 gift-wrap for maximum privacy (randomized timestamps)',
-              'Decrypted content never written to disk',
-              'Conversation history synced across relay fetches',
-            ]}
-          />
-          <FeatureBlock
-            label="Social Graph"
-            items={[
-              'Follow/unfollow synced via NIP-02 contact lists',
-              'Web of Trust scoring — 3-hop follow graph with trust decay',
-              'Mute lists synced via NIP-51',
-              'NIP-57 Lightning Zaps — tip posts with real Bitcoin',
-            ]}
-          />
-          <FeatureBlock
-            label="Privacy & Identity"
-            items={[
-              'NIP-07 browser extension support (Alby, nos2x)',
-              'PBKDF2 key derivation — 310,000 iterations',
-              'PostHog analytics — opt-in only, no PII collected',
-              'Error reports anonymized — pubkey is SHA-256 hashed',
-            ]}
-          />
-          <FeatureBlock
-            label="Client Features"
-            items={[
-              'Offline-capable PWA with Workbox service worker',
-              'Virtualized feed — handles thousands of posts',
-              '8 color themes (Amber, Phosphor, Plasma, and more)',
-              'Full-text search powered by a Web Worker',
-            ]}
-          />
-        </div>
-      </section>
-
-      {/* Protocol section */}
-      <section className="space-y-3">
-        <h2 className="text-sm tracking-[0.3em] uppercase text-terminal-dim border-b border-terminal-dim/30 pb-2">
-          // NOSTR NIPS IMPLEMENTED
-        </h2>
-        <div className="flex flex-wrap gap-2">
           {[
-            'NIP-01 · Base protocol',
-            'NIP-02 · Contact lists',
-            'NIP-04 · Encrypted DMs',
-            'NIP-17 · Gift wrap DMs',
-            'NIP-23 · Long-form articles',
-            'NIP-51 · Lists',
-            'NIP-56 · Reporting',
-            'NIP-57 · Lightning Zaps',
-            'NIP-58 · Badges',
-            'NIP-65 · Relay lists',
-            'NIP-72 · Communities',
-            'NIP-53 · Live events',
-          ].map((nip) => (
-            <span
-              key={nip}
-              className="text-[10px] tracking-wider border border-terminal-dim/40 px-2 py-1 text-terminal-dim uppercase"
-            >
-              {nip}
-            </span>
+            {
+              label: 'Boards',
+              items: [
+                'Topic boards — like subreddits, open to anyone',
+                'Location boards — tied to a geographic area',
+                'Encrypted boards — only people with the key can read them',
+              ],
+            },
+            {
+              label: 'Posts & Votes',
+              items: [
+                'Posts are permanent and signed by your identity',
+                'Each vote costs 1 bit; retracting it refunds the bit',
+                'You can edit posts — the original is always preserved',
+              ],
+            },
+            {
+              label: 'Private Messaging',
+              items: [
+                'End-to-end encrypted direct messages',
+                'Decrypted content is never saved to your device',
+                'Works across any relay',
+              ],
+            },
+            {
+              label: 'Social & Discovery',
+              items: [
+                'Follow people and see their posts in your feed',
+                'Mute users you don\'t want to see',
+                'Web of Trust — posts from people your contacts trust rank higher',
+                'Tip posts with Bitcoin via Lightning Zaps',
+              ],
+            },
+            {
+              label: 'Privacy',
+              items: [
+                'Your private key never leaves your device',
+                'Use a hardware wallet or browser extension — the app never sees your key',
+                'Analytics are opt-in only and collect no personal data',
+                'Error reports never include your identity',
+              ],
+            },
+            {
+              label: 'App',
+              items: [
+                'Works offline — installs as a PWA',
+                '8 color themes',
+                'Full-text search',
+                'Keyboard shortcuts',
+              ],
+            },
+          ].map(({ label, items }) => (
+            <div key={label} className="border border-terminal-dim/40 p-4 space-y-2">
+              <div className="text-xs tracking-[0.2em] uppercase text-terminal-dim font-bold mb-3">
+                ▸ {label}
+              </div>
+              <ul className="space-y-1">
+                {items.map((item) => (
+                  <li key={item} className="text-sm text-terminal-text flex gap-2">
+                    <span className="text-terminal-dim shrink-0">—</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
         </div>
       </section>
@@ -263,9 +223,9 @@ export const About: React.FC = () => {
           ⚠ Prototype
         </span>
         <p className="mt-2 text-terminal-muted">
-          BitBoard is experimental software under active development. The Nostr protocol is
-          open and permissionless — once you publish content to relays, it may propagate
-          indefinitely. Use accordingly. Back up your private key (nsec) and never share it.
+          BitBoard is experimental software under active development. Once you publish content,
+          it may spread across relay servers and can't be reliably deleted. Back up your private
+          key and never share it.
         </p>
       </div>
 
