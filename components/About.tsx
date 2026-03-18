@@ -109,6 +109,60 @@ export const About: React.FC = () => {
         </p>
       </section>
 
+      {/* Bits — the distinguishing mechanic */}
+      <section className="space-y-3">
+        <h2 className="text-sm tracking-[0.3em] uppercase text-terminal-dim border-b border-terminal-dim/30 pb-2">
+          // BITS — LIMITED VOTING CURRENCY
+        </h2>
+        <div className="border border-terminal-text/40 p-5 space-y-4">
+          <p className="text-sm leading-relaxed text-terminal-text/90">
+            Every verified identity starts with{' '}
+            <span className="text-terminal-text font-bold">100 bits</span>. Each upvote or
+            downvote costs 1 bit. Retracting a vote refunds it. Switching direction is free — the
+            bit stays locked on that post.
+          </p>
+          <p className="text-sm leading-relaxed text-terminal-text/90">
+            Bits are the thing that makes BitBoard different from every other Nostr client.
+            On most platforms, votes are free and unlimited — bots, sock-puppets, and coordinated
+            brigades can flood any post with synthetic signal. On BitBoard, every vote has a cost.
+            A user with 100 bits can influence at most 100 posts before they run out. That scarcity
+            forces prioritization: you spend where you actually think it matters.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+            <div className="border border-terminal-dim/40 p-3 space-y-1">
+              <div className="text-xs tracking-[0.2em] uppercase text-terminal-dim font-bold">
+                ▸ Spend deliberately
+              </div>
+              <p className="text-xs text-terminal-muted leading-relaxed">
+                1 bit locks per new vote. Influence is finite — put it where it counts.
+              </p>
+            </div>
+            <div className="border border-terminal-dim/40 p-3 space-y-1">
+              <div className="text-xs tracking-[0.2em] uppercase text-terminal-dim font-bold">
+                ▸ Retract to refund
+              </div>
+              <p className="text-xs text-terminal-muted leading-relaxed">
+                Changed your mind? Remove the vote and the bit comes back. Switching direction
+                keeps the bit locked.
+              </p>
+            </div>
+            <div className="border border-terminal-dim/40 p-3 space-y-1">
+              <div className="text-xs tracking-[0.2em] uppercase text-terminal-dim font-bold">
+                ▸ Sybil resistance
+              </div>
+              <p className="text-xs text-terminal-muted leading-relaxed">
+                Votes are signed Nostr events — one per pubkey per post, enforced
+                cryptographically. Bits add an economic layer on top.
+              </p>
+            </div>
+          </div>
+          <p className="text-xs text-terminal-dim leading-relaxed border-t border-terminal-dim/20 pt-3">
+            The feed you see is shaped by verified identities who chose to spend their limited
+            budget on specific posts. That signal is harder to fake than a free click.
+          </p>
+        </div>
+      </section>
+
       {/* Features grid */}
       <section className="space-y-3">
         <h2 className="text-sm tracking-[0.3em] uppercase text-terminal-dim border-b border-terminal-dim/30 pb-2">
@@ -129,6 +183,7 @@ export const About: React.FC = () => {
             items={[
               'Posts are signed Nostr kind-1 events',
               'Votes are kind-7 reactions — one per pubkey, enforced cryptographically',
+              'Each vote costs 1 bit; retracting refunds it — switching direction is free',
               'Edits are companion events; originals are immutable',
               'Signature verification runs in a background Web Worker',
             ]}
