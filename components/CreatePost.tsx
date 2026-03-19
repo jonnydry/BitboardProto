@@ -1,9 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Post, Board, BoardType } from '../types';
 import { scanLink } from '../services/geminiService';
 import { inputValidator, InputLimits } from '../services/inputValidator';
 import { rateLimiter } from '../services/rateLimiter';
 import { Loader, ImageIcon, AlertTriangle, Lock } from 'lucide-react';
+import { MarkdownRenderer } from './MarkdownRenderer';
+import { MentionInput } from './MentionInput';
+
+const DRAFT_KEY = 'bitboard_post_draft';
+const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+interface DraftData {
+  title: string;
+  url: string;
+  imageUrl: string;
+  content: string;
+  tagsStr: string;
+  selectedBoardId: string;
+  savedAt: number;
+}
 
 interface CreatePostProps {
   availableBoards: Board[];
@@ -30,11 +45,17 @@ export const CreatePost: React.FC<CreatePostProps> = ({
   const [linkDescription, _setLinkDescription] = useState('');
   const [content, setContent] = useState('');
   const [tagsStr, setTagsStr] = useState('');
+  const tagCount = tagsStr
+    .split(',')
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0).length;
   const [selectedBoardId, setSelectedBoardId] = useState(
     currentBoardId || availableBoards[0]?.id || '',
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   // Validation error states
   const [titleError, setTitleError] = useState<string | null>(null);
@@ -53,6 +74,68 @@ export const CreatePost: React.FC<CreatePostProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onCancel]);
+
+  // Load draft from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (saved) {
+        const draft: DraftData = JSON.parse(saved);
+        const age = Date.now() - draft.savedAt;
+        if (age < DRAFT_MAX_AGE_MS) {
+          setTitle(draft.title || '');
+          setUrl(draft.url || '');
+          setImageUrl(draft.imageUrl || '');
+          setContent(draft.content || '');
+          setTagsStr(draft.tagsStr || '');
+          if (
+            draft.selectedBoardId &&
+            availableBoards.some((b) => b.id === draft.selectedBoardId)
+          ) {
+            setSelectedBoardId(draft.selectedBoardId);
+          }
+        } else {
+          localStorage.removeItem(DRAFT_KEY);
+        }
+      }
+    } catch {
+      // Ignore malformed drafts
+    }
+  }, [availableBoards]);
+
+  // Debounce timer ref
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Save draft to localStorage on changes (debounced)
+  useEffect(() => {
+    if (draftTimerRef.current) {
+      clearTimeout(draftTimerRef.current);
+    }
+    draftTimerRef.current = setTimeout(() => {
+      const draft: DraftData = {
+        title,
+        url,
+        imageUrl,
+        content,
+        tagsStr,
+        selectedBoardId,
+        savedAt: Date.now(),
+      };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      setDraftSaved(true);
+      setTimeout(() => setDraftSaved(false), 2000);
+    }, 500);
+    return () => {
+      if (draftTimerRef.current) {
+        clearTimeout(draftTimerRef.current);
+      }
+    };
+  }, [title, url, imageUrl, content, tagsStr, selectedBoardId]);
+
+  // Clear draft on submit
+  const clearDraft = useCallback(() => {
+    localStorage.removeItem(DRAFT_KEY);
+  }, []);
 
   const handleScanLink = async () => {
     if (!url.trim()) return;
@@ -188,6 +271,9 @@ export const CreatePost: React.FC<CreatePostProps> = ({
       if (result && typeof result.then === 'function') {
         await result;
       }
+
+      // Clear draft on successful submit
+      clearDraft();
     } finally {
       setIsSubmitting(false);
     }
@@ -217,6 +303,13 @@ export const CreatePost: React.FC<CreatePostProps> = ({
         <div className="mb-4 p-3 border border-terminal-alert bg-terminal-alert/10 flex items-center gap-2 text-terminal-alert">
           <AlertTriangle size={16} />
           <span className="text-sm">{rateLimitError}</span>
+        </div>
+      )}
+
+      {/* Draft Saved Indicator */}
+      {draftSaved && (
+        <div className="mb-2 p-2 border border-terminal-dim/30 bg-terminal-dim/5 text-xs text-terminal-dim text-center animate-fade-in">
+          Draft saved
         </div>
       )}
 
@@ -257,6 +350,11 @@ export const CreatePost: React.FC<CreatePostProps> = ({
               onChange={(e) => {
                 setUrl(e.target.value);
                 setUrlError(null);
+              }}
+              onBlur={() => {
+                if (url.trim() && !urlError) {
+                  handleScanLink();
+                }
               }}
               className={`flex-1 bg-terminal-bg border p-2 text-terminal-text focus:border-terminal-text focus:outline-none font-mono ${
                 urlError ? 'border-terminal-alert' : 'border-terminal-dim'
@@ -345,24 +443,41 @@ export const CreatePost: React.FC<CreatePostProps> = ({
             >
               Content
             </label>
-            <span
-              className={`text-xs ${contentOverLimit ? 'text-terminal-alert' : 'text-terminal-dim'}`}
-            >
-              {contentCharCount}/{InputLimits.MAX_POST_CONTENT_LENGTH}
-            </span>
+            <div className="flex items-center gap-2">
+              <span
+                className={`text-xs ${contentOverLimit ? 'text-terminal-alert' : 'text-terminal-dim'}`}
+              >
+                {contentCharCount}/{InputLimits.MAX_POST_CONTENT_LENGTH}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowPreview(!showPreview)}
+                className="text-xs border border-terminal-dim/50 px-2 py-0.5 text-terminal-dim hover:text-terminal-text hover:border-terminal-dim transition-colors"
+              >
+                {showPreview ? '[ EDIT ]' : '[ PREVIEW ]'}
+              </button>
+            </div>
           </div>
-          <textarea
-            id="content-textarea"
-            value={content}
-            onChange={(e) => {
-              setContent(e.target.value);
-              setContentError(null);
-            }}
-            className={`bg-terminal-bg border p-2 text-terminal-text focus:border-terminal-text focus:outline-none font-mono min-h-[150px] ${
-              contentError ? 'border-terminal-alert' : 'border-terminal-dim'
-            }`}
-            placeholder="Write your signal... Markdown is supported."
-          />
+          {showPreview ? (
+            <div className="min-h-[150px] border border-terminal-dim/50 p-2 bg-terminal-dim/5">
+              {content ? (
+                <MarkdownRenderer content={content} />
+              ) : (
+                <p className="text-terminal-dim text-sm italic">No content yet...</p>
+              )}
+            </div>
+          ) : (
+            <MentionInput
+              value={content}
+              onChange={(newContent) => {
+                setContent(newContent);
+                setContentError(null);
+              }}
+              knownUsers={new Set()}
+              placeholder="Write your signal... Markdown is supported. Use @ to mention."
+              minHeight="150px"
+            />
+          )}
           {contentError && <span className="text-terminal-alert text-xs">* {contentError}</span>}
         </div>
 
@@ -389,7 +504,11 @@ export const CreatePost: React.FC<CreatePostProps> = ({
             <label htmlFor="tags-input" className="text-sm text-terminal-muted uppercase font-bold">
               Tags
             </label>
-            <span className="text-xs text-terminal-dim">Max {InputLimits.MAX_TAGS_COUNT} tags</span>
+            <span
+              className={`text-xs ${tagCount > InputLimits.MAX_TAGS_COUNT ? 'text-terminal-alert' : 'text-terminal-dim'}`}
+            >
+              {tagCount}/{InputLimits.MAX_TAGS_COUNT}
+            </span>
           </div>
           <input
             id="tags-input"

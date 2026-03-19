@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Zap, Menu, Settings as SettingsIcon, Search } from 'lucide-react';
 
 const AdvancedSearch = lazy(() =>
@@ -36,7 +36,6 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showBitsPanel, setShowBitsPanel] = useState(false);
-  const bitsPanelRef = useRef<HTMLDivElement>(null);
   const ownProfile = identity ? profileService.getCachedProfileSync(identity.pubkey) : null;
   const identityDisplayName =
     ownProfile?.display_name ||
@@ -68,25 +67,16 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
     return () => document.removeEventListener('keydown', handleEscape);
   }, [showNotifications]);
 
-  // Close bits panel on Escape or outside click
+  // Close bits panel on Escape
   useEffect(() => {
     if (!showBitsPanel) return;
 
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setShowBitsPanel(false);
     };
-    const handleClick = (e: MouseEvent) => {
-      if (bitsPanelRef.current && !bitsPanelRef.current.contains(e.target as Node)) {
-        setShowBitsPanel(false);
-      }
-    };
 
     document.addEventListener('keydown', handleKey);
-    document.addEventListener('mousedown', handleClick);
-    return () => {
-      document.removeEventListener('keydown', handleKey);
-      document.removeEventListener('mousedown', handleClick);
-    };
+    return () => document.removeEventListener('keydown', handleKey);
   }, [showBitsPanel]);
 
   // Close search modal on Escape
@@ -101,12 +91,19 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
     return () => document.removeEventListener('keydown', handleEscape);
   }, [showSearch, setShowSearch]);
 
-  const handleSearchResultClick = (result: { type: string; authorPubkey: string; authorName?: string }) => {
+  const handleSearchResultClick = (result: {
+    type: string;
+    authorPubkey: string;
+    authorName?: string;
+  }) => {
     setShowSearch(false);
     if (result.type === 'post' || result.type === 'comment') {
       setViewMode(ViewMode.SINGLE_BIT);
     } else {
-      setProfileUser({ username: result.authorName ?? result.authorPubkey.slice(0, 12), pubkey: result.authorPubkey });
+      setProfileUser({
+        username: result.authorName ?? result.authorPubkey.slice(0, 12),
+        pubkey: result.authorPubkey,
+      });
       setViewMode(ViewMode.USER_PROFILE);
     }
   };
@@ -179,13 +176,6 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
           <div
             className={`w-2 h-2 rounded-full ${isNostrConnected ? 'bg-terminal-text animate-pulse' : 'bg-terminal-alert'}`}
           />
-          <div className="flex items-center gap-1 text-xs">
-            <Zap
-              size={12}
-              className={userState.bits === 0 ? 'text-terminal-alert' : 'text-terminal-text'}
-            />
-            <span className="font-mono font-bold">{userState.bits}</span>
-          </div>
         </div>
       </div>
 
@@ -311,57 +301,6 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
         </div>
 
         <div className="hidden lg:flex items-center gap-3 shrink-0">
-          {/* Bits widget + popover */}
-          <div className="relative" ref={bitsPanelRef}>
-            <button
-              type="button"
-              onClick={() => setShowBitsPanel((p) => !p)}
-              className={`flex items-center gap-3 border px-3 py-1.5 font-mono text-terminal-text transition-colors bg-terminal-dim/5 ${showBitsPanel ? 'border-terminal-text' : 'border-terminal-dim/50 hover:border-terminal-dim'}`}
-              title="Bits — click to learn more"
-            >
-              <Zap
-                size={12}
-                className={userState.bits === 0 ? 'text-terminal-alert' : 'text-terminal-text'}
-              />
-              <div className="flex flex-col gap-1 min-w-[120px]">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] uppercase tracking-wide text-terminal-dim">
-                    Bits available
-                  </span>
-                  <span className="text-sm font-bold">
-                    {userState.bits}/{userState.maxBits}
-                  </span>
-                </div>
-                <div className="h-1.5 overflow-hidden border border-terminal-dim/30 bg-terminal-bg/70">
-                  <div
-                    className={`h-full transition-all duration-300 ${userState.bits === 0 ? 'bg-terminal-alert' : 'bg-terminal-text'}`}
-                    style={{
-                      width: `${Math.max(0, Math.min(100, (userState.bits / Math.max(1, userState.maxBits)) * 100))}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            </button>
-
-            {/* Bits info popover */}
-            {showBitsPanel && (
-              <div className="absolute right-0 top-full mt-1 z-50 w-80 border border-terminal-dim/60 bg-terminal-bg shadow-lg">
-                <div className="px-4 py-3 border-b border-terminal-dim/30 flex gap-2.5">
-                  <Zap size={14} className="text-terminal-dim shrink-0 mt-0.5" />
-                  <p className="text-xs text-terminal-muted leading-relaxed">
-                    <span className="text-terminal-text font-bold">Bit-weighted global feed:</span>{' '}
-                    verified identities spend limited bits to push the best posts upward.
-                  </p>
-                </div>
-                <div className="px-4 py-3 space-y-3">
-                  <div className="text-[10px] uppercase tracking-widest text-terminal-dim">
-                    How bits work
-                  </div>
-                  <BitsExplanation size="desktop" />
-                </div>
-              </div>
-            )}
-          </div>
           <NetworkIndicator compact />
           <InlineNetworkStatus />
           <button
@@ -394,11 +333,87 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
         </div>
       </nav>
 
+      {/* Full-width Bits Bar */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setShowBitsPanel((p) => !p)}
+          className="w-full flex items-center gap-3 md:gap-4 py-2 px-1 text-terminal-text hover:bg-terminal-dim/5 transition-colors"
+          title="Bits — click to learn more"
+        >
+          <div className="flex items-center gap-2 shrink-0">
+            <Zap
+              size={14}
+              className={userState.bits === 0 ? 'text-terminal-alert' : 'text-terminal-text'}
+            />
+            <span className="text-[10px] md:text-xs uppercase tracking-wide text-terminal-dim hidden sm:inline">
+              Bits available
+            </span>
+          </div>
+          <div className="flex-1 h-2 md:h-3 overflow-hidden border border-terminal-dim/30 bg-terminal-bg/70 rounded">
+            <div
+              className={`h-full transition-all duration-300 ${userState.bits === 0 ? 'bg-terminal-alert' : 'bg-terminal-text'}`}
+              style={{
+                width: `${Math.max(0, Math.min(100, (userState.bits / Math.max(1, userState.maxBits)) * 100))}%`,
+              }}
+            />
+          </div>
+          <div className="flex items-center gap-1 shrink-0 font-mono">
+            <span
+              className={`text-sm md:text-base font-bold ${userState.bits === 0 ? 'text-terminal-alert' : 'text-terminal-text'}`}
+            >
+              {userState.bits}
+            </span>
+            <span className="text-terminal-dim text-xs md:text-sm">/</span>
+            <span className="text-terminal-dim text-xs md:text-sm">{userState.maxBits}</span>
+          </div>
+        </button>
+
+        {showBitsPanel && (
+          <div
+            className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center px-4"
+            onClick={() => setShowBitsPanel(false)}
+          >
+            <div
+              className="bg-terminal-bg border-2 border-terminal-text w-full max-w-md max-h-[80vh] overflow-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-4 py-3 border-b border-terminal-dim/30 flex items-start gap-3">
+                <Zap size={16} className="text-terminal-text shrink-0 mt-0.5" />
+                <p className="text-sm text-terminal-muted leading-relaxed">
+                  <span className="text-terminal-text font-bold">Bit-weighted global feed:</span>{' '}
+                  verified identities spend limited bits to push the best posts upward.
+                </p>
+              </div>
+              <div className="px-4 py-4 space-y-3">
+                <div className="text-[10px] uppercase tracking-widest text-terminal-dim">
+                  How bits work
+                </div>
+                <BitsExplanation size="desktop" />
+              </div>
+              <div className="px-4 py-3 border-t border-terminal-dim/30">
+                <button
+                  type="button"
+                  onClick={() => setShowBitsPanel(false)}
+                  className="w-full border border-terminal-dim/40 px-4 py-2 text-xs uppercase tracking-wide text-terminal-dim hover:border-terminal-text hover:text-terminal-text transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Search Modal */}
       {showSearch && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-start justify-center pt-20 px-4">
           <div className="bg-terminal-bg border-2 border-terminal-text w-full max-w-2xl max-h-[80vh] overflow-auto">
-            <Suspense fallback={<div className="p-8 text-center text-terminal-muted animate-pulse">LOADING...</div>}>
+            <Suspense
+              fallback={
+                <div className="p-8 text-center text-terminal-muted animate-pulse">LOADING...</div>
+              }
+            >
               <AdvancedSearch
                 onClose={() => setShowSearch(false)}
                 onResultClick={handleSearchResultClick}

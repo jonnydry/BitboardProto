@@ -28,6 +28,7 @@ import {
   MoreHorizontal,
 } from 'lucide-react';
 import { profileService } from '../services/profileService';
+import { toastService } from '../services/toastService';
 import { CommentThread, buildCommentTree } from './CommentThread';
 // MentionText is used via MarkdownRenderer
 import { MentionInput } from './MentionInput';
@@ -132,9 +133,15 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   const handleBookmarkClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
+      const willBeBookmarked = !isBookmarked;
       onToggleBookmark?.(post.id);
+      toastService.push({
+        type: 'success',
+        message: willBeBookmarked ? 'Bookmark added' : 'Bookmark removed',
+        durationMs: 2000,
+      });
     },
-    [onToggleBookmark, post.id],
+    [onToggleBookmark, post.id, isBookmarked],
   );
 
   const handleAuthorClick = useCallback(
@@ -219,6 +226,40 @@ const PostItemComponent: React.FC<PostItemProps> = ({
 
   const isEncryptedWithoutKey = useMemo(() => isPostEncryptedWithoutKey(post), [post]);
 
+  // Reply draft save/restore
+  const REPLY_DRAFT_KEY = `bitboard_reply_draft_${post.id}`;
+  const replyDraftTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load reply draft on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(REPLY_DRAFT_KEY);
+      if (saved) {
+        setNewComment(saved);
+      }
+    } catch {
+      // Ignore errors
+    }
+  }, [REPLY_DRAFT_KEY]);
+
+  // Save reply draft on changes (debounced)
+  useEffect(() => {
+    if (replyDraftTimerRef.current) {
+      clearTimeout(replyDraftTimerRef.current);
+    }
+    if (newComment) {
+      replyDraftTimerRef.current = setTimeout(() => {
+        localStorage.setItem(REPLY_DRAFT_KEY, newComment);
+      }, 500);
+    }
+    return () => {
+      if (replyDraftTimerRef.current) {
+        clearTimeout(replyDraftTimerRef.current);
+      }
+    };
+  }, [newComment, REPLY_DRAFT_KEY]);
+
+  // Clear draft on successful submit
   const handleCommentSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
@@ -229,11 +270,12 @@ const PostItemComponent: React.FC<PostItemProps> = ({
       try {
         await Promise.resolve(onComment(post.id, content, undefined));
         setNewComment('');
+        localStorage.removeItem(REPLY_DRAFT_KEY);
       } finally {
         setIsTransmitting(false);
       }
     },
-    [newComment, onComment, post.id],
+    [newComment, onComment, post.id, REPLY_DRAFT_KEY],
   );
 
   // Handle threaded reply to a specific comment
@@ -285,26 +327,64 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   const handleVoteUp = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
+      if (!userState.identity) {
+        toastService.push({
+          type: 'warning',
+          message: 'Connect identity to vote with bits',
+          durationMs: 2000,
+        });
+        return;
+      }
+      if (userState.bits <= 0 && !hasInvested) {
+        toastService.push({
+          type: 'warning',
+          message: 'No bits remaining today. They reset at midnight.',
+          durationMs: 3000,
+        });
+        return;
+      }
       onVote(post.id, 'up');
     },
-    [onVote, post.id],
+    [onVote, post.id, userState.identity, userState.bits, hasInvested],
   );
 
   const handleVoteDown = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
+      if (!userState.identity) {
+        toastService.push({
+          type: 'warning',
+          message: 'Connect identity to vote with bits',
+          durationMs: 2000,
+        });
+        return;
+      }
+      if (userState.bits <= 0 && !hasInvested) {
+        toastService.push({
+          type: 'warning',
+          message: 'No bits remaining today. They reset at midnight.',
+          durationMs: 3000,
+        });
+        return;
+      }
       onVote(post.id, 'down');
     },
-    [onVote, post.id],
+    [onVote, post.id, userState.identity, userState.bits, hasInvested],
   );
 
   const handleCommentClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      // Always navigate to detail page when clicking comment count
-      onViewBit(post.id);
+      if (isFullPage) {
+        const commentSection = document.getElementById('comment-thread');
+        if (commentSection) {
+          commentSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      } else {
+        onViewBit(post.id);
+      }
     },
-    [onViewBit, post.id],
+    [isFullPage, onViewBit, post.id],
   );
 
   const handleInteractionKeyDown = useCallback(
@@ -414,17 +494,19 @@ const PostItemComponent: React.FC<PostItemProps> = ({
           <button
             onClick={handleVoteUp}
             className={`p-2 md:p-1 hover:bg-terminal-dim transition-colors min-w-[40px] min-h-[40px] md:min-w-0 md:min-h-0 flex items-center justify-center ${isUpvoted ? 'text-terminal-text font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={!userState.identity || (userState.bits <= 0 && !hasInvested)}
+            disabled={!userState.identity}
             aria-label="Upvote"
             aria-pressed={isUpvoted}
             title={
               !userState.identity
                 ? 'Connect identity to vote with bits'
-                : isUpvoted
-                  ? 'Retract upvote and refund 1 bit'
-                  : hasInvested
-                    ? 'Switch vote direction at no extra bit cost'
-                    : 'Spend 1 bit to upvote this post'
+                : userState.bits <= 0 && !hasInvested
+                  ? 'No bits remaining today'
+                  : isUpvoted
+                    ? 'Retract upvote and refund 1 bit'
+                    : hasInvested
+                      ? 'Switch vote direction at no extra bit cost'
+                      : 'Spend 1 bit to upvote this post'
             }
           >
             <ArrowBigUp
@@ -444,17 +526,19 @@ const PostItemComponent: React.FC<PostItemProps> = ({
           <button
             onClick={handleVoteDown}
             className={`p-2 md:p-1 hover:bg-terminal-dim transition-colors min-w-[40px] min-h-[40px] md:min-w-0 md:min-h-0 flex items-center justify-center ${isDownvoted ? 'text-terminal-alert font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={!userState.identity || (userState.bits <= 0 && !hasInvested)}
+            disabled={!userState.identity}
             aria-label="Downvote"
             aria-pressed={isDownvoted}
             title={
               !userState.identity
                 ? 'Connect identity to vote with bits'
-                : isDownvoted
-                  ? 'Retract downvote and refund 1 bit'
-                  : hasInvested
-                    ? 'Switch vote direction at no extra bit cost'
-                    : 'Spend 1 bit to downvote this post'
+                : userState.bits <= 0 && !hasInvested
+                  ? 'No bits remaining today'
+                  : isDownvoted
+                    ? 'Retract downvote and refund 1 bit'
+                    : hasInvested
+                      ? 'Switch vote direction at no extra bit cost'
+                      : 'Spend 1 bit to downvote this post'
             }
           >
             <ArrowBigDown
@@ -504,11 +588,23 @@ const PostItemComponent: React.FC<PostItemProps> = ({
 
           {/* Investment Indicator */}
           {hasInvested && (
-            <div className="mt-2 flex flex-col items-center animate-fade-in">
-              <span className="text-[10px] text-terminal-dim border border-terminal-dim px-1 py-0.5 uppercase tracking-tighter">
+            <div className="mt-2 flex flex-col items-center animate-fade-in group relative">
+              <span className="text-[10px] text-terminal-text border border-terminal-text px-1 py-0.5 uppercase tracking-tighter">
                 1 BIT
               </span>
-              <span className="text-[10px] text-terminal-dim">LOCKED</span>
+              <span className="text-[10px] text-terminal-text flex items-center gap-1">
+                INVESTED
+                <span
+                  title="Bit economy: First vote costs 1 bit. Switching votes is free. Retracting refunds your bit. Bits reset daily at midnight."
+                  className="text-terminal-dim cursor-help"
+                >
+                  ?
+                </span>
+              </span>
+              <div className="absolute left-full top-0 ml-2 w-48 p-2 border border-terminal-dim bg-terminal-bg text-[10px] text-terminal-dim hidden group-hover:block z-20 pointer-events-none">
+                Bit economy: First vote costs 1 bit. Switching votes is free. Retracting refunds
+                your bit. Bits reset daily.
+              </div>
             </div>
           )}
         </div>
@@ -569,6 +665,14 @@ const PostItemComponent: React.FC<PostItemProps> = ({
             <span className="flex items-center gap-1">
               <Clock size={12} /> {formatTime(post.timestamp)}
             </span>
+            {post.isEncrypted && (
+              <span
+                className="flex items-center gap-1 text-terminal-text border border-terminal-text/50 px-1 py-0.5 text-[10px] uppercase tracking-wider"
+                title="This post is encrypted"
+              >
+                <Lock size={10} /> Encrypted
+              </span>
+            )}
             {isOwnPost && onEditPost && (
               <button
                 onClick={handleEditClick}
@@ -669,6 +773,37 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                   <PlainTextRenderer content={post.content} />
                 );
               })()}
+            </div>
+          )}
+
+          {/* Read more affordance when collapsed */}
+          {!isExpanded && post.content && (
+            <button
+              onClick={handleInteraction}
+              className="text-xs text-terminal-dim hover:text-terminal-text underline mb-2"
+            >
+              Read more
+            </button>
+          )}
+
+          {/* Comment preview when collapsed */}
+          {!isExpanded && post.commentCount > 0 && post.comments && post.comments.length > 0 && (
+            <div className="mb-2 py-2 border border-terminal-dim/30 border-l-2 border-l-terminal-dim/50 pl-2">
+              <div className="flex items-center gap-1 text-[10px] text-terminal-dim uppercase tracking-wide mb-1">
+                <MessageSquare size={10} />
+                <span>First comment</span>
+              </div>
+              <p className="text-xs text-terminal-muted line-clamp-2">
+                {post.comments[0].author}: {post.comments[0].content}
+              </p>
+              {post.commentCount > 1 && (
+                <button
+                  onClick={handleCommentClick}
+                  className="text-[10px] text-terminal-dim hover:text-terminal-text underline mt-1"
+                >
+                  View all {post.commentCount} comments
+                </button>
+              )}
             </div>
           )}
 
@@ -814,7 +949,10 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 </div>
               )}
 
-              <h4 className="text-xs text-terminal-dim mb-4 font-bold uppercase tracking-widest flex items-center gap-2">
+              <h4
+                id="comment-thread"
+                className="text-xs text-terminal-dim mb-4 font-bold uppercase tracking-widest flex items-center gap-2"
+              >
                 <CornerDownRight size={14} />
                 COMMENT THREAD
               </h4>

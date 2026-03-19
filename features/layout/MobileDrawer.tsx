@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   X,
   Globe,
@@ -8,13 +8,11 @@ import {
   WifiOff,
   Settings,
   MapPin,
-  Zap,
   MessageSquare,
   Search,
 } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { ViewMode } from '../../types';
-import { BitsExplanation } from '../../components/BitsExplanation';
 
 interface MobileDrawerProps {
   isOpen: boolean;
@@ -23,7 +21,7 @@ interface MobileDrawerProps {
   onSetViewMode: (mode: ViewMode) => void;
   onNavigateGlobal: () => void;
   identity?: { npub: string };
-  userState: { bits: number; maxBits: number };
+  _userState?: { bits: number; maxBits: number };
   bookmarkedCount: number;
   isNostrConnected: boolean;
   children?: React.ReactNode;
@@ -36,19 +34,13 @@ export const MobileDrawer = React.memo(function MobileDrawer({
   onSetViewMode,
   onNavigateGlobal,
   identity,
-  userState,
+  _userState,
   bookmarkedCount,
   isNostrConnected,
   children,
 }: MobileDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
-  const [showBitsInfo, setShowBitsInfo] = useState(false);
   const setShowSearch = useUIStore((s) => s.setShowSearch);
-
-  // Reset bits info when drawer closes
-  useEffect(() => {
-    if (!isOpen) setShowBitsInfo(false);
-  }, [isOpen]);
 
   // Close on escape key
   useEffect(() => {
@@ -194,55 +186,6 @@ export const MobileDrawer = React.memo(function MobileDrawer({
           >
             <X size={20} />
           </button>
-        </div>
-
-        {/* User Status */}
-        <div className="p-4 border-b border-terminal-dim/30">
-          {/* Bits row */}
-          <div className="flex items-center gap-3 mb-2">
-            <Zap
-              size={16}
-              className={userState.bits === 0 ? 'text-terminal-alert' : 'text-terminal-text'}
-            />
-            <div className="flex-1 flex items-center justify-between">
-              <span className="font-mono text-sm">
-                <span className="text-terminal-dim">BITS:</span>{' '}
-                <span className="font-bold">
-                  {userState.bits}/{userState.maxBits}
-                </span>
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowBitsInfo((p) => !p)}
-                className="text-[10px] uppercase tracking-wide text-terminal-dim hover:text-terminal-text transition-colors"
-              >
-                {showBitsInfo ? 'Hide ▴' : 'How bits work ▾'}
-              </button>
-            </div>
-          </div>
-
-          {/* Progress bar */}
-          <div className="h-1.5 w-full overflow-hidden border border-terminal-dim/30 bg-terminal-bg/70 mb-2">
-            <div
-              className={`h-full transition-all duration-300 ${userState.bits === 0 ? 'bg-terminal-alert' : 'bg-terminal-text'}`}
-              style={{
-                width: `${Math.max(0, Math.min(100, (userState.bits / Math.max(1, userState.maxBits)) * 100))}%`,
-              }}
-            />
-          </div>
-
-          {/* Expandable bits guide */}
-          {showBitsInfo && (
-            <div className="mt-3 pt-3 border-t border-terminal-dim/30 space-y-2.5">
-              <BitsExplanation size="mobile" />
-            </div>
-          )}
-
-          {identity && (
-            <div className="text-[10px] text-terminal-dim truncate mt-2">
-              KEY: {identity.npub.slice(0, 20)}...
-            </div>
-          )}
         </div>
 
         <div className="flex-1 overflow-y-auto">

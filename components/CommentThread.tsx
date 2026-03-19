@@ -21,6 +21,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { MentionInput } from './MentionInput';
 import { ReportModal } from './ReportModal';
 import { reportService } from '../services/reportService';
+import { toastService } from '../services/toastService';
 import { profileService } from '../services/profileService';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ReactionBar } from './ReactionPicker';
@@ -142,21 +143,53 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
   const handleVoteUp = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
+      if (!userState.identity) {
+        toastService.push({
+          type: 'warning',
+          message: 'Connect identity to vote with bits',
+          durationMs: 2000,
+        });
+        return;
+      }
+      if (userState.bits <= 0 && !hasInvested) {
+        toastService.push({
+          type: 'warning',
+          message: 'No bits remaining today. They reset at midnight.',
+          durationMs: 3000,
+        });
+        return;
+      }
       if (onVote && postId) {
         onVote(postId, comment.id, 'up');
       }
     },
-    [onVote, postId, comment.id],
+    [onVote, postId, comment.id, userState.identity, userState.bits, hasInvested],
   );
 
   const handleVoteDown = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
+      if (!userState.identity) {
+        toastService.push({
+          type: 'warning',
+          message: 'Connect identity to vote with bits',
+          durationMs: 2000,
+        });
+        return;
+      }
+      if (userState.bits <= 0 && !hasInvested) {
+        toastService.push({
+          type: 'warning',
+          message: 'No bits remaining today. They reset at midnight.',
+          durationMs: 3000,
+        });
+        return;
+      }
       if (onVote && postId) {
         onVote(postId, comment.id, 'down');
       }
     },
-    [onVote, postId, comment.id],
+    [onVote, postId, comment.id, userState.identity, userState.bits, hasInvested],
   );
 
   // Subscribe to report changes
@@ -301,17 +334,19 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
               <button
                 onClick={handleVoteUp}
                 className={`p-1 hover:bg-terminal-dim transition-colors ${isUpvoted ? 'text-terminal-text font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
-                disabled={!userState.identity || (userState.bits <= 0 && !hasInvested)}
+                disabled={!userState.identity}
                 aria-label="Upvote comment"
                 aria-pressed={isUpvoted}
                 title={
                   !userState.identity
                     ? 'CONNECT IDENTITY TO VOTE'
-                    : isUpvoted
-                      ? 'RETRACT BIT (+1 REFUND)'
-                      : hasInvested
-                        ? 'SWITCH VOTE (0 COST)'
-                        : 'INVEST 1 BIT (-1)'
+                    : userState.bits <= 0 && !hasInvested
+                      ? 'NO BITS REMAINING'
+                      : isUpvoted
+                        ? 'RETRACT BIT (+1 REFUND)'
+                        : hasInvested
+                          ? 'SWITCH VOTE (0 COST)'
+                          : 'INVEST 1 BIT (-1)'
                 }
               >
                 <ArrowBigUp size={14} fill={isUpvoted ? 'currentColor' : 'none'} />
@@ -327,17 +362,19 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
               <button
                 onClick={handleVoteDown}
                 className={`p-1 hover:bg-terminal-dim transition-colors ${isDownvoted ? 'text-terminal-alert font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
-                disabled={!userState.identity || (userState.bits <= 0 && !hasInvested)}
+                disabled={!userState.identity}
                 aria-label="Downvote comment"
                 aria-pressed={isDownvoted}
                 title={
                   !userState.identity
                     ? 'CONNECT IDENTITY TO VOTE'
-                    : isDownvoted
-                      ? 'RETRACT BIT (+1 REFUND)'
-                      : hasInvested
-                        ? 'SWITCH VOTE (0 COST)'
-                        : 'INVEST 1 BIT (-1)'
+                    : userState.bits <= 0 && !hasInvested
+                      ? 'NO BITS REMAINING'
+                      : isDownvoted
+                        ? 'RETRACT BIT (+1 REFUND)'
+                        : hasInvested
+                          ? 'SWITCH VOTE (0 COST)'
+                          : 'INVEST 1 BIT (-1)'
                 }
               >
                 <ArrowBigDown size={14} fill={isDownvoted ? 'currentColor' : 'none'} />
@@ -390,10 +427,12 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
               {isCollapsed && hasReplies && (
                 <button
                   onClick={handleToggleCollapse}
-                  className="text-terminal-dim hover:text-terminal-text text-xs border border-terminal-dim hover:border-terminal-text px-2 py-0.5 transition-colors flex items-center gap-1 bg-terminal-dim/10"
+                  className="text-terminal-text text-xs border border-terminal-text/50 px-2 py-0.5 transition-colors flex items-center gap-1 bg-terminal-text/10 hover:bg-terminal-text/20"
                 >
                   {depth >= AUTO_COLLAPSE_DEPTH ? (
-                    <>Continue thread → ({replyCount})</>
+                    <>
+                      <CornerDownRight size={10} /> Continue thread ({replyCount} replies)
+                    </>
                   ) : (
                     <>
                       +{replyCount} {replyCount === 1 ? 'reply' : 'replies'}
