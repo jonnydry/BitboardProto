@@ -16,6 +16,7 @@ import {
   RefreshCw,
   AlertTriangle,
   MoreHorizontal,
+  Radio,
 } from 'lucide-react';
 import { profileService } from '../services/profileService';
 import { toastService } from '../services/toastService';
@@ -51,6 +52,7 @@ interface PostItemProps {
   onDeletePost?: (postId: string) => void;
   onTagClick?: (tag: string) => void;
   onToggleBookmark?: (postId: string) => void;
+  onSeedPost?: (post: Post) => void;
   onToggleMute?: (pubkey: string) => void;
   isMuted?: (pubkey: string) => boolean;
   onRetryPost?: (postId: string) => void;
@@ -71,6 +73,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   onDeletePost,
   onTagClick,
   onToggleBookmark,
+  onSeedPost,
   onToggleMute,
   isMuted: isMutedProp,
   onRetryPost,
@@ -190,6 +193,15 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   const formatTime = useCallback((timestamp: number) => formatPostTime(timestamp), []);
 
   const isEncryptedWithoutKey = useMemo(() => isPostEncryptedWithoutKey(post), [post]);
+
+  const handleSeedClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onSeedPost?.(post);
+      setShowMoreActions(false);
+    },
+    [onSeedPost, post],
+  );
 
   const handleInteraction = useCallback(() => {
     onViewBit(post.id);
@@ -484,6 +496,14 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 <span className="text-terminal-dim/70 text-sm">//{boardName}</span>
               </>
             )}
+            {post.seededFrom === 'nostr' && (
+              <>
+                <span className="text-terminal-dim/50">·</span>
+                <span className="flex items-center gap-1 border border-terminal-dim/30 px-1 py-0.5 text-xs uppercase tracking-wider text-terminal-dim/80">
+                  <Radio size={10} /> Seeded From Nostr
+                </span>
+              </>
+            )}
             <span className="text-terminal-dim/50">·</span>
             <span className="ml-auto text-terminal-dim/70 text-sm">
               {formatTime(post.timestamp)}
@@ -696,6 +716,16 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                     >
                       <VolumeX size={14} />
                       {isMuted?.(post.authorPubkey) ? 'Unmute User' : 'Mute User'}
+                    </button>
+                  )}
+
+                  {post.source === 'nostr-community' && onSeedPost && (
+                    <button
+                      onClick={handleSeedClick}
+                      className="flex w-full items-center gap-2 px-2 py-2 text-left text-xs uppercase tracking-wide text-terminal-dim transition-colors hover:bg-terminal-dim/10 hover:text-terminal-text"
+                    >
+                      <Radio size={14} />
+                      Seed To BitBoard
                     </button>
                   )}
                 </div>

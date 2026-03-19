@@ -31,6 +31,10 @@ export function eventToPost(event: NostrEvent, getDisplayName: (pubkey: string) 
   const tagsRaw = getAllTags('t');
   const urlRaw = getTagValue(event, 'r');
   const imageRaw = getTagValue(event, 'image');
+  const seededFrom = getTagValue(event, 'seed_source');
+  const seedSourceEventId = getTagValue(event, 'seed_event');
+  const seedSourceAuthorPubkey = getTagValue(event, 'seed_author');
+  const seedSourceCommunityAddress = getTagValue(event, 'seed_community');
 
   const post: Post = {
     id: event.id,
@@ -48,6 +52,10 @@ export function eventToPost(event: NostrEvent, getDisplayName: (pubkey: string) 
     tags: inputValidator.validateTags(tagsRaw),
     url: urlRaw ? (inputValidator.validateUrl(urlRaw) ?? undefined) : undefined,
     imageUrl: imageRaw ? (inputValidator.validateUrl(imageRaw) ?? undefined) : undefined,
+    seededFrom: seededFrom === 'nostr' ? 'nostr' : undefined,
+    seedSourceEventId,
+    seedSourceAuthorPubkey,
+    seedSourceCommunityAddress,
     comments: [],
   };
 

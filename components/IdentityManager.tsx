@@ -21,12 +21,14 @@ interface IdentityManagerProps {
   onIdentityChange: (identity: NostrIdentity | null) => void;
   onClose: () => void;
   onViewProfile?: (username: string, pubkey?: string) => void;
+  initialIntent?: 'generate' | 'import';
 }
 
 export const IdentityManager: React.FC<IdentityManagerProps> = ({
   onIdentityChange,
   onClose,
   onViewProfile,
+  initialIntent,
 }) => {
   const [identity, setIdentity] = useState<NostrIdentity | null>(null);
   const [displayName, setDisplayName] = useState('');
@@ -40,6 +42,8 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
   const [confirmPassphrase, setConfirmPassphrase] = useState('');
   const [hasNip07, setHasNip07] = useState(false);
   const [isConfirmingLogout, setIsConfirmingLogout] = useState(false);
+  const generatePassphraseRef = React.useRef<HTMLInputElement | null>(null);
+  const importKeyRef = React.useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const loadIdentity = async () => {
@@ -53,13 +57,29 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
     loadIdentity();
   }, []);
 
+  useEffect(() => {
+    if (identity) return;
+
+    const timer = window.setTimeout(() => {
+      if (initialIntent === 'import') {
+        importKeyRef.current?.focus();
+      } else if (initialIntent === 'generate') {
+        generatePassphraseRef.current?.focus();
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [identity, initialIntent]);
+
   const handleGenerate = async () => {
     setIsGenerating(true);
     setError(null);
 
     try {
       if (!passphrase.trim()) {
-        setError('Please create a passphrase to protect your local key.');
+        setError(
+          'Choose a passphrase (12+ characters) to encrypt your new key on this device. It is not your nsec.',
+        );
         return;
       }
       if (passphrase !== confirmPassphrase) {
@@ -75,7 +95,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
       setIdentity(newIdentity);
       onIdentityChange(newIdentity);
     } catch (err) {
-      setError('Failed to generate identity');
+      setError(err instanceof Error ? err.message : 'Failed to generate identity');
       console.error('[IdentityManager] Generate failed:', err);
     } finally {
       setIsGenerating(false);
@@ -93,7 +113,9 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
     }
 
     if (!passphrase.trim()) {
-      setError('Please enter a passphrase to encrypt your imported key.');
+      setError(
+        'Choose a new passphrase (12+ characters) for BitBoard. Your nsec has no password — this phrase only encrypts it on this device.',
+      );
       setIsImporting(false);
       return;
     }
@@ -136,7 +158,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
         setError('Invalid key format. Use nsec1... or hex format.');
       }
     } catch (err) {
-      setError('Failed to import key');
+      setError(err instanceof Error ? err.message : 'Failed to import key');
       console.error('[IdentityManager] Import failed:', err);
     } finally {
       setIsImporting(false);
@@ -436,14 +458,15 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
 
           <div className="space-y-2">
             <label className="text-xs text-terminal-dim uppercase font-bold">
-              Local passphrase
+              Local passphrase (generate new identity)
             </label>
             <input
               type="password"
               value={passphrase}
               onChange={(e) => setPassphrase(e.target.value)}
+              ref={generatePassphraseRef}
               className="w-full bg-terminal-bg border border-terminal-dim p-3 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
-              placeholder="Required to unlock this device"
+              placeholder="Choose 12+ characters — not your nsec"
             />
             <input
               type="password"
@@ -453,8 +476,9 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
               placeholder="Confirm passphrase"
             />
             <p className="text-2xs leading-relaxed text-terminal-dim">
-              This passphrase is not sent anywhere. It is only used to decrypt your local key on
-              this browser.
+              This is a password <span className="text-terminal-text">you invent for BitBoard</span>{' '}
+              to encrypt your key in this browser. It is not sent anywhere and is not tied to other
+              Nostr apps.
             </p>
           </div>
 
@@ -494,26 +518,37 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
               type="password"
               value={importKey}
               onChange={(e) => setImportKey(e.target.value)}
+              ref={importKeyRef}
               className="w-full bg-terminal-bg border border-terminal-dim p-3 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
               placeholder="nsec1... or hex private key"
             />
+            <div className="rounded border border-terminal-dim/40 bg-terminal-dim/5 p-3 text-2xs text-terminal-dim leading-relaxed">
+              <p>
+                <span className="text-terminal-text font-semibold">
+                  You are not missing a passphrase from another app.
+                </span>{' '}
+                Nostr keys are just nsec/hex. BitBoard needs a{' '}
+                <span className="text-terminal-text">new phrase you choose here</span> (12+
+                characters) to lock that key in this browser — same idea as a phone PIN for an
+                imported wallet.
+              </p>
+            </div>
             <input
               type="password"
               value={passphrase}
               onChange={(e) => setPassphrase(e.target.value)}
               className="w-full bg-terminal-bg border border-terminal-dim p-3 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
-              placeholder="Local passphrase"
+              placeholder="Create device passphrase (12+ characters)"
             />
             <input
               type="password"
               value={confirmPassphrase}
               onChange={(e) => setConfirmPassphrase(e.target.value)}
               className="w-full bg-terminal-bg border border-terminal-dim p-3 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
-              placeholder="Confirm local passphrase"
+              placeholder="Confirm device passphrase"
             />
             <p className="text-2xs leading-relaxed text-terminal-dim">
-              This passphrase encrypts the imported key on this browser and will be required after
-              reload.
+              Required after reload. Use a password manager if you like — BitBoard cannot reset it.
             </p>
             <button
               onClick={handleImport}

@@ -86,13 +86,16 @@ export async function fetchCommunityDefinition(
 
 export async function fetchCommunities(
   deps: QueryDeps,
-  opts: { limit?: number } = {},
+  opts: { limit?: number; clientTag?: string } = {},
 ): Promise<NostrEvent[]> {
   const filter: Filter = {
     kinds: [NOSTR_KINDS.COMMUNITY_DEFINITION],
-    '#client': ['bitboard'],
     limit: opts.limit || 100,
   };
+
+  if (opts.clientTag) {
+    (filter as Filter & { '#client'?: string[] })['#client'] = [opts.clientTag];
+  }
 
   try {
     const events = await deps.pool.querySync(deps.getReadRelays(), filter);
@@ -106,6 +109,7 @@ export async function fetchCommunities(
 export async function fetchCommunityApprovals(
   deps: QueryDeps,
   communityAddress: string,
+  opts: { relays?: string[] } = {},
 ): Promise<NostrEvent[]> {
   const filter: Filter = {
     kinds: [NOSTR_KINDS.COMMUNITY_APPROVAL],
@@ -114,7 +118,7 @@ export async function fetchCommunityApprovals(
   };
 
   try {
-    return await deps.pool.querySync(deps.getReadRelays(), filter);
+    return await deps.pool.querySync(opts.relays ?? deps.getReadRelays(), filter);
   } catch (error) {
     logger.error('Nostr', 'Failed to fetch community approvals', error);
     return [];
@@ -125,15 +129,16 @@ export function subscribeToCommunityApprovals(
   deps: SubscriptionDeps,
   communityAddress: string,
   onEvent: (event: NostrEvent) => void,
+  opts: { since?: number; relays?: string[] } = {},
 ): string {
   const subscriptionId = deps.nextSubId('community-approvals');
   const filter: Filter = {
     kinds: [NOSTR_KINDS.COMMUNITY_APPROVAL],
     '#a': [communityAddress],
-    since: Math.floor(Date.now() / 1000),
+    since: opts.since ?? Math.floor(Date.now() / 1000),
   };
 
-  const sub = deps.pool.subscribeMany(deps.getReadRelays(), [filter] as any, {
+  const sub = deps.pool.subscribeMany(opts.relays ?? deps.getReadRelays(), [filter] as any, {
     onevent: (event) => {
       if (nostrEventDeduplicator.isEventDuplicate(event.id)) return;
       onEvent(event);

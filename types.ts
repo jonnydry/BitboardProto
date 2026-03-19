@@ -62,12 +62,21 @@ export interface Board {
   description: string;
   isPublic: boolean;
   memberCount: number;
+  source?: 'bitboard-board' | 'nostr-community';
+  canonicalId?: string;
+  isReadOnly?: boolean;
+  isExternal?: boolean;
   // Nostr integration
   type: BoardType;
   geohash?: string; // For geohash boards
   precision?: GeohashPrecision;
   nostrEventId?: string; // Reference to Nostr event
   createdBy?: string; // Creator's pubkey
+  communityAddress?: string;
+  relayHints?: string[];
+  approvalRelayHints?: string[];
+  authorRelayHints?: string[];
+  requestRelayHints?: string[];
   // Encryption (for private boards)
   isEncrypted?: boolean; // True if content is encrypted
   encryptionKeyHash?: string; // Hash of key for verification (not the key itself)
@@ -109,6 +118,13 @@ export type SyncStatus = 'pending' | 'synced' | 'failed';
 export interface Post {
   id: string;
   boardId: string;
+  source?: 'bitboard' | 'nostr-community';
+  sourceEventKind?: number;
+  communityAddress?: string;
+  seededFrom?: 'nostr';
+  seedSourceEventId?: string;
+  seedSourceAuthorPubkey?: string;
+  seedSourceCommunityAddress?: string;
   title: string;
   author: string;
   authorPubkey?: string;
@@ -167,6 +183,7 @@ export enum ViewMode {
   SINGLE_BIT = 'SINGLE_BIT',
   CREATE_BOARD = 'CREATE_BOARD',
   BROWSE_BOARDS = 'BROWSE_BOARDS',
+  EXTERNAL_COMMUNITIES = 'EXTERNAL_COMMUNITIES',
   IDENTITY = 'IDENTITY',
   RELAYS = 'RELAYS',
   LOCATION = 'LOCATION',
@@ -228,6 +245,7 @@ export const NOSTR_KINDS = {
   LONG_FORM: 30023, // NIP-23 long-form content
   COMMUNITY_DEFINITION: 34550, // NIP-72 community definition
   COMMUNITY_APPROVAL: 4550, // NIP-72 community post approval
+  COMMUNITY_POST: 1111, // NIP-72 community post
   LIVE_EVENT: 30311, // NIP-53 live activities
   LIVE_CHAT: 1311, // NIP-53 live chat message
 } as const;
@@ -341,6 +359,7 @@ export interface NostrList {
 
 export interface Community {
   id: string; // d tag identifier
+  address?: string;
   name: string;
   description?: string;
   image?: string;
@@ -348,13 +367,18 @@ export interface Community {
   moderators: string[]; // Pubkeys of moderators
   rules?: string;
   relays?: string[]; // Preferred relays
+  approvalRelays?: string[];
+  authorRelays?: string[];
+  requestRelays?: string[];
   nostrEventId?: string;
+  createdAt?: number;
 }
 
 export interface CommunityApproval {
   id: string; // Approval event ID
-  communityId: string; // Community being approved for
+  communityAddress: string; // Community being approved for
   postEventId: string; // Post being approved
+  approvedEventKind?: number;
   approverPubkey: string; // Moderator who approved
   timestamp: number;
 }

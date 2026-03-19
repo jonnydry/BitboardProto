@@ -28,6 +28,7 @@ interface FeedPostActions {
   onDeletePost: (postId: string) => void;
   onTagClick: (tag: string) => void;
   onToggleBookmark: (id: string) => void;
+  onSeedPost?: (post: Post) => void;
   onToggleMute?: (pubkey: string) => void;
   isMuted?: (pubkey: string) => boolean;
   onRetryPost?: (postId: string) => void;
@@ -65,6 +66,7 @@ export const FeedPostCard: React.FC<{ post: Post } & FeedPostActions> = (props) 
     onDeletePost,
     onTagClick,
     onToggleBookmark,
+    onSeedPost,
     onToggleMute,
     isMuted,
     onRetryPost,
@@ -86,6 +88,7 @@ export const FeedPostCard: React.FC<{ post: Post } & FeedPostActions> = (props) 
       onDeletePost={onDeletePost}
       onTagClick={onTagClick}
       onToggleBookmark={onToggleBookmark}
+      onSeedPost={onSeedPost}
       onToggleMute={onToggleMute}
       isMuted={isMuted}
       onRetryPost={onRetryPost}

@@ -18,6 +18,7 @@ import {
   Wifi,
   WifiOff,
   RefreshCw,
+  ExternalLink,
 } from 'lucide-react';
 import type { Board } from '../../types';
 import { BoardType, ThemeId, ViewMode } from '../../types';
@@ -84,6 +85,7 @@ interface SidebarProps {
   feedFilter: string;
   setFeedFilter: (filter: any) => void;
   topicBoards: Board[];
+  externalCommunities: Board[];
   geohashBoards: Board[];
   boardsById: Map<string, Board>;
   decryptionFailedBoardIds?: Set<string>;
@@ -105,6 +107,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
     feedFilter,
     setFeedFilter: setFeedFilterRaw,
     topicBoards = [],
+    externalCommunities = [],
     geohashBoards = [],
     boardsById = new Map<string, Board>(),
     decryptionFailedBoardIds = new Set<string>(),
@@ -510,6 +513,76 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
           className="mt-2 md:mt-4 w-full text-xs md:text-sm border border-terminal-dim border-dashed text-terminal-dim p-1.5 md:p-2 hover:text-terminal-bg hover:bg-terminal-text hover:border-solid transition-all uppercase"
         >
           [+] Init_Board
+        </button>
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="EXTERNAL_COMMUNITIES"
+        icon={ExternalLink}
+        defaultOpen={false}
+        badge={<span className="text-xs text-terminal-dim">({externalCommunities.length})</span>}
+      >
+        {externalCommunities.length > 0 ? (
+          <div className="flex flex-col gap-1 max-h-[150px] md:max-h-[220px] overflow-y-auto pr-1">
+            {externalCommunities.map((board) => (
+              <button
+                key={board.id}
+                onClick={() => navigateToBoard(board.id)}
+                style={
+                  activeBoardId === board.id
+                    ? { color: 'rgb(var(--color-terminal-bg))' }
+                    : undefined
+                }
+                className={`text-left text-xs md:text-sm px-2 py-1 transition-all flex items-center gap-2 group w-full
+                  ${
+                    activeBoardId === board.id
+                      ? 'bg-terminal-text font-bold'
+                      : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
+                  }
+                `}
+              >
+                <ExternalLink
+                  size={10}
+                  style={
+                    activeBoardId === board.id
+                      ? { color: 'rgb(var(--color-terminal-bg))' }
+                      : undefined
+                  }
+                />
+                <span
+                  style={
+                    activeBoardId === board.id
+                      ? { color: 'rgb(var(--color-terminal-bg))' }
+                      : undefined
+                  }
+                  className="truncate flex-1"
+                >
+                  {board.name}
+                </span>
+                <span
+                  style={
+                    activeBoardId === board.id
+                      ? { color: 'rgb(var(--color-terminal-bg))' }
+                      : undefined
+                  }
+                  className="text-[9px] uppercase opacity-60"
+                >
+                  Nostr
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-terminal-dim leading-tight">
+            Discover moderated communities from the wider Nostr network and save the ones you want
+            to follow.
+          </p>
+        )}
+        <button
+          onClick={() => onSetViewMode(ViewMode.EXTERNAL_COMMUNITIES)}
+          className="mt-2 w-full text-xs border border-terminal-dim border-dashed text-terminal-dim p-1.5 md:p-2 hover:text-terminal-bg hover:bg-terminal-text hover:border-solid transition-all uppercase"
+        >
+          [~] Explore_Communities
         </button>
       </CollapsibleSection>
 

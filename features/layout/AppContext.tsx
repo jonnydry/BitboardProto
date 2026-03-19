@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useCallback, useMemo, useEffect } from 'react';
+import React, { createContext, useContext, useCallback, useMemo, useEffect, useState } from 'react';
 import {
   Post,
   UserState,
@@ -15,8 +15,9 @@ import { bookmarkService } from '../../services/bookmarkService';
 import { listService } from '../../services/listService';
 import { reportService } from '../../services/reportService';
 import { logger } from '../../services/loggingService';
+import { toastService } from '../../services/toastService';
 import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
-import { FeatureFlags } from '../../config';
+import { FeatureFlags, UIConfig } from '../../config';
 import { useTheme } from '../../hooks/useTheme';
 import { useUrlPostRouting } from '../../hooks/useUrlPostRouting';
 import { useNostrFeed } from '../../hooks/useNostrFeed';
@@ -32,7 +33,10 @@ import { usePostStore } from '../../stores/postStore';
 import { useBoardStore } from '../../stores/boardStore';
 import { useUIStore } from '../../stores/uiStore';
 import { trendingScore } from '../../services/nostr/shared';
+import { communityService } from '../../services/communityService';
+import { votingService } from '../../services/votingService';
 import { useUserStoreEffects, useUserStore } from '../../stores/userStore';
+import { seedRateLimiter } from '../../services/seedRateLimiter';
 
 interface AppContextType {
   // State
@@ -53,6 +57,7 @@ interface AppContextType {
   selectedPost: Post | null;
   activeBoard: Board | null;
   topicBoards: Board[];
+  externalCommunities: Board[];
   decryptionFailedBoardIds: Set<string>;
 
   // Encryption actions
@@ -66,6 +71,16 @@ interface AppContextType {
   feedFilter: 'all' | 'topic' | 'location' | 'following';
   setFeedFilter: (filter: 'all' | 'topic' | 'location' | 'following') => void;
   isNostrConnected: boolean;
+  setUserState: React.Dispatch<React.SetStateAction<UserState>>;
+  joinNostrCommunity: (reference: string) => Promise<string>;
+  seedSourcePost: Post | null;
+  seedIdentityPromptPost: Post | null;
+  seedableBoards: Board[];
+  remainingSeeds: number;
+  requestSeedPost: (post: Post) => void;
+  closeSeedModal: () => void;
+  closeSeedIdentityPrompt: () => void;
+  handleConfirmSeedPost: (destinationBoardId: string) => Promise<void>;
 
   // Event handlers
   handleCreatePost: (
@@ -177,6 +192,8 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
   const handleIdentityChange = useUserStore((state) => state.handleIdentityChange);
   const followingPubkeys = useUserStore((state) => state.followingPubkeys);
   const setFollowingPubkeys = useUserStore((state) => state.setFollowingPubkeys);
+  const [seedSourcePost, setSeedSourcePost] = useState<Post | null>(null);
+  const [seedIdentityPromptPost, setSeedIdentityPromptPost] = useState<Post | null>(null);
 
   // Initialize bookmarkedIds and reportedPostIds from services on mount
   useEffect(() => {
@@ -203,7 +220,13 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
   }, [activeBoardId, boardsById]);
 
   const topicBoards = useMemo(() => {
-    return boards.filter((board) => board.type === BoardType.TOPIC);
+    return boards.filter(
+      (board) => board.type === BoardType.TOPIC && board.source !== 'nostr-community',
+    );
+  }, [boards]);
+
+  const externalCommunities = useMemo(() => {
+    return boards.filter((board) => board.source === 'nostr-community');
   }, [boards]);
 
   const postsCtx = {
@@ -244,6 +267,17 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     handleIdentityChange,
   };
 
+  const seedableBoards = useMemo(
+    () => [...boards.filter((board) => board.isPublic && !board.isReadOnly), ...locationBoards],
+    [boards, locationBoards],
+  );
+
+  const remainingSeeds = useMemo(() => {
+    const pubkey = userCtx.userState.identity?.pubkey;
+    if (!pubkey) return seedRateLimiter.getLimit();
+    return seedRateLimiter.canSeed(pubkey).remaining;
+  }, [userCtx.userState.identity?.pubkey, posts]);
+
   const handleToggleBookmark = useCallback(
     async (postId: string) => {
       // 1. Update locally
@@ -268,6 +302,84 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     },
     [userCtx.userState.identity],
   );
+
+  const joinNostrCommunity = useCallback(
+    async (reference: string) => {
+      const resolved = communityService.resolveCommunityReference(reference);
+      if (!resolved) {
+        throw new Error('Enter a valid community address or naddr.');
+      }
+
+      const community = await communityService.fetchCommunity(
+        resolved.creatorPubkey,
+        resolved.communityId,
+      );
+      if (!community) {
+        throw new Error('Community not found on the configured relays.');
+      }
+
+      const board = communityService.communityToBoard(community);
+      setBoards((prev) => {
+        if (prev.some((candidate) => candidate.id === board.id)) return prev;
+        return [...prev, board];
+      });
+
+      toastService.push({
+        type: 'success',
+        message: 'Nostr community joined',
+        detail: `Added ${board.name} to External Communities.`,
+        durationMs: UIConfig.TOAST_DURATION_MS,
+      });
+
+      return board.id;
+    },
+    [setBoards],
+  );
+
+  const requestSeedPost = useCallback(
+    (post: Post) => {
+      if (post.source !== 'nostr-community') return;
+
+      if (!userCtx.userState.identity) {
+        setSeedIdentityPromptPost(post);
+        return;
+      }
+
+      const rateCheck = seedRateLimiter.canSeed(userCtx.userState.identity.pubkey);
+      if (!rateCheck.allowed) {
+        const resetIn = rateCheck.resetAt
+          ? seedRateLimiter.formatResetTime(rateCheck.resetAt)
+          : 'later';
+        toastService.push({
+          type: 'error',
+          message: 'Seed limit reached',
+          detail: `You can seed ${seedRateLimiter.getLimit()} posts per day. Try again in ${resetIn}.`,
+          durationMs: UIConfig.TOAST_DURATION_MS,
+          dedupeKey: 'seed-post-rate-limit',
+        });
+        return;
+      }
+
+      setSeedSourcePost(post);
+    },
+    [userCtx.userState.identity],
+  );
+
+  const closeSeedModal = useCallback(() => {
+    setSeedSourcePost(null);
+  }, []);
+
+  const closeSeedIdentityPrompt = useCallback(() => {
+    setSeedIdentityPromptPost(null);
+  }, []);
+
+  useEffect(() => {
+    if (!seedIdentityPromptPost || !userCtx.userState.identity) return;
+
+    setSeedIdentityPromptPost(null);
+    setSeedSourcePost(seedIdentityPromptPost);
+    uiCtx.setViewMode(ViewMode.FEED);
+  }, [seedIdentityPromptPost, uiCtx.setViewMode, userCtx.userState.identity]);
 
   // Get relay hint helper
   const getRelayHint = useCallback(() => {
@@ -309,6 +421,54 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     removeFailedKey,
   } = usePostDecryption(filteredPosts, boardsCtx.boardsById);
 
+  const hydrateCommunityPosts = useCallback(async (communityPosts: Post[]) => {
+    const postIds = communityPosts.map((post) => post.nostrEventId).filter(Boolean) as string[];
+    const voteTallies = await votingService.fetchVotesForPosts(postIds);
+    const postsWithVotes = communityPosts.map((post) => {
+      const tally = post.nostrEventId ? voteTallies.get(post.nostrEventId) : undefined;
+      if (!tally) return post;
+      return {
+        ...post,
+        upvotes: tally.upvotes,
+        downvotes: tally.downvotes,
+        score: tally.score,
+        uniqueVoters: tally.uniqueVoters,
+        votesVerified: true,
+      };
+    });
+
+    const pubkeys = Array.from(
+      new Set(postsWithVotes.map((post) => post.authorPubkey).filter(Boolean) as string[]),
+    );
+    if (pubkeys.length > 0) {
+      await nostrService.fetchProfiles(pubkeys);
+      return postsWithVotes.map((post) =>
+        post.authorPubkey
+          ? { ...post, author: nostrService.getDisplayName(post.authorPubkey) }
+          : post,
+      );
+    }
+
+    return postsWithVotes;
+  }, []);
+
+  const upsertExternalCommunityPosts = useCallback(
+    (boardId: string, nextPosts: Post[], opts: { replace?: boolean } = {}) => {
+      setPosts((prev) => {
+        const remaining = prev.filter((post) => post.boardId !== boardId);
+        const existingBoardPosts = opts.replace
+          ? []
+          : prev.filter((post) => post.boardId === boardId);
+        const merged = new Map<string, Post>();
+        [...remaining, ...existingBoardPosts, ...nextPosts].forEach((post) => {
+          merged.set(post.id, post);
+        });
+        return Array.from(merged.values());
+      });
+    },
+    [setPosts],
+  );
+
   const sortedPosts = useMemo(() => {
     if (decryptedPosts === filteredPosts) {
       return derivedSortedPosts;
@@ -336,6 +496,86 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
         return sorted.sort((a, b) => b.score - a.score);
     }
   }, [decryptedPosts, derivedSortedPosts, filteredPosts, uiCtx.sortMode]);
+
+  useEffect(() => {
+    if (!activeBoard || activeBoard.source !== 'nostr-community') return;
+
+    let cancelled = false;
+    const communityAddress = activeBoard.communityAddress || activeBoard.id;
+    let subscriptionId: string | null = null;
+
+    const loadCommunityPosts = async () => {
+      try {
+        const approvedEvents = await communityService.fetchApprovedPosts(
+          communityAddress,
+          activeBoard.authorRelayHints ?? activeBoard.relayHints,
+        );
+        const communityPosts = approvedEvents
+          .map((event) =>
+            communityService.eventToCommunityPost(event, activeBoard.id, communityAddress),
+          )
+          .filter((post): post is Post => post !== null);
+        const hydratedPosts = await hydrateCommunityPosts(communityPosts);
+        if (cancelled) return;
+        upsertExternalCommunityPosts(activeBoard.id, hydratedPosts, { replace: true });
+
+        const overlapSince = Math.max(0, Math.floor(Date.now() / 1000) - 30);
+        subscriptionId = nostrService.subscribeToCommunityApprovals(
+          communityAddress,
+          async (event) => {
+            const approval = communityService.upsertApprovalEvent(event);
+            if (!approval || cancelled) return;
+            try {
+              const approvedEvent = await communityService.fetchApprovedPostById(
+                communityAddress,
+                approval.postEventId,
+                activeBoard.authorRelayHints ?? activeBoard.relayHints,
+              );
+              if (!approvedEvent || cancelled) return;
+              const nextPost = communityService.eventToCommunityPost(
+                approvedEvent,
+                activeBoard.id,
+                communityAddress,
+              );
+              if (!nextPost) return;
+              const [hydratedPost] = await hydrateCommunityPosts([nextPost]);
+              if (!hydratedPost || cancelled) return;
+              upsertExternalCommunityPosts(activeBoard.id, [hydratedPost]);
+            } catch (subscriptionError) {
+              if (cancelled) return;
+              logger.warn(
+                'AppContext',
+                'Failed to process community approval update',
+                subscriptionError,
+              );
+            }
+          },
+          {
+            since: overlapSince,
+            relayHints: activeBoard.approvalRelayHints ?? activeBoard.relayHints,
+          },
+        );
+      } catch (error) {
+        if (cancelled) return;
+        logger.warn('AppContext', 'Failed to load external community posts', error);
+        toastService.push({
+          type: 'error',
+          message: 'Failed to load community feed',
+          detail: error instanceof Error ? error.message : String(error),
+          durationMs: UIConfig.TOAST_DURATION_MS,
+        });
+      }
+    };
+
+    loadCommunityPosts();
+
+    return () => {
+      cancelled = true;
+      if (subscriptionId) {
+        nostrService.unsubscribe(subscriptionId);
+      }
+    };
+  }, [activeBoard, hydrateCommunityPosts, upsertExternalCommunityPosts]);
 
   // Hooks
   useTheme(uiCtx.theme);
@@ -389,10 +629,54 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     locationBoards: boardsCtx.locationBoards,
   });
 
+  const handleConfirmSeedPost = useCallback(
+    async (destinationBoardId: string) => {
+      if (!seedSourcePost) {
+        throw new Error('No source post selected.');
+      }
+      if (!userCtx.userState.identity) {
+        throw new Error('Identity required to seed posts.');
+      }
+
+      const sourceEventId = seedSourcePost.nostrEventId || seedSourcePost.id;
+      const existingSeed = posts.find(
+        (post) =>
+          post.seededFrom === 'nostr' &&
+          post.seedSourceEventId === sourceEventId &&
+          post.boardId === destinationBoardId,
+      );
+      if (existingSeed) {
+        toastService.push({
+          type: 'warning',
+          message: 'Post already seeded',
+          detail: 'That source note already exists in the selected BitBoard board.',
+          durationMs: UIConfig.TOAST_DURATION_MS,
+          dedupeKey: `seed-duplicate-${sourceEventId}-${destinationBoardId}`,
+        });
+        setSeedSourcePost(null);
+        boardsCtx.setActiveBoardId(destinationBoardId);
+        uiCtx.setViewMode(ViewMode.FEED);
+        return;
+      }
+
+      await eventHandlers.handleSeedPost(seedSourcePost, destinationBoardId);
+      setSeedSourcePost(null);
+      boardsCtx.setActiveBoardId(destinationBoardId);
+      uiCtx.setViewMode(ViewMode.FEED);
+      toastService.push({
+        type: 'success',
+        message: 'Seeded into BitBoard',
+        detail: 'The note is now a native BitBoard post with provenance attached.',
+        durationMs: UIConfig.TOAST_DURATION_MS,
+      });
+    },
+    [boardsCtx, eventHandlers, posts, seedSourcePost, uiCtx, userCtx.userState.identity],
+  );
+
   // Infinite scroll hook
   const { loaderRef, isLoading: isLoadingMore } = useInfiniteScroll(
     eventHandlers.loadMorePosts,
-    hasMorePosts && uiCtx.viewMode === ViewMode.FEED,
+    hasMorePosts && uiCtx.viewMode === ViewMode.FEED && activeBoard?.source !== 'nostr-community',
     { threshold: 300 },
   );
 
@@ -412,81 +696,144 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
   // Memoize contextValue so that consumers only re-render when the specific
   // slice they depend on actually changes, rather than on every render of
   // AppProviderInternal (which re-renders whenever any Zustand store changes).
-  const contextValue: AppContextType = useMemo(() => ({
-    // State (aggregated from focused contexts)
-    posts: postsCtx.posts,
-    boards: boardsCtx.boards,
-    viewMode: uiCtx.viewMode,
-    theme,
-    activeBoardId: boardsCtx.activeBoardId,
-    locationBoards: boardsCtx.locationBoards,
-    profileUser: uiCtx.profileUser,
-    editingPostId: uiCtx.editingPostId,
-    userState: userCtx.userState,
+  const contextValue: AppContextType = useMemo(
+    () => ({
+      // State (aggregated from focused contexts)
+      posts: postsCtx.posts,
+      boards: boardsCtx.boards,
+      viewMode: uiCtx.viewMode,
+      theme,
+      activeBoardId: boardsCtx.activeBoardId,
+      locationBoards: boardsCtx.locationBoards,
+      profileUser: uiCtx.profileUser,
+      editingPostId: uiCtx.editingPostId,
+      userState: userCtx.userState,
 
-    // Computed values (aggregated from focused contexts)
-    postsById: postsCtx.postsById,
-    sortedPosts,
-    knownUsers,
-    selectedPost,
-    activeBoard: boardsCtx.activeBoard,
-    topicBoards: boardsCtx.topicBoards,
-    decryptionFailedBoardIds,
-    removeFailedDecryptionKey: removeFailedKey,
+      // Computed values (aggregated from focused contexts)
+      postsById: postsCtx.postsById,
+      sortedPosts,
+      knownUsers,
+      selectedPost,
+      activeBoard: boardsCtx.activeBoard,
+      topicBoards: boardsCtx.topicBoards,
+      externalCommunities,
+      decryptionFailedBoardIds,
+      removeFailedDecryptionKey: removeFailedKey,
 
-    // Actions (delegated to focused contexts)
-    setViewMode: uiCtx.setViewMode,
-    setTheme,
-    setLocationBoards: boardsCtx.setLocationBoards,
-    getThemeColor: (id: ThemeId) => themeColorMap.get(id) || '#ffffff',
-    feedFilter,
-    setFeedFilter,
-    isNostrConnected,
+      // Actions (delegated to focused contexts)
+      setViewMode: uiCtx.setViewMode,
+      setTheme,
+      setLocationBoards: boardsCtx.setLocationBoards,
+      getThemeColor: (id: ThemeId) => themeColorMap.get(id) || '#ffffff',
+      feedFilter,
+      setFeedFilter,
+      isNostrConnected,
+      setUserState: userCtx.setUserState,
+      joinNostrCommunity,
+      seedSourcePost,
+      seedIdentityPromptPost,
+      seedableBoards,
+      remainingSeeds,
+      requestSeedPost,
+      closeSeedModal,
+      closeSeedIdentityPrompt,
+      handleConfirmSeedPost,
 
-    // Event handlers
-    handleCreatePost: eventHandlers.handleCreatePost,
-    handleCreateBoard: eventHandlers.handleCreateBoard,
-    handleComment: eventHandlers.handleComment,
-    handleEditComment: eventHandlers.handleEditComment,
-    handleDeleteComment: eventHandlers.handleDeleteComment,
-    navigateToBoard: eventHandlers.navigateToBoard,
-    returnToFeed: eventHandlers.returnToFeed,
-    handleIdentityChange: userCtx.handleIdentityChange,
-    handleViewProfile: eventHandlers.handleViewProfile,
-    handleEditPost: eventHandlers.handleEditPost,
-    handleSavePost: eventHandlers.handleSavePost,
-    handleDeletePost: eventHandlers.handleDeletePost,
-    handleTagClick: eventHandlers.handleTagClick,
-    handleVote,
-    handleCommentVote,
-    handleToggleBookmark,
-    getBoardName: eventHandlers.getBoardName,
-    refreshProfileMetadata: eventHandlers.refreshProfileMetadata,
-    handleRetryPost: eventHandlers.handleRetryPost,
-    toggleMute: userCtx.toggleMute,
-    isMuted: userCtx.isMuted,
+      // Event handlers
+      handleCreatePost: eventHandlers.handleCreatePost,
+      handleCreateBoard: eventHandlers.handleCreateBoard,
+      handleComment: eventHandlers.handleComment,
+      handleEditComment: eventHandlers.handleEditComment,
+      handleDeleteComment: eventHandlers.handleDeleteComment,
+      navigateToBoard: eventHandlers.navigateToBoard,
+      returnToFeed: eventHandlers.returnToFeed,
+      handleIdentityChange: userCtx.handleIdentityChange,
+      handleViewProfile: eventHandlers.handleViewProfile,
+      handleEditPost: eventHandlers.handleEditPost,
+      handleSavePost: eventHandlers.handleSavePost,
+      handleDeletePost: eventHandlers.handleDeletePost,
+      handleTagClick: eventHandlers.handleTagClick,
+      handleVote,
+      handleCommentVote,
+      handleToggleBookmark,
+      getBoardName: eventHandlers.getBoardName,
+      refreshProfileMetadata: eventHandlers.refreshProfileMetadata,
+      handleRetryPost: eventHandlers.handleRetryPost,
+      toggleMute: userCtx.toggleMute,
+      isMuted: userCtx.isMuted,
 
-    // Hooks
-    loaderRef,
-    isLoadingMore,
-    isInitialLoading,
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [
-    postsCtx.posts, postsCtx.postsById, postsCtx.setPosts, postsCtx.markPostAccessed,
-    boardsCtx.boards, boardsCtx.locationBoards, boardsCtx.activeBoardId, boardsCtx.topicBoards,
-    boardsCtx.activeBoard, boardsCtx.setBoards, boardsCtx.setLocationBoards, boardsCtx.setActiveBoardId,
-    uiCtx.viewMode, theme, uiCtx.profileUser, uiCtx.editingPostId, uiCtx.setViewMode, uiCtx.setEditingPostId,
-    userCtx.userState, userCtx.toggleMute, userCtx.isMuted, userCtx.handleIdentityChange,
-    sortedPosts, knownUsers, selectedPost, decryptionFailedBoardIds, removeFailedKey,
-    feedFilter, setFeedFilter, isNostrConnected, setTheme,
-    eventHandlers.handleCreatePost, eventHandlers.handleCreateBoard, eventHandlers.handleComment,
-    eventHandlers.handleEditComment, eventHandlers.handleDeleteComment, eventHandlers.navigateToBoard,
-    eventHandlers.returnToFeed, eventHandlers.handleViewProfile, eventHandlers.handleEditPost,
-    eventHandlers.handleSavePost, eventHandlers.handleDeletePost, eventHandlers.handleTagClick,
-    eventHandlers.getBoardName, eventHandlers.refreshProfileMetadata, eventHandlers.handleRetryPost,
-    handleVote, handleCommentVote, handleToggleBookmark,
-    loaderRef, isLoadingMore, isInitialLoading,
-  ]);
+      // Hooks
+      loaderRef,
+      isLoadingMore,
+      isInitialLoading,
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }),
+    [
+      postsCtx.posts,
+      postsCtx.postsById,
+      postsCtx.setPosts,
+      postsCtx.markPostAccessed,
+      boardsCtx.boards,
+      boardsCtx.locationBoards,
+      boardsCtx.activeBoardId,
+      boardsCtx.topicBoards,
+      boardsCtx.activeBoard,
+      boardsCtx.setBoards,
+      boardsCtx.setLocationBoards,
+      boardsCtx.setActiveBoardId,
+      uiCtx.viewMode,
+      theme,
+      uiCtx.profileUser,
+      uiCtx.editingPostId,
+      uiCtx.setViewMode,
+      uiCtx.setEditingPostId,
+      userCtx.userState,
+      userCtx.toggleMute,
+      userCtx.isMuted,
+      userCtx.handleIdentityChange,
+      sortedPosts,
+      knownUsers,
+      selectedPost,
+      externalCommunities,
+      decryptionFailedBoardIds,
+      removeFailedKey,
+      feedFilter,
+      setFeedFilter,
+      isNostrConnected,
+      setTheme,
+      userCtx.setUserState,
+      joinNostrCommunity,
+      seedSourcePost,
+      seedIdentityPromptPost,
+      seedableBoards,
+      remainingSeeds,
+      requestSeedPost,
+      closeSeedModal,
+      closeSeedIdentityPrompt,
+      handleConfirmSeedPost,
+      eventHandlers.handleCreatePost,
+      eventHandlers.handleCreateBoard,
+      eventHandlers.handleComment,
+      eventHandlers.handleEditComment,
+      eventHandlers.handleDeleteComment,
+      eventHandlers.navigateToBoard,
+      eventHandlers.returnToFeed,
+      eventHandlers.handleViewProfile,
+      eventHandlers.handleEditPost,
+      eventHandlers.handleSavePost,
+      eventHandlers.handleDeletePost,
+      eventHandlers.handleTagClick,
+      eventHandlers.getBoardName,
+      eventHandlers.refreshProfileMetadata,
+      eventHandlers.handleRetryPost,
+      handleVote,
+      handleCommentVote,
+      handleToggleBookmark,
+      loaderRef,
+      isLoadingMore,
+      isInitialLoading,
+    ],
+  );
 
   return <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>;
 };

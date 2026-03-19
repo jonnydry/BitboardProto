@@ -168,6 +168,7 @@ export const useAppEventHandlers = ({
     handleDeletePost: postMutationHandlers.handleDeletePost,
     handleTagClick: navigationHandlers.handleTagClick,
     handleSearch: navigationHandlers.handleSearch,
+    handleSeedPost: postMutationHandlers.handleSeedPost,
     loadMorePosts: feedHandlers.loadMorePosts,
     getBoardName: feedHandlers.getBoardName,
     refreshProfileMetadata: feedHandlers.refreshProfileMetadata,

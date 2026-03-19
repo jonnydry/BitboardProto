@@ -9,6 +9,7 @@ import { logger } from '../../services/loggingService';
 import { UIConfig } from '../../config';
 import { encryptedBoardService } from '../../services/encryptedBoardService';
 import { bookmarkService } from '../../services/bookmarkService';
+import { seedRateLimiter } from '../../services/seedRateLimiter';
 
 interface UseAppPostMutationHandlersArgs {
   boardsById: Map<string, Board>;
@@ -442,6 +443,124 @@ export function useAppPostMutationHandlers({
 
   return {
     handleCreatePost,
+    handleSeedPost: async (sourcePost: Post, destinationBoardId: string) => {
+      if (!userState.identity) {
+        throw new Error('Identity required to seed posts into BitBoard.');
+      }
+
+      const rateCheck = seedRateLimiter.canSeed(userState.identity.pubkey);
+      if (!rateCheck.allowed) {
+        const resetIn = rateCheck.resetAt
+          ? seedRateLimiter.formatResetTime(rateCheck.resetAt)
+          : 'later';
+        throw new Error(
+          `Seed limit reached. You can seed ${seedRateLimiter.getLimit()} posts per day. Try again in ${resetIn}.`,
+        );
+      }
+
+      const targetBoard = boardsById.get(destinationBoardId);
+      if (!targetBoard || targetBoard.isReadOnly) {
+        throw new Error('Choose a writable BitBoard destination.');
+      }
+
+      const timestamp = Date.now();
+      const localId = `local-seed-${timestamp}`;
+      const seedTitle = sourcePost.title.trim() || 'Seeded from Nostr';
+      const seedContent = sourcePost.content.trim();
+
+      const newPost: Post = {
+        id: localId,
+        boardId: destinationBoardId,
+        seededFrom: 'nostr',
+        seedSourceEventId: sourcePost.nostrEventId || sourcePost.id,
+        seedSourceAuthorPubkey: sourcePost.authorPubkey,
+        seedSourceCommunityAddress: sourcePost.communityAddress,
+        title: seedTitle,
+        author: userState.username,
+        authorPubkey: userState.identity.pubkey,
+        content: seedContent,
+        timestamp,
+        score: 1,
+        commentCount: 0,
+        tags: sourcePost.tags,
+        url: sourcePost.url,
+        imageUrl: sourcePost.imageUrl,
+        linkDescription: sourcePost.linkDescription,
+        comments: [],
+        upvotes: 1,
+        downvotes: 0,
+        syncStatus: 'pending',
+      };
+
+      setPosts((prev) => [newPost, ...prev]);
+      setViewMode(ViewMode.FEED);
+
+      try {
+        const geohash = targetBoard.type === BoardType.GEOHASH ? targetBoard.geohash : undefined;
+        const boardAddress = targetBoard.createdBy
+          ? `${NOSTR_KINDS.BOARD_DEFINITION}:${targetBoard.createdBy}:${targetBoard.id}`
+          : undefined;
+
+        const unsigned = nostrService.buildPostEvent(
+          {
+            boardId: destinationBoardId,
+            title: seedTitle,
+            content: seedContent,
+            url: sourcePost.url,
+            imageUrl: sourcePost.imageUrl,
+            linkDescription: sourcePost.linkDescription,
+            author: userState.username,
+            authorPubkey: userState.identity.pubkey,
+            timestamp,
+            tags: sourcePost.tags,
+            seededFrom: 'nostr',
+            seedSourceEventId: sourcePost.nostrEventId || sourcePost.id,
+            seedSourceAuthorPubkey: sourcePost.authorPubkey,
+            seedSourceCommunityAddress: sourcePost.communityAddress,
+          },
+          userState.identity.pubkey,
+          geohash,
+          {
+            boardAddress,
+            boardName: targetBoard.name,
+            seedSourceEventId: sourcePost.nostrEventId || sourcePost.id,
+            seedSourceAuthorPubkey: sourcePost.authorPubkey,
+            seedSourceCommunityAddress: sourcePost.communityAddress,
+          },
+        );
+        const signed = await identityService.signEvent(unsigned);
+        const event = await nostrService.publishSignedEvent(signed);
+
+        seedRateLimiter.recordSeed(
+          userState.identity.pubkey,
+          sourcePost.nostrEventId || sourcePost.id,
+          destinationBoardId,
+        );
+
+        setPosts((prev) =>
+          prev.map((post) =>
+            post.id === localId
+              ? {
+                  ...post,
+                  nostrEventId: event.id,
+                  id: event.id,
+                  syncStatus: 'synced',
+                  syncError: undefined,
+                }
+              : post,
+          ),
+        );
+      } catch (error) {
+        logger.error('App', 'Failed to seed post to BitBoard', error);
+        const errMsg = error instanceof Error ? error.message : String(error);
+        setPosts((prev) =>
+          prev.map((post) =>
+            post.id === localId ? { ...post, syncStatus: 'failed', syncError: errMsg } : post,
+          ),
+        );
+        throw new Error(`Failed to publish seeded post. ${getRelayHint()}`);
+      }
+    },
     handleSavePost,
     handleDeletePost,
     handleRetryPost,

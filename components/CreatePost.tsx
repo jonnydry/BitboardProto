@@ -45,6 +45,10 @@ export const CreatePost: React.FC<CreatePostProps> = ({
   activeUser,
   userPubkey,
 }) => {
+  const initialBoardId =
+    currentBoardId && availableBoards.some((board) => board.id === currentBoardId)
+      ? currentBoardId
+      : availableBoards[0]?.id || '';
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [imageUrl, setImageUrl] = useState('');
@@ -54,9 +58,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({
   const [tagInput, setTagInput] = useState('');
   // keep tagsStr in sync for draft persistence
   const tagsStr = tags.join(', ');
-  const [selectedBoardId, setSelectedBoardId] = useState(
-    currentBoardId || availableBoards[0]?.id || '',
-  );
+  const [selectedBoardId, setSelectedBoardId] = useState(initialBoardId);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -128,6 +130,12 @@ export const CreatePost: React.FC<CreatePostProps> = ({
       // Ignore malformed drafts
     }
   }, [availableBoards]);
+
+  useEffect(() => {
+    if (!availableBoards.some((board) => board.id === selectedBoardId)) {
+      setSelectedBoardId(initialBoardId);
+    }
+  }, [availableBoards, initialBoardId, selectedBoardId]);
 
   // Debounce timer ref
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

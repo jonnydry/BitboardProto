@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback, useState, useEffect } from 'react';
-import { MapPin, Share2, Lock, ChevronUp, Calendar } from 'lucide-react';
+import { MapPin, Share2, Lock, ChevronUp, Calendar, Radio } from 'lucide-react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import type { Post, SortMode } from '../../types';
 import { BoardType, ViewMode } from '../../types';
@@ -62,6 +62,7 @@ export function FeedView(props: {
   onDeletePost: (postId: string) => void;
 
   onToggleBookmark: (id: string) => void;
+  onSeedPost?: (post: Post) => void;
 
   loaderRef: React.RefObject<HTMLDivElement>;
   isLoadingMore: boolean;
@@ -99,10 +100,14 @@ export function FeedView(props: {
     onCommentVote,
     onDeletePost,
     onToggleBookmark,
+    onSeedPost,
     onToggleMute,
     isMuted,
     onRetryPost,
   } = props;
+
+  const canPaginateBoard = activeBoard?.source !== 'nostr-community';
+  const showHasMorePosts = hasMorePosts && canPaginateBoard;
 
   const handleSetSortMode = useCallback(
     (m: SortMode) => {
@@ -298,6 +303,26 @@ export function FeedView(props: {
   );
 
   const emptyState = useMemo(() => {
+    if (activeBoard?.source === 'nostr-community') {
+      return (
+        <div className="border border-terminal-dim p-12 text-center text-terminal-dim flex flex-col items-center gap-4">
+          <Radio size={48} className="opacity-20" />
+          <div>
+            <p className="font-bold">&gt; NO APPROVED POSTS FOUND</p>
+            <p className="text-xs mt-2">
+              This external community does not have any approved notes on your current relays yet.
+            </p>
+          </div>
+          <button
+            onClick={() => setViewMode(ViewMode.EXTERNAL_COMMUNITIES)}
+            className="mt-4 px-4 py-2 border border-terminal-dim hover:bg-terminal-dim hover:text-white transition-colors uppercase text-sm"
+          >
+            [ BROWSE_COMMUNITIES ]
+          </button>
+        </div>
+      );
+    }
+
     // Location-specific empty state
     if (feedFilter === 'location') {
       return (
@@ -352,7 +377,7 @@ export function FeedView(props: {
         </button>
       </div>
     );
-  }, [feedFilter, setViewMode]);
+  }, [activeBoard?.source, feedFilter, setViewMode]);
 
   return (
     <div className="space-y-2">
@@ -471,6 +496,7 @@ export function FeedView(props: {
                   onDeletePost={handleDeletePost}
                   onTagClick={handleTagClick}
                   onToggleBookmark={handleToggleBookmark}
+                  onSeedPost={onSeedPost}
                   onToggleMute={handleToggleMute}
                   isMuted={isMuted}
                   onRetryPost={handleRetryPost}
@@ -482,7 +508,7 @@ export function FeedView(props: {
           <FeedLoaderRow
             loaderRef={loaderRef}
             isLoadingMore={isLoadingMore}
-            hasMorePosts={hasMorePosts}
+            hasMorePosts={showHasMorePosts}
             postCount={sortedPosts.length}
           />
         </>
@@ -499,7 +525,7 @@ export function FeedView(props: {
                   key="feed-loader-row"
                   loaderRef={loaderRef}
                   isLoadingMore={isLoadingMore}
-                  hasMorePosts={hasMorePosts}
+                  hasMorePosts={showHasMorePosts}
                   postCount={sortedPosts.length}
                   style={{
                     position: 'absolute',
@@ -548,6 +574,7 @@ export function FeedView(props: {
                   onDeletePost={handleDeletePost}
                   onTagClick={handleTagClick}
                   onToggleBookmark={handleToggleBookmark}
+                  onSeedPost={onSeedPost}
                   onToggleMute={handleToggleMute}
                   isMuted={isMuted}
                   onRetryPost={handleRetryPost}

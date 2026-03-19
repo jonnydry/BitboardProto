@@ -31,6 +31,12 @@ export function buildPostEvent(
     encryptedTitle?: string;
     /** Encrypted content (base64) */
     encryptedContent?: string;
+    /** Original source event if this BitBoard post was seeded */
+    seedSourceEventId?: string;
+    /** Original source author if this BitBoard post was seeded */
+    seedSourceAuthorPubkey?: string;
+    /** Original source community if this BitBoard post was seeded */
+    seedSourceCommunityAddress?: string;
   },
 ): UnsignedNostrEvent {
   const isEncrypted = !!(opts?.encryptedTitle || opts?.encryptedContent);
@@ -65,6 +71,17 @@ export function buildPostEvent(
   // NIP-33: addressable reference to board (preferred), keep legacy 'board' tag too
   if (opts?.boardAddress) {
     tags.push(['a', opts.boardAddress]);
+  }
+
+  if (opts?.seedSourceEventId) {
+    tags.push(['seed_source', 'nostr']);
+    tags.push(['seed_event', opts.seedSourceEventId]);
+  }
+  if (opts?.seedSourceAuthorPubkey) {
+    tags.push(['seed_author', opts.seedSourceAuthorPubkey]);
+  }
+  if (opts?.seedSourceCommunityAddress) {
+    tags.push(['seed_community', opts.seedSourceCommunityAddress]);
   }
 
   // Discoverability hashtag for board name

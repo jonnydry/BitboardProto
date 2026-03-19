@@ -1,6 +1,6 @@
 import React, { useMemo, useCallback } from 'react';
 import { Post, UserState } from '../types';
-import { ArrowLeft, Lock, Edit3, Bookmark, Shield, Trash2, Loader2 } from 'lucide-react';
+import { ArrowLeft, Lock, Edit3, Bookmark, Shield, Trash2, Loader2, Radio } from 'lucide-react';
 import { CommentThread, buildCommentTree } from './CommentThread';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { MentionInput } from './MentionInput';
@@ -24,6 +24,7 @@ interface PostDetailPageProps {
   onBack: () => void;
   isBookmarked?: boolean;
   onToggleBookmark?: (postId: string) => void;
+  onSeedPost?: (post: Post) => void;
   hasReported?: boolean;
 }
 
@@ -44,6 +45,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
   onBack,
   isBookmarked = false,
   onToggleBookmark,
+  onSeedPost,
   hasReported: _hasReported = false,
 }) => {
   const [newComment, setNewComment] = React.useState('');
@@ -356,6 +358,11 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
               </button>
               <span className="text-terminal-dim/50 text-sm">·</span>
               <span className="text-sm text-terminal-dim/70">{formatTime(post.timestamp)}</span>
+              {post.seededFrom === 'nostr' && (
+                <span className="flex items-center gap-1 border border-terminal-dim/30 px-2 py-0.5 text-xs uppercase tracking-wider text-terminal-dim/80">
+                  <Radio size={10} /> Seeded From Nostr
+                </span>
+              )}
               {isOwnPost && onEditPost && (
                 <button
                   onClick={handleEditClick}
@@ -508,6 +515,15 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
           <Bookmark size={12} fill={isBookmarked ? 'currentColor' : 'none'} />
           save
         </button>
+
+        {post.source === 'nostr-community' && onSeedPost && (
+          <button
+            onClick={() => onSeedPost(post)}
+            className="flex items-center gap-1.25 text-sm text-terminal-dim/70 hover:text-terminal-dim tracking-[0.06em] transition-colors"
+          >
+            <Radio size={12} /> seed to bitboard
+          </button>
+        )}
       </div>
 
       {/* Comment Composer */}

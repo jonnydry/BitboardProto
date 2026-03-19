@@ -13,6 +13,8 @@ import { MobileDrawer } from './features/layout/MobileDrawer';
 import { MemoizedFeedView as FeedView } from './features/feed/FeedView';
 import { NotificationCenterV2 } from './components/NotificationCenterV2';
 import { PostDetailPage } from './components/PostDetailPage';
+import { SeedToBitBoardModal } from './components/SeedToBitBoardModal';
+import { SeedIdentityRequiredModal } from './components/SeedIdentityRequiredModal';
 import { ViewMode } from './types';
 import { nostrService } from './services/nostr/NostrService';
 import { keyboardShortcutsService } from './services/keyboardShortcutsService';
@@ -50,6 +52,11 @@ const EditPost = lazy(() =>
 );
 const BoardBrowser = lazy(() =>
   import('./components/BoardBrowser').then((module) => ({ default: module.BoardBrowser })),
+);
+const ExternalCommunitiesBrowser = lazy(() =>
+  import('./components/ExternalCommunitiesBrowser').then((module) => ({
+    default: module.ExternalCommunitiesBrowser,
+  })),
 );
 const PrivacyPolicy = lazy(() =>
   import('./components/PrivacyPolicy').then((module) => ({ default: module.PrivacyPolicy })),
@@ -96,7 +103,7 @@ const IdentityUnlockModal = (props: {
   onSubmit: () => void;
   onReset: () => void;
 }) => (
-  <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 px-4">
+  <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 px-4 font-mono text-terminal-text">
     <div className="w-full max-w-md border-2 border-terminal-text bg-terminal-bg p-6 shadow-hard-lg">
       <h2 className="text-lg font-terminal uppercase tracking-widest text-terminal-text">
         {props.isMigration ? 'Secure Your Identity' : 'Unlock Identity'}
@@ -112,7 +119,7 @@ const IdentityUnlockModal = (props: {
           type="password"
           value={props.passphrase}
           onChange={(e) => props.onPassphraseChange(e.target.value)}
-          className="w-full border border-terminal-dim bg-terminal-bg p-3 text-terminal-text focus:border-terminal-text focus:outline-none"
+          className="w-full border border-terminal-dim bg-terminal-bg p-3 text-sm text-terminal-text font-mono placeholder:text-terminal-dim/50 focus:border-terminal-text focus:outline-none"
           placeholder={props.isMigration ? 'Create a passphrase' : 'Enter passphrase'}
         />
 
@@ -121,17 +128,17 @@ const IdentityUnlockModal = (props: {
             type="password"
             value={props.confirmPassphrase}
             onChange={(e) => props.onConfirmPassphraseChange(e.target.value)}
-            className="w-full border border-terminal-dim bg-terminal-bg p-3 text-terminal-text focus:border-terminal-text focus:outline-none"
+            className="w-full border border-terminal-dim bg-terminal-bg p-3 text-sm text-terminal-text font-mono placeholder:text-terminal-dim/50 focus:border-terminal-text focus:outline-none"
             placeholder="Repeat passphrase"
           />
         )}
 
-        <div className="border border-terminal-alert/40 bg-terminal-alert/5 p-3 text-xs leading-relaxed text-terminal-dim">
+        <div className="border border-terminal-alert/40 bg-terminal-alert/5 p-3 text-xs leading-relaxed text-terminal-dim font-mono">
           If you forget this passphrase, BitBoard cannot recover your locally stored private key.
         </div>
 
         {props.error && (
-          <div className="border border-terminal-alert/40 bg-terminal-alert/5 p-3 text-sm text-terminal-alert">
+          <div className="border border-terminal-alert/40 bg-terminal-alert/5 p-3 text-sm text-terminal-alert font-mono">
             {props.error}
           </div>
         )}
@@ -140,7 +147,7 @@ const IdentityUnlockModal = (props: {
           type="button"
           onClick={props.onSubmit}
           disabled={props.isSubmitting}
-          className="w-full border border-terminal-text bg-terminal-text px-4 py-3 font-bold uppercase tracking-wide text-black transition-colors hover:bg-terminal-dim hover:text-terminal-bg disabled:opacity-60"
+          className="w-full border border-terminal-text bg-terminal-text px-4 py-3 font-mono font-bold uppercase tracking-wide text-black transition-colors hover:bg-terminal-dim hover:text-terminal-bg disabled:opacity-60"
         >
           {props.isSubmitting
             ? props.isMigration
@@ -155,7 +162,7 @@ const IdentityUnlockModal = (props: {
           type="button"
           onClick={props.onReset}
           disabled={props.isSubmitting}
-          className="w-full border border-terminal-dim px-4 py-3 text-xs uppercase tracking-wide text-terminal-dim transition-colors hover:border-terminal-alert hover:text-terminal-alert disabled:opacity-60"
+          className="w-full border border-terminal-dim px-4 py-3 text-xs font-mono uppercase tracking-wide text-terminal-dim transition-colors hover:border-terminal-alert hover:text-terminal-alert disabled:opacity-60"
         >
           Reset Local Identity
         </button>
@@ -179,6 +186,9 @@ const AppContent: React.FC = () => {
   const [notificationDmTargetPubkey, setNotificationDmTargetPubkey] = useState<
     string | undefined
   >();
+  const [identityEntryIntent, setIdentityEntryIntent] = useState<'generate' | 'import' | null>(
+    null,
+  );
   const keyboardModalStateRef = React.useRef({ showKeyboardHelp: false, showOnboarding: false });
   const navigateToBoard = app.navigateToBoard;
   const bookmarkedIds = useUIStore((s) => s.bookmarkedIds);
@@ -299,6 +309,13 @@ const AppContent: React.FC = () => {
       action: () => useUIStore.getState().setViewMode(ViewMode.BROWSE_BOARDS),
     });
 
+    keyboardShortcutsService.register({
+      key: 'e',
+      description: 'Browse external communities',
+      category: 'navigation',
+      action: () => useUIStore.getState().setViewMode(ViewMode.EXTERNAL_COMMUNITIES),
+    });
+
     const focusSearchInput = () => {
       const searchInput = document.querySelector('input[data-search-input]') as HTMLInputElement;
       searchInput?.focus();
@@ -354,14 +371,12 @@ const AppContent: React.FC = () => {
       // Hash the pubkey before sending to Sentry to avoid associating a
       // pseudonymous Nostr identity with error reports, IP addresses, and
       // browser fingerprints stored on third-party infrastructure.
-      void crypto.subtle
-        .digest('SHA-256', new TextEncoder().encode(rawPubkey))
-        .then((hashBuf) => {
-          const hashHex = Array.from(new Uint8Array(hashBuf))
-            .map((b) => b.toString(16).padStart(2, '0'))
-            .join('');
-          sentryService.setUser({ id: hashHex, username });
-        });
+      void crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawPubkey)).then((hashBuf) => {
+        const hashHex = Array.from(new Uint8Array(hashBuf))
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join('');
+        sentryService.setUser({ id: hashHex, username });
+      });
 
       analyticsService.identify(rawPubkey, {
         username: username,
@@ -385,6 +400,12 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (app.viewMode !== ViewMode.DIRECT_MESSAGES) {
       setNotificationDmTargetPubkey(undefined);
+    }
+  }, [app.viewMode]);
+
+  useEffect(() => {
+    if (app.viewMode !== ViewMode.IDENTITY) {
+      setIdentityEntryIntent(null);
     }
   }, [app.viewMode]);
 
@@ -481,6 +502,7 @@ const AppContent: React.FC = () => {
             feedFilter={app.feedFilter}
             setFeedFilter={app.setFeedFilter}
             topicBoards={app.topicBoards ?? []}
+            externalCommunities={app.externalCommunities ?? []}
             geohashBoards={app.geohashBoards ?? []}
             boardsById={app.boardsById ?? new Map()}
             decryptionFailedBoardIds={app.decryptionFailedBoardIds}
@@ -513,6 +535,7 @@ const AppContent: React.FC = () => {
                   onCommentVote={app.handleCommentVote}
                   onDeletePost={app.handleDeletePost}
                   onToggleBookmark={app.handleToggleBookmark}
+                  onSeedPost={app.requestSeedPost}
                   onToggleMute={app.toggleMute}
                   isMuted={app.isMuted}
                   onRetryPost={app.handleRetryPost}
@@ -538,6 +561,7 @@ const AppContent: React.FC = () => {
                       onDeletePost={app.handleDeletePost}
                       onTagClick={app.handleTagClick}
                       onToggleBookmark={app.handleToggleBookmark}
+                      onSeedPost={app.requestSeedPost}
                       onBack={app.returnToFeed}
                       isBookmarked={bookmarkedIds.includes(app.selectedPost.id)}
                       hasReported={reportedPostIds.includes(app.selectedPost.id)}
@@ -563,7 +587,7 @@ const AppContent: React.FC = () => {
                 <Suspense fallback={<LoadingFallback />}>
                   <CreatePost
                     availableBoards={[
-                      ...app.boards.filter((b) => b.isPublic),
+                      ...app.boards.filter((b) => b.isPublic && !b.isReadOnly),
                       ...app.locationBoards,
                     ]}
                     currentBoardId={app.activeBoardId}
@@ -595,12 +619,24 @@ const AppContent: React.FC = () => {
                   />
                 </Suspense>
               )}
+              {app.viewMode === ViewMode.EXTERNAL_COMMUNITIES && (
+                <Suspense fallback={<LoadingFallback />}>
+                  <ExternalCommunitiesBrowser
+                    externalCommunities={app.externalCommunities ?? []}
+                    onNavigateToBoard={app.navigateToBoard}
+                    onJoinNostrCommunity={app.joinNostrCommunity}
+                    onClose={() => app.setViewMode(ViewMode.FEED)}
+                    onSeedPost={app.requestSeedPost}
+                  />
+                </Suspense>
+              )}
               {app.viewMode === ViewMode.IDENTITY && (
                 <Suspense fallback={<LoadingFallback />}>
                   <IdentityManager
                     onIdentityChange={app.handleIdentityChange}
                     onClose={() => app.setViewMode(ViewMode.FEED)}
                     onViewProfile={app.handleViewProfile}
+                    initialIntent={identityEntryIntent ?? undefined}
                   />
                 </Suspense>
               )}
@@ -714,6 +750,7 @@ const AppContent: React.FC = () => {
                 feedFilter={app.feedFilter}
                 setFeedFilter={app.setFeedFilter}
                 topicBoards={app.topicBoards ?? []}
+                externalCommunities={app.externalCommunities ?? []}
                 geohashBoards={app.geohashBoards ?? []}
                 boardsById={app.boardsById ?? new Map()}
                 decryptionFailedBoardIds={app.decryptionFailedBoardIds}
@@ -725,7 +762,33 @@ const AppContent: React.FC = () => {
           </div>
         </div>
 
-        {/* Footer - hidden on mobile to make room for bottom nav */}
+        {app.seedIdentityPromptPost && (
+          <SeedIdentityRequiredModal
+            post={app.seedIdentityPromptPost}
+            onClose={app.closeSeedIdentityPrompt}
+            onCreateIdentity={() => {
+              setIdentityEntryIntent('generate');
+              app.closeSeedIdentityPrompt();
+              app.setViewMode(ViewMode.IDENTITY);
+            }}
+            onImportIdentity={() => {
+              setIdentityEntryIntent('import');
+              app.closeSeedIdentityPrompt();
+              app.setViewMode(ViewMode.IDENTITY);
+            }}
+          />
+        )}
+
+        {app.seedSourcePost && (
+          <SeedToBitBoardModal
+            post={app.seedSourcePost}
+            boards={app.seedableBoards}
+            remainingSeeds={app.remainingSeeds}
+            onClose={app.closeSeedModal}
+            onSubmit={app.handleConfirmSeedPost}
+          />
+        )}
+
         <footer className="hidden md:block text-center text-terminal-dim text-xs py-8">
           <div className="mb-2">
             BitBoard NOSTR PROTOCOL V3.0 // RELAYS: {nostrService.getRelays().length} // NODES

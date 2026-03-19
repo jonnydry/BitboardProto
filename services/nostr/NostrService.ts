@@ -335,6 +335,11 @@ class NostrService {
     return merged;
   }
 
+  private resolveQueryRelays(relayHints?: string[]): string[] {
+    const normalizedHints = relayHints ? this.normalizeRelayList(relayHints) : [];
+    return this.mergeRelays(normalizedHints, this.getReadRelays());
+  }
+
   /**
    * Prefer user relays for publishing, then fall back to defaults.
    */
@@ -1073,6 +1078,12 @@ class NostrService {
       encryptedTitle?: string;
       /** Encrypted content (base64) */
       encryptedContent?: string;
+      /** Original source event if this BitBoard post was seeded */
+      seedSourceEventId?: string;
+      /** Original source author if this BitBoard post was seeded */
+      seedSourceAuthorPubkey?: string;
+      /** Original source community if this BitBoard post was seeded */
+      seedSourceCommunityAddress?: string;
     },
   ): UnsignedNostrEvent {
     return buildPostEvent(post, pubkey, geohash, opts);
@@ -1378,7 +1389,14 @@ class NostrService {
    * Used to hydrate bookmarks after posts were evicted from the in-memory LRU cache.
    * Does not use the realtime deduplicator — evicted posts may still be marked "seen" there.
    */
-  async fetchPostsByIds(ids: string[]): Promise<NostrEvent[]> {
+  async fetchEventsByIds(
+    ids: string[],
+    opts: {
+      kinds?: number[];
+      relayHints?: string[];
+      predicate?: (event: NostrEvent) => boolean;
+    } = {},
+  ): Promise<NostrEvent[]> {
     const unique = [...new Set(ids.filter((id) => /^[0-9a-f]{64}$/i.test(id)))];
     if (unique.length === 0) return [];
 
@@ -1387,7 +1405,7 @@ class NostrService {
 
     this._activeFetches++;
     try {
-      const readRelays = this.getReadRelays();
+      const readRelays = this.resolveQueryRelays(opts.relayHints);
       const connectedRelays = readRelays.filter((url) => {
         const status = this.relayStatuses.get(url);
         return status?.isConnected !== false;
@@ -1399,7 +1417,7 @@ class NostrService {
       for (let i = 0; i < unique.length; i += CHUNK_SIZE) {
         const chunk = unique.slice(i, i + CHUNK_SIZE);
         const filter: Filter = {
-          kinds: [NOSTR_KINDS.POST],
+          kinds: opts.kinds ?? [NOSTR_KINDS.POST],
           ids: chunk,
         };
 
@@ -1415,7 +1433,7 @@ class NostrService {
           });
 
           for (const event of events) {
-            if (!this.isBitboardPostEvent(event)) continue;
+            if (opts.predicate && !opts.predicate(event)) continue;
             collected.set(event.id, event);
           }
 
@@ -1429,6 +1447,13 @@ class NostrService {
     } finally {
       this._activeFetches--;
     }
+  }
+
+  async fetchPostsByIds(ids: string[]): Promise<NostrEvent[]> {
+    return this.fetchEventsByIds(ids, {
+      kinds: [NOSTR_KINDS.POST],
+      predicate: (event) => this.isBitboardPostEvent(event),
+    });
   }
 
   async fetchBoards(type?: BoardType): Promise<NostrEvent[]> {
@@ -2139,19 +2164,23 @@ class NostrService {
   }
 
   /**
-   * Fetch all BitBoard communities
+   * Fetch community definitions (optionally filtered by client tag)
    */
-  async fetchCommunities(opts: { limit?: number } = {}): Promise<NostrEvent[]> {
+  async fetchCommunities(opts: { limit?: number; clientTag?: string } = {}): Promise<NostrEvent[]> {
     return queryCommunities({ pool: this.pool, getReadRelays: () => this.getReadRelays() }, opts);
   }
 
   /**
    * Fetch post approvals for a community (kind 4550)
    */
-  async fetchCommunityApprovals(communityAddress: string): Promise<NostrEvent[]> {
+  async fetchCommunityApprovals(
+    communityAddress: string,
+    relayHints?: string[],
+  ): Promise<NostrEvent[]> {
     return queryCommunityApprovals(
       { pool: this.pool, getReadRelays: () => this.getReadRelays() },
       communityAddress,
+      { relays: this.resolveQueryRelays(relayHints) },
     );
   }
 
@@ -2161,6 +2190,7 @@ class NostrService {
   subscribeToCommunityApprovals(
     communityAddress: string,
     onEvent: (event: NostrEvent) => void,
+    opts: { since?: number; relayHints?: string[] } = {},
   ): string {
     return subscribeCommunityApprovals(
       {
@@ -2171,6 +2201,10 @@ class NostrService {
       },
       communityAddress,
       onEvent,
+      {
+        since: opts.since,
+        relays: this.resolveQueryRelays(opts.relayHints),
+      },
     );
   }
 

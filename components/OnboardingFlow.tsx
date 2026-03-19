@@ -243,7 +243,9 @@ export function OnboardingFlow({
       setIdentityMode('success');
       onIdentityChange?.(newIdentity);
     } catch (err) {
-      setError('Failed to generate identity. Please try again.');
+      setError(
+        err instanceof Error ? err.message : 'Failed to generate identity. Please try again.',
+      );
       console.error('[Onboarding] Generate failed:', err);
     } finally {
       setIsLoading(false);
@@ -267,7 +269,9 @@ export function OnboardingFlow({
     }
 
     if (!passphrase.trim()) {
-      setError('Enter a passphrase to encrypt your imported key on this device.');
+      setError(
+        'Choose a new passphrase (12+ characters) for BitBoard. Your nsec has no password — this only encrypts it in this browser.',
+      );
       setIsLoading(false);
       return;
     }
@@ -310,7 +314,9 @@ export function OnboardingFlow({
         setError('Invalid key format. Use nsec1... or hex format.');
       }
     } catch (err) {
-      setError('Failed to import key. Check format and try again.');
+      setError(
+        err instanceof Error ? err.message : 'Failed to import key. Check format and try again.',
+      );
       console.error('[Onboarding] Import failed:', err);
     } finally {
       setIsLoading(false);
@@ -1018,6 +1024,17 @@ export function OnboardingFlow({
                       </p>
                     </div>
 
+                    <div className="rounded border border-terminal-dim/40 bg-terminal-dim/5 p-3 text-xs text-terminal-dim leading-relaxed">
+                      <p>
+                        <span className="text-terminal-text font-semibold">
+                          No passphrase from Damus / Amethyst / etc.?
+                        </span>{' '}
+                        That is normal. Import your nsec above, then{' '}
+                        <span className="text-terminal-text">invent a new phrase below</span> (12+
+                        characters) — it only protects the copy stored in this browser.
+                      </p>
+                    </div>
+
                     <div className="flex items-start gap-3">
                       <input
                         type="checkbox"
@@ -1047,12 +1064,15 @@ export function OnboardingFlow({
                     </div>
 
                     <div className="space-y-3">
+                      <label className="block text-xs text-terminal-dim uppercase tracking-wider">
+                        Device passphrase (new — min. 12 characters)
+                      </label>
                       <input
                         type="password"
                         value={passphrase}
                         onChange={(e) => setPassphrase(e.target.value)}
                         className="w-full bg-transparent border border-terminal-dim/50 focus:border-terminal-text p-4 text-terminal-text font-mono focus:outline-none transition-colors"
-                        placeholder="Create local passphrase"
+                        placeholder="Choose a phrase for BitBoard on this device"
                       />
                       <input
                         type="password"
