@@ -13,6 +13,30 @@ module.exports = {
       fontFamily: {
         mono: ['"Fira Code"', 'monospace'],
         terminal: ['"VT323"', 'monospace'],
+        display: ['"Space Grotesk"', 'sans-serif'],
+      },
+      fontSize: {
+        '2xs': ['0.625rem', { lineHeight: '0.875rem' }],
+        xs: ['0.6875rem', { lineHeight: '1rem' }],
+        sm: ['0.8125rem', { lineHeight: '1.25rem' }],
+        base: ['0.9375rem', { lineHeight: '1.5rem' }],
+        lg: ['1.0625rem', { lineHeight: '1.75rem' }],
+        xl: ['1.1875rem', { lineHeight: '1.75rem' }],
+        '2xl': ['1.375rem', { lineHeight: '2rem' }],
+        '3xl': ['1.625rem', { lineHeight: '2.125rem' }],
+      },
+      typography: {
+        DEFAULT: {
+          css: {
+            '--tw-prose-body': 'rgb(var(--color-terminal-text))',
+            '--tw-prose-headings': 'rgb(var(--color-terminal-text))',
+            '--tw-prose-links': 'rgb(var(--color-terminal-text))',
+            '--tw-prose-bold': 'rgb(var(--color-terminal-text))',
+            '--tw-prose-code': 'rgb(var(--color-terminal-text))',
+            '--tw-prose-quotes': 'rgb(var(--color-terminal-dim))',
+            '--tw-prose-quote-borders': 'rgb(var(--color-terminal-dim))',
+          },
+        },
       },
       colors: {
         terminal: {

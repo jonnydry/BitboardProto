@@ -298,16 +298,19 @@ class RateLimiter {
   // ----------------------------------------
 
   /**
-   * Generate a simple hash of content for deduplication
+   * Generate a SHA-256 hash of content for deduplication
+   * Uses Web Crypto API for cryptographic hashing
    */
-  hashContent(content: string): string {
-    // Simple DJB2 hash (matches BitChat's String+DJB2.swift approach)
-    let hash = 5381;
-    for (let i = 0; i < content.length; i++) {
-      hash = ((hash << 5) + hash) ^ content.charCodeAt(i);
-      hash = hash >>> 0; // Convert to unsigned 32-bit
+  async hashContent(content: string): Promise<string> {
+    try {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(content);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+    } catch {
+      return content.slice(0, 64);
     }
-    return hash.toString(16);
   }
 
   /**

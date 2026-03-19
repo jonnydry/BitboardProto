@@ -12,9 +12,8 @@ import { MobileNav } from './features/layout/MobileNav';
 import { MobileDrawer } from './features/layout/MobileDrawer';
 import { MemoizedFeedView as FeedView } from './features/feed/FeedView';
 import { NotificationCenterV2 } from './components/NotificationCenterV2';
-import { PostItem } from './components/PostItem';
-import { ArrowLeft } from 'lucide-react';
-import { ViewMode, BoardType } from './types';
+import { PostDetailPage } from './components/PostDetailPage';
+import { ViewMode } from './types';
 import { nostrService } from './services/nostr/NostrService';
 import { keyboardShortcutsService } from './services/keyboardShortcutsService';
 import { analyticsService, AnalyticsEvents } from './services/analyticsService';
@@ -182,6 +181,8 @@ const AppContent: React.FC = () => {
   >();
   const keyboardModalStateRef = React.useRef({ showKeyboardHelp: false, showOnboarding: false });
   const navigateToBoard = app.navigateToBoard;
+  const bookmarkedIds = useUIStore((s) => s.bookmarkedIds);
+  const reportedPostIds = useUIStore((s) => s.reportedPostIds);
 
   useEffect(() => {
     keyboardModalStateRef.current = { showKeyboardHelp, showOnboarding };
@@ -521,48 +522,29 @@ const AppContent: React.FC = () => {
               {/* Single Post View */}
               {app.viewMode === ViewMode.SINGLE_BIT && (
                 <div className="animate-fade-in">
-                  <button
-                    onClick={app.returnToFeed}
-                    className="flex items-center gap-2 text-terminal-dim hover:text-terminal-text mb-4 uppercase text-xs md:text-sm font-bold group"
-                  >
-                    <ArrowLeft
-                      size={16}
-                      className="group-hover:-translate-x-1 transition-transform"
+                  {app.selectedPost ? (
+                    <PostDetailPage
+                      post={app.selectedPost}
+                      boardName={app.getBoardName(app.selectedPost.id)}
+                      userState={app.userState}
+                      knownUsers={app.knownUsers}
+                      onVote={app.handleVote}
+                      onComment={app.handleComment}
+                      onEditComment={app.handleEditComment}
+                      onDeleteComment={app.handleDeleteComment}
+                      onCommentVote={app.handleCommentVote}
+                      onViewProfile={app.handleViewProfile}
+                      onEditPost={app.handleEditPost}
+                      onDeletePost={app.handleDeletePost}
+                      onTagClick={app.handleTagClick}
+                      onToggleBookmark={app.handleToggleBookmark}
+                      onBack={app.returnToFeed}
+                      isBookmarked={bookmarkedIds.includes(app.selectedPost.id)}
+                      hasReported={reportedPostIds.includes(app.selectedPost.id)}
                     />
-                    BACK TO{' '}
-                    {app.activeBoard
-                      ? app.activeBoard.type === BoardType.GEOHASH
-                        ? `#${app.activeBoard.geohash}`
-                        : `//${app.activeBoard.name}`
-                      : 'GLOBAL'}
-                  </button>
-
-                  <div className="border-t border-terminal-dim/30 pt-2">
-                    {app.selectedPost ? (
-                      <PostItem
-                        post={app.selectedPost}
-                        boardName={app.getBoardName(app.selectedPost.id)}
-                        userState={app.userState}
-                        knownUsers={app.knownUsers}
-                        onVote={app.handleVote}
-                        onComment={app.handleComment}
-                        onEditComment={app.handleEditComment}
-                        onDeleteComment={app.handleDeleteComment}
-                        onCommentVote={app.handleCommentVote}
-                        onViewBit={() => {}}
-                        onViewProfile={app.handleViewProfile}
-                        onEditPost={app.handleEditPost}
-                        onTagClick={app.handleTagClick}
-                        onToggleBookmark={app.handleToggleBookmark}
-                        isFullPage={true}
-                        onToggleMute={app.toggleMute}
-                        isMuted={app.isMuted}
-                        onRetryPost={app.handleRetryPost}
-                      />
-                    ) : (
-                      <PostSkeleton />
-                    )}
-                  </div>
+                  ) : (
+                    <PostSkeleton />
+                  )}
                 </div>
               )}
 

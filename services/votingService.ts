@@ -117,6 +117,10 @@ class VotingService {
   >();
   private workerRequestId = 0;
   private workerReady = false;
+  private workerPingInterval: ReturnType<typeof setInterval> | null = null;
+  private readonly WORKER_PING_INTERVAL_MS = 30 * 1000; // 30 seconds
+  private readonly WORKER_PING_TIMEOUT_MS = 5 * 1000; // 5 second timeout for ping response
+  private pendingPing: { resolve: () => void; reject: () => void } | null = null;
 
   constructor() {
     // Start periodic cleanup
@@ -156,7 +160,16 @@ class VotingService {
 
         if (type === 'ready') {
           this.workerReady = true;
+          this.startWorkerPing();
           logger.debug('Voting', 'Web Worker initialized successfully');
+          return;
+        }
+
+        if (type === 'pong') {
+          if (this.pendingPing) {
+            this.pendingPing.resolve();
+            this.pendingPing = null;
+          }
           return;
         }
 
@@ -174,6 +187,7 @@ class VotingService {
 
       this.worker.onerror = (error) => {
         logger.error('Voting', 'Web Worker error', error);
+        this.stopWorkerPing();
         // Reject all in-flight promises so callers don't hang forever
         for (const promise of this.workerPromises.values()) {
           promise.reject(new Error('Vote verification worker crashed'));
@@ -181,11 +195,63 @@ class VotingService {
         this.workerPromises.clear();
         this.worker = null;
         this.workerReady = false;
+        // Schedule worker recreation after a delay
+        setTimeout(() => this.initWorker(), 5000);
       };
     } catch (e) {
       logger.warn('Voting', 'Failed to initialize Web Worker', e);
       this.worker = null;
       this.workerReady = false;
+    }
+  }
+
+  private startWorkerPing(): void {
+    if (this.workerPingInterval) return;
+    this.workerPingInterval = setInterval(() => {
+      this.pingWorker();
+    }, this.WORKER_PING_INTERVAL_MS);
+  }
+
+  private stopWorkerPing(): void {
+    if (this.workerPingInterval) {
+      clearInterval(this.workerPingInterval);
+      this.workerPingInterval = null;
+    }
+  }
+
+  private pingWorker(): void {
+    if (!this.worker || !this.workerReady) {
+      this.scheduleWorkerRecreation();
+      return;
+    }
+
+    const pingPromise = new Promise<void>((resolve, reject) => {
+      this.pendingPing = { resolve, reject };
+      this.worker!.postMessage({ type: 'ping' });
+
+      setTimeout(() => {
+        if (this.pendingPing) {
+          this.pendingPing = null;
+          reject(new Error('Worker ping timeout'));
+        }
+      }, this.WORKER_PING_TIMEOUT_MS);
+    });
+
+    pingPromise.catch(() => {
+      logger.warn('Voting', 'Worker ping failed, scheduling recreation');
+      this.scheduleWorkerRecreation();
+    });
+  }
+
+  private scheduleWorkerRecreation(): void {
+    if (!this.worker || !this.workerReady) {
+      this.stopWorkerPing();
+      if (this.worker) {
+        this.worker.terminate();
+      }
+      this.worker = null;
+      this.workerReady = false;
+      setTimeout(() => this.initWorker(), 5000);
     }
   }
 
@@ -240,6 +306,8 @@ class VotingService {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;
     }
+
+    this.stopWorkerPing();
 
     // Cleanup worker
     if (this.worker) {

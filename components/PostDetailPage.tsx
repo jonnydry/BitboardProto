@@ -1,33 +1,10 @@
 import React, { useMemo, useCallback } from 'react';
 import { Post, UserState } from '../types';
-import {
-  ArrowLeft,
-  Clock,
-  Hash,
-  Image as ImageIcon,
-  Lock,
-  ExternalLink,
-  Edit3,
-  Bookmark,
-  Flag,
-  Shield,
-  Users,
-  UserX,
-  ArrowBigUp,
-  ArrowBigDown,
-  Trash2,
-  MoreHorizontal,
-  Loader2,
-} from 'lucide-react';
+import { ArrowLeft, Lock, Edit3, Bookmark, Shield, Trash2, Loader2 } from 'lucide-react';
 import { CommentThread, buildCommentTree } from './CommentThread';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { MentionInput } from './MentionInput';
-import { ShareButton } from './ShareButton';
 import { ReportModal } from './ReportModal';
-import { ZapButton } from './ZapButton';
-import { ReactionBar } from './ReactionPicker';
-import { BadgeDisplay } from './BadgeDisplay';
-import { TrustIndicator } from './TrustIndicator';
 import { profileService } from '../services/profileService';
 
 interface PostDetailPageProps {
@@ -48,7 +25,6 @@ interface PostDetailPageProps {
   isBookmarked?: boolean;
   onToggleBookmark?: (postId: string) => void;
   hasReported?: boolean;
-  isNostrConnected?: boolean;
 }
 
 export const PostDetailPage: React.FC<PostDetailPageProps> = ({
@@ -69,14 +45,12 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
   isBookmarked = false,
   onToggleBookmark,
   hasReported = false,
-  isNostrConnected = false,
 }) => {
   const [newComment, setNewComment] = React.useState('');
   const [isTransmitting, setIsTransmitting] = React.useState(false);
   const [showReportModal, setShowReportModal] = React.useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
-  const [showMoreActions, setShowMoreActions] = React.useState(false);
-  const moreActionsRef = React.useRef<HTMLDivElement | null>(null);
+  const [collapseKey, setCollapseKey] = React.useState(0);
 
   const handleReportClick = useCallback(
     (e: React.MouseEvent) => {
@@ -92,19 +66,6 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
     e.stopPropagation();
     setShowDeleteConfirm(true);
   }, []);
-
-  React.useEffect(() => {
-    if (!showMoreActions) return;
-
-    const handleOutsideClick = (event: MouseEvent) => {
-      if (!moreActionsRef.current?.contains(event.target as Node)) {
-        setShowMoreActions(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, [showMoreActions]);
 
   const handleConfirmDelete = useCallback(async () => {
     setShowDeleteConfirm(false);
@@ -128,6 +89,19 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
       onToggleBookmark?.(post.id);
     },
     [onToggleBookmark, post.id],
+  );
+
+  const handleShareClick = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      const shareUrl = `${window.location.origin}${window.location.pathname}?post=${post.id}`;
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+      } catch {
+        // silent fallback
+      }
+    },
+    [post.id],
   );
 
   const handleAuthorClick = useCallback(
@@ -255,27 +229,62 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
     return buildCommentTree(post.comments);
   }, [post.comments]);
 
+  const COLLAPSE_PREFIX = 'bitboard_comment_collapsed_v1:';
+
+  const handleCollapseAll = useCallback(() => {
+    const collapseRecursive = (c: {
+      id: string;
+      replies?: { id: string; replies?: unknown[] }[];
+    }) => {
+      try {
+        localStorage.setItem(`${COLLAPSE_PREFIX}${c.id}`, '1');
+      } catch {
+        /* */
+      }
+      (c.replies as typeof commentTree)?.forEach(collapseRecursive);
+    };
+    commentTree.forEach(collapseRecursive);
+    setCollapseKey((k) => k + 1);
+  }, [commentTree]);
+
+  const handleExpandAll = useCallback(() => {
+    const expandRecursive = (c: {
+      id: string;
+      replies?: { id: string; replies?: unknown[] }[];
+    }) => {
+      try {
+        localStorage.removeItem(`${COLLAPSE_PREFIX}${c.id}`);
+      } catch {
+        /* */
+      }
+      (c.replies as typeof commentTree)?.forEach(expandRecursive);
+    };
+    commentTree.forEach(expandRecursive);
+    setCollapseKey((k) => k + 1);
+  }, [commentTree]);
+
   return (
-    <div className="animate-fade-in">
-      <button
-        onClick={onBack}
-        className="flex items-center gap-2 text-terminal-dim hover:text-terminal-text mb-6 uppercase text-sm font-bold group"
-      >
-        <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-        BACK TO {boardName ? `//${boardName}` : 'GLOBAL'}
-      </button>
+    <div className="animate-fade-in font-mono">
+      {/* Nav Bar */}
+      <div className="flex items-center justify-between py-4 px-4 border-b border-terminal-dim/20 mb-0">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1.5 text-terminal-dim/60 hover:text-terminal-dim transition-colors group"
+        >
+          <ArrowLeft size={14} className="group-hover:-translate-x-0.5 transition-transform" />
+          <span className="text-xs tracking-[0.08em] uppercase">// {boardName || 'global'}</span>
+        </button>
+        <span className="text-xs text-terminal-dim/60 tracking-[0.12em]">BIT · DETAIL</span>
+      </div>
 
-      <div className="w-full border-2 border-terminal-text bg-terminal-highlight shadow-glow relative group font-mono">
-        {/* Decorator corners */}
-        <div className="absolute -top-1 -left-1 w-2 h-2 border-t-2 border-l-2 border-terminal-text"></div>
-        <div className="absolute -bottom-1 -right-1 w-2 h-2 border-b-2 border-r-2 border-terminal-text"></div>
-
-        <div className="flex flex-row gap-3 p-4">
-          {/* Voting Column */}
-          <div className="flex flex-col items-center w-12 border-r border-terminal-dim pr-2 justify-start pt-1 gap-1 flex-shrink-0">
+      {/* Post Section */}
+      <div className="pt-7 pb-5 px-4 border-b border-terminal-dim/20">
+        <div className="flex gap-4">
+          {/* Vote Column */}
+          <div className="flex flex-col items-center w-10 shrink-0 pt-1 gap-1.5">
             <button
               onClick={handleVoteUp}
-              className={`p-2 md:p-1 hover:bg-terminal-dim transition-colors ${isUpvoted ? 'text-terminal-text font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`p-1 transition-colors ${isUpvoted ? 'text-terminal-text' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={!userState.identity || (userState.bits <= 0 && !hasInvested)}
               aria-label="Upvote"
               aria-pressed={isUpvoted}
@@ -289,11 +298,18 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
                       : 'Spend 1 bit to upvote this post'
               }
             >
-              <ArrowBigUp size={20} fill={isUpvoted ? 'currentColor' : 'none'} />
+              <svg width="16" height="10" viewBox="0 0 12 8">
+                <path
+                  d="M6 0L12 8H0L6 0Z"
+                  fill={isUpvoted ? 'currentColor' : 'none'}
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                />
+              </svg>
             </button>
 
             <span
-              className={`text-base font-bold ${post.score > 0 ? 'text-terminal-text' : post.score < 0 ? 'text-terminal-alert' : 'text-terminal-dim/50'}`}
+              className={`text-[13px] font-semibold ${post.score > 0 ? 'text-terminal-text' : post.score < 0 ? 'text-terminal-alert' : 'text-terminal-dim/50'}`}
             >
               {post.score > 0 ? '+' : ''}
               {post.score}
@@ -301,7 +317,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
 
             <button
               onClick={handleVoteDown}
-              className={`p-2 md:p-1 hover:bg-terminal-dim transition-colors ${isDownvoted ? 'text-terminal-alert font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`p-1 transition-colors ${isDownvoted ? 'text-terminal-alert' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={!userState.identity || (userState.bits <= 0 && !hasInvested)}
               aria-label="Downvote"
               aria-pressed={isDownvoted}
@@ -315,337 +331,273 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
                       : 'Spend 1 bit to downvote this post'
               }
             >
-              <ArrowBigDown size={20} fill={isDownvoted ? 'currentColor' : 'none'} />
+              <svg width="16" height="10" viewBox="0 0 12 8">
+                <path
+                  d="M6 8L0 0H12L6 8Z"
+                  fill={isDownvoted ? 'currentColor' : 'none'}
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                />
+              </svg>
             </button>
-
-            {post.nostrEventId && (
-              <div className="mt-1 flex flex-col items-center gap-0.5">
-                {post.votesVerified ? (
-                  <div
-                    className="flex flex-col items-center gap-0.5"
-                    title="Score synced with verified Nostr votes"
-                  >
-                    <div className="flex items-center gap-0.5">
-                      <Shield size={10} className="text-terminal-text" />
-                      {typeof post.uniqueVoters === 'number' && (
-                        <span className="text-[11px] text-terminal-dim flex items-center gap-0.5">
-                          <Users size={8} /> {post.uniqueVoters}
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[9px] uppercase tracking-wide text-terminal-dim">
-                      verified
-                    </span>
-                  </div>
-                ) : (
-                  <div
-                    className="flex items-center gap-0.5"
-                    title={
-                      isNostrConnected
-                        ? 'Syncing verified votes from relays...'
-                        : 'Offline: showing local/last known score.'
-                    }
-                  >
-                    <Shield
-                      size={10}
-                      className={isNostrConnected ? 'text-terminal-dim' : 'text-terminal-alert'}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {hasInvested && (
-              <div className="mt-2 flex flex-col items-center animate-fade-in">
-                <span className="text-[10px] text-terminal-dim border border-terminal-dim px-1 py-0.5 uppercase tracking-tighter">
-                  1 BIT
-                </span>
-                <span className="text-[10px] text-terminal-dim">LOCKED</span>
-              </div>
-            )}
           </div>
 
-          <div className="flex-1 flex flex-col min-w-0">
-            <div className="text-xs text-terminal-dim mb-2 flex flex-wrap items-center gap-2 uppercase tracking-wider">
-              {boardName && (
-                <span className="bg-terminal-dim/20 px-1 text-terminal-text font-bold mr-2">
-                  //{boardName}
-                </span>
-              )}
+          {/* Content Column */}
+          <div className="flex flex-col flex-1 min-w-0 gap-2.5">
+            {/* Author Row */}
+            <div className="flex items-center gap-2">
               <button
                 onClick={handleAuthorClick}
-                className="flex items-center gap-2 font-bold text-terminal-dim hover:text-terminal-text hover:underline transition-colors cursor-pointer"
+                className="flex items-center gap-2 hover:underline transition-colors cursor-pointer"
                 title={`View ${authorDisplayName}'s profile`}
               >
                 {authorProfile?.picture ? (
                   <img
                     src={authorProfile.picture}
                     alt={`${authorDisplayName}'s avatar`}
-                    className="w-6 h-6 rounded-full object-cover border border-terminal-dim/40"
+                    className="w-6 h-6 rounded-full object-cover border border-terminal-dim/40 shrink-0"
                   />
                 ) : (
-                  <div className="w-6 h-6 rounded-full bg-terminal-dim/20 border border-terminal-dim/40 flex items-center justify-center text-[10px] text-terminal-dim font-bold">
+                  <div className="w-6 h-6 rounded-full bg-terminal-dim/15 border border-terminal-dim/30 flex items-center justify-center text-xs text-terminal-text shrink-0">
                     {authorDisplayName.charAt(0).toUpperCase()}
                   </div>
                 )}
-                <span>{authorDisplayName}</span>
+                <span className="text-xs text-terminal-text/80">{authorDisplayName}</span>
               </button>
-              <BadgeDisplay pubkey={post.authorPubkey || ''} size="sm" />
-              <TrustIndicator pubkey={post.authorPubkey || ''} compact={true} />
-              <span>::</span>
-              <span className="flex items-center gap-1">
-                <Clock size={12} /> {formatTime(post.timestamp)}
-              </span>
+              <span className="text-terminal-dim/50 text-xs">·</span>
+              <span className="text-xs text-terminal-dim/70">{formatTime(post.timestamp)}</span>
               {isOwnPost && onEditPost && (
                 <button
                   onClick={handleEditClick}
-                  className="flex items-center gap-1 text-terminal-dim hover:text-terminal-text transition-colors"
+                  className="ml-auto flex items-center gap-1 text-terminal-dim/50 hover:text-terminal-text transition-colors text-xs"
                   title="Edit this post"
                 >
-                  <Edit3 size={10} />
-                  <span className="text-xs">EDIT</span>
+                  <Edit3 size={10} /> EDIT
                 </button>
               )}
               {isOwnPost && onDeletePost && (
                 <button
                   onClick={handleDeleteClick}
-                  className="flex items-center gap-1 text-terminal-dim hover:text-terminal-alert transition-colors"
+                  className="flex items-center gap-1 text-terminal-dim/50 hover:text-terminal-alert transition-colors text-xs"
                   title="Delete this post"
                 >
-                  <Trash2 size={10} />
-                  <span className="text-xs">DELETE</span>
+                  <Trash2 size={10} /> DELETE
                 </button>
               )}
-              {post.url && (
-                <span className="ml-auto border border-terminal-dim px-1 text-xs text-terminal-text flex items-center gap-1">
-                  LINK
-                  {post.imageUrl && <ImageIcon size={8} />}
-                </span>
-              )}
             </div>
 
-            <div className="flex justify-between items-start gap-4">
-              {isEncryptedWithoutKey ? (
-                <div className="flex items-center gap-2 text-terminal-dim mb-2">
-                  <Lock size={18} />
-                  <h3 className="text-xl md:text-2xl font-bold">[Encrypted - Access Required]</h3>
-                </div>
-              ) : post.url ? (
-                <a
-                  href={post.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xl md:text-2xl font-bold text-terminal-text leading-tight mb-1 cursor-pointer hover:bg-terminal-text hover:text-black decoration-2 underline-offset-4 flex items-start gap-2 transition-colors inline-block break-words"
-                >
-                  {post.title}
-                  {post.isEncrypted && (
-                    <Lock size={16} className="text-terminal-dim" title="Encrypted post" />
-                  )}
-                  <ExternalLink size={20} className="inline-block mt-1 opacity-70 min-w-[20px]" />
-                </a>
-              ) : (
-                <h3 className="text-xl md:text-2xl font-bold text-terminal-text leading-tight mb-1 break-words flex items-center gap-2">
-                  {post.title}
-                  {post.isEncrypted && (
-                    <Lock size={16} className="text-terminal-dim" title="Encrypted post" />
-                  )}
-                </h3>
-              )}
-            </div>
-
-            {!userState.identity && (
-              <div className="mb-3 flex items-center gap-2 border border-terminal-dim/60 bg-terminal-dim/10 px-3 py-2 text-xs md:text-sm text-terminal-muted">
-                <UserX size={14} className="text-terminal-text flex-shrink-0" />
-                <span>Connect your identity for verified voting, comments, and zaps.</span>
+            {/* Title */}
+            {isEncryptedWithoutKey ? (
+              <div className="flex items-center gap-2 text-terminal-dim">
+                <Lock size={18} />
+                <h2 className="text-2xl font-semibold font-display leading-snug">
+                  [Encrypted - Access Required]
+                </h2>
               </div>
+            ) : post.url ? (
+              <a
+                href={post.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-2xl font-semibold font-display text-terminal-text leading-snug hover:underline decoration-2 underline-offset-4 transition-colors break-words"
+              >
+                {post.title}
+              </a>
+            ) : (
+              <h2 className="text-2xl font-semibold font-display text-terminal-text leading-snug break-words">
+                {post.title}
+              </h2>
             )}
 
             {/* Media Preview */}
             {post.imageUrl && (
-              <div className="mb-4 mt-2 border border-terminal-dim/50 relative group/image overflow-hidden bg-black max-w-lg">
+              <div className="border border-terminal-dim/30 relative overflow-hidden bg-black max-w-lg">
                 <a
                   href={post.url || '#'}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block"
                 >
-                  <div className="absolute inset-0 bg-terminal-text/10 pointer-events-none group-hover/image:opacity-0 transition-opacity z-10 mix-blend-overlay"></div>
                   <img
                     src={post.imageUrl}
                     alt="Content Preview"
                     loading="lazy"
-                    className="w-full h-auto max-h-[300px] object-cover grayscale sepia contrast-125 brightness-75 group-hover/image:filter-none group-hover/image:brightness-100 transition-all duration-300"
+                    className="w-full h-auto max-h-[300px] object-cover"
                   />
-                  <div className="absolute bottom-0 left-0 bg-terminal-bg/80 px-2 py-1 text-xs text-terminal-text border-t border-r border-terminal-dim">
-                    IMAGE PREVIEW
-                  </div>
                 </a>
               </div>
             )}
 
+            {/* Body */}
             {isEncryptedWithoutKey ? (
-              <div className="text-sm md:text-base text-terminal-dim font-mono leading-relaxed mb-3 p-4 border border-terminal-dim/50 bg-terminal-dim/10">
+              <div className="text-sm text-terminal-dim font-mono leading-relaxed p-4 border border-terminal-dim/30 bg-terminal-dim/5">
                 <p className="mb-2">
                   This post is encrypted. You need the board share link to view it.
                 </p>
-                <p className="text-xs text-terminal-dim/70">
+                <p className="text-sm text-terminal-dim/70">
                   The encryption key is embedded in the share link URL fragment and never sent to
                   servers.
                 </p>
               </div>
             ) : (
-              <div className="text-sm md:text-base text-terminal-muted font-mono leading-relaxed mb-2 break-words">
+              <div className="text-sm text-terminal-dim/70 font-mono leading-[1.7] break-words">
                 <MarkdownRenderer content={post.content} />
               </div>
             )}
 
-            <div className="mb-4 flex items-center gap-2 border border-terminal-dim/40 bg-terminal-dim/5 px-3 py-2 text-xs text-terminal-muted">
-              <Shield size={12} className="text-terminal-text flex-shrink-0" />
-              Verified identities spend scarce bits to move posts up or down. Influence is limited,
-              public, and accountable.
-            </div>
-
-            <div className="mt-2 flex items-center justify-between border-t border-terminal-dim pt-1">
-              <div className="flex gap-2 flex-wrap">
+            {/* Tags */}
+            {post.tags.length > 0 && (
+              <div className="flex gap-1.5 flex-wrap">
                 {post.tags.map((tag) => (
                   <button
                     key={tag}
                     onClick={(e) => handleTagClick(e, tag)}
-                    className="text-xs border border-terminal-dim px-1 text-terminal-dim flex items-center hover:text-terminal-text hover:border-terminal-text cursor-pointer transition-colors"
+                    className="text-xs border border-terminal-dim/20 px-1.75 py-0.5 text-terminal-dim/50 hover:text-terminal-dim hover:border-terminal-dim/40 cursor-pointer transition-colors"
                     title={`Search for #${tag}`}
                   >
-                    <Hash size={10} className="mr-1" />
-                    {tag}
+                    #{tag}
                   </button>
                 ))}
               </div>
-
-              <div className="flex items-center gap-2">
-                <ZapButton
-                  authorPubkey={post.authorPubkey || ''}
-                  authorName={post.author}
-                  eventId={post.id}
-                  initialZapTotal={post.zapTotal}
-                  initialZapCount={post.zapCount}
-                  compact={true}
-                />
-
-                <ReactionBar
-                  eventId={post.id}
-                  nostrEventId={post.nostrEventId}
-                  disabled={!userState.identity}
-                  compact={true}
-                />
-
-                <button
-                  onClick={handleBookmarkClick}
-                  className={`p-2 md:p-1 transition-colors ${isBookmarked ? 'text-terminal-text' : 'text-terminal-dim hover:text-terminal-text'}`}
-                  title={isBookmarked ? 'Remove bookmark' : 'Save to bookmarks'}
-                  aria-label={isBookmarked ? 'Remove bookmark' : 'Save to bookmarks'}
-                  aria-pressed={isBookmarked}
-                >
-                  <Bookmark size={16} fill={isBookmarked ? 'currentColor' : 'none'} />
-                </button>
-
-                <ShareButton postId={post.id} postTitle={post.title} />
-
-                <div className="relative" ref={moreActionsRef}>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowMoreActions((prev) => !prev);
-                    }}
-                    className="p-2 md:p-1 transition-colors text-terminal-dim hover:text-terminal-text"
-                    title="More actions"
-                    aria-label="More actions"
-                    aria-expanded={showMoreActions}
-                  >
-                    <MoreHorizontal size={16} />
-                  </button>
-
-                  {showMoreActions && (
-                    <div
-                      className="absolute right-0 top-full z-20 mt-2 min-w-[170px] border border-terminal-dim bg-terminal-bg p-2 shadow-hard"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {!isOwnPost && (
-                        <button
-                          onClick={(e) => {
-                            handleReportClick(e);
-                            setShowMoreActions(false);
-                          }}
-                          className={`flex w-full items-center gap-2 px-2 py-2 text-left text-xs uppercase tracking-wide transition-colors ${hasReported ? 'text-terminal-alert' : 'text-terminal-dim hover:bg-terminal-dim/10 hover:text-terminal-alert'}`}
-                          disabled={hasReported}
-                        >
-                          <Flag size={14} fill={hasReported ? 'currentColor' : 'none'} />
-                          {hasReported ? 'Reported' : 'Report Post'}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Full Comment Thread */}
-            <div className="mt-6 border-t-2 border-dashed border-terminal-dim/50 pt-4">
-              <h4 className="text-xs text-terminal-dim mb-4 font-bold uppercase tracking-widest flex items-center gap-2">
-                <span className="text-terminal-text">{post.commentCount}</span>{' '}
-                {post.commentCount === 1 ? 'COMMENT' : 'COMMENTS'}
-              </h4>
-
-              {commentTree.length > 0 ? (
-                <div className="space-y-2 mb-6">
-                  {commentTree.map((comment) => (
-                    <CommentThread
-                      key={comment.id}
-                      comment={comment}
-                      userState={userState}
-                      onReply={handleReplyToComment}
-                      onEdit={onEditComment ? handleEditComment : undefined}
-                      onDelete={onDeleteComment ? handleDeleteComment : undefined}
-                      onVote={onCommentVote}
-                      postId={post.id}
-                      onViewProfile={onViewProfile}
-                      formatTime={formatTime}
-                      knownUsers={knownUsers}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <p className="text-terminal-dim italic text-sm mb-6 border border-terminal-dim p-2 inline-block">
-                  &gt; Null signal. Awaiting input...
-                </p>
-              )}
-
-              <form
-                onSubmit={handleCommentSubmit}
-                className="flex gap-3 items-start bg-terminal-bg/40 p-3 border border-terminal-dim/30"
-              >
-                <div className="flex-1 flex flex-col gap-2">
-                  <label className="text-xs uppercase text-terminal-muted font-bold tracking-wide">
-                    Add Reply (use @ to mention):
-                  </label>
-                  <MentionInput
-                    value={newComment}
-                    onChange={setNewComment}
-                    knownUsers={knownUsers}
-                    placeholder="Type response..."
-                    minHeight="60px"
-                    disabled={isTransmitting}
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={!newComment.trim() || isTransmitting}
-                  className="mt-auto h-full self-stretch border border-terminal-dim px-4 text-xs hover:bg-terminal-text hover:text-black disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-terminal-dim transition-all uppercase font-bold tracking-wider min-w-[80px]"
-                >
-                  {isTransmitting ? <Loader2 size={14} className="animate-spin" /> : 'TRANSMIT'}
-                </button>
-              </form>
-            </div>
+            )}
           </div>
         </div>
+      </div>
+
+      {/* Action Bar */}
+      <div className="flex items-center gap-5 py-3 px-4 border-b border-terminal-dim/20">
+        <button
+          onClick={() => {
+            const el = document.getElementById('comment-thread');
+            el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }}
+          className="flex items-center gap-1.25 text-xs text-terminal-dim/70 hover:text-terminal-dim tracking-[0.06em] transition-colors"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          {post.commentCount} {post.commentCount === 1 ? 'reply' : 'replies'}
+        </button>
+
+        <button
+          onClick={handleShareClick}
+          className="flex items-center gap-1.25 text-xs text-terminal-dim/70 hover:text-terminal-dim tracking-[0.06em] transition-colors"
+          title="Copy link"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <circle cx="18" cy="5" r="3" />
+            <circle cx="6" cy="12" r="3" />
+            <circle cx="18" cy="19" r="3" />
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+          </svg>
+          share
+        </button>
+
+        <button
+          onClick={handleBookmarkClick}
+          className={`flex items-center gap-1.25 text-xs tracking-[0.06em] transition-colors ${isBookmarked ? 'text-terminal-text' : 'text-terminal-dim/70 hover:text-terminal-dim'}`}
+          title={isBookmarked ? 'Remove bookmark' : 'Save to bookmarks'}
+          aria-label={isBookmarked ? 'Remove bookmark' : 'Save to bookmarks'}
+          aria-pressed={isBookmarked}
+        >
+          <Bookmark size={12} fill={isBookmarked ? 'currentColor' : 'none'} />
+          save
+        </button>
+      </div>
+
+      {/* Comment Composer */}
+      <form onSubmit={handleCommentSubmit} className="py-5 px-4 border-b border-terminal-dim/20">
+        <div className="flex flex-col gap-2.5">
+          <span className="text-xs text-terminal-dim/50 uppercase tracking-widest">
+            Join the thread
+          </span>
+          <MentionInput
+            value={newComment}
+            onChange={setNewComment}
+            knownUsers={knownUsers}
+            placeholder="Add your reply… Markdown and @mentions supported."
+            minHeight="60px"
+            disabled={isTransmitting}
+            className="!border-terminal-dim/30 focus:!border-terminal-dim/40"
+          />
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-terminal-dim/50">cmd+return to transmit</span>
+            <button
+              type="submit"
+              disabled={!newComment.trim() || isTransmitting}
+              className="bg-terminal-text text-terminal-bg text-xs font-bold px-4.5 py-1.75 disabled:opacity-50 transition-colors tracking-[0.06em]"
+            >
+              {isTransmitting ? <Loader2 size={14} className="animate-spin" /> : 'Transmit'}
+            </button>
+          </div>
+        </div>
+      </form>
+
+      {/* Thread Header */}
+      <div
+        id="comment-thread"
+        className="flex items-center justify-between pt-4 pb-2 px-4 border-b border-dashed border-terminal-dim/25"
+      >
+        <span className="text-xs text-terminal-dim/50 uppercase tracking-[0.12em]">
+          {post.commentCount} {post.commentCount === 1 ? 'reply' : 'replies'}
+        </span>
+        {commentTree.length > 0 && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCollapseAll}
+              className="text-xs tracking-[0.06em] text-terminal-dim/50 hover:text-terminal-dim transition-colors"
+            >
+              collapse all
+            </button>
+            <span className="text-terminal-dim/50 text-xs">·</span>
+            <button
+              onClick={handleExpandAll}
+              className="text-xs tracking-[0.06em] text-terminal-dim/50 hover:text-terminal-dim transition-colors"
+            >
+              expand all
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Comment Thread */}
+      <div className="pt-2 pb-7 px-4" key={collapseKey}>
+        {commentTree.length > 0 ? (
+          <div className="space-y-0">
+            {commentTree.map((comment) => (
+              <CommentThread
+                key={comment.id}
+                comment={comment}
+                userState={userState}
+                onReply={handleReplyToComment}
+                onEdit={onEditComment ? handleEditComment : undefined}
+                onDelete={onDeleteComment ? handleDeleteComment : undefined}
+                onVote={onCommentVote}
+                postId={post.id}
+                onViewProfile={onViewProfile}
+                formatTime={formatTime}
+                knownUsers={knownUsers}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-terminal-dim/50 italic text-sm py-4">No replies yet.</p>
+        )}
       </div>
 
       {/* Report Modal */}
@@ -679,7 +631,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
               Are you sure you want to delete this post?
             </p>
             <p className="text-terminal-dim text-xs mb-6 border-l-2 border-terminal-dim pl-3">
-              "{post.title.length > 60 ? post.title.slice(0, 60) + '...' : post.title}"
+              &quot;{post.title.length > 60 ? post.title.slice(0, 60) + '...' : post.title}&quot;
             </p>
 
             {post.nostrEventId && (

@@ -96,6 +96,16 @@ export const DEFAULT_RELAYS = NostrConfig.DEFAULT_RELAYS;
 const USER_RELAYS_STORAGE_KEY = 'bitboard_user_relays_v1';
 const MESSAGE_QUEUE_STORAGE_KEY = 'bitboard_message_queue_v1';
 
+interface RelayHealth {
+  url: string;
+  latencyMs: number | null;
+  errorCount: number;
+  successCount: number;
+  lastQueryAt: number | null;
+  isCircuitOpen: boolean;
+  circuitOpenedAt: number | null;
+}
+
 interface RelayStatus {
   url: string;
   isConnected: boolean;
@@ -121,6 +131,13 @@ class NostrService {
 
   // Relay status tracking
   private relayStatuses: Map<string, RelayStatus> = new Map();
+
+  // Relay health tracking (for circuit breaker)
+  private relayHealth: Map<string, RelayHealth> = new Map();
+  private readonly CIRCUIT_BREAKER_ERROR_THRESHOLD = 5;
+  private readonly CIRCUIT_BREAKER_WINDOW_MS = 60 * 1000;
+  private readonly CIRCUIT_BREAKER_RESET_TIMEOUT_MS = 30 * 1000;
+  private readonly DEFAULT_QUERY_TIMEOUT_MS = 8000;
 
   // Message queue for offline resilience
   private messageQueue: PendingMessage[] = [];
@@ -166,6 +183,15 @@ class NostrService {
         lastDisconnectedAt: null,
         reconnectAttempts: 0,
         nextReconnectTime: null,
+      });
+      this.relayHealth.set(url, {
+        url,
+        latencyMs: null,
+        errorCount: 0,
+        successCount: 0,
+        lastQueryAt: null,
+        isCircuitOpen: false,
+        circuitOpenedAt: null,
       });
     });
 
@@ -234,11 +260,68 @@ class NostrService {
       if (!url) continue;
       // Only accept wss:// (most relays) and ws:// (dev/testing)
       if (!url.startsWith('wss://') && !url.startsWith('ws://')) continue;
+      // SSRF protection: block internal networks and private IPs
+      if (this.isBlockedRelayUrl(url)) continue;
       if (seen.has(url)) continue;
       seen.add(url);
       out.push(url);
     }
     return out;
+  }
+
+  private isBlockedRelayUrl(url: string): boolean {
+    try {
+      const parsed = new URL(url);
+      const hostname = parsed.hostname.toLowerCase();
+
+      // Block localhost and loopback
+      if (
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname === '::1' ||
+        hostname === '0.0.0.0'
+      ) {
+        logger.warn('Nostr', `Blocked localhost relay URL: ${url}`);
+        return true;
+      }
+
+      // Block internal/private IP ranges
+      if (this.isPrivateIp(hostname)) {
+        logger.warn('Nostr', `Blocked private IP relay URL: ${url}`);
+        return true;
+      }
+
+      return false;
+    } catch {
+      return true;
+    }
+  }
+
+  private isPrivateIp(hostname: string): boolean {
+    // IPv4 private ranges: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+    const ipv4Private = /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/;
+    if (ipv4Private.test(hostname)) return true;
+
+    // IPv6 private range: fc00::/7
+    if (hostname.startsWith('fc') || hostname.startsWith('fd') || hostname.startsWith('fe80')) {
+      return true;
+    }
+
+    // Check for literal IPv6 addresses
+    if (hostname.startsWith('[') && hostname.includes(':')) {
+      const ipv6 = hostname.replace(/[[\]]/g, '').toLowerCase();
+      if (
+        ipv6 === '::1' ||
+        ipv6 === '::' ||
+        ipv6.startsWith('fe80:') ||
+        ipv6.startsWith('fc') ||
+        ipv6.startsWith('fd')
+      ) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   private mergeRelays(primary: string[], secondary: string[]): string[] {
@@ -275,7 +358,7 @@ class NostrService {
   setRelays(relays: string[]) {
     this.relays = relays;
 
-    // Update relay statuses
+    // Update relay statuses and health
     relays.forEach((url) => {
       if (!this.relayStatuses.has(url)) {
         this.relayStatuses.set(url, {
@@ -286,6 +369,17 @@ class NostrService {
           lastDisconnectedAt: null,
           reconnectAttempts: 0,
           nextReconnectTime: null,
+        });
+      }
+      if (!this.relayHealth.has(url)) {
+        this.relayHealth.set(url, {
+          url,
+          latencyMs: null,
+          errorCount: 0,
+          successCount: 0,
+          lastQueryAt: null,
+          isCircuitOpen: false,
+          circuitOpenedAt: null,
         });
       }
     });
@@ -331,11 +425,108 @@ class NostrService {
   }
 
   async queryEvents(filter: Filter): Promise<NostrEvent[]> {
-    try {
-      return await this.pool.querySync(this.getReadRelays(), filter);
-    } catch (error) {
-      logger.error('Nostr', 'Failed to query events', error);
+    return this.queryWithTimeout(this.getReadRelays(), filter, this.DEFAULT_QUERY_TIMEOUT_MS);
+  }
+
+  private async queryWithTimeout(
+    relays: string[],
+    filter: Filter,
+    timeoutMs: number,
+  ): Promise<NostrEvent[]> {
+    const healthyRelays = this.getHealthyRelays(relays);
+    if (healthyRelays.length === 0) {
+      logger.warn('Nostr', 'All relays are circuit-broken, skipping query');
       return [];
+    }
+
+    const startTime = Date.now();
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error('Query timeout')), timeoutMs);
+    });
+
+    try {
+      const results = await Promise.race([
+        this.pool.querySync(healthyRelays, filter),
+        timeoutPromise,
+      ]);
+      clearTimeout(timeoutId!);
+
+      const latencyMs = Date.now() - startTime;
+      this.recordQuerySuccess(healthyRelays, latencyMs);
+      return results;
+    } catch (error) {
+      clearTimeout(timeoutId!);
+      const latencyMs = Date.now() - startTime;
+      this.recordQueryError(healthyRelays, latencyMs, error);
+      throw error;
+    }
+  }
+
+  private getHealthyRelays(relays: string[]): string[] {
+    return relays.filter((url) => {
+      const health = this.relayHealth.get(url);
+      if (!health) return true;
+      if (health.isCircuitOpen) {
+        const now = Date.now();
+        const resetTimeout = this.CIRCUIT_BREAKER_RESET_TIMEOUT_MS;
+        if (health.circuitOpenedAt && now - health.circuitOpenedAt > resetTimeout) {
+          health.isCircuitOpen = false;
+          health.errorCount = 0;
+          health.circuitOpenedAt = null;
+          return true;
+        }
+        return false;
+      }
+      return true;
+    });
+  }
+
+  private recordQuerySuccess(relays: string[], latencyMs: number): void {
+    for (const url of relays) {
+      const health = this.relayHealth.get(url);
+      if (health) {
+        health.successCount++;
+        health.latencyMs = latencyMs;
+        health.lastQueryAt = Date.now();
+      }
+    }
+  }
+
+  private recordQueryError(relays: string[], latencyMs: number, _error: unknown): void {
+    for (const url of relays) {
+      const health = this.relayHealth.get(url);
+      if (health) {
+        health.errorCount++;
+        health.latencyMs = latencyMs;
+        health.lastQueryAt = Date.now();
+
+        if (health.errorCount >= this.CIRCUIT_BREAKER_ERROR_THRESHOLD) {
+          health.isCircuitOpen = true;
+          health.circuitOpenedAt = Date.now();
+          logger.warn('Nostr', `Circuit breaker opened for relay: ${url}`);
+        }
+      }
+    }
+  }
+
+  /**
+   * Get health status of all relays
+   */
+  getRelayHealth(): RelayHealth[] {
+    return Array.from(this.relayHealth.values());
+  }
+
+  /**
+   * Reset circuit breaker for a specific relay
+   */
+  resetRelayCircuitBreaker(url: string): void {
+    const health = this.relayHealth.get(url);
+    if (health) {
+      health.isCircuitOpen = false;
+      health.errorCount = 0;
+      health.circuitOpenedAt = null;
     }
   }
 
@@ -620,10 +811,49 @@ class NostrService {
         pendingRelays: Array.from(m.pendingRelays),
         timestamp: m.timestamp,
       }));
-      localStorage.setItem(MESSAGE_QUEUE_STORAGE_KEY, JSON.stringify(data));
+      const serialized = JSON.stringify(data);
+
+      if (!this.checkLocalStorageQuota(serialized.length)) {
+        this.evictOldQueueItems();
+        const evictedSerialized = JSON.stringify(
+          this.messageQueue.map((m) => ({
+            event: m.event,
+            pendingRelays: Array.from(m.pendingRelays),
+            timestamp: m.timestamp,
+          })),
+        );
+        if (!this.checkLocalStorageQuota(evictedSerialized.length)) {
+          logger.warn('Nostr', 'localStorage quota too low, clearing queue');
+          localStorage.removeItem(MESSAGE_QUEUE_STORAGE_KEY);
+          return;
+        }
+        localStorage.setItem(MESSAGE_QUEUE_STORAGE_KEY, evictedSerialized);
+        return;
+      }
+
+      localStorage.setItem(MESSAGE_QUEUE_STORAGE_KEY, serialized);
     } catch (error) {
       logger.warn('Nostr', 'Failed to persist message queue', error);
     }
+  }
+
+  private checkLocalStorageQuota(dataSizeBytes: number): boolean {
+    try {
+      const testKey = '__storage_test__';
+      const testData = 'x'.repeat(Math.min(dataSizeBytes, 1024 * 1024));
+      localStorage.setItem(testKey, testData);
+      localStorage.removeItem(testKey);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private evictOldQueueItems(): void {
+    if (this.messageQueue.length <= 10) return;
+    const removeCount = Math.floor(this.messageQueue.length * 0.3);
+    this.messageQueue.splice(0, removeCount);
+    logger.info('Nostr', `Evicted ${removeCount} items from message queue due to storage pressure`);
   }
 
   private loadPersistedQueue(): void {
@@ -1155,7 +1385,11 @@ class NostrService {
     }
 
     try {
-      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      const events = await this.queryWithTimeout(
+        this.getReadRelays(),
+        filter,
+        this.DEFAULT_QUERY_TIMEOUT_MS,
+      );
       return events.filter((event) => !nostrEventDeduplicator.isEventDuplicate(event.id));
     } catch (error) {
       logger.error('Nostr', 'Failed to fetch boards:', error);
@@ -1175,7 +1409,11 @@ class NostrService {
     };
 
     try {
-      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      const events = await this.queryWithTimeout(
+        this.getReadRelays(),
+        filter,
+        this.DEFAULT_QUERY_TIMEOUT_MS,
+      );
       return events;
     } catch (error) {
       logger.error('Nostr', 'Failed to fetch vote events:', error);
@@ -1224,7 +1462,11 @@ class NostrService {
     };
 
     try {
-      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      const events = await this.queryWithTimeout(
+        this.getReadRelays(),
+        filter,
+        this.DEFAULT_QUERY_TIMEOUT_MS,
+      );
       return events.filter(
         (event) =>
           !nostrEventDeduplicator.isEventDuplicate(event.id) &&
@@ -1249,7 +1491,11 @@ class NostrService {
     };
 
     try {
-      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      const events = await this.queryWithTimeout(
+        this.getReadRelays(),
+        filter,
+        this.DEFAULT_QUERY_TIMEOUT_MS,
+      );
       return events.filter(
         (event) =>
           !nostrEventDeduplicator.isEventDuplicate(event.id) &&
@@ -1274,7 +1520,11 @@ class NostrService {
     };
 
     try {
-      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      const events = await this.queryWithTimeout(
+        this.getReadRelays(),
+        filter,
+        this.DEFAULT_QUERY_TIMEOUT_MS,
+      );
       return events.filter(
         (event) =>
           !nostrEventDeduplicator.isEventDuplicate(event.id) &&
@@ -1305,7 +1555,11 @@ class NostrService {
     };
 
     try {
-      const events = await this.pool.querySync(this.getReadRelays(), filter as Filter);
+      const events = await this.queryWithTimeout(
+        this.getReadRelays(),
+        filter as Filter,
+        this.DEFAULT_QUERY_TIMEOUT_MS,
+      );
       return events.filter(
         (event) =>
           !nostrEventDeduplicator.isEventDuplicate(event.id) && this.isBitboardPostEditEvent(event),
@@ -1664,7 +1918,11 @@ class NostrService {
     try {
       // Note: Only relays supporting NIP-50 will return results
       // Others will ignore the search field
-      const events = await this.pool.querySync(this.getReadRelays(), filter as Filter);
+      const events = await this.queryWithTimeout(
+        this.getReadRelays(),
+        filter as Filter,
+        this.DEFAULT_QUERY_TIMEOUT_MS,
+      );
       return events.sort((a, b) => b.created_at - a.created_at);
     } catch (error) {
       logger.error('Nostr', 'Search failed', error);
@@ -1691,7 +1949,11 @@ class NostrService {
     };
 
     try {
-      const events = await this.pool.querySync(this.getReadRelays(), filter);
+      const events = await this.queryWithTimeout(
+        this.getReadRelays(),
+        filter,
+        this.DEFAULT_QUERY_TIMEOUT_MS,
+      );
       return events.sort((a, b) => b.created_at - a.created_at);
     } catch (error) {
       logger.error('Nostr', 'Hashtag search failed', error);

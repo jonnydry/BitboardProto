@@ -3,6 +3,13 @@
 // ============================================
 // Handles content reporting (posts and comments)
 // Supports both local storage and NIP-56 Nostr reports
+//
+// IMPORTANT: When publishing reports to Nostr (NIP-56):
+// - Reports are PUBLICLY VISIBLE and permanently stored on Nostr relays
+// - Your pubkey (identity) will be visible to anyone viewing the report
+// - Reports cannot be deleted or modified once published
+// - Only use Nostr publishing when you want the report to be part of the
+//   public moderation record on the decentralized network
 
 import { nostrService } from './nostr/NostrService';
 import { identityService } from './identityService';
@@ -54,6 +61,9 @@ export interface NostrReportInfo {
 }
 
 const STORAGE_KEY = 'bitboard_reports';
+
+const NOSTR_PUBLISH_WARNING =
+  'Warning: Publishing this report to Nostr will make it publicly visible and permanent. Your pubkey will be visible to others. Only proceed if you want this report on the public moderation record.';
 
 class ReportService {
   private reports: Map<string, Report> = new Map();
@@ -203,6 +213,10 @@ class ReportService {
 
   /**
    * Publish a report to Nostr relays (NIP-56)
+   *
+   * WARNING: Reports published to Nostr are PUBLICLY VISIBLE and PERMANENT.
+   * Your pubkey will be visible. Only use this when you want the report
+   * to be part of the public moderation record.
    */
   async publishToNostr(
     targetEventId: string,
@@ -211,6 +225,8 @@ class ReportService {
     identity: NostrIdentity,
     details?: string,
   ): Promise<NostrEvent | null> {
+    logger.warn('Reports', NOSTR_PUBLISH_WARNING);
+
     try {
       const reportType = REASON_TO_NIP56_TYPE[reason];
 
@@ -229,6 +245,13 @@ class ReportService {
       // Error already logged by diagnosticsService in NostrService
       return null;
     }
+  }
+
+  /**
+   * Get the warning message displayed before publishing reports to Nostr
+   */
+  getNostrPublishWarning(): string {
+    return NOSTR_PUBLISH_WARNING;
   }
 
   /**

@@ -1,9 +1,15 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
 import { Post, Board, BoardType } from '../types';
 import { scanLink } from '../services/geminiService';
 import { inputValidator, InputLimits } from '../services/inputValidator';
 import { rateLimiter } from '../services/rateLimiter';
-import { Loader, ImageIcon, AlertTriangle, Lock } from 'lucide-react';
+import { Loader, AlertTriangle, Lock, X } from 'lucide-react';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { MentionInput } from './MentionInput';
 
@@ -44,11 +50,11 @@ export const CreatePost: React.FC<CreatePostProps> = ({
   const [imageUrl, setImageUrl] = useState('');
   const [linkDescription, _setLinkDescription] = useState('');
   const [content, setContent] = useState('');
-  const [tagsStr, setTagsStr] = useState('');
-  const tagCount = tagsStr
-    .split(',')
-    .map((t) => t.trim())
-    .filter((t) => t.length > 0).length;
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
+  // keep tagsStr in sync for draft persistence
+  const tagsStr = tags.join(', ');
+  const tagCount = tags.length;
   const [selectedBoardId, setSelectedBoardId] = useState(
     currentBoardId || availableBoards[0]?.id || '',
   );
@@ -103,7 +109,12 @@ export const CreatePost: React.FC<CreatePostProps> = ({
           setUrl(draft.url || '');
           setImageUrl(draft.imageUrl || '');
           setContent(draft.content || '');
-          setTagsStr(draft.tagsStr || '');
+          setTags(
+            (draft.tagsStr || '')
+              .split(',')
+              .map((t: string) => t.trim())
+              .filter((t: string) => t.length > 0),
+          );
           if (
             draft.selectedBoardId &&
             availableBoards.some((b) => b.id === draft.selectedBoardId)
@@ -144,7 +155,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({
         clearTimeout(draftTimerRef.current);
       }
     };
-  }, [title, url, imageUrl, content, tagsStr, selectedBoardId]);
+  }, [title, url, imageUrl, content, tags, tagsStr, selectedBoardId]);
 
   // Clear draft on submit
   const clearDraft = useCallback(() => {
@@ -240,7 +251,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({
     }
 
     // Check rate limit
-    const contentHash = rateLimiter.hashContent(title + content);
+    const contentHash = await rateLimiter.hashContent(title + content);
     const userId = userPubkey || activeUser;
 
     if (!rateLimiter.allowPost(userId, contentHash)) {
@@ -260,11 +271,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({
       const sanitizedImageUrl = imageUrl.trim() ? inputValidator.validateUrl(imageUrl) : undefined;
 
       // Parse and validate tags
-      const rawTags = tagsStr
-        .split(',')
-        .map((t) => t.trim())
-        .filter((t) => t.length > 0);
-      const sanitizedTags = inputValidator.validateTags(rawTags);
+      const sanitizedTags = inputValidator.validateTags(tags);
 
       // Submit (handle both sync and async onSubmit)
       const result = onSubmit({
@@ -303,245 +310,262 @@ export const CreatePost: React.FC<CreatePostProps> = ({
   const selectedBoard = availableBoards.find((b) => b.id === selectedBoardId);
   const isEncryptedBoard = selectedBoard?.isEncrypted ?? false;
 
+  const handleTagInputKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const newTag = tagInput.trim().replace(/^#/, '');
+      if (newTag && !tags.includes(newTag) && tags.length < InputLimits.MAX_TAGS_COUNT) {
+        setTags([...tags, newTag]);
+      }
+      setTagInput('');
+    } else if (e.key === 'Backspace' && !tagInput && tags.length > 0) {
+      setTags(tags.slice(0, -1));
+    }
+  };
+
   return (
-    <div className="border-2 border-terminal-text bg-terminal-bg p-6 max-w-2xl mx-auto w-full shadow-hard-lg animate-fade-in">
-      <h2 className="text-2xl font-bold mb-6 border-b border-terminal-dim pb-2 flex justify-between items-end">
-        <span>&gt; CREATE_POST</span>
-        <span className="text-xs text-terminal-dim font-normal flex items-center gap-2">
-          ID: <span className="text-terminal-text">{activeUser}</span>
-        </span>
-      </h2>
+    <div className="border border-terminal-dim/30 bg-terminal-bg max-w-2xl mx-auto w-full animate-fade-in">
+      {/* Status strip */}
+      <div className="flex items-center justify-between py-3 px-5 border-b border-terminal-dim/15">
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-terminal-text flex-shrink-0" />
+          <span className="text-sm tracking-[0.12em] text-terminal-dim font-mono uppercase">
+            New Bit
+          </span>
+        </div>
+        <div className="flex items-center gap-2.5 text-xs font-mono">
+          <span className="text-terminal-dim/60 tracking-[0.08em] uppercase">Draft saved</span>
+          <div className="w-px h-2.5 bg-terminal-dim/30" />
+          <span className="text-terminal-dim/50">ESC to discard</span>
+        </div>
+      </div>
 
       {/* Rate Limit Error Banner */}
       {rateLimitError && (
-        <div className="mb-4 p-3 border border-terminal-alert bg-terminal-alert/10 flex items-center gap-2 text-terminal-alert">
-          <AlertTriangle size={16} />
-          <span className="text-sm">{rateLimitError}</span>
+        <div className="px-5 pt-3 flex items-center gap-2 text-terminal-alert text-xs">
+          <AlertTriangle size={14} />
+          <span>{rateLimitError}</span>
         </div>
       )}
 
-      <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-4">
-        {/* Board Selector */}
-        <div className="flex flex-col gap-1">
-          <label className="text-sm text-terminal-muted uppercase font-bold">Target Board</label>
-          <select
-            value={selectedBoardId}
-            onChange={(e) => setSelectedBoardId(e.target.value)}
-            className="bg-terminal-bg border border-terminal-dim p-3 text-terminal-text focus:border-terminal-text focus:outline-none font-mono text-lg appearance-none cursor-pointer hover:bg-terminal-dim/10"
-          >
-            {availableBoards.map((board) => (
-              <option key={board.id} value={board.id}>
-                {board.type === BoardType.GEOHASH ? '📍' : '//'}
-                {board.name} {board.isPublic ? '' : '[LOCKED]'} {board.isEncrypted ? '🔒' : ''}
-              </option>
-            ))}
-          </select>
+      <form ref={formRef} onSubmit={handleSubmit}>
+        {/* Board selector row */}
+        <div className="flex items-center gap-2.5 py-2.5 px-5 border-b border-terminal-dim/15">
+          <span className="text-xs tracking-widest text-terminal-dim/70 font-mono uppercase flex-shrink-0">
+            Board
+          </span>
+          <div className="relative flex-1">
+            <select
+              value={selectedBoardId}
+              onChange={(e) => setSelectedBoardId(e.target.value)}
+              className="w-full bg-terminal-bg/60 border border-terminal-dim/40 py-1.5 pl-2.5 pr-6 text-terminal-text focus:border-terminal-dim focus:outline-none font-mono text-sm appearance-none cursor-pointer"
+            >
+              {availableBoards.map((board) => (
+                <option key={board.id} value={board.id}>
+                  {board.type === BoardType.GEOHASH ? '📍 ' : '// '}
+                  {board.name}
+                  {board.isPublic ? '' : ' [LOCKED]'}
+                  {board.isEncrypted ? ' 🔒' : ''}
+                </option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-terminal-text" />
+          </div>
           {isEncryptedBoard && (
-            <div className="mt-2 p-2 border border-terminal-dim/50 bg-terminal-dim/10 flex items-center gap-2 text-xs text-terminal-dim">
-              <Lock size={14} />
-              <span>This board is encrypted. Your post will be encrypted.</span>
+            <div className="flex items-center gap-1.5 text-xs text-terminal-dim/60 font-mono flex-shrink-0">
+              <Lock size={12} />
+              <span>encrypted</span>
             </div>
           )}
         </div>
 
-        {/* URL Input with Scanner */}
-        <div className="flex flex-col gap-1">
-          <label htmlFor="url-input" className="text-sm text-terminal-muted uppercase font-bold">
-            Link (Optional)
-          </label>
-          <div className="flex gap-2">
+        {/* Writing area — title + content */}
+        <div className="flex flex-col border-b border-terminal-dim/15 px-5">
+          {/* Title */}
+          <div className="pb-3.5 border-b border-terminal-dim/20">
             <input
-              id="url-input"
-              type="url"
-              value={url}
+              id="title-input"
+              type="text"
+              value={title}
               onChange={(e) => {
-                setUrl(e.target.value);
-                setUrlError(null);
+                setTitle(e.target.value);
+                setTitleError(null);
               }}
-              onBlur={() => {
-                if (url.trim() && !urlError) {
-                  handleScanLink();
-                }
-              }}
-              className={`flex-1 bg-terminal-bg border p-2 text-terminal-text focus:border-terminal-text focus:outline-none font-mono ${
-                urlError ? 'border-terminal-alert' : 'border-terminal-dim'
+              className={`w-full bg-transparent text-xl md:text-2xl leading-[130%] font-display font-semibold text-terminal-text focus:outline-none placeholder:text-terminal-dim/30 ${
+                titleError ? 'placeholder:text-terminal-alert/50' : ''
               }`}
-              placeholder="https://example.com"
+              placeholder="Title your bit…"
             />
-            <button
-              type="button"
-              onClick={handleScanLink}
-              disabled={!url.trim() || isScanning}
-              className="border border-terminal-dim px-3 text-terminal-dim hover:text-terminal-text hover:border-terminal-text disabled:opacity-50 transition-colors uppercase text-xs font-bold tracking-wider flex items-center gap-2"
-            >
-              {isScanning ? <Loader className="animate-spin" size={14} /> : '[ SCAN_URL ]'}
-            </button>
+            {titleError && (
+              <span className="text-terminal-alert text-xs mt-1 block">* {titleError}</span>
+            )}
+            {titleOverLimit && (
+              <span className="text-terminal-alert text-xs mt-1 block">
+                {titleCharCount}/{InputLimits.MAX_TITLE_LENGTH}
+              </span>
+            )}
           </div>
-          {urlError && <span className="text-terminal-alert text-xs">* {urlError}</span>}
-        </div>
 
-        {/* Image Preview */}
-        {(imageUrl || isScanning) && (
-          <div className="border border-terminal-dim border-dashed p-2 bg-terminal-dim/5">
-            {isScanning ? (
-              <div className="h-32 flex items-center justify-center text-terminal-dim animate-pulse">
-                SCANNING_NODES...
+          {/* Content */}
+          <div className="pt-3.5">
+            {showPreview ? (
+              <div className="min-h-[120px] text-sm text-terminal-dim/70">
+                {content ? (
+                  <MarkdownRenderer content={content} />
+                ) : (
+                  <p className="italic text-terminal-dim/50">No content yet…</p>
+                )}
               </div>
             ) : (
-              <div className="relative group">
+              <MentionInput
+                value={content}
+                onChange={(newContent) => {
+                  setContent(newContent);
+                  setContentError(null);
+                }}
+                knownUsers={new Set()}
+                placeholder="Write your signal… Markdown and @mentions supported."
+                minHeight="120px"
+              />
+            )}
+            {contentError && (
+              <span className="text-terminal-alert text-xs mt-1 block">* {contentError}</span>
+            )}
+          </div>
+
+          {/* Content footer: preview toggle + char count */}
+          <div className="flex items-center justify-end gap-4 pt-2.5 pb-3">
+            <button
+              type="button"
+              onClick={() => setShowPreview(!showPreview)}
+              className="text-xs tracking-widest text-terminal-dim/50 hover:text-terminal-dim uppercase font-mono transition-colors"
+            >
+              {showPreview ? 'Edit' : 'Preview'}
+            </button>
+            <span
+              className={`text-xs font-mono ${contentOverLimit ? 'text-terminal-alert' : 'text-terminal-dim/40'}`}
+            >
+              {contentCharCount} / {InputLimits.MAX_POST_CONTENT_LENGTH}
+            </span>
+          </div>
+        </div>
+
+        {/* Image preview (scanner result) */}
+        {(imageUrl || isScanning) && (
+          <div className="border-b border-terminal-dim/15">
+            {isScanning ? (
+              <div className="px-5 py-4 text-xs font-mono text-terminal-dim/50 animate-pulse uppercase tracking-widest">
+                Scanning…
+              </div>
+            ) : (
+              <div className="relative">
                 <img
                   src={imageUrl}
-                  alt="Link Preview"
-                  className="h-48 w-full object-cover grayscale sepia contrast-125 border border-terminal-dim"
+                  alt="Link preview"
+                  className="h-40 w-full object-cover grayscale sepia contrast-125 opacity-60"
                   onError={() => setImageUrl('')}
                 />
                 <button
                   type="button"
                   onClick={() => setImageUrl('')}
-                  className="absolute top-2 right-2 bg-terminal-bg border border-terminal-alert text-terminal-alert px-2 text-xs hover:bg-terminal-alert hover:text-black"
+                  className="absolute top-2 right-2 bg-terminal-bg/90 border border-terminal-dim/40 text-terminal-dim p-1 hover:text-terminal-text transition-colors"
+                  title="Remove image"
                 >
-                  REMOVE
+                  <X size={12} />
                 </button>
-                <div className="absolute bottom-2 left-2 bg-terminal-bg/90 px-2 py-1 text-xs text-terminal-text">
-                  PREVIEW_ASSET_DETECTED
-                </div>
               </div>
             )}
           </div>
         )}
 
-        {/* Title */}
-        <div className="flex flex-col gap-1">
-          <div className="flex justify-between items-center">
-            <label
-              htmlFor="title-input"
-              className="text-sm text-terminal-muted uppercase font-bold"
-            >
-              Title
-            </label>
-            <span
-              className={`text-xs ${titleOverLimit ? 'text-terminal-alert' : 'text-terminal-dim'}`}
-            >
-              {titleCharCount}/{InputLimits.MAX_TITLE_LENGTH}
-            </span>
-          </div>
+        {/* Link row */}
+        <div className="flex items-center gap-2.5 py-2.5 px-5 border-b border-terminal-dim/15">
+          <span className="text-xs tracking-widest text-terminal-dim/60 font-mono uppercase flex-shrink-0">
+            Link
+          </span>
           <input
-            id="title-input"
-            type="text"
-            value={title}
+            id="url-input"
+            type="url"
+            value={url}
             onChange={(e) => {
-              setTitle(e.target.value);
-              setTitleError(null);
+              setUrl(e.target.value);
+              setUrlError(null);
             }}
-            className={`bg-terminal-bg border p-3 text-terminal-text focus:border-terminal-text focus:outline-none font-mono text-lg ${
-              titleError ? 'border-terminal-alert' : 'border-terminal-dim'
+            onBlur={() => {
+              if (url.trim() && !urlError) handleScanLink();
+            }}
+            className={`flex-1 bg-terminal-bg/60 border py-1.5 px-2.5 text-terminal-text focus:outline-none font-mono text-xs placeholder:text-terminal-dim/30 ${
+              urlError ? 'border-terminal-alert/60' : 'border-terminal-dim/40'
             }`}
-            placeholder="Enter a descriptive title..."
+            placeholder="https://…"
           />
-          {titleError && <span className="text-terminal-alert text-xs">* {titleError}</span>}
-        </div>
-
-        {/* Content */}
-        <div className="flex flex-col gap-1">
-          <div className="flex justify-between items-center">
-            <label
-              htmlFor="content-textarea"
-              className="text-sm text-terminal-muted uppercase font-bold"
-            >
-              Content
-            </label>
-            <div className="flex items-center gap-2">
-              <span
-                className={`text-xs ${contentOverLimit ? 'text-terminal-alert' : 'text-terminal-dim'}`}
-              >
-                {contentCharCount}/{InputLimits.MAX_POST_CONTENT_LENGTH}
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowPreview(!showPreview)}
-                className="text-xs border border-terminal-dim/50 px-2 py-0.5 text-terminal-dim hover:text-terminal-text hover:border-terminal-dim transition-colors"
-              >
-                {showPreview ? '[ EDIT ]' : '[ PREVIEW ]'}
-              </button>
-            </div>
-          </div>
-          {showPreview ? (
-            <div className="min-h-[150px] border border-terminal-dim/50 p-2 bg-terminal-dim/5">
-              {content ? (
-                <MarkdownRenderer content={content} />
-              ) : (
-                <p className="text-terminal-dim text-sm italic">No content yet...</p>
-              )}
-            </div>
-          ) : (
-            <MentionInput
-              value={content}
-              onChange={(newContent) => {
-                setContent(newContent);
-                setContentError(null);
-              }}
-              knownUsers={new Set()}
-              placeholder="Write your signal... Markdown is supported. Use @ to mention."
-              minHeight="150px"
-            />
-          )}
-          {contentError && <span className="text-terminal-alert text-xs">* {contentError}</span>}
-        </div>
-
-        {/* Image URL Manual Override */}
-        <div className="flex flex-col gap-1">
-          <label
-            htmlFor="image-url-input"
-            className="text-sm text-terminal-muted uppercase font-bold flex items-center gap-2"
-          >
-            <ImageIcon size={14} /> Attached Image Asset (URL)
-          </label>
-          <input
-            id="image-url-input"
-            type="text"
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            className="bg-terminal-bg border border-terminal-dim p-2 text-terminal-text focus:border-terminal-text focus:outline-none font-mono text-sm opacity-70 focus:opacity-100"
-            placeholder="Auto-filled by scanner or enter manually..."
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <div className="flex justify-between items-center">
-            <label htmlFor="tags-input" className="text-sm text-terminal-muted uppercase font-bold">
-              Tags
-            </label>
-            <span
-              className={`text-xs ${tagCount > InputLimits.MAX_TAGS_COUNT ? 'text-terminal-alert' : 'text-terminal-dim'}`}
-            >
-              {tagCount}/{InputLimits.MAX_TAGS_COUNT}
-            </span>
-          </div>
-          <input
-            id="tags-input"
-            type="text"
-            value={tagsStr}
-            onChange={(e) => setTagsStr(e.target.value)}
-            className="bg-terminal-bg border border-terminal-dim p-2 text-terminal-text focus:border-terminal-text focus:outline-none font-mono"
-            placeholder="tech, discussion, news (comma separated)"
-          />
-        </div>
-
-        <div className="flex gap-4 mt-4 pt-4 border-t border-terminal-dim/30">
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="bg-terminal-text text-black font-bold px-6 py-3 hover:bg-terminal-dim hover:text-white transition-colors uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? '> TRANSMITTING...' : 'TRANSMIT BIT'}
-          </button>
           <button
             type="button"
-            onClick={onCancel}
-            className="border border-terminal-alert text-terminal-alert px-6 py-3 hover:bg-terminal-alert hover:text-black transition-colors uppercase tracking-widest"
+            onClick={handleScanLink}
+            disabled={!url.trim() || isScanning}
+            className="flex-shrink-0 border border-terminal-dim/40 py-1.5 px-2.5 text-xs tracking-[0.06em] text-terminal-dim/60 hover:text-terminal-dim hover:border-terminal-dim/60 disabled:opacity-40 transition-colors font-mono uppercase"
           >
-            DISCARD
+            {isScanning ? <Loader className="animate-spin" size={10} /> : 'Scan'}
           </button>
+          {urlError && (
+            <span className="text-terminal-alert text-xs flex-shrink-0">* {urlError}</span>
+          )}
+        </div>
+
+        {/* Tags row */}
+        <div className="flex items-center gap-2 py-2.5 px-5 border-b border-terminal-dim/15 flex-wrap">
+          <span className="text-xs tracking-widest text-terminal-dim/60 font-mono uppercase flex-shrink-0">
+            Tags
+          </span>
+          {tags.map((tag) => (
+            <button
+              key={tag}
+              type="button"
+              onClick={() => setTags(tags.filter((t) => t !== tag))}
+              className="flex items-center gap-1 border border-terminal-dim/40 bg-terminal-bg py-0.5 px-2 text-terminal-text font-mono text-xs hover:border-terminal-alert/60 hover:text-terminal-alert/80 transition-colors group"
+            >
+              <span>#{tag}</span>
+              <X size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+            </button>
+          ))}
+          {tags.length < InputLimits.MAX_TAGS_COUNT && (
+            <input
+              type="text"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={handleTagInputKeyDown}
+              onBlur={() => {
+                const newTag = tagInput.trim().replace(/^#/, '');
+                if (newTag && !tags.includes(newTag) && tags.length < InputLimits.MAX_TAGS_COUNT) {
+                  setTags([...tags, newTag]);
+                }
+                setTagInput('');
+              }}
+              className="border border-dashed border-terminal-dim/40 py-0.5 px-2 text-terminal-dim/50 font-mono text-xs bg-transparent focus:outline-none focus:border-terminal-dim/60 focus:text-terminal-dim placeholder:text-terminal-dim/30 min-w-[60px] w-20"
+              placeholder="+ add"
+            />
+          )}
+        </div>
+
+        {/* Footer actions */}
+        <div className="flex items-center justify-between py-3.5 px-5">
+          <span className="text-xs text-terminal-dim/30 font-mono">⌘⏎ transmit</span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="border border-terminal-dim/40 py-2 px-4 text-terminal-dim/60 font-mono text-xs hover:border-terminal-dim/60 hover:text-terminal-dim transition-colors"
+            >
+              Discard
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="bg-terminal-text text-terminal-bg font-mono font-semibold text-xs py-2 px-5 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+            >
+              {isSubmitting ? 'Transmitting…' : 'Transmit Bit'}
+            </button>
+          </div>
         </div>
       </form>
     </div>

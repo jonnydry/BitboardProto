@@ -4,14 +4,10 @@ import {
   ChevronDown,
   ChevronRight,
   CornerDownRight,
-  Clock,
   Flag,
   Edit3,
   Trash2,
   Lock,
-  ArrowBigUp,
-  ArrowBigDown,
-  UserX,
   VolumeX,
   MoreHorizontal,
   Loader2,
@@ -331,23 +327,14 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
       {/* Comment container */}
       <div
         className={`
-        border-l-2 pl-3 py-2 mb-2 transition-colors
-        ${isCollapsed ? 'border-terminal-dim/30' : 'border-terminal-dim hover:border-terminal-text'}
+        border-l pl-3 py-2 mb-2 transition-colors
+        ${isCollapsed ? 'border-terminal-dim/15' : 'border-terminal-dim/20'}
       `}
       >
         <div className="flex gap-2">
           {/* Voting Column (compact) */}
           {onVote && postId && (
             <div className="flex flex-col items-center min-w-[2rem] gap-0.5 pt-0.5">
-              {!userState.identity && (
-                <div
-                  className="mb-0.5 flex items-center gap-0.5 px-1 py-0.5 border border-terminal-dim/50 bg-terminal-dim/10 rounded"
-                  title="Guest mode: Connect identity to cast verified votes"
-                >
-                  <UserX size={8} className="text-terminal-dim" />
-                  <span className="text-[7px] text-terminal-dim uppercase">G</span>
-                </div>
-              )}
               <button
                 onClick={handleVoteUp}
                 className={`p-1 hover:bg-terminal-dim transition-colors ${isUpvoted ? 'text-terminal-text font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -366,7 +353,14 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
                           : 'INVEST 1 BIT (-1)'
                 }
               >
-                <ArrowBigUp size={14} fill={isUpvoted ? 'currentColor' : 'none'} />
+                <svg width="12" height="8" viewBox="0 0 12 8">
+                  <path
+                    d="M6 0L12 8H0L6 0Z"
+                    fill={isUpvoted ? 'currentColor' : 'none'}
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  />
+                </svg>
               </button>
 
               <span
@@ -394,7 +388,14 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
                           : 'INVEST 1 BIT (-1)'
                 }
               >
-                <ArrowBigDown size={14} fill={isDownvoted ? 'currentColor' : 'none'} />
+                <svg width="12" height="8" viewBox="0 0 12 8">
+                  <path
+                    d="M6 8L0 0H12L6 8Z"
+                    fill={isDownvoted ? 'currentColor' : 'none'}
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  />
+                </svg>
               </button>
             </div>
           )}
@@ -417,34 +418,38 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
               {/* Author */}
               <button
                 onClick={handleAuthorClick}
-                className="flex items-center gap-1 text-terminal-text font-bold hover:underline cursor-pointer"
+                className="flex items-center gap-1.5 text-terminal-text font-bold hover:underline cursor-pointer"
               >
-                {authorProfile?.picture && (
+                {authorProfile?.picture ? (
                   <img
                     src={authorProfile.picture}
                     alt={`${comment.author}'s avatar`}
-                    className="w-4 h-4 rounded-full object-cover"
+                    className="w-5.5 h-5.5 rounded-full object-cover flex-shrink-0"
                     onError={(e) => {
                       e.currentTarget.style.display = 'none';
                     }}
                   />
+                ) : (
+                  <div
+                    className="w-5 h-5 rounded-full bg-terminal-dim/20 border border-terminal-dim/40 flex items-center justify-center text-xs text-terminal-dim font-bold flex-shrink-0"
+                    title={comment.author}
+                  >
+                    {comment.author.charAt(0).toUpperCase()}
+                  </div>
                 )}
                 <span>{profileService.getDisplayName(comment.author, authorProfile)}</span>
               </button>
 
-              <span className="text-terminal-dim">::</span>
+              <span className="text-terminal-dim">·</span>
 
               {/* Timestamp */}
-              <span className="text-terminal-dim flex items-center gap-1">
-                <Clock size={10} />
-                {formatTime(comment.timestamp)}
-              </span>
+              <span className="text-terminal-dim">{formatTime(comment.timestamp)}</span>
 
               {/* Collapsed indicator */}
               {isCollapsed && hasReplies && (
                 <button
                   onClick={handleToggleCollapse}
-                  className="text-terminal-text text-xs border border-terminal-text/50 px-2 py-0.5 transition-colors flex items-center gap-1 bg-terminal-text/10 hover:bg-terminal-text/20"
+                  className="text-terminal-dim text-xs border border-terminal-dim/40 px-2 py-0.5 transition-colors flex items-center gap-1 hover:border-terminal-dim"
                 >
                   {depth >= AUTO_COLLAPSE_DEPTH ? (
                     <>
@@ -463,7 +468,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
             {!isCollapsed && (
               <>
                 {!isEditing ? (
-                  <p className="text-terminal-text/80 text-sm leading-relaxed break-words mb-2">
+                  <p className="text-terminal-dim text-sm leading-relaxed break-words mb-2">
                     {isDeleted ? (
                       <span className="italic text-terminal-dim">[deleted]</span>
                     ) : comment.isEncrypted && comment.encryptedContent ? (
@@ -475,7 +480,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
                       <MarkdownRenderer content={comment.content} />
                     )}
                     {!isDeleted && comment.editedAt && (
-                      <span className="ml-2 text-[10px] text-terminal-dim uppercase">(edited)</span>
+                      <span className="ml-2 text-xs text-terminal-dim/70 uppercase">(edited)</span>
                     )}
                   </p>
                 ) : (
@@ -509,17 +514,16 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
                 )}
 
                 {/* Actions */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3.5 pb-2.5 border-b border-terminal-dim/15">
                   <button
                     onClick={handleReplyClick}
-                    className={`text-xs flex items-center gap-1 transition-colors
+                    className={`text-xs tracking-[0.08em] transition-colors
                   ${
                     isReplying ? 'text-terminal-text' : 'text-terminal-dim hover:text-terminal-text'
                   }`}
                     disabled={isDeleted}
                   >
-                    <CornerDownRight size={10} />
-                    {isReplying ? 'CANCEL' : 'REPLY'}
+                    REPLY
                   </button>
 
                   <div className="relative" ref={moreActionsRef}>
@@ -534,13 +538,12 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
                       aria-expanded={showMoreActions}
                     >
                       <MoreHorizontal size={10} />
-                      MORE
                     </button>
 
                     {showMoreActions && (
                       <div className="absolute right-0 top-full z-20 mt-2 min-w-[180px] border border-terminal-dim bg-terminal-bg p-2 shadow-hard">
                         <div className="mb-2 border-b border-terminal-dim/30 pb-2">
-                          <div className="mb-1 text-[10px] uppercase tracking-wider text-terminal-muted">
+                          <div className="mb-1 text-xs uppercase tracking-wider text-terminal-dim/70">
                             Reactions
                           </div>
                           <ReactionBar
@@ -635,26 +638,43 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
                   <form
                     ref={replyFormRef}
                     onSubmit={handleSubmitReply}
-                    className="mt-3 flex gap-2 items-start bg-terminal-bg/40 p-2 border border-terminal-dim/30"
+                    className="mt-3 border-t border-terminal-dim/20 pt-3"
                   >
-                    <div className="flex-1">
-                      <MentionInput
-                        value={replyContent}
-                        onChange={setReplyContent}
-                        knownUsers={knownUsers}
-                        placeholder={`Reply to ${comment.author}... (use @ to mention)`}
-                        autoFocus
-                        minHeight="50px"
-                        disabled={isSubmitting}
-                      />
+                    <div className="text-[10px] text-terminal-dim/60 mb-2 uppercase tracking-wider">
+                      Replying to @{comment.author}
                     </div>
-                    <button
-                      type="submit"
-                      disabled={!replyContent.trim() || isSubmitting}
-                      className="border border-terminal-dim px-3 py-1 text-xs hover:bg-terminal-text hover:text-black disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-terminal-dim transition-all uppercase font-bold"
-                    >
-                      {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : 'SEND'}
-                    </button>
+                    <MentionInput
+                      value={replyContent}
+                      onChange={setReplyContent}
+                      knownUsers={knownUsers}
+                      placeholder={`Reply to @${comment.author}…`}
+                      autoFocus
+                      minHeight="50px"
+                      disabled={isSubmitting}
+                    />
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-[10px] text-terminal-dim/30">⌘⏎ transmit</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleReplyClick}
+                          className="text-xs text-terminal-dim hover:text-terminal-text transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={!replyContent.trim() || isSubmitting}
+                          className="bg-terminal-text text-terminal-bg text-xs font-bold px-3 py-1.5 disabled:opacity-50 transition-colors"
+                        >
+                          {isSubmitting ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            'Transmit'
+                          )}
+                        </button>
+                      </div>
+                    </div>
                   </form>
                 )}
               </>
@@ -877,15 +897,15 @@ const CommentListComponent: React.FC<CommentListProps> = ({
               className="hover:text-terminal-text transition-colors uppercase"
               title="Collapse all threads"
             >
-              Collapse all
+              collapse all
             </button>
-            <span className="text-terminal-dim/50">|</span>
+            <span className="text-terminal-dim/30">·</span>
             <button
               onClick={handleExpandAll}
               className="hover:text-terminal-text transition-colors uppercase"
               title="Expand all threads"
             >
-              Expand all
+              expand all
             </button>
           </div>
         </div>

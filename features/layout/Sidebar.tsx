@@ -208,7 +208,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
       <div className="border border-terminal-dim p-2 md:p-3 bg-terminal-bg shadow-hard relative overflow-hidden group">
         <div className="absolute inset-0 bg-terminal-dim/5 translate-x-[-100%] group-hover:translate-x-full transition-transform duration-1000 pointer-events-none" />
         <div className="flex items-center justify-between text-xs mb-1">
-          <span className="text-terminal-dim font-bold text-[10px] md:text-xs">SYSTEM_STATUS</span>
+          <span className="text-terminal-dim font-bold text-xs">SYSTEM_STATUS</span>
           <div className="flex gap-1 items-center">
             {/* Relay health indicator dots */}
             {relayMetrics.healthStatus === 'good' && (
@@ -231,7 +231,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
             />
           </div>
         </div>
-        <div className="font-mono text-[10px] text-terminal-dim leading-tight">
+        <div className="font-mono text-xs text-terminal-dim leading-tight">
           {/* Relay connection with click to expand */}
           <button
             onClick={() => setShowRelayDetails(!showRelayDetails)}
@@ -303,7 +303,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
           </div>
         </div>
         {userState.identity && (
-          <div className="hidden md:block mt-2 text-[10px] text-terminal-dim truncate border-t border-terminal-dim/30 pt-1">
+          <div className="hidden md:block mt-2 text-xs text-terminal-dim truncate border-t border-terminal-dim/30 pt-1">
             KEY: {userState.identity.npub.slice(0, 16)}...
           </div>
         )}
@@ -364,7 +364,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
         title="TOPIC_NET"
         icon={Hash}
         defaultOpen={false}
-        badge={<span className="text-[10px] text-terminal-dim">({topicBoards.length})</span>}
+        badge={<span className="text-xs text-terminal-dim">({topicBoards.length})</span>}
       >
         {/* Board search */}
         {topicBoards.length > 5 && (
@@ -470,7 +470,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
                     onClick={() => setVisibleBoardCount((v) => v + 10)}
                     className="text-left text-xs px-2 py-1.5 text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10 transition-all flex items-center gap-2 group w-full"
                   >
-                    <span className="shrink-0 text-[10px] opacity-50 group-hover:opacity-100">
+                    <span className="shrink-0 text-xs opacity-50 group-hover:opacity-100">
                       {'+'}
                     </span>
                     <span className="truncate">
@@ -482,7 +482,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
                   onClick={() => onSetViewMode(ViewMode.BROWSE_BOARDS)}
                   className="text-left text-xs md:text-sm px-2 py-1.5 text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10 transition-all flex items-center gap-2 group w-full"
                 >
-                  <span className="shrink-0 text-[10px] opacity-50 group-hover:opacity-100">
+                  <span className="shrink-0 text-xs opacity-50 group-hover:opacity-100">
                     {'>>'}
                   </span>
                   <span className="truncate">
@@ -565,14 +565,14 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
               </button>
             ))}
           </div>
-          <p className="text-[9px] md:text-[10px] text-terminal-dim mt-2 md:mt-3 leading-tight">
+          <p className="text-xs text-terminal-dim mt-2 md:mt-3 leading-tight">
             Boards with stored encryption keys. Content is decrypted locally.
           </p>
 
           {/* Show failed decryption boards */}
           {decryptionFailedBoardIds && decryptionFailedBoardIds.size > 0 && (
             <div className="mt-3 pt-2 border-t border-terminal-alert/30">
-              <div className="flex items-center gap-1 text-[10px] text-terminal-alert mb-2">
+              <div className="flex items-center gap-1 text-xs text-terminal-alert mb-2">
                 <AlertTriangle size={10} />
                 <span className="uppercase font-bold">Failed Keys</span>
               </div>
@@ -598,7 +598,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
                   </div>
                 );
               })}
-              <p className="text-[9px] text-terminal-dim mt-1">
+              <p className="text-xs text-terminal-dim mt-1">
                 These keys failed to decrypt. Remove and import a new share link.
               </p>
             </div>
@@ -623,9 +623,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
         {/* Nearby Activity Summary */}
         {nearbyActivity.length > 0 && (
           <div className="mb-2 md:mb-3 p-1.5 md:p-2 bg-terminal-dim/10 border border-terminal-dim/30">
-            <div className="text-[9px] md:text-[10px] text-terminal-dim uppercase mb-1">
-              Active Channels
-            </div>
+            <div className="text-xs text-terminal-dim uppercase mb-1">Active Channels</div>
             <div className="flex flex-wrap gap-1">
               {nearbyActivity.slice(0, 3).map((channel) => (
                 <button
@@ -634,7 +632,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
                     const board = geonetDiscoveryService.channelToBoard(channel);
                     navigateToBoard(board.id);
                   }}
-                  className="text-[10px] px-1.5 py-0.5 bg-terminal-dim/20 hover:bg-terminal-text hover:text-terminal-bg transition-colors font-mono"
+                  className="text-xs px-1.5 py-0.5 bg-terminal-dim/20 hover:bg-terminal-text hover:text-terminal-bg transition-colors font-mono"
                   title={`${channel.postCount} posts, ${channel.uniqueAuthors} users`}
                 >
                   #{channel.geohash.slice(0, 4)}
@@ -644,7 +642,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
                 </button>
               ))}
               {nearbyActivity.length > 3 && (
-                <span className="text-[10px] text-terminal-dim px-1">
+                <span className="text-xs text-terminal-dim px-1">
                   +{nearbyActivity.length - 3} more
                 </span>
               )}
@@ -654,7 +652,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
 
         <div className="flex flex-col gap-1">
           {geohashBoards.length === 0 ? (
-            <p className="text-[10px] md:text-xs text-terminal-dim py-1 md:py-2 font-mono">
+            <p className="text-xs text-terminal-dim py-1 md:py-2 font-mono">
               [NO_SIGNAL] Enable location to scan.
             </p>
           ) : (
@@ -699,7 +697,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
                   </span>
                   {activity && activity.postCount > 0 && (
                     <span
-                      className={`text-[10px] px-1 ${
+                      className={`text-xs px-1 ${
                         activeBoardId === board.id
                           ? 'bg-terminal-bg/20'
                           : 'bg-terminal-dim/30 text-terminal-text'
@@ -715,7 +713,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
         </div>
         <button
           onClick={() => onSetViewMode(ViewMode.LOCATION)}
-          className="mt-2 md:mt-4 w-full text-[10px] md:text-xs border border-terminal-dim border-dashed text-terminal-dim p-1.5 md:p-2 hover:text-terminal-bg hover:bg-terminal-text hover:border-solid transition-all flex items-center justify-center gap-2 uppercase"
+          className="mt-2 md:mt-4 w-full text-xs border border-terminal-dim border-dashed text-terminal-dim p-1.5 md:p-2 hover:text-terminal-bg hover:bg-terminal-text hover:border-solid transition-all flex items-center justify-center gap-2 uppercase"
         >
           <MapPin size={12} /> {isLoadingActivity ? 'Scanning...' : 'Scan_Nearby'}
         </button>
@@ -729,7 +727,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
             <button
               key={t}
               onClick={() => setTheme(t)}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-1.5 font-mono text-[10px] transition-all border rounded
+              className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-1.5 font-mono text-xs transition-all border rounded
                 ${
                   theme === t
                     ? 'border-terminal-text bg-terminal-dim/10 text-terminal-text'
@@ -808,9 +806,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
         </h3>
         <div className="flex flex-col gap-2">
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-terminal-dim uppercase font-bold">
-              Display_Handle:
-            </label>
+            <label className="text-xs text-terminal-dim uppercase font-bold">Display_Handle:</label>
             <div className="relative">
               <span className="absolute left-2 top-1.5 text-terminal-dim">{'>'}</span>
               <input
