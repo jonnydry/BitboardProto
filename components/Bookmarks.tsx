@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useCallback, useState } from 'react';
+import React, { useMemo, useRef, useCallback, useState, useEffect } from 'react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { Post, ViewMode } from '../types';
 import { PostItem } from './PostItem';
@@ -8,6 +8,8 @@ import { listService } from '../services/listService';
 import { identityService } from '../services/identityService';
 import { nostrService } from '../services/nostr/NostrService';
 import { toastService } from '../services/toastService';
+import { logger } from '../services/loggingService';
+import { votingService } from '../services/votingService';
 import { FeatureFlags, UIConfig } from '../config';
 import { useUIStore } from '../stores/uiStore';
 import { useUserStore } from '../stores/userStore';
@@ -40,6 +42,7 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
   const toggleMute = useUserStore((s) => s.toggleMute);
   const isMuted = useUserStore((s) => s.isMuted);
   const posts = usePostStore((s) => s.posts);
+  const setPosts = usePostStore((s) => s.setPosts);
 
   // Navigation handlers
   const { handleViewBit, handleViewProfile, handleEditPost, handleTagClick } =
@@ -48,6 +51,90 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
   const onClose = useCallback(() => setViewMode(ViewMode.FEED), [setViewMode]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isConfirmingClearAll, setIsConfirmingClearAll] = useState(false);
+  const [isHydratingBookmarks, setIsHydratingBookmarks] = useState(false);
+  const hydrateRequestRef = useRef(0);
+
+  const missingBookmarkHexKey = useMemo(() => {
+    const inStore = new Set(posts.map((p) => p.id));
+    return bookmarkedIds
+      .filter((id) => !inStore.has(id) && /^[0-9a-f]{64}$/i.test(id))
+      .slice()
+      .sort()
+      .join('\n');
+  }, [bookmarkedIds, posts]);
+
+  // Re-fetch bookmarked posts from relays when IDs exist but posts were evicted from the LRU cache
+  useEffect(() => {
+    if (!missingBookmarkHexKey) {
+      setIsHydratingBookmarks(false);
+      return;
+    }
+
+    const fetchable = missingBookmarkHexKey.split('\n').filter(Boolean);
+    const reqId = ++hydrateRequestRef.current;
+    let cancelled = false;
+    setIsHydratingBookmarks(true);
+
+    void (async () => {
+      try {
+        const events = await nostrService.fetchPostsByIds(fetchable);
+        if (cancelled || reqId !== hydrateRequestRef.current) return;
+
+        if (events.length === 0) return;
+
+        let converted = events.map((event) => nostrService.eventToPost(event));
+        const nostrIds = converted.map((p) => p.nostrEventId).filter(Boolean) as string[];
+        const voteTallies = await votingService.fetchVotesForPosts(nostrIds);
+        if (cancelled || reqId !== hydrateRequestRef.current) return;
+
+        converted = converted.map((post) => {
+          if (!post.nostrEventId) return post;
+          const tally = voteTallies.get(post.nostrEventId);
+          if (!tally) return post;
+          return {
+            ...post,
+            upvotes: tally.upvotes,
+            downvotes: tally.downvotes,
+            score: tally.score,
+            uniqueVoters: tally.uniqueVoters,
+            votesVerified: true,
+          };
+        });
+
+        setPosts((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const newPosts = converted.filter((p) => !existingIds.has(p.id));
+          if (newPosts.length === 0) return prev;
+          return [...newPosts, ...prev];
+        });
+
+        const pubkeys = Array.from(
+          new Set(converted.map((p) => p.authorPubkey).filter(Boolean) as string[]),
+        );
+        if (pubkeys.length > 0) {
+          await nostrService.fetchProfiles(pubkeys);
+          if (cancelled || reqId !== hydrateRequestRef.current) return;
+          setPosts((prev) =>
+            prev.map((p) =>
+              p.authorPubkey
+                ? { ...p, author: nostrService.getDisplayName(p.authorPubkey) }
+                : p,
+            ),
+          );
+        }
+      } catch (e) {
+        logger.warn('Bookmarks', 'Failed to load saved posts from relays', e);
+      } finally {
+        if (!cancelled && reqId === hydrateRequestRef.current) {
+          setIsHydratingBookmarks(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [missingBookmarkHexKey, setPosts]);
 
   // Get bookmarked posts in order
   const bookmarkedPosts = useMemo(() => {
@@ -276,15 +363,30 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
 
       {/* Bookmarked Posts */}
       {bookmarkedPosts.length === 0 ? (
-        <div className="border border-terminal-dim p-12 text-center text-terminal-dim flex flex-col items-center gap-4">
-          <div className="text-4xl opacity-20">
-            <Bookmark size={48} />
+        isHydratingBookmarks ? (
+          <div className="border border-terminal-dim p-12 text-center text-terminal-dim flex flex-col items-center gap-4">
+            <Loader2 size={40} className="animate-spin text-terminal-text opacity-60" />
+            <p className="text-sm font-bold uppercase tracking-wide">Loading saved posts…</p>
+            <p className="text-xs max-w-sm">
+              Fetching from relays (saved bits can drop out of the feed cache while bookmarks stay on
+              this device).
+            </p>
           </div>
-          <div>
-            <p className="font-bold">&gt; NO SAVED BITS</p>
-            <p className="text-xs mt-2">Click the bookmark icon on any post to save it here.</p>
+        ) : (
+          <div className="border border-terminal-dim p-12 text-center text-terminal-dim flex flex-col items-center gap-4">
+            <div className="text-4xl opacity-20">
+              <Bookmark size={48} />
+            </div>
+            <div>
+              <p className="font-bold">&gt; NO SAVED BITS</p>
+              <p className="text-xs mt-2">
+                {bookmarkedIds.length > 0
+                  ? 'Could not load these saves from relays (offline, or IDs are not Nostr events). Try CLEAR_ALL or save again from the feed.'
+                  : 'Click the bookmark icon on any post to save it here.'}
+              </p>
+            </div>
           </div>
-        </div>
+        )
       ) : shouldVirtualize && rowVirtualizer ? (
         <div ref={parentRef} className="relative">
           <div

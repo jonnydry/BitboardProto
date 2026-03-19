@@ -381,7 +381,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({
         {/* Writing area — title + content */}
         <div className="flex flex-col border-b border-terminal-dim/15 px-5">
           {/* Title */}
-          <div className="pb-3.5 border-b border-terminal-dim/20">
+          <div className="py-3.5 border-b border-terminal-dim/20">
             <input
               id="title-input"
               type="text"
@@ -390,7 +390,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({
                 setTitle(e.target.value);
                 setTitleError(null);
               }}
-              className={`w-full bg-transparent text-2xl md:text-3xl leading-[130%] font-display font-semibold text-terminal-text focus:outline-none placeholder:text-terminal-dim/30 ${
+              className={`w-full bg-transparent text-2xl md:text-3xl leading-tight font-display font-semibold text-terminal-text focus:outline-none placeholder:text-terminal-dim/30 ${
                 titleError ? 'placeholder:text-terminal-alert/50' : ''
               }`}
               placeholder="Title your bit…"

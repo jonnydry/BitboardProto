@@ -1373,6 +1373,64 @@ class NostrService {
     }
   }
 
+  /**
+   * Fetch specific BitBoard posts by Nostr event id (hex).
+   * Used to hydrate bookmarks after posts were evicted from the in-memory LRU cache.
+   * Does not use the realtime deduplicator — evicted posts may still be marked "seen" there.
+   */
+  async fetchPostsByIds(ids: string[]): Promise<NostrEvent[]> {
+    const unique = [...new Set(ids.filter((id) => /^[0-9a-f]{64}$/i.test(id)))];
+    if (unique.length === 0) return [];
+
+    const CHUNK_SIZE = 80;
+    const collected = new Map<string, NostrEvent>();
+
+    this._activeFetches++;
+    try {
+      const readRelays = this.getReadRelays();
+      const connectedRelays = readRelays.filter((url) => {
+        const status = this.relayStatuses.get(url);
+        return status?.isConnected !== false;
+      });
+      const relaysToQuery = connectedRelays.length > 0 ? connectedRelays : readRelays;
+
+      const QUERY_TIMEOUT_MS = 8000;
+
+      for (let i = 0; i < unique.length; i += CHUNK_SIZE) {
+        const chunk = unique.slice(i, i + CHUNK_SIZE);
+        const filter: Filter = {
+          kinds: [NOSTR_KINDS.POST],
+          ids: chunk,
+        };
+
+        let timeoutId: ReturnType<typeof setTimeout>;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('Query timeout')), QUERY_TIMEOUT_MS);
+        });
+
+        try {
+          const queryPromise = this.pool.querySync(relaysToQuery, filter);
+          const events = await Promise.race([queryPromise, timeoutPromise]).finally(() => {
+            clearTimeout(timeoutId);
+          });
+
+          for (const event of events) {
+            if (!this.isBitboardPostEvent(event)) continue;
+            collected.set(event.id, event);
+          }
+
+          relaysToQuery.forEach((url) => this.updateRelayStatus(url, true));
+        } catch (error) {
+          logger.error('Nostr', 'Failed to fetch posts by ids (chunk):', error);
+        }
+      }
+
+      return Array.from(collected.values());
+    } finally {
+      this._activeFetches--;
+    }
+  }
+
   async fetchBoards(type?: BoardType): Promise<NostrEvent[]> {
     const filter: Filter = {
       kinds: [NOSTR_KINDS.BOARD_DEFINITION],
