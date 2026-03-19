@@ -9,6 +9,8 @@
  * Requires: sharp (install with `npm install --save-dev sharp`)
  */
 
+/* globals console, process, Buffer */
+
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -28,8 +30,9 @@ const WIDTH = 1200;
 const HEIGHT = 630;
 
 // Scanline SVG pattern — subtle horizontal lines
-const scanlines = Array.from({ length: Math.ceil(HEIGHT / 4) }, (_, i) =>
-  `<rect x="0" y="${i * 4}" width="${WIDTH}" height="1" fill="#ffffff" opacity="0.03" />`
+const scanlines = Array.from(
+  { length: Math.ceil(HEIGHT / 4) },
+  (_, i) => `<rect x="0" y="${i * 4}" width="${WIDTH}" height="1" fill="#ffffff" opacity="0.03" />`,
 ).join('');
 
 const svg = `
@@ -44,9 +47,9 @@ const svg = `
   <rect x="24" y="24" width="${WIDTH - 48}" height="${HEIGHT - 48}" fill="none" stroke="#ffb000" stroke-width="2" opacity="0.4" />
   <!-- Corner accents -->
   <polyline points="24,40 24,24 40,24" fill="none" stroke="#ffb000" stroke-width="3"/>
-  <polyline points="${WIDTH-40},24 ${WIDTH-24},24 ${WIDTH-24},40" fill="none" stroke="#ffb000" stroke-width="3"/>
-  <polyline points="24,${HEIGHT-40} 24,${HEIGHT-24} 40,${HEIGHT-24}" fill="none" stroke="#ffb000" stroke-width="3"/>
-  <polyline points="${WIDTH-40},${HEIGHT-24} ${WIDTH-24},${HEIGHT-24} ${WIDTH-24},${HEIGHT-40}" fill="none" stroke="#ffb000" stroke-width="3"/>
+  <polyline points="${WIDTH - 40},24 ${WIDTH - 24},24 ${WIDTH - 24},40" fill="none" stroke="#ffb000" stroke-width="3"/>
+  <polyline points="24,${HEIGHT - 40} 24,${HEIGHT - 24} 40,${HEIGHT - 24}" fill="none" stroke="#ffb000" stroke-width="3"/>
+  <polyline points="${WIDTH - 40},${HEIGHT - 24} ${WIDTH - 24},${HEIGHT - 24} ${WIDTH - 24},${HEIGHT - 40}" fill="none" stroke="#ffb000" stroke-width="3"/>
 
   <!-- Main title -->
   <text

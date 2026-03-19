@@ -158,13 +158,13 @@ export const ZapButton: React.FC<ZapButtonProps> = ({
         />
 
         {zapTally.total > 0 && (
-          <span className={`font-mono font-bold ${compact ? 'text-[10px]' : 'text-xs'}`}>
+          <span className={`font-mono font-bold ${compact ? 'text-2xs' : 'text-xs'}`}>
             {zapService.formatSats(zapTally.total)}
           </span>
         )}
 
         {!compact && zapTally.count === 0 && (
-          <span className="text-[10px] font-bold uppercase tracking-tighter opacity-70">Zap</span>
+          <span className="text-2xs font-bold uppercase tracking-tighter text-terminal-dim">Zap</span>
         )}
       </button>
 

@@ -180,7 +180,7 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
                 <p className="text-sm font-bold uppercase tracking-wide">
                   Clear all notifications?
                 </p>
-                <p className="mt-1 text-sm text-terminal-muted">
+                <p className="mt-1 text-sm text-terminal-dim">
                   This removes all notifications from local storage and cannot be undone.
                 </p>
               </div>
@@ -208,7 +208,7 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
             <NotificationListSkeleton />
           ) : notifications.length === 0 ? (
             <div className="p-8 text-center text-terminal-dim">
-              <BellOff size={32} className="mx-auto mb-2 opacity-50" />
+              <BellOff size={32} className="mx-auto mb-2 opacity-70" />
               <p>No notifications</p>
             </div>
           ) : (

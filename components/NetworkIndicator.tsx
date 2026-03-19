@@ -123,13 +123,13 @@ export const NetworkIndicator: React.FC<{ compact?: boolean }> = ({ compact = fa
 
       {/* Pending operations badge */}
       {state.pendingOps > 0 && (
-        <span className="px-1 py-0.5 bg-terminal-dim/20 border border-terminal-dim/40 rounded text-[10px]">
+        <span className="px-1 py-0.5 bg-terminal-dim/20 border border-terminal-dim/40 rounded text-2xs">
           {state.pendingOps} pending
         </span>
       )}
 
       {/* Recent activity flash */}
-      {recentActivity && !isActive && <span className="text-terminal-text/50 text-[10px]">•</span>}
+      {recentActivity && !isActive && <span className="text-terminal-text/50 text-2xs">•</span>}
     </div>
   );
 };

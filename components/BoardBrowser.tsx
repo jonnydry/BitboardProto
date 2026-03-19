@@ -165,7 +165,7 @@ export function BoardBrowser({
           </div>
         </div>
 
-        <p className="text-sm text-terminal-muted mb-3 line-clamp-2">
+        <p className="text-sm text-terminal-dim mb-3 line-clamp-2">
           {isLocked ? '[ENCRYPTED CONTENT - SHARE LINK REQUIRED]' : board.description}
         </p>
 
@@ -243,7 +243,7 @@ export function BoardBrowser({
 
         {showImportPanel && (
           <div className="mt-4 border-t border-terminal-dim pt-4">
-            <p className="text-xs text-terminal-muted mb-3">
+            <p className="text-xs text-terminal-dim mb-3">
               Have a share link for an encrypted board? Paste it below to gain access.
             </p>
             <div className="flex gap-2">

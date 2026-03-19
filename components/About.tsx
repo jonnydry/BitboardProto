@@ -25,7 +25,7 @@ const StatPill: React.FC<{
   <div className="group border border-terminal-dim/40 bg-terminal-highlight/30 px-4 py-3.5 text-center hover:border-terminal-dim/60 transition-colors">
     <div className="flex justify-center mb-1.5">{icon}</div>
     <div className="text-lg font-terminal text-terminal-text">{value}</div>
-    <div className="text-[10px] tracking-widest uppercase text-terminal-dim mt-0.5">{label}</div>
+    <div className="text-2xs tracking-widest uppercase text-terminal-dim mt-0.5">{label}</div>
   </div>
 );
 
@@ -111,7 +111,7 @@ export const About: React.FC = () => {
       {/* Divider */}
       <div className="flex items-center gap-3 py-1">
         <div className="flex-1 h-px bg-terminal-dim/20" />
-        <span className="text-terminal-dim/30 text-[10px]">◆</span>
+        <span className="text-terminal-dim/30 text-2xs">◆</span>
         <div className="flex-1 h-px bg-terminal-dim/20" />
       </div>
 
@@ -122,8 +122,8 @@ export const About: React.FC = () => {
           HOW IT WORKS
         </h2>
         <div className="flex gap-3">
-          <KeyRound size={16} className="text-terminal-dim/50 shrink-0 mt-0.5 hidden sm:block" />
-          <p className="text-sm text-terminal-muted leading-relaxed">
+          <KeyRound size={16} className="text-terminal-dim/70 shrink-0 mt-0.5 hidden sm:block" />
+          <p className="text-sm text-terminal-dim leading-relaxed">
             When you join, BitBoard creates a keypair right in your browser. Your private key stays
             on your device — encrypted and never shared. Every post, vote, and comment is
             cryptographically signed and broadcast to relays anyone can run. Real ownership, real
@@ -144,7 +144,7 @@ export const About: React.FC = () => {
           <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-terminal-text/30" />
           <div className="flex gap-3">
             <Coins size={18} className="text-terminal-dim/40 shrink-0 mt-0.5 hidden sm:block" />
-            <p className="text-sm text-terminal-muted leading-relaxed">
+            <p className="text-sm text-terminal-dim leading-relaxed">
               You get <span className="text-terminal-text font-medium">100 bits</span> each day. Each
               vote costs <span className="text-terminal-text font-medium">1 bit</span> — change your
               mind? Retract and it comes back. Because every vote costs something, the signal stays
@@ -164,7 +164,7 @@ export const About: React.FC = () => {
           <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-terminal-dim/50" />
           <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-terminal-dim/50" />
           <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-terminal-dim/50" />
-          <ul className="text-sm text-terminal-muted space-y-2.5 columns-1 md:columns-2 gap-x-8">
+          <ul className="text-sm text-terminal-dim space-y-2.5 columns-1 md:columns-2 gap-x-8">
             <li className="flex gap-2 break-inside-avoid">
               <Globe size={14} className="text-terminal-dim shrink-0 mt-0.5" />
               <span>Topic, location & encrypted boards</span>
@@ -198,7 +198,7 @@ export const About: React.FC = () => {
         <span className="text-terminal-alert font-bold uppercase tracking-wider text-xs">
           ⚠ Prototype
         </span>
-        <p className="mt-1.5 text-terminal-muted text-xs leading-relaxed">
+        <p className="mt-1.5 text-terminal-dim text-xs leading-relaxed">
           We're still building. Once you publish, content can spread across relays — so back up your
           key and keep it safe.
         </p>

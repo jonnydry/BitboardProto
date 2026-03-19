@@ -515,7 +515,7 @@ export function OnboardingFlow({
                 className={`text-6xl md:text-8xl font-terminal font-bold transition-all duration-500 ${
                   signalPhase >= 3
                     ? 'text-terminal-text scale-100 opacity-100'
-                    : 'text-terminal-dim/50 scale-90 opacity-50'
+                    : 'text-terminal-dim/70 scale-90 opacity-70'
                 }`}
                 style={{
                   textShadow:
@@ -533,7 +533,7 @@ export function OnboardingFlow({
           <div className="space-y-2">
             <div
               className={`text-2xl md:text-3xl font-terminal uppercase tracking-[0.3em] transition-all duration-500 ${
-                signalPhase >= 3 ? 'text-terminal-text' : 'text-terminal-dim/50'
+                signalPhase >= 3 ? 'text-terminal-text' : 'text-terminal-dim/70'
               }`}
             >
               {signalPhase >= 3 ? (
@@ -565,7 +565,7 @@ export function OnboardingFlow({
                   />
                   <span
                     className={
-                      signalStrength > i + 2 ? 'text-terminal-text' : 'text-terminal-dim/50'
+                      signalStrength > i + 2 ? 'text-terminal-text' : 'text-terminal-dim/70'
                     }
                   >
                     {relay}
@@ -788,7 +788,7 @@ export function OnboardingFlow({
                     {/* Display name input */}
                     <div className="mb-8">
                       <label className="block text-xs text-terminal-dim uppercase tracking-wider mb-2">
-                        Display Name <span className="text-terminal-dim/50">(optional)</span>
+                        Display Name <span className="text-terminal-dim/70">(optional)</span>
                       </label>
                       <input
                         type="text"
@@ -1236,13 +1236,13 @@ export function OnboardingFlow({
                     value={boardSearchQuery}
                     onChange={(e) => setBoardSearchQuery(e.target.value)}
                     placeholder="Filter boards..."
-                    className="w-full border border-terminal-dim bg-terminal-bg px-4 py-3 text-sm text-terminal-text font-mono placeholder:text-terminal-dim/50 focus:border-terminal-text focus:outline-none"
+                    className="w-full border border-terminal-dim bg-terminal-bg px-4 py-3 text-sm text-terminal-text font-mono placeholder:text-terminal-dim/60 focus:border-terminal-text focus:outline-none"
                   />
                 </div>
 
                 <div className="space-y-6 max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-track-terminal-dim/10 scrollbar-thumb-terminal-text/30">
                   {filteredBoardCategories.length === 0 && (
-                    <div className="p-6 border border-terminal-dim/30 text-sm text-terminal-muted">
+                    <div className="p-6 border border-terminal-dim/30 text-sm text-terminal-dim">
                       No boards match &quot;{boardSearchQuery}&quot;.
                     </div>
                   )}
@@ -1274,7 +1274,7 @@ export function OnboardingFlow({
                                 {/* Selection indicator */}
                                 <div
                                   className={`
-                                  absolute top-2 right-2 w-4 h-4 border flex items-center justify-center text-[10px] font-bold transition-all
+                                  absolute top-2 right-2 w-4 h-4 border flex items-center justify-center text-2xs font-bold transition-all
                                   ${
                                     isSelected
                                       ? 'border-terminal-text bg-terminal-text text-terminal-bg'

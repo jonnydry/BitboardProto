@@ -10,14 +10,14 @@ export const BitsExplanation = React.memo(function BitsExplanation({
 }: BitsExplanationProps) {
   const isMobile = size === 'mobile';
   const iconSize = isMobile ? 13 : 14;
-  const textSize = isMobile ? 'text-[11px]' : 'text-xs';
+  const textSize = isMobile ? 'text-2xs' : 'text-xs';
   const spacing = isMobile ? 'space-y-2' : 'space-y-2.5';
 
   return (
     <>
       <div className={`flex gap-2.5`}>
         <Zap size={iconSize} className="text-terminal-dim shrink-0 mt-0.5" />
-        <p className={`${textSize} text-terminal-muted leading-relaxed`}>
+        <p className={`${textSize} text-terminal-dim leading-relaxed`}>
           <span className="text-terminal-text font-bold">Bit-weighted global feed:</span> verified
           identities spend limited bits to push the best posts upward.
         </p>
@@ -31,7 +31,7 @@ export const BitsExplanation = React.memo(function BitsExplanation({
             >
               Spend deliberately
             </div>
-            <div className={`${textSize} text-terminal-muted leading-relaxed`}>
+            <div className={`${textSize} text-terminal-dim leading-relaxed`}>
               Each new vote locks 1 bit, so influence goes where you think it matters most.
             </div>
           </div>
@@ -44,7 +44,7 @@ export const BitsExplanation = React.memo(function BitsExplanation({
             >
               Refund by retracting
             </div>
-            <div className={`${textSize} text-terminal-muted leading-relaxed`}>
+            <div className={`${textSize} text-terminal-dim leading-relaxed`}>
               Remove your vote to refund the bit. Switching directions keeps the same bit locked in
               place.
             </div>
@@ -58,7 +58,7 @@ export const BitsExplanation = React.memo(function BitsExplanation({
             >
               Verified consensus
             </div>
-            <div className={`${textSize} text-terminal-muted leading-relaxed`}>
+            <div className={`${textSize} text-terminal-dim leading-relaxed`}>
               The global feed improves when many verified identities choose the same high-signal
               posts.
             </div>

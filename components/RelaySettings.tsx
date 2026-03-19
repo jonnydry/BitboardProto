@@ -143,7 +143,7 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
         </div>
       )}
 
-      <div className="mb-6 border border-terminal-dim/40 bg-terminal-dim/10 p-4 text-sm text-terminal-muted leading-relaxed">
+      <div className="mb-6 border border-terminal-dim/40 bg-terminal-dim/10 p-4 text-sm text-terminal-dim leading-relaxed">
         Relays are independent servers that store and distribute your Nostr messages. Add a few
         trusted relays for better reach and resilience.
       </div>
@@ -212,7 +212,7 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                 <AlertTriangle size={14} className="mt-0.5" />
                 <div>
                   <p className="text-sm font-bold uppercase tracking-wide">Reset relay list?</p>
-                  <p className="mt-1 text-sm text-terminal-muted">
+                  <p className="mt-1 text-sm text-terminal-dim">
                     This removes all custom relays and falls back to the default set.
                   </p>
                 </div>
@@ -287,7 +287,7 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                         ? 'text-terminal-text'
                         : s.lastError
                           ? 'text-terminal-alert'
-                          : 'text-terminal-muted'
+                          : 'text-terminal-dim'
                     }
                     title={s.lastError ? s.lastError.message : ''}
                   >
@@ -300,7 +300,7 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                     RETRY
                   </button>
                 </div>
-                <div className="text-xs text-terminal-muted space-y-1">
+                <div className="text-xs text-terminal-dim space-y-1">
                   <div>Retries: {s.reconnectAttempts}</div>
                   <div>Next retry: {nextRetry}</div>
                 </div>
@@ -361,7 +361,7 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
         <div className="flex items-center justify-between border-b border-terminal-dim mb-3 pb-1">
           <div className="flex items-center gap-3">
             <h3 className="font-bold text-sm">DIAGNOSTICS</h3>
-            <span className="text-[10px] text-terminal-dim border border-terminal-dim/30 px-2 py-0.5">
+            <span className="text-2xs text-terminal-dim border border-terminal-dim/30 px-2 py-0.5">
               QUEUED_MESSAGES: {queuedCount}
             </span>
           </div>
@@ -384,7 +384,7 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                 .map((d) => (
                   <div key={d.id} className="border border-terminal-dim/20 p-2 text-xs font-mono">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-terminal-muted">
+                      <span className="text-terminal-dim">
                         {new Date(d.at).toLocaleTimeString()}
                       </span>
                       <span
@@ -393,23 +393,23 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                             ? 'text-terminal-alert'
                             : d.level === 'warn'
                               ? 'text-terminal-text'
-                              : 'text-terminal-muted'
+                              : 'text-terminal-dim'
                         }
                       >
                         {d.level.toUpperCase()}
                       </span>
                     </div>
-                    <div className="mt-1 text-terminal-muted">{d.source}</div>
+                    <div className="mt-1 text-terminal-dim">{d.source}</div>
                     <div className="mt-1 text-terminal-text break-words">{d.message}</div>
                     {d.detail ? (
-                      <div className="mt-1 text-terminal-muted break-words">{d.detail}</div>
+                      <div className="mt-1 text-terminal-dim break-words">{d.detail}</div>
                     ) : null}
                   </div>
                 ))}
             </div>
 
             <div className="hidden md:block max-h-48 overflow-auto border border-terminal-dim/30">
-              <table className="w-full text-[10px] font-mono">
+              <table className="w-full text-2xs font-mono">
                 <thead>
                   <tr className="text-terminal-dim border-b border-terminal-dim/30">
                     <th className="text-left py-2 px-2">TIME</th>

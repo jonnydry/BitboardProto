@@ -26,7 +26,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ src, alt = 'Image', 
       <div className={`border border-terminal-alert/50 p-4 text-center bg-terminal-dim/5 text-terminal-alert flex flex-col items-center gap-2 ${className}`}>
         <XCircle size={24} />
         <span className="text-xs font-mono uppercase">IMAGE_LOAD_FAILED</span>
-        <span className="text-[10px] break-all opacity-70">{src}</span>
+        <span className="text-2xs break-all text-terminal-dim">{src}</span>
       </div>
     );
   }
@@ -80,7 +80,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ src, alt = 'Image', 
         {!isExpanded && !isLoading && (
           <>
             <div className="absolute inset-0 bg-terminal-text/5 pointer-events-none group-hover:opacity-0 transition-opacity z-10 mix-blend-overlay"></div>
-            <div className="absolute bottom-0 left-0 bg-terminal-bg/90 px-2 py-1 text-[10px] text-terminal-text border-t border-r border-terminal-dim flex items-center gap-1">
+            <div className="absolute bottom-0 left-0 bg-terminal-bg/90 px-2 py-1 text-2xs text-terminal-text border-t border-r border-terminal-dim flex items-center gap-1">
               <ImageIcon size={10} />
               IMG_ASSET
             </div>

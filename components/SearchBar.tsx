@@ -161,13 +161,13 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           className="w-full bg-transparent py-2 pl-10 pr-16 text-sm text-terminal-text font-mono
-            placeholder:text-terminal-dim/50 focus:outline-none"
+            placeholder:text-terminal-dim/60 focus:outline-none"
         />
 
         {/* Status indicators */}
         <div className="absolute right-2 flex items-center gap-1">
           {isSearching && (
-            <span className="text-[10px] text-terminal-dim uppercase animate-pulse">
+            <span className="text-2xs text-terminal-dim uppercase animate-pulse">
               Searching...
             </span>
           )}
@@ -183,7 +183,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             </button>
           )}
           {!query && !isFocused && (
-            <span className="text-[10px] text-terminal-dim/50 hidden md:block">Press /</span>
+            <span className="text-2xs text-terminal-dim/70 hidden md:block">Press /</span>
           )}
         </div>
       </div>
@@ -191,7 +191,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       {/* Recent searches dropdown */}
       {showDropdown && recentSearches.length > 0 && (
         <div className="absolute top-full left-0 right-0 mt-1 bg-terminal-bg border border-terminal-dim shadow-hard z-20">
-          <div className="px-3 py-2 text-[10px] text-terminal-dim uppercase border-b border-terminal-dim/30 flex items-center gap-1">
+          <div className="px-3 py-2 text-2xs text-terminal-dim uppercase border-b border-terminal-dim/30 flex items-center gap-1">
             <Clock size={10} />
             Recent searches
           </div>

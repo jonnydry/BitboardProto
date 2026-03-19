@@ -381,7 +381,7 @@ export function FeedView(props: {
                             ? 'TOPIC_BOARDS'
                             : '// GLOBAL_FEED'}
                   </h2>
-                  <span className="text-sm text-terminal-muted">{sortedPosts.length} signals</span>
+                  <span className="text-sm text-terminal-dim">{sortedPosts.length} signals</span>
                   {canShareBoard && (
                     <button
                       onClick={() => setShowShareModal(true)}

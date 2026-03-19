@@ -129,7 +129,7 @@ export const ReactionDisplay = memo<ReactionDisplayProps>(({
           aria-label="Add reaction"
         >
           <Smile size={12} />
-          {!compact && <span className="text-[10px]">+</span>}
+          {!compact && <span className="text-2xs">+</span>}
         </button>
 
         {showPicker && (

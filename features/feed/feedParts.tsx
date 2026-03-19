@@ -44,7 +44,7 @@ export const TimeChunkHeader: React.FC<{ chunk: TimeChunk; postCount: number }> 
       <span className="text-xs text-terminal-dim uppercase tracking-wider font-bold">
         {TIME_CHUNK_LABELS[chunk]}
       </span>
-      <span className="text-[10px] text-terminal-dim/50">({postCount} posts)</span>
+      <span className="text-xs text-terminal-dim/70">({postCount} posts)</span>
     </div>
   );
 };

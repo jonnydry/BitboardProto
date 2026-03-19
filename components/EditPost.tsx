@@ -157,7 +157,7 @@ export const EditPost: React.FC<EditPostProps> = ({ post, boards, onSave, onDele
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className={`bg-terminal-bg border p-2 text-terminal-text font-mono focus:outline-none focus:border-terminal-text
+              className={`bg-terminal-bg border p-2 text-base md:text-sm text-terminal-text font-mono focus:outline-none focus:border-terminal-text
                 ${errors.title ? 'border-terminal-alert' : 'border-terminal-dim'}
               `}
             />
@@ -180,7 +180,7 @@ export const EditPost: React.FC<EditPostProps> = ({ post, boards, onSave, onDele
               value={content}
               onChange={(e) => setContent(e.target.value)}
               rows={6}
-              className={`bg-terminal-bg border p-2 text-terminal-text font-mono focus:outline-none focus:border-terminal-text resize-y min-h-[100px]
+              className={`bg-terminal-bg border p-2 text-base md:text-sm text-terminal-text font-mono focus:outline-none focus:border-terminal-text resize-y min-h-[100px]
                 ${errors.content ? 'border-terminal-alert' : 'border-terminal-dim'}
               `}
             />

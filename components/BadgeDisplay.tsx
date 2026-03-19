@@ -133,22 +133,20 @@ export const BadgeDisplay: React.FC<BadgeDisplayProps> = ({
             </div>
 
             {showLabel && (
-              <span
-                className={`uppercase font-bold tracking-tighter ${size === 'sm' ? 'text-[8px]' : 'text-[10px]'}`}
-              >
+              <span className="uppercase font-bold tracking-tighter text-2xs">
                 {badge.definition.name}
               </span>
             )}
 
             {/* Tooltip (CSS only for terminal feel) */}
             <div
-              className={`absolute left-1/2 -translate-x-1/2 w-48 p-2 bg-terminal-bg border-2 border-terminal-text shadow-glow opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity z-50 text-[10px] uppercase leading-tight ${flipTooltipId === `${badge.definition.id}-${idx}` ? 'top-full mt-2' : 'bottom-full mb-2'}`}
+              className={`absolute left-1/2 -translate-x-1/2 w-48 p-2 bg-terminal-bg border-2 border-terminal-text shadow-glow opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity z-50 text-2xs uppercase leading-tight ${flipTooltipId === `${badge.definition.id}-${idx}` ? 'top-full mt-2' : 'bottom-full mb-2'}`}
             >
               <p className="font-bold text-terminal-text mb-1">{badge.definition.name}</p>
               {badge.definition.description && (
                 <p className="text-terminal-dim">{badge.definition.description}</p>
               )}
-              <div className="mt-1 pt-1 border-t border-terminal-dim/30 text-[8px] flex items-center gap-1">
+              <div className="mt-1 pt-1 border-t border-terminal-dim/30 text-2xs flex items-center gap-1">
                 <Info size={8} /> NOSTR_NIP_58_VERIFIED
               </div>
               {/* Arrow */}

@@ -1,7 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ThemeId, ViewMode } from '../../types';
 
 const mocks = vi.hoisted(() => {
   const notificationState = { unreadCount: 3 };
@@ -111,7 +110,7 @@ describe('AppHeader', () => {
     fireEvent.click(screen.getByTitle('Bits — click to learn more'));
     expect(screen.getByText('How bits work')).toBeInTheDocument();
 
-    fireEvent.mouseDown(document.body);
+    fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByText('How bits work')).not.toBeInTheDocument();
   });
 });

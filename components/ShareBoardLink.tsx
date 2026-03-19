@@ -148,7 +148,7 @@ export const ShareBoardLink: React.FC<ShareBoardLinkProps> = ({ board, onClose }
             </div>
 
             {/* How it works */}
-            <div className="text-[10px] text-terminal-dim space-y-1 pt-2 border-t border-terminal-dim/30">
+            <div className="text-2xs text-terminal-dim space-y-1 pt-2 border-t border-terminal-dim/30">
               <p className="font-bold uppercase">How encrypted links work:</p>
               <ul className="list-disc list-inside space-y-0.5 pl-2">
                 <li>The encryption key is in the URL fragment (after #)</li>

@@ -18,13 +18,13 @@ export const PrivacyPolicy: React.FC = () => {
 
       <h1 className="text-3xl font-bold mb-6 font-terminal tracking-wide">Privacy Policy</h1>
 
-      <p className="text-sm text-terminal-muted">Last Updated: 2026-03-17</p>
+      <p className="text-sm text-terminal-dim">Last Updated: 2026-03-17</p>
 
       <div className="border border-terminal-alert/40 bg-terminal-alert/5 p-4 text-sm leading-relaxed">
         <span className="text-terminal-alert font-bold uppercase tracking-wider text-xs">
           ⚠ Prototype Software
         </span>
-        <p className="mt-2 text-terminal-muted">
+        <p className="mt-2 text-terminal-dim">
           BitBoard is experimental software under active development. This privacy policy reflects
           the current state of the application as accurately as possible.
         </p>
@@ -140,7 +140,7 @@ export const PrivacyPolicy: React.FC = () => {
           <li>Your Nostr pubkey is pseudonymized before being passed to PostHog</li>
           <li>You can opt out at any time in app settings</li>
         </ul>
-        <p className="text-sm text-terminal-muted mt-2">
+        <p className="text-sm text-terminal-dim mt-2">
           If you have not explicitly opted in, PostHog is not initialized and no data is sent.
         </p>
 
@@ -166,7 +166,7 @@ export const PrivacyPolicy: React.FC = () => {
           <li>Vote signatures verified in a background Web Worker using the Nostr protocol</li>
           <li>NIP-07 browser extension support (Alby, nos2x) — private key never touches the app</li>
         </ul>
-        <p className="text-sm text-terminal-muted mt-2">
+        <p className="text-sm text-terminal-dim mt-2">
           You are responsible for keeping your passphrase and device secure. BitBoard cannot recover
           a lost or forgotten passphrase.
         </p>
@@ -189,7 +189,7 @@ export const PrivacyPolicy: React.FC = () => {
             other Nostr client
           </li>
         </ul>
-        <p className="text-sm text-terminal-muted mt-2">
+        <p className="text-sm text-terminal-dim mt-2">
           Content already published to Nostr relays cannot be deleted by BitBoard, as the app has
           no authority over relay operators.
         </p>
@@ -220,7 +220,7 @@ export const PrivacyPolicy: React.FC = () => {
       </section>
 
       <div className="mt-8 pt-6 border-t border-terminal-dim/30">
-        <p className="text-sm text-terminal-muted">
+        <p className="text-sm text-terminal-dim">
           BitBoard is open-source software. You can review the full source code to independently
           verify how your data is handled.
         </p>

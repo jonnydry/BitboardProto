@@ -39,7 +39,7 @@ export const ToastHost: React.FC = () => {
         >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-[10px] uppercase tracking-widest text-terminal-dim">
+              <div className="text-2xs uppercase tracking-widest text-terminal-dim">
                 {toastTitle(t.type)}
               </div>
               <div className="text-sm break-words">{t.message}</div>

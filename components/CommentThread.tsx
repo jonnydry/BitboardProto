@@ -319,7 +319,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
       {/* Thread line connector */}
       {depth > 0 && (
         <div
-          className="absolute left-0 top-0 bottom-0 w-0.5 bg-terminal-dim/50 -ml-4"
+          className="absolute left-0 top-0 bottom-0 w-0.5 bg-terminal-dim/60 -ml-4"
           style={{ height: '100%' }}
         />
       )}
@@ -337,7 +337,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
             <div className="flex flex-col items-center min-w-[2rem] gap-0.5 pt-0.5">
               <button
                 onClick={handleVoteUp}
-                className={`p-1 hover:bg-terminal-dim transition-colors ${isUpvoted ? 'text-terminal-text font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`p-2 md:p-1 min-w-[36px] min-h-[36px] md:min-w-0 md:min-h-0 flex items-center justify-center hover:bg-terminal-dim/30 transition-colors ${isUpvoted ? 'text-terminal-text font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
                 disabled={!userState.identity}
                 aria-label="Upvote comment"
                 aria-pressed={isUpvoted}
@@ -364,7 +364,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
               </button>
 
               <span
-                className={`text-xs font-bold ${commentScore > 0 ? 'text-terminal-text' : commentScore < 0 ? 'text-terminal-alert' : 'text-terminal-dim/50'}`}
+                className={`text-xs font-bold ${commentScore > 0 ? 'text-terminal-text' : commentScore < 0 ? 'text-terminal-alert' : 'text-terminal-dim/70'}`}
               >
                 {commentScore > 0 ? '+' : ''}
                 {commentScore}
@@ -372,7 +372,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
 
               <button
                 onClick={handleVoteDown}
-                className={`p-1 hover:bg-terminal-dim transition-colors ${isDownvoted ? 'text-terminal-alert font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`p-2 md:p-1 min-w-[36px] min-h-[36px] md:min-w-0 md:min-h-0 flex items-center justify-center hover:bg-terminal-dim/30 transition-colors ${isDownvoted ? 'text-terminal-alert font-bold' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
                 disabled={!userState.identity}
                 aria-label="Downvote comment"
                 aria-pressed={isDownvoted}
@@ -431,7 +431,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
                   />
                 ) : (
                   <div
-                    className="w-5 h-5 rounded-full bg-terminal-dim/20 border border-terminal-dim/40 flex items-center justify-center text-xs text-terminal-dim font-bold flex-shrink-0"
+                    className="w-5 h-5 rounded-full bg-terminal-dim/20 border border-terminal-dim/40 flex items-center justify-center text-sm text-terminal-dim font-bold flex-shrink-0"
                     title={comment.author}
                   >
                     {comment.author.charAt(0).toUpperCase()}
@@ -449,7 +449,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
               {isCollapsed && hasReplies && (
                 <button
                   onClick={handleToggleCollapse}
-                  className="text-terminal-dim text-xs border border-terminal-dim/40 px-2 py-0.5 transition-colors flex items-center gap-1 hover:border-terminal-dim"
+                  className="text-terminal-dim text-sm border border-terminal-dim/40 px-2 py-0.5 transition-colors flex items-center gap-1 hover:border-terminal-dim"
                 >
                   {depth >= AUTO_COLLAPSE_DEPTH ? (
                     <>
@@ -480,7 +480,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
                       <MarkdownRenderer content={comment.content} />
                     )}
                     {!isDeleted && comment.editedAt && (
-                      <span className="ml-2 text-xs text-terminal-dim/70 uppercase">(edited)</span>
+                      <span className="ml-2 text-sm text-terminal-dim/70 uppercase">(edited)</span>
                     )}
                   </p>
                 ) : (
@@ -517,7 +517,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
                 <div className="flex items-center gap-3.5 pb-2.5 border-b border-terminal-dim/15">
                   <button
                     onClick={handleReplyClick}
-                    className={`text-xs tracking-[0.08em] transition-colors
+                    className={`text-sm tracking-[0.08em] transition-colors
                   ${
                     isReplying ? 'text-terminal-text' : 'text-terminal-dim hover:text-terminal-text'
                   }`}
@@ -533,7 +533,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
                         e.stopPropagation();
                         setShowMoreActions((prev) => !prev);
                       }}
-                      className="text-xs flex items-center gap-1 text-terminal-dim hover:text-terminal-text transition-colors"
+                      className="text-sm flex items-center gap-1 text-terminal-dim hover:text-terminal-text transition-colors"
                       title="More actions"
                       aria-expanded={showMoreActions}
                     >
@@ -614,18 +614,18 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
 
                   {isOwnComment && !isDeleted && onDelete && showDeleteConfirm && (
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-terminal-alert">Delete?</span>
+                      <span className="text-sm text-terminal-alert">Delete?</span>
                       <button
                         type="button"
                         onClick={handleDelete}
-                        className="text-xs border border-terminal-alert px-2 py-0.5 text-terminal-alert hover:bg-terminal-alert hover:text-black transition-colors"
+                        className="text-sm border border-terminal-alert px-2 py-0.5 text-terminal-alert hover:bg-terminal-alert hover:text-black transition-colors"
                       >
                         YES
                       </button>
                       <button
                         type="button"
                         onClick={() => setShowDeleteConfirm(false)}
-                        className="text-xs border border-terminal-dim px-2 py-0.5 text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors"
+                        className="text-sm border border-terminal-dim px-2 py-0.5 text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors"
                       >
                         NO
                       </button>
@@ -640,7 +640,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
                     onSubmit={handleSubmitReply}
                     className="mt-3 border-t border-terminal-dim/20 pt-3"
                   >
-                    <div className="text-[10px] text-terminal-dim/60 mb-2 uppercase tracking-wider">
+                    <div className="text-sm text-terminal-dim/60 mb-2 uppercase tracking-wider">
                       Replying to @{comment.author}
                     </div>
                     <MentionInput
@@ -653,19 +653,19 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
                       disabled={isSubmitting}
                     />
                     <div className="mt-2 flex items-center justify-between">
-                      <span className="text-[10px] text-terminal-dim/30">⌘⏎ transmit</span>
+                      <span className="text-sm text-terminal-dim/60">⌘⏎ transmit</span>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={handleReplyClick}
-                          className="text-xs text-terminal-dim hover:text-terminal-text transition-colors"
+                          className="text-sm text-terminal-dim hover:text-terminal-text transition-colors"
                         >
                           Cancel
                         </button>
                         <button
                           type="submit"
                           disabled={!replyContent.trim() || isSubmitting}
-                          className="bg-terminal-text text-terminal-bg text-xs font-bold px-3 py-1.5 disabled:opacity-50 transition-colors"
+                          className="bg-terminal-text text-terminal-bg text-sm font-bold px-3 py-1.5 disabled:opacity-50 transition-colors"
                         >
                           {isSubmitting ? (
                             <Loader2 size={14} className="animate-spin" />
@@ -712,7 +712,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
               onClick={() =>
                 setVisibleReplies((n) => Math.min(n + REPLIES_PAGE_SIZE, comment.replies!.length))
               }
-              className="mt-3 ml-3 text-xs text-terminal-dim hover:text-terminal-text transition-colors border border-terminal-dim/30 px-2 py-1"
+              className="mt-3 ml-3 text-sm text-terminal-dim hover:text-terminal-text transition-colors border border-terminal-dim/30 px-2 py-1"
               title="Show more replies"
             >
               + SHOW {Math.min(REPLIES_PAGE_SIZE, comment.replies!.length - visibleReplies)} MORE
@@ -886,7 +886,7 @@ const CommentListComponent: React.FC<CommentListProps> = ({
     <div className="space-y-2">
       {/* Comment controls header */}
       {totalComments > 3 && (
-        <div className="flex items-center justify-between text-xs text-terminal-dim border-b border-terminal-dim/30 pb-2 mb-2">
+        <div className="flex items-center justify-between text-sm text-terminal-dim border-b border-terminal-dim/30 pb-2 mb-2">
           <span className="uppercase">
             {totalComments} {totalComments === 1 ? 'comment' : 'comments'}
             {shouldVirtualize && ` (virtualized)`}
@@ -993,10 +993,10 @@ const CommentListComponent: React.FC<CommentListProps> = ({
       {hasMore && (
         <button
           onClick={() => setVisibleCount((v) => Math.min(v + TOP_LEVEL_PAGE_SIZE, comments.length))}
-          className="w-full py-2 text-xs text-terminal-dim hover:text-terminal-text border border-terminal-dim/30 hover:border-terminal-text transition-colors uppercase"
+          className="w-full py-2 text-sm text-terminal-dim hover:text-terminal-text border border-terminal-dim/30 hover:border-terminal-text transition-colors uppercase"
         >
           Load {Math.min(TOP_LEVEL_PAGE_SIZE, comments.length - visibleCount)} more comments
-          <span className="ml-2 text-terminal-dim/50">
+          <span className="ml-2 text-terminal-dim/70">
             (showing {visibleCount} of {comments.length})
           </span>
         </button>

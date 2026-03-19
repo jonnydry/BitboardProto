@@ -16,14 +16,15 @@ module.exports = {
         display: ['"Space Grotesk"', 'sans-serif'],
       },
       fontSize: {
-        '2xs': ['0.625rem', { lineHeight: '0.875rem' }],
-        xs: ['0.6875rem', { lineHeight: '1rem' }],
-        sm: ['0.8125rem', { lineHeight: '1.25rem' }],
-        base: ['0.9375rem', { lineHeight: '1.5rem' }],
-        lg: ['1.0625rem', { lineHeight: '1.75rem' }],
-        xl: ['1.1875rem', { lineHeight: '1.75rem' }],
-        '2xl': ['1.375rem', { lineHeight: '2rem' }],
-        '3xl': ['1.625rem', { lineHeight: '2.125rem' }],
+        '2xs': ['0.6875rem', { lineHeight: '1rem' }],
+        xs: ['0.8125rem', { lineHeight: '1.25rem' }],
+        sm: ['0.9375rem', { lineHeight: '1.5rem' }],
+        base: ['1.0625rem', { lineHeight: '1.75rem' }],
+        lg: ['1.1875rem', { lineHeight: '1.875rem' }],
+        xl: ['1.375rem', { lineHeight: '2rem' }],
+        '2xl': ['1.625rem', { lineHeight: '2.125rem' }],
+        '3xl': ['1.875rem', { lineHeight: '2.375rem' }],
+        '4xl': ['2.25rem', { lineHeight: '2.5rem' }],
       },
       typography: {
         DEFAULT: {
@@ -134,5 +135,5 @@ module.exports = {
       },
     },
   },
-  plugins: [],
+  plugins: [require('@tailwindcss/typography')],
 };

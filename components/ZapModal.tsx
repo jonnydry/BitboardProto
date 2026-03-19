@@ -215,7 +215,7 @@ export const ZapModal: React.FC<ZapModalProps> = ({
                 className="w-full bg-terminal-bg border-2 border-terminal-dim p-3 text-sm text-terminal-text focus:border-terminal-text outline-none resize-none h-20"
                 placeholder="Add a comment to your zap..."
               />
-              <div className="text-[10px] text-terminal-dim text-right mt-1">
+              <div className="text-2xs text-terminal-dim text-right mt-1">
                 {comment.length}/280
               </div>
             </div>
@@ -229,7 +229,7 @@ export const ZapModal: React.FC<ZapModalProps> = ({
               Generate_Invoice
             </button>
             {!identity && (
-              <p className="text-[10px] text-terminal-alert mt-2 text-center">
+              <p className="text-2xs text-terminal-alert mt-2 text-center">
                 IDENTITY_REQUIRED: Please connect your Nostr identity.
               </p>
             )}
@@ -244,7 +244,7 @@ export const ZapModal: React.FC<ZapModalProps> = ({
 
             {/* Invoice box */}
             <div className="bg-terminal-highlight border-2 border-terminal-dim p-4 mb-6 relative group">
-              <p className="text-[10px] text-terminal-text font-mono break-all line-clamp-4 mb-4 text-left opacity-70">
+              <p className="text-2xs text-terminal-dim font-mono break-all line-clamp-4 mb-4 text-left">
                 {invoice}
               </p>
               <div className="flex gap-2">
@@ -286,7 +286,7 @@ export const ZapModal: React.FC<ZapModalProps> = ({
               </button>
               <button
                 onClick={() => setStatus('amount')}
-                className="text-[10px] text-terminal-dim hover:text-terminal-text uppercase transition-colors"
+                className="text-2xs text-terminal-dim hover:text-terminal-text uppercase transition-colors"
               >
                 Cancel_And_Change_Amount
               </button>

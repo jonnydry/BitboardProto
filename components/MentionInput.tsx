@@ -147,7 +147,7 @@ export const MentionInput: React.FC<MentionInputProps> = ({
         placeholder={placeholder}
         autoFocus={autoFocus}
         disabled={disabled}
-        className={`bg-terminal-bg border border-terminal-dim p-2 text-sm text-terminal-text 
+        className={`bg-terminal-bg border border-terminal-dim p-2 text-base md:text-sm text-terminal-text 
           focus:border-terminal-text focus:outline-none w-full font-mono resize-y disabled:opacity-60 disabled:cursor-not-allowed ${className}`}
         style={{ minHeight }}
       />
@@ -170,7 +170,7 @@ export const MentionInput: React.FC<MentionInputProps> = ({
               {username}
             </button>
           ))}
-          <div className="px-3 py-1 text-[10px] text-terminal-dim border-t border-terminal-dim/30">
+          <div className="px-3 py-1 text-2xs text-terminal-dim border-t border-terminal-dim/30">
             TAB or ENTER to select • ESC to close
           </div>
         </div>

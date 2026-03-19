@@ -18,13 +18,13 @@ export const TermsOfService: React.FC = () => {
 
       <h1 className="text-3xl font-bold mb-6 font-terminal tracking-wide">Terms of Service</h1>
 
-      <p className="text-sm text-terminal-muted">Last Updated: 2026-03-17</p>
+      <p className="text-sm text-terminal-dim">Last Updated: 2026-03-17</p>
 
       <div className="border border-terminal-alert/40 bg-terminal-alert/5 p-4 text-sm leading-relaxed">
         <span className="text-terminal-alert font-bold uppercase tracking-wider text-xs">
           ⚠ Prototype Software
         </span>
-        <p className="mt-2 text-terminal-muted">
+        <p className="mt-2 text-terminal-dim">
           BitBoard is experimental software under active development. Features may change, break, or
           be removed without notice. Use accordingly and back up your private key (nsec).
         </p>
@@ -76,7 +76,7 @@ export const TermsOfService: React.FC = () => {
           <li>Not impersonate others</li>
           <li>Comply with applicable laws and regulations</li>
         </ul>
-        <p className="text-sm text-terminal-muted mt-2">
+        <p className="text-sm text-terminal-dim mt-2">
           Note: Content moderation on Nostr is handled by individual relay servers and clients. We
           provide reporting tools, but cannot guarantee content removal from the decentralized
           network.
@@ -151,7 +151,7 @@ export const TermsOfService: React.FC = () => {
           <li>Deleting your Nostr keys</li>
           <li>Simply not accessing the application</li>
         </ul>
-        <p className="text-sm text-terminal-muted mt-2">
+        <p className="text-sm text-terminal-dim mt-2">
           Note: Content already published to the Nostr network may remain on relay servers, as this
           is inherent to the decentralized protocol.
         </p>
@@ -205,7 +205,7 @@ export const TermsOfService: React.FC = () => {
       </section>
 
       <div className="mt-8 pt-6 border-t border-terminal-dim/30">
-        <p className="text-sm text-terminal-muted">
+        <p className="text-sm text-terminal-dim">
           By using BitBoard, you acknowledge that you have read, understood, and agree to be bound
           by these Terms of Service.
         </p>

@@ -76,7 +76,7 @@ export const PostSkeleton: React.FC<{ count?: number }> = ({ count = 1 }) => {
           </div>
 
           {/* Terminal-style loading indicator */}
-          <div className="absolute bottom-1 right-2 text-[10px] text-terminal-dim/50 font-mono flex items-center gap-1">
+          <div className="absolute bottom-1 right-2 text-2xs text-terminal-dim/70 font-mono flex items-center gap-1">
             <span className="inline-block w-1.5 h-1.5 bg-terminal-dim/50 rounded-full animate-ping" />
             <span>LOADING_DATA...</span>
           </div>

@@ -17,7 +17,7 @@ describe('MobileDrawer', () => {
         viewMode={ViewMode.FEED}
         onSetViewMode={() => undefined}
         onNavigateGlobal={() => undefined}
-        userState={{ bits: 2, maxBits: 4 }}
+        _userState={{ bits: 2, maxBits: 4 }}
         bookmarkedCount={0}
         isNostrConnected={true}
       />,
@@ -32,7 +32,7 @@ describe('MobileDrawer', () => {
         viewMode={ViewMode.FEED}
         onSetViewMode={() => undefined}
         onNavigateGlobal={() => undefined}
-        userState={{ bits: 2, maxBits: 4 }}
+        _userState={{ bits: 2, maxBits: 4 }}
         bookmarkedCount={0}
         isNostrConnected={true}
       />,
@@ -41,7 +41,7 @@ describe('MobileDrawer', () => {
     expect(document.body.style.overflow).toBe('');
   });
 
-  it('toggles bits info and invokes navigation callbacks', () => {
+  it('invokes navigation callbacks and renders sidebar children', () => {
     const onClose = vi.fn();
     const onSetViewMode = vi.fn();
     const onNavigateGlobal = vi.fn();
@@ -53,7 +53,7 @@ describe('MobileDrawer', () => {
         onSetViewMode={onSetViewMode}
         onNavigateGlobal={onNavigateGlobal}
         identity={{ npub: 'npub1234567890' }}
-        userState={{ bits: 2, maxBits: 4 }}
+        _userState={{ bits: 2, maxBits: 4 }}
         bookmarkedCount={2}
         isNostrConnected={true}
       >
@@ -61,8 +61,7 @@ describe('MobileDrawer', () => {
       </MobileDrawer>,
     );
 
-    fireEvent.click(screen.getByText('How bits work ▾'));
-    expect(screen.getByText(/Bit-weighted global feed:/i)).toBeInTheDocument();
+    expect(screen.getByText('Sidebar Child')).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('SAVED (2)'));
     expect(onSetViewMode).toHaveBeenCalledWith(ViewMode.BOOKMARKS);
@@ -70,7 +69,6 @@ describe('MobileDrawer', () => {
 
     fireEvent.click(screen.getByText('GLOBAL_FEED'));
     expect(onNavigateGlobal).toHaveBeenCalled();
-    expect(screen.getByText('Sidebar Child')).toBeInTheDocument();
   });
 
   it('closes on escape', () => {
@@ -82,7 +80,7 @@ describe('MobileDrawer', () => {
         viewMode={ViewMode.FEED}
         onSetViewMode={() => undefined}
         onNavigateGlobal={() => undefined}
-        userState={{ bits: 2, maxBits: 4 }}
+        _userState={{ bits: 2, maxBits: 4 }}
         bookmarkedCount={0}
         isNostrConnected={true}
       />,

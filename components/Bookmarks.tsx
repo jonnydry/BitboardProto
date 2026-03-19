@@ -251,7 +251,7 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
               <p className="text-sm font-bold uppercase tracking-wide text-terminal-alert">
                 Remove all saved posts?
               </p>
-              <p className="mt-1 text-sm text-terminal-muted">
+              <p className="mt-1 text-sm text-terminal-dim">
                 This clears {bookmarkedPosts.length} bookmarked{' '}
                 {bookmarkedPosts.length === 1 ? 'post' : 'posts'} from this device.
               </p>

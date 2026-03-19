@@ -214,7 +214,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 focus:border-terminal-text focus:outline-none min-h-[80px] font-mono resize-y"
               maxLength={500}
             />
-            <div className="text-[10px] text-terminal-dim text-right mt-1">
+            <div className="text-2xs text-terminal-dim text-right mt-1">
               {details.length}/500
             </div>
           </div>

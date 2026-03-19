@@ -61,8 +61,9 @@ export default defineConfig(({ mode }) => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-          // Fix service worker generation error by configuring workbox properly
-          mode: 'production',
+          // Use development so workbox-build skips @rollup/plugin-terser on the SW bundle.
+          // Vite 6 + multi-chunk SW + terser can hit "Unexpected early exit" during renderChunk.
+          mode: 'development',
           cleanupOutdatedCaches: true,
           clientsClaim: true,
           skipWaiting: true,

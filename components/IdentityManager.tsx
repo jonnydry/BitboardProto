@@ -248,7 +248,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
           <div className="flex items-center justify-between gap-3 rounded-sm border border-terminal-dim/40 bg-terminal-dim/10 p-3 text-sm">
             <div className="flex items-center gap-2">
               <Wifi size={14} className="text-terminal-text" />
-              <span className="text-terminal-muted">IDENTITY CONNECTED</span>
+              <span className="text-terminal-dim">IDENTITY CONNECTED</span>
             </div>
             {onViewProfile && (
               <button
@@ -263,7 +263,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
 
           {/* Public Key */}
           <div className="space-y-2">
-            <label className="text-xs text-terminal-muted uppercase font-bold">
+            <label className="text-xs text-terminal-dim uppercase font-bold">
               Public Key (npub)
             </label>
             <div className="flex items-center gap-2">
@@ -286,7 +286,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
           {/* Private Key (hidden by default) */}
           {identity.kind === 'local' && (
             <div className="space-y-2">
-              <label className="text-xs text-terminal-muted uppercase font-bold flex items-center gap-2">
+              <label className="text-xs text-terminal-dim uppercase font-bold flex items-center gap-2">
                 Private Key (nsec)
                 <span className="inline-flex items-center gap-1 text-terminal-alert">
                   <AlertTriangle size={12} />
@@ -319,7 +319,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
                 )}
               </div>
               {/* Storage security notice */}
-              <div className="flex gap-2 p-2 border border-terminal-alert/40 bg-terminal-alert/5 text-[11px] text-terminal-muted leading-relaxed">
+              <div className="flex gap-2 p-2 border border-terminal-alert/40 bg-terminal-alert/5 text-2xs text-terminal-dim leading-relaxed">
                 <AlertTriangle size={12} className="text-terminal-alert shrink-0 mt-0.5" />
                 <span>
                   Your key is stored in browser localStorage — it is protected by the browser's
@@ -333,7 +333,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
 
           {/* Display Name */}
           <div className="space-y-2">
-            <label className="text-xs text-terminal-muted uppercase font-bold">Display Name</label>
+            <label className="text-xs text-terminal-dim uppercase font-bold">Display Name</label>
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -375,7 +375,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
                 <AlertTriangle size={16} className="mt-0.5" />
                 <div>
                   <p className="text-sm font-bold uppercase tracking-wide">Disconnect identity?</p>
-                  <p className="mt-1 text-sm text-terminal-muted">
+                  <p className="mt-1 text-sm text-terminal-dim">
                     Your key will be removed from this browser session. Make sure you have a backup
                     before continuing.
                   </p>
@@ -409,7 +409,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
               server. Your private key is your password —{' '}
               <span className="text-terminal-alert">back it up and never share it</span>.
             </p>
-            <div className="flex gap-2 pt-1 border-t border-terminal-dim/30 text-[11px] text-terminal-muted leading-relaxed">
+            <div className="flex gap-2 pt-1 border-t border-terminal-dim/30 text-2xs text-terminal-dim leading-relaxed">
               <AlertTriangle size={12} className="text-terminal-alert shrink-0 mt-0.5" />
               <span>
                 Keys generated here are stored in browser localStorage. This is convenient but means
@@ -452,7 +452,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
               className="w-full bg-terminal-bg border border-terminal-dim p-3 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
               placeholder="Confirm passphrase"
             />
-            <p className="text-[11px] leading-relaxed text-terminal-muted">
+            <p className="text-2xs leading-relaxed text-terminal-dim">
               This passphrase is not sent anywhere. It is only used to decrypt your local key on
               this browser.
             </p>
@@ -511,7 +511,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
               className="w-full bg-terminal-bg border border-terminal-dim p-3 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
               placeholder="Confirm local passphrase"
             />
-            <p className="text-[11px] leading-relaxed text-terminal-muted">
+            <p className="text-2xs leading-relaxed text-terminal-dim">
               This passphrase encrypts the imported key on this browser and will be required after
               reload.
             </p>

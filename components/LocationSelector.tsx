@@ -221,7 +221,7 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
                             <MapPin size={12} className="text-terminal-dim" />
                             <span className="font-mono text-sm">#{channel.geohash}</span>
                             {geonetDiscoveryService.isRecentlyActive(channel) && (
-                              <span className="text-[10px] px-1.5 py-0.5 bg-terminal-text/20 text-terminal-text rounded">
+                              <span className="text-2xs px-1.5 py-0.5 bg-terminal-text/20 text-terminal-text rounded">
                                 ACTIVE
                               </span>
                             )}
@@ -230,7 +230,7 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
                             JOIN →
                           </span>
                         </div>
-                        <div className="flex items-center gap-4 mt-1 text-[10px] text-terminal-dim">
+                        <div className="flex items-center gap-4 mt-1 text-2xs text-terminal-dim">
                           <span className="flex items-center gap-1">
                             <Activity size={10} />
                             {channel.postCount} posts
@@ -284,12 +284,12 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
                         {PRECISION_LABELS[precision]}
                       </span>
                       {channelActivity && channelActivity.postCount > 0 && (
-                        <span className="text-[10px] px-1 bg-terminal-dim/30 text-terminal-text">
+                        <span className="text-2xs px-1 bg-terminal-dim/30 text-terminal-text">
                           {channelActivity.postCount}
                         </span>
                       )}
                     </div>
-                    <div className="text-[10px] text-terminal-dim mt-1">
+                    <div className="text-2xs text-terminal-dim mt-1">
                       {PRECISION_DESCRIPTIONS[precision]}
                     </div>
                     {board && (

@@ -325,7 +325,7 @@ const ChatView: React.FC<{
           >
             <ChevronUp size={14} />
             Load {Math.min(MESSAGES_PAGE_SIZE, totalMessages - visibleCount)} earlier messages
-            <span className="text-terminal-dim/50">
+            <span className="text-terminal-dim/70">
               (showing {visibleMessages.length} of {totalMessages})
             </span>
           </button>
@@ -333,7 +333,7 @@ const ChatView: React.FC<{
 
         {visibleMessages.length === 0 ? (
           <div className="text-center text-terminal-dim py-8">
-            <Lock size={32} className="mx-auto mb-2 opacity-50" />
+            <Lock size={32} className="mx-auto mb-2 opacity-70" />
             <p>Start an encrypted conversation with {displayName}</p>
           </div>
         ) : (
@@ -592,7 +592,7 @@ export const DirectMessages: React.FC<DirectMessagesProps> = ({
           ) : (
             <div className="flex-1 flex items-center justify-center text-terminal-dim">
               <div className="text-center">
-                <MessageCircle size={48} className="mx-auto mb-4 opacity-50" />
+                <MessageCircle size={48} className="mx-auto mb-4 opacity-70" />
                 <p>Select a conversation or start a new one</p>
               </div>
             </div>

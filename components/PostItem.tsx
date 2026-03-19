@@ -4,7 +4,6 @@ import { Post } from '../types';
 import { useUserState, useIsMuted } from '../stores/userStore';
 import {
   MessageSquare,
-  Image as ImageIcon,
   Shield,
   Users,
   Bookmark,
@@ -24,7 +23,6 @@ import { ShareButton } from './ShareButton';
 import { ReportModal } from './ReportModal';
 import { ImagePreview } from './ImagePreview';
 import { MarkdownRenderer } from './MarkdownRenderer';
-import { extractUrls } from '../services/linkPreviewService';
 import { ReactionBar } from './ReactionPicker';
 import { ZapButton } from './ZapButton';
 import { BadgeDisplay } from './BadgeDisplay';
@@ -61,12 +59,12 @@ interface PostItemProps {
 const PostItemComponent: React.FC<PostItemProps> = ({
   post,
   boardName,
-  knownUsers = new Set(),
+  knownUsers: _knownUsers = new Set(),
   onVote,
-  onComment,
-  onEditComment,
-  onDeleteComment,
-  onCommentVote,
+  onComment: _onComment,
+  onEditComment: _onEditComment,
+  onDeleteComment: _onDeleteComment,
+  onCommentVote: _onCommentVote,
   onViewBit,
   onViewProfile,
   onEditPost,
@@ -263,26 +261,6 @@ const PostItemComponent: React.FC<PostItemProps> = ({
     [handleInteraction],
   );
 
-  // Extract inline images
-  const inlineImages = useMemo(() => {
-    if (!post.content || isEncryptedWithoutKey) return [];
-    const urlRegex = /(https?:\/\/[^\s]+)/g;
-    const matches = post.content.match(urlRegex) || [];
-    return matches.filter(
-      (url) => /\.(jpeg|jpg|gif|png|webp|bmp)$/i.test(url) && url !== post.imageUrl,
-    );
-  }, [post.content, post.imageUrl, isEncryptedWithoutKey]);
-
-  // Extract non-image URLs for link previews
-  const linkUrls = useMemo(() => {
-    if (!post.content || isEncryptedWithoutKey) return [];
-    // Also include the post's url if it exists
-    const contentUrls = extractUrls(post.content);
-    const allUrls = post.url ? [post.url, ...contentUrls] : contentUrls;
-    // Deduplicate
-    return [...new Set(allUrls)];
-  }, [post.content, post.url, isEncryptedWithoutKey]);
-
   return (
     <div
       ref={postRef}
@@ -380,7 +358,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
           </button>
 
           <span
-            className={`text-sm font-semibold ${post.score > 0 ? 'text-terminal-text' : post.score < 0 ? 'text-terminal-alert' : 'text-terminal-dim/50'}`}
+            className={`text-sm font-semibold ${post.score > 0 ? 'text-terminal-text' : post.score < 0 ? 'text-terminal-alert' : 'text-terminal-dim/70'}`}
           >
             {post.score > 0 ? '+' : ''}
             {post.score}
@@ -425,7 +403,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                   <div className="flex items-center gap-1">
                     <Shield size={10} className="text-terminal-text" />
                     {typeof post.uniqueVoters === 'number' && (
-                      <span className="text-[11px] text-terminal-dim flex items-center gap-0.5">
+                      <span className="text-xs text-terminal-dim flex items-center gap-0.5">
                         <Users size={8} /> {post.uniqueVoters}
                       </span>
                     )}
@@ -455,7 +433,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
 
         {/* Content Column */}
         <div className="flex-1 flex flex-col min-w-0">
-          <div className="text-xs text-terminal-dim mb-1 flex flex-wrap items-center gap-2">
+          <div className="text-sm text-terminal-dim mb-1 flex flex-wrap items-center gap-2">
             <button
               onClick={handleAuthorClick}
               className="flex items-center gap-1.5 font-bold text-terminal-dim hover:text-terminal-text hover:underline transition-colors cursor-pointer"
@@ -479,7 +457,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 ) : (
                   profileLoadState !== 'loading' && (
                     <div
-                      className="w-7 h-7 rounded-full bg-terminal-dim/20 border border-terminal-dim/40 flex items-center justify-center text-xs text-terminal-dim font-bold"
+                      className="w-7 h-7 rounded-full bg-terminal-dim/20 border border-terminal-dim/40 flex items-center justify-center text-sm text-terminal-dim font-bold"
                       title={post.authorPubkey ? `${post.authorPubkey.slice(0, 8)}...` : ''}
                     >
                       {post.author.charAt(0).toUpperCase()}
@@ -503,16 +481,16 @@ const PostItemComponent: React.FC<PostItemProps> = ({
             {boardName && (
               <>
                 <span className="text-terminal-dim/50">·</span>
-                <span className="text-terminal-dim/70 text-xs">//{boardName}</span>
+                <span className="text-terminal-dim/70 text-sm">//{boardName}</span>
               </>
             )}
             <span className="text-terminal-dim/50">·</span>
-            <span className="ml-auto text-terminal-dim/70 text-xs">
+            <span className="ml-auto text-terminal-dim/70 text-sm">
               {formatTime(post.timestamp)}
             </span>
             {post.isEncrypted && (
               <span
-                className="flex items-center gap-1 text-terminal-text border border-terminal-text/50 px-1 py-0.5 text-xs uppercase tracking-wider"
+                className="flex items-center gap-1 text-terminal-text border border-terminal-text/50 px-1 py-0.5 text-sm uppercase tracking-wider"
                 title="This post is encrypted"
               >
                 <Lock size={10} /> Encrypted
@@ -525,7 +503,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 title="Edit this post"
               >
                 <Edit3 size={10} />
-                <span className="text-xs">EDIT</span>
+                <span className="text-sm">EDIT</span>
               </button>
             )}
             {isOwnPost && onDeletePost && (
@@ -535,7 +513,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 title="Delete this post"
               >
                 <Trash2 size={10} />
-                <span className="text-xs">DELETE</span>
+                <span className="text-sm">DELETE</span>
               </button>
             )}
           </div>
@@ -544,14 +522,14 @@ const PostItemComponent: React.FC<PostItemProps> = ({
             {isEncryptedWithoutKey ? (
               <div className="flex items-center gap-2 text-terminal-dim mb-2">
                 <Lock size={18} />
-                <h3 className="text-xl font-bold">[Encrypted - Access Required]</h3>
+                <h3 className="text-2xl font-bold">[Encrypted - Access Required]</h3>
               </div>
             ) : post.url ? (
               <a
                 href={post.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-lg font-semibold font-display text-terminal-text leading-snug mb-1 cursor-pointer hover:underline decoration-2 underline-offset-4 transition-colors break-words"
+                className="text-xl font-semibold font-display text-terminal-text leading-snug mb-1 cursor-pointer hover:underline decoration-2 underline-offset-4 transition-colors break-words"
               >
                 {post.title}
                 {post.isEncrypted && (
@@ -568,7 +546,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 onKeyDown={handleInteractionKeyDown}
                 tabIndex={0}
                 role="button"
-                className="text-lg font-semibold font-display text-terminal-text leading-snug mb-1 cursor-pointer hover:underline decoration-2 underline-offset-4 select-none break-words"
+                className="text-xl font-semibold font-display text-terminal-text leading-snug mb-1 cursor-pointer hover:underline decoration-2 underline-offset-4 select-none break-words"
               >
                 {post.title}
                 {post.isEncrypted && (
@@ -581,7 +559,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
               </h3>
             )}
             {post.url && (
-              <span className="shrink-0 mt-1 border border-terminal-dim/40 px-1.5 py-0.5 text-xs text-terminal-dim/70">
+              <span className="shrink-0 mt-1 border border-terminal-dim/40 px-1.5 py-0.5 text-sm text-terminal-dim/70">
                 LINK
               </span>
             )}
@@ -606,7 +584,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
               onKeyDown={handleInteractionKeyDown}
               tabIndex={0}
               role="button"
-              className="text-sm text-terminal-dim/70 font-mono leading-relaxed mb-2 cursor-pointer break-words line-clamp-3"
+              className="text-base text-terminal-dim/70 font-mono leading-relaxed mb-2 cursor-pointer break-words line-clamp-3"
             >
               {(() => {
                 // Detect markdown syntax - only load full renderer if needed
@@ -626,7 +604,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 <button
                   key={tag}
                   onClick={(e) => handleTagClick(e, tag)}
-                  className="text-xs border border-terminal-dim/20 bg-terminal-bg px-1.75 py-0.5 text-terminal-dim/80 hover:text-terminal-dim hover:border-terminal-dim/40 cursor-pointer transition-colors"
+                  className="text-sm border border-terminal-dim/20 bg-terminal-bg px-1.75 py-0.5 text-terminal-dim/80 hover:text-terminal-dim hover:border-terminal-dim/40 cursor-pointer transition-colors"
                   title={`Search for #${tag}`}
                 >
                   #{tag}
@@ -638,7 +616,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
           <div className="flex items-center gap-4 border-t border-terminal-dim/15 pt-2.5 mt-2">
             <button
               onClick={handleCommentClick}
-              className="flex items-center gap-1.25 text-xs text-terminal-dim/70 hover:text-terminal-dim transition-colors shrink-0"
+              className="flex items-center gap-1.25 text-sm text-terminal-dim/70 hover:text-terminal-dim transition-colors shrink-0"
               title="View full thread"
             >
               <MessageSquare size={13} />

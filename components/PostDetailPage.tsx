@@ -44,23 +44,13 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
   onBack,
   isBookmarked = false,
   onToggleBookmark,
-  hasReported = false,
+  hasReported: _hasReported = false,
 }) => {
   const [newComment, setNewComment] = React.useState('');
   const [isTransmitting, setIsTransmitting] = React.useState(false);
   const [showReportModal, setShowReportModal] = React.useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
   const [collapseKey, setCollapseKey] = React.useState(0);
-
-  const handleReportClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (!hasReported) {
-        setShowReportModal(true);
-      }
-    },
-    [hasReported],
-  );
 
   const handleDeleteClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -272,9 +262,9 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
           className="flex items-center gap-1.5 text-terminal-dim/60 hover:text-terminal-dim transition-colors group"
         >
           <ArrowLeft size={14} className="group-hover:-translate-x-0.5 transition-transform" />
-          <span className="text-xs tracking-[0.08em] uppercase">// {boardName || 'global'}</span>
+          <span className="text-sm tracking-[0.08em] uppercase">// {boardName || 'global'}</span>
         </button>
-        <span className="text-xs text-terminal-dim/60 tracking-[0.12em]">BIT · DETAIL</span>
+        <span className="text-sm text-terminal-dim/60 tracking-[0.12em]">BIT · DETAIL</span>
       </div>
 
       {/* Post Section */}
@@ -284,7 +274,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
           <div className="flex flex-col items-center w-10 shrink-0 pt-1 gap-1.5">
             <button
               onClick={handleVoteUp}
-              className={`p-1 transition-colors ${isUpvoted ? 'text-terminal-text' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`p-2 md:p-1 min-w-[40px] min-h-[40px] md:min-w-0 md:min-h-0 flex items-center justify-center transition-colors ${isUpvoted ? 'text-terminal-text' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={!userState.identity || (userState.bits <= 0 && !hasInvested)}
               aria-label="Upvote"
               aria-pressed={isUpvoted}
@@ -309,7 +299,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
             </button>
 
             <span
-              className={`text-[13px] font-semibold ${post.score > 0 ? 'text-terminal-text' : post.score < 0 ? 'text-terminal-alert' : 'text-terminal-dim/50'}`}
+              className={`text-base font-semibold ${post.score > 0 ? 'text-terminal-text' : post.score < 0 ? 'text-terminal-alert' : 'text-terminal-dim/70'}`}
             >
               {post.score > 0 ? '+' : ''}
               {post.score}
@@ -317,7 +307,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
 
             <button
               onClick={handleVoteDown}
-              className={`p-1 transition-colors ${isDownvoted ? 'text-terminal-alert' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`p-2 md:p-1 min-w-[40px] min-h-[40px] md:min-w-0 md:min-h-0 flex items-center justify-center transition-colors ${isDownvoted ? 'text-terminal-alert' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={!userState.identity || (userState.bits <= 0 && !hasInvested)}
               aria-label="Downvote"
               aria-pressed={isDownvoted}
@@ -358,18 +348,18 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
                     className="w-6 h-6 rounded-full object-cover border border-terminal-dim/40 shrink-0"
                   />
                 ) : (
-                  <div className="w-6 h-6 rounded-full bg-terminal-dim/15 border border-terminal-dim/30 flex items-center justify-center text-xs text-terminal-text shrink-0">
+                  <div className="w-6 h-6 rounded-full bg-terminal-dim/15 border border-terminal-dim/30 flex items-center justify-center text-sm text-terminal-text shrink-0">
                     {authorDisplayName.charAt(0).toUpperCase()}
                   </div>
                 )}
-                <span className="text-xs text-terminal-text/80">{authorDisplayName}</span>
+                <span className="text-sm text-terminal-text/80">{authorDisplayName}</span>
               </button>
-              <span className="text-terminal-dim/50 text-xs">·</span>
-              <span className="text-xs text-terminal-dim/70">{formatTime(post.timestamp)}</span>
+              <span className="text-terminal-dim/50 text-sm">·</span>
+              <span className="text-sm text-terminal-dim/70">{formatTime(post.timestamp)}</span>
               {isOwnPost && onEditPost && (
                 <button
                   onClick={handleEditClick}
-                  className="ml-auto flex items-center gap-1 text-terminal-dim/50 hover:text-terminal-text transition-colors text-xs"
+                  className="ml-auto flex items-center gap-1 text-terminal-dim/70 hover:text-terminal-text transition-colors text-sm"
                   title="Edit this post"
                 >
                   <Edit3 size={10} /> EDIT
@@ -378,7 +368,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
               {isOwnPost && onDeletePost && (
                 <button
                   onClick={handleDeleteClick}
-                  className="flex items-center gap-1 text-terminal-dim/50 hover:text-terminal-alert transition-colors text-xs"
+                  className="flex items-center gap-1 text-terminal-dim/70 hover:text-terminal-alert transition-colors text-sm"
                   title="Delete this post"
                 >
                   <Trash2 size={10} /> DELETE
@@ -390,7 +380,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
             {isEncryptedWithoutKey ? (
               <div className="flex items-center gap-2 text-terminal-dim">
                 <Lock size={18} />
-                <h2 className="text-2xl font-semibold font-display leading-snug">
+                <h2 className="text-3xl font-semibold font-display leading-snug">
                   [Encrypted - Access Required]
                 </h2>
               </div>
@@ -399,12 +389,12 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
                 href={post.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-2xl font-semibold font-display text-terminal-text leading-snug hover:underline decoration-2 underline-offset-4 transition-colors break-words"
+                className="text-3xl font-semibold font-display text-terminal-text leading-snug hover:underline decoration-2 underline-offset-4 transition-colors break-words"
               >
                 {post.title}
               </a>
             ) : (
-              <h2 className="text-2xl font-semibold font-display text-terminal-text leading-snug break-words">
+              <h2 className="text-3xl font-semibold font-display text-terminal-text leading-snug break-words">
                 {post.title}
               </h2>
             )}
@@ -430,17 +420,17 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
 
             {/* Body */}
             {isEncryptedWithoutKey ? (
-              <div className="text-sm text-terminal-dim font-mono leading-relaxed p-4 border border-terminal-dim/30 bg-terminal-dim/5">
+              <div className="text-base text-terminal-dim font-mono leading-relaxed p-4 border border-terminal-dim/30 bg-terminal-dim/5">
                 <p className="mb-2">
                   This post is encrypted. You need the board share link to view it.
                 </p>
-                <p className="text-sm text-terminal-dim/70">
+                <p className="text-base text-terminal-dim/70">
                   The encryption key is embedded in the share link URL fragment and never sent to
                   servers.
                 </p>
               </div>
             ) : (
-              <div className="text-sm text-terminal-dim/70 font-mono leading-[1.7] break-words">
+              <div className="text-base text-terminal-dim/70 font-mono leading-[1.7] break-words">
                 <MarkdownRenderer content={post.content} />
               </div>
             )}
@@ -452,7 +442,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
                   <button
                     key={tag}
                     onClick={(e) => handleTagClick(e, tag)}
-                    className="text-xs border border-terminal-dim/20 px-1.75 py-0.5 text-terminal-dim/50 hover:text-terminal-dim hover:border-terminal-dim/40 cursor-pointer transition-colors"
+                    className="text-sm border border-terminal-dim/20 px-1.75 py-0.5 text-terminal-dim/70 hover:text-terminal-dim hover:border-terminal-dim/40 cursor-pointer transition-colors"
                     title={`Search for #${tag}`}
                   >
                     #{tag}
@@ -471,7 +461,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
             const el = document.getElementById('comment-thread');
             el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }}
-          className="flex items-center gap-1.25 text-xs text-terminal-dim/70 hover:text-terminal-dim tracking-[0.06em] transition-colors"
+          className="flex items-center gap-1.25 text-sm text-terminal-dim/70 hover:text-terminal-dim tracking-[0.06em] transition-colors"
         >
           <svg
             width="12"
@@ -488,7 +478,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
 
         <button
           onClick={handleShareClick}
-          className="flex items-center gap-1.25 text-xs text-terminal-dim/70 hover:text-terminal-dim tracking-[0.06em] transition-colors"
+          className="flex items-center gap-1.25 text-sm text-terminal-dim/70 hover:text-terminal-dim tracking-[0.06em] transition-colors"
           title="Copy link"
         >
           <svg
@@ -510,7 +500,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
 
         <button
           onClick={handleBookmarkClick}
-          className={`flex items-center gap-1.25 text-xs tracking-[0.06em] transition-colors ${isBookmarked ? 'text-terminal-text' : 'text-terminal-dim/70 hover:text-terminal-dim'}`}
+          className={`flex items-center gap-1.25 text-sm tracking-[0.06em] transition-colors ${isBookmarked ? 'text-terminal-text' : 'text-terminal-dim/70 hover:text-terminal-dim'}`}
           title={isBookmarked ? 'Remove bookmark' : 'Save to bookmarks'}
           aria-label={isBookmarked ? 'Remove bookmark' : 'Save to bookmarks'}
           aria-pressed={isBookmarked}
@@ -523,7 +513,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
       {/* Comment Composer */}
       <form onSubmit={handleCommentSubmit} className="py-5 px-4 border-b border-terminal-dim/20">
         <div className="flex flex-col gap-2.5">
-          <span className="text-xs text-terminal-dim/50 uppercase tracking-widest">
+          <span className="text-sm text-terminal-dim/70 uppercase tracking-widest">
             Join the thread
           </span>
           <MentionInput
@@ -536,11 +526,11 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
             className="!border-terminal-dim/30 focus:!border-terminal-dim/40"
           />
           <div className="flex items-center justify-between">
-            <span className="text-xs text-terminal-dim/50">cmd+return to transmit</span>
+            <span className="text-sm text-terminal-dim/70">cmd+return to transmit</span>
             <button
               type="submit"
               disabled={!newComment.trim() || isTransmitting}
-              className="bg-terminal-text text-terminal-bg text-xs font-bold px-4.5 py-1.75 disabled:opacity-50 transition-colors tracking-[0.06em]"
+              className="bg-terminal-text text-terminal-bg text-sm font-bold px-4.5 py-1.75 disabled:opacity-50 transition-colors tracking-[0.06em]"
             >
               {isTransmitting ? <Loader2 size={14} className="animate-spin" /> : 'Transmit'}
             </button>
@@ -553,21 +543,21 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
         id="comment-thread"
         className="flex items-center justify-between pt-4 pb-2 px-4 border-b border-dashed border-terminal-dim/25"
       >
-        <span className="text-xs text-terminal-dim/50 uppercase tracking-[0.12em]">
+        <span className="text-sm text-terminal-dim/70 uppercase tracking-[0.12em]">
           {post.commentCount} {post.commentCount === 1 ? 'reply' : 'replies'}
         </span>
         {commentTree.length > 0 && (
           <div className="flex items-center gap-2">
             <button
               onClick={handleCollapseAll}
-              className="text-xs tracking-[0.06em] text-terminal-dim/50 hover:text-terminal-dim transition-colors"
+              className="text-sm tracking-[0.06em] text-terminal-dim/70 hover:text-terminal-dim transition-colors"
             >
               collapse all
             </button>
-            <span className="text-terminal-dim/50 text-xs">·</span>
+            <span className="text-terminal-dim/50 text-sm">·</span>
             <button
               onClick={handleExpandAll}
-              className="text-xs tracking-[0.06em] text-terminal-dim/50 hover:text-terminal-dim transition-colors"
+              className="text-sm tracking-[0.06em] text-terminal-dim/70 hover:text-terminal-dim transition-colors"
             >
               expand all
             </button>
@@ -596,7 +586,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
             ))}
           </div>
         ) : (
-          <p className="text-terminal-dim/50 italic text-sm py-4">No replies yet.</p>
+          <p className="text-terminal-dim/70 italic text-sm py-4">No replies yet.</p>
         )}
       </div>
 
@@ -630,12 +620,12 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
             <p className="text-terminal-text/80 text-sm mb-2">
               Are you sure you want to delete this post?
             </p>
-            <p className="text-terminal-dim text-xs mb-6 border-l-2 border-terminal-dim pl-3">
+            <p className="text-terminal-dim text-sm mb-6 border-l-2 border-terminal-dim pl-3">
               &quot;{post.title.length > 60 ? post.title.slice(0, 60) + '...' : post.title}&quot;
             </p>
 
             {post.nostrEventId && (
-              <p className="text-terminal-alert/80 text-xs mb-4 flex items-center gap-2">
+              <p className="text-terminal-alert/80 text-sm mb-4 flex items-center gap-2">
                 <Shield size={12} />A deletion request will be broadcast to Nostr relays. Some
                 relays may still retain the post.
               </p>

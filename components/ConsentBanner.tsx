@@ -37,7 +37,7 @@ export function ConsentBanner({ onDismiss }: ConsentBannerProps) {
           <Cookie className="w-5 h-5 text-terminal-green shrink-0 mt-0.5" />
           <div>
             <h3 className="text-sm font-semibold text-terminal-text">Privacy Preference</h3>
-            <p className="text-xs text-terminal-muted mt-1">
+            <p className="text-xs text-terminal-dim mt-1">
               We use anonymous analytics to improve BitBoard. Your data stays private — we don't
               collect personal information. You can opt out at any time.
             </p>
@@ -46,7 +46,7 @@ export function ConsentBanner({ onDismiss }: ConsentBannerProps) {
         <div className="flex items-center gap-2 sm:shrink-0">
           <button
             onClick={handleDecline}
-            className="px-3 py-1.5 text-xs text-terminal-muted hover:text-terminal-text transition-colors"
+            className="px-3 py-1.5 text-xs text-terminal-dim hover:text-terminal-text transition-colors"
           >
             Decline
           </button>
@@ -58,7 +58,7 @@ export function ConsentBanner({ onDismiss }: ConsentBannerProps) {
           </button>
           <button
             onClick={() => setIsVisible(false)}
-            className="sm:hidden p-1 text-terminal-muted hover:text-terminal-text"
+            className="sm:hidden p-1 text-terminal-dim hover:text-terminal-text"
             aria-label="Close"
           >
             <X className="w-4 h-4" />

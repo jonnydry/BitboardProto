@@ -219,7 +219,7 @@ export const MobileDrawer = React.memo(function MobileDrawer({
 
         {/* Footer */}
         <div className="mt-auto p-4 border-t border-terminal-dim/30 bg-terminal-bg text-center">
-          <span className="text-[10px] text-terminal-dim uppercase tracking-wider">
+          <span className="text-2xs text-terminal-dim uppercase tracking-wider">
             NOSTR PROTOCOL V3.0
           </span>
         </div>

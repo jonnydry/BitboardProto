@@ -324,7 +324,7 @@ export const LoadingPhaseIndicator = memo<{
               className={`flex items-center gap-2 transition-colors ${
                 isComplete ? 'text-terminal-text' :
                 isActive ? 'text-terminal-text' :
-                'text-terminal-dim/50'
+                'text-terminal-dim/70'
               }`}
             >
               <span className="w-4 text-center">
@@ -361,7 +361,7 @@ export const LoadingPhaseCompact = memo<{
     <div className="flex items-center gap-2 text-xs text-terminal-dim">
       <InlineSpinner size={12} />
       <span className="uppercase">{phaseInfo.label}</span>
-      <span className="text-terminal-dim/50">[{progress}%]</span>
+      <span className="text-terminal-dim/70">[{progress}%]</span>
     </div>
   );
 });

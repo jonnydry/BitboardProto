@@ -56,6 +56,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   content,
   className = ''
 }) => {
+  // prose* utilities require @tailwindcss/typography (see tailwind.config.cjs); theme tokens map prose colors to terminal CSS variables.
   return (
     <div className={`prose prose-sm max-w-none ${className}`}>
       <ReactMarkdown
@@ -78,6 +79,20 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
               <Hash size={12} />
               {children}
             </h3>
+          ),
+          h4: ({ children }) => (
+            <h4 className="text-sm font-bold text-terminal-text mb-2 mt-4 flex items-center gap-2">
+              <Hash size={12} />
+              {children}
+            </h4>
+          ),
+          h5: ({ children }) => (
+            <h5 className="text-sm font-semibold text-terminal-text mb-2 mt-3">{children}</h5>
+          ),
+          h6: ({ children }) => (
+            <h6 className="text-xs font-semibold uppercase tracking-wide text-terminal-dim mb-2 mt-3">
+              {children}
+            </h6>
           ),
 
           // Paragraphs - Check for standalone links to render as preview cards
@@ -115,8 +130,19 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
               className="text-terminal-text hover:text-terminal-dim underline inline-flex items-center gap-1 transition-colors"
             >
               {children}
-              <ExternalLink size={10} />
+              <ExternalLink size={14} className="shrink-0" aria-hidden />
             </a>
+          ),
+
+          img: ({ className, alt, ...props }) => (
+            <img
+              {...props}
+              alt={alt ?? ''}
+              className={['max-w-full h-auto rounded border border-terminal-dim my-4', className]
+                .filter(Boolean)
+                .join(' ')}
+              loading="lazy"
+            />
           ),
 
           // Code blocks
@@ -151,26 +177,26 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
           // Blockquotes
           blockquote: ({ children }) => (
             <blockquote className="border-l-2 border-terminal-dim pl-4 py-2 my-4 bg-terminal-dim/5 italic text-terminal-text">
-              <Quote size={14} className="inline mr-2 opacity-50" />
+              <Quote size={14} className="inline mr-2 opacity-70" />
               {children}
             </blockquote>
           ),
 
-          // Lists
+          // Lists (outside markers read better for multi-line items)
           ul: ({ children }) => (
-            <ul className="list-disc list-inside space-y-1 mb-4 text-terminal-text">
+            <ul className="list-disc list-outside space-y-1 mb-4 pl-5 text-terminal-text marker:text-terminal-dim">
               {children}
             </ul>
           ),
 
           ol: ({ children }) => (
-            <ol className="list-decimal list-inside space-y-1 mb-4 text-terminal-text">
+            <ol className="list-decimal list-outside space-y-1 mb-4 pl-5 text-terminal-text marker:text-terminal-dim">
               {children}
             </ol>
           ),
 
           li: ({ children }) => (
-            <li className="text-terminal-text">
+            <li className="text-terminal-text [&>p]:mb-1 [&>p:last-child]:mb-0">
               {children}
             </li>
           ),

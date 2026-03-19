@@ -290,7 +290,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
                 );
               })}
               {relayStatuses.length === 0 && (
-                <div className="text-terminal-dim/50 text-center py-1">No relays configured</div>
+                <div className="text-terminal-dim/70 text-center py-1">No relays configured</div>
               )}
             </div>
           )}
@@ -303,7 +303,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
           </div>
         </div>
         {userState.identity && (
-          <div className="hidden md:block mt-2 text-xs text-terminal-dim truncate border-t border-terminal-dim/30 pt-1">
+          <div className="hidden md:block mt-2 text-sm text-terminal-dim truncate border-t border-terminal-dim/30 pt-1">
             KEY: {userState.identity.npub.slice(0, 16)}...
           </div>
         )}
@@ -448,7 +448,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
                           ? { color: 'rgb(var(--color-terminal-bg))' }
                           : undefined
                       }
-                      className={`shrink-0 text-[10px] opacity-50 group-hover:opacity-100 ${activeBoardId === board.id ? 'opacity-100' : ''}`}
+                      className={`shrink-0 text-2xs opacity-70 group-hover:opacity-100 ${activeBoardId === board.id ? 'opacity-100' : ''}`}
                     >
                       //
                     </span>
@@ -470,7 +470,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
                     onClick={() => setVisibleBoardCount((v) => v + 10)}
                     className="text-left text-xs px-2 py-1.5 text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10 transition-all flex items-center gap-2 group w-full"
                   >
-                    <span className="shrink-0 text-xs opacity-50 group-hover:opacity-100">
+                    <span className="shrink-0 text-xs opacity-60 group-hover:opacity-100">
                       {'+'}
                     </span>
                     <span className="truncate">
@@ -482,7 +482,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
                   onClick={() => onSetViewMode(ViewMode.BROWSE_BOARDS)}
                   className="text-left text-xs md:text-sm px-2 py-1.5 text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10 transition-all flex items-center gap-2 group w-full"
                 >
-                  <span className="shrink-0 text-xs opacity-50 group-hover:opacity-100">
+                  <span className="shrink-0 text-xs opacity-60 group-hover:opacity-100">
                     {'>>'}
                   </span>
                   <span className="truncate">
@@ -507,7 +507,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
         </div>
         <button
           onClick={() => onSetViewMode(ViewMode.CREATE_BOARD)}
-          className="mt-2 md:mt-4 w-full text-[10px] md:text-xs border border-terminal-dim border-dashed text-terminal-dim p-1.5 md:p-2 hover:text-terminal-bg hover:bg-terminal-text hover:border-solid transition-all uppercase"
+          className="mt-2 md:mt-4 w-full text-xs md:text-sm border border-terminal-dim border-dashed text-terminal-dim p-1.5 md:p-2 hover:text-terminal-bg hover:bg-terminal-text hover:border-solid transition-all uppercase"
         >
           [+] Init_Board
         </button>
@@ -613,7 +613,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
         defaultOpen={false}
         badge={
           totalNearbyPosts > 0 ? (
-            <span className="flex items-center gap-1 text-[10px] text-terminal-text font-normal">
+            <span className="flex items-center gap-1 text-2xs text-terminal-text font-normal">
               <Activity size={10} className={recentlyActiveCount > 0 ? 'animate-pulse' : ''} />
               {totalNearbyPosts}
             </span>

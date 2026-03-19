@@ -236,7 +236,7 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
               <h1 className="text-2xl lg:text-4xl font-terminal tracking-wider leading-none">
                 BitBoard
               </h1>
-              <span className="text-[10px] lg:text-xs text-terminal-dim tracking-[0.15em] lg:tracking-[0.2em]">
+              <span className="text-2xs lg:text-xs text-terminal-dim tracking-[0.15em] lg:tracking-[0.2em]">
                 DECENTRALIZED SOCIAL NEWS
               </span>
             </div>
@@ -316,7 +316,7 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
                 className="h-5 w-5 rounded-full object-cover border border-terminal-dim/40"
               />
             ) : identity ? (
-              <span className="flex h-5 w-5 items-center justify-center rounded-full border border-terminal-dim/40 bg-terminal-dim/10 text-[10px] uppercase">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full border border-terminal-dim/40 bg-terminal-dim/10 text-2xs uppercase">
                 {identityDisplayName.slice(0, 1)}
               </span>
             ) : null}
@@ -346,7 +346,7 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
               size={14}
               className={userState.bits === 0 ? 'text-terminal-alert' : 'text-terminal-text'}
             />
-            <span className="text-[10px] md:text-xs uppercase tracking-wide text-terminal-dim hidden sm:inline">
+            <span className="text-2xs md:text-xs uppercase tracking-wide text-terminal-dim hidden sm:inline">
               Bits available
             </span>
           </div>
@@ -380,13 +380,13 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
             >
               <div className="px-4 py-3 border-b border-terminal-dim/30 flex items-start gap-3">
                 <Zap size={16} className="text-terminal-text shrink-0 mt-0.5" />
-                <p className="text-sm text-terminal-muted leading-relaxed">
+                <p className="text-sm text-terminal-dim leading-relaxed">
                   <span className="text-terminal-text font-bold">Bit-weighted global feed:</span>{' '}
                   verified identities spend limited bits to push the best posts upward.
                 </p>
               </div>
               <div className="px-4 py-4 space-y-3">
-                <div className="text-[10px] uppercase tracking-widest text-terminal-dim">
+                <div className="text-2xs uppercase tracking-widest text-terminal-dim">
                   How bits work
                 </div>
                 <BitsExplanation size="desktop" />
@@ -411,7 +411,7 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
           <div className="bg-terminal-bg border-2 border-terminal-text w-full max-w-2xl max-h-[80vh] overflow-auto">
             <Suspense
               fallback={
-                <div className="p-8 text-center text-terminal-muted animate-pulse">LOADING...</div>
+                <div className="p-8 text-center text-terminal-dim animate-pulse">LOADING...</div>
               }
             >
               <AdvancedSearch

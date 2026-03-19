@@ -129,7 +129,7 @@ export const LinkPreview: React.FC<LinkPreviewProps> = ({
             </div>
             <div className="text-sm text-terminal-text truncate group-hover:underline flex items-center gap-2">
               {url}
-              <ExternalLink size={12} className="flex-shrink-0 opacity-50" />
+              <ExternalLink size={12} className="flex-shrink-0 opacity-70" />
             </div>
           </div>
         </div>
@@ -226,7 +226,7 @@ export const LinkPreview: React.FC<LinkPreviewProps> = ({
             ) : (
               <Globe size={14} className="text-terminal-dim flex-shrink-0" />
             )}
-            <span className="text-[10px] text-terminal-dim uppercase tracking-wider truncate">
+            <span className="text-2xs text-terminal-dim uppercase tracking-wider truncate">
               {displayDomain}
             </span>
           </div>
@@ -246,7 +246,7 @@ export const LinkPreview: React.FC<LinkPreviewProps> = ({
           )}
 
           {/* External link indicator */}
-          <div className="mt-2 flex items-center gap-1 text-[10px] text-terminal-dim opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="mt-2 flex items-center gap-1 text-2xs text-terminal-dim opacity-0 group-hover:opacity-100 transition-opacity">
             <ExternalLink size={10} />
             <span className="uppercase tracking-wider">Open Link</span>
           </div>

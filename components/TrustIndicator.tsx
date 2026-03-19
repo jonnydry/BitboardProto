@@ -126,7 +126,7 @@ export const TrustIndicator: React.FC<TrustIndicatorProps> = ({
 
       {/* Tooltip */}
       <div
-        className={`absolute left-1/2 -translate-x-1/2 w-56 p-3 bg-terminal-bg border-2 border-terminal-text shadow-glow opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity z-50 text-[10px] uppercase leading-tight ${flipTooltip ? 'top-full mt-2' : 'bottom-full mb-2'}`}
+        className={`absolute left-1/2 -translate-x-1/2 w-56 p-3 bg-terminal-bg border-2 border-terminal-text shadow-glow opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity z-50 text-2xs uppercase leading-tight ${flipTooltip ? 'top-full mt-2' : 'bottom-full mb-2'}`}
       >
         <div className="flex items-center gap-2 mb-2 pb-2 border-b border-terminal-dim/30">
           <Shield size={16} className="text-terminal-text" />
@@ -159,7 +159,7 @@ export const TrustIndicator: React.FC<TrustIndicatorProps> = ({
           )}
         </div>
 
-        <div className="mt-2 pt-2 border-t border-terminal-dim/30 text-[8px] text-terminal-dim text-center">
+        <div className="mt-2 pt-2 border-t border-terminal-dim/30 text-2xs text-terminal-dim text-center">
           NOSTR_WOT_CALCULATION_ACTIVE
         </div>
 

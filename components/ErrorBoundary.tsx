@@ -107,7 +107,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
             </div>
 
             <div className="mb-4 space-y-2">
-              <p className="text-terminal-muted">Something went wrong loading this section.</p>
+              <p className="text-terminal-dim">Something went wrong loading this section.</p>
               <p className="text-terminal-text">
                 An unexpected error occurred. The application has been protected from crashing.
               </p>

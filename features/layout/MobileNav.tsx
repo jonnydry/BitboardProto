@@ -110,12 +110,12 @@ export const MobileNav = React.memo(function MobileNav() {
                   className={`transition-transform ${item.isActive ? 'drop-shadow-[0_0_4px_rgb(var(--color-terminal-text))]' : ''} ${(item as any).isRefreshing ? 'motion-safe:animate-spin' : ''}`}
                 />
                 {item.badge !== null && (
-                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 flex items-center justify-center text-[10px] font-bold bg-terminal-alert text-white rounded-sm motion-safe:animate-pulse">
+                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 flex items-center justify-center text-2xs font-bold bg-terminal-alert text-white rounded-sm motion-safe:animate-pulse">
                     {item.badge > 99 ? '99+' : item.badge}
                   </span>
                 )}
               </div>
-              <span className="text-[11px] mt-1 font-bold tracking-wider uppercase">
+              <span className="text-2xs mt-1 font-bold tracking-wider uppercase">
                 {item.label}
               </span>
               {item.isActive && (

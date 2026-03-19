@@ -54,7 +54,6 @@ export const CreatePost: React.FC<CreatePostProps> = ({
   const [tagInput, setTagInput] = useState('');
   // keep tagsStr in sync for draft persistence
   const tagsStr = tags.join(', ');
-  const tagCount = tags.length;
   const [selectedBoardId, setSelectedBoardId] = useState(
     currentBoardId || availableBoards[0]?.id || '',
   );
@@ -333,10 +332,10 @@ export const CreatePost: React.FC<CreatePostProps> = ({
             New Bit
           </span>
         </div>
-        <div className="flex items-center gap-2.5 text-xs font-mono">
+        <div className="flex items-center gap-2.5 text-sm font-mono">
           <span className="text-terminal-dim/60 tracking-[0.08em] uppercase">Draft saved</span>
           <div className="w-px h-2.5 bg-terminal-dim/30" />
-          <span className="text-terminal-dim/50">ESC to discard</span>
+          <span className="text-terminal-dim/70 text-sm">ESC to discard</span>
         </div>
       </div>
 
@@ -351,7 +350,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({
       <form ref={formRef} onSubmit={handleSubmit}>
         {/* Board selector row */}
         <div className="flex items-center gap-2.5 py-2.5 px-5 border-b border-terminal-dim/15">
-          <span className="text-xs tracking-widest text-terminal-dim/70 font-mono uppercase flex-shrink-0">
+          <span className="text-sm tracking-widest text-terminal-dim/70 font-mono uppercase flex-shrink-0">
             Board
           </span>
           <div className="relative flex-1">
@@ -372,7 +371,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({
             <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-terminal-text" />
           </div>
           {isEncryptedBoard && (
-            <div className="flex items-center gap-1.5 text-xs text-terminal-dim/60 font-mono flex-shrink-0">
+            <div className="flex items-center gap-1.5 text-sm text-terminal-dim/60 font-mono flex-shrink-0">
               <Lock size={12} />
               <span>encrypted</span>
             </div>
@@ -391,16 +390,16 @@ export const CreatePost: React.FC<CreatePostProps> = ({
                 setTitle(e.target.value);
                 setTitleError(null);
               }}
-              className={`w-full bg-transparent text-xl md:text-2xl leading-[130%] font-display font-semibold text-terminal-text focus:outline-none placeholder:text-terminal-dim/30 ${
+              className={`w-full bg-transparent text-2xl md:text-3xl leading-[130%] font-display font-semibold text-terminal-text focus:outline-none placeholder:text-terminal-dim/30 ${
                 titleError ? 'placeholder:text-terminal-alert/50' : ''
               }`}
               placeholder="Title your bit…"
             />
             {titleError && (
-              <span className="text-terminal-alert text-xs mt-1 block">* {titleError}</span>
+              <span className="text-terminal-alert text-sm mt-1 block">* {titleError}</span>
             )}
             {titleOverLimit && (
-              <span className="text-terminal-alert text-xs mt-1 block">
+              <span className="text-terminal-alert text-sm mt-1 block">
                 {titleCharCount}/{InputLimits.MAX_TITLE_LENGTH}
               </span>
             )}
@@ -413,7 +412,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({
                 {content ? (
                   <MarkdownRenderer content={content} />
                 ) : (
-                  <p className="italic text-terminal-dim/50">No content yet…</p>
+                  <p className="italic text-terminal-dim/70">No content yet…</p>
                 )}
               </div>
             ) : (
@@ -429,7 +428,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({
               />
             )}
             {contentError && (
-              <span className="text-terminal-alert text-xs mt-1 block">* {contentError}</span>
+              <span className="text-terminal-alert text-sm mt-1 block">* {contentError}</span>
             )}
           </div>
 
@@ -438,7 +437,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({
             <button
               type="button"
               onClick={() => setShowPreview(!showPreview)}
-              className="text-xs tracking-widest text-terminal-dim/50 hover:text-terminal-dim uppercase font-mono transition-colors"
+              className="text-xs tracking-widest text-terminal-dim/70 hover:text-terminal-dim uppercase font-mono transition-colors"
             >
               {showPreview ? 'Edit' : 'Preview'}
             </button>
@@ -454,7 +453,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({
         {(imageUrl || isScanning) && (
           <div className="border-b border-terminal-dim/15">
             {isScanning ? (
-              <div className="px-5 py-4 text-xs font-mono text-terminal-dim/50 animate-pulse uppercase tracking-widest">
+              <div className="px-5 py-4 text-xs font-mono text-terminal-dim/70 animate-pulse uppercase tracking-widest">
                 Scanning…
               </div>
             ) : (
@@ -480,7 +479,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({
 
         {/* Link row */}
         <div className="flex items-center gap-2.5 py-2.5 px-5 border-b border-terminal-dim/15">
-          <span className="text-xs tracking-widest text-terminal-dim/60 font-mono uppercase flex-shrink-0">
+          <span className="text-sm tracking-widest text-terminal-dim/60 font-mono uppercase flex-shrink-0">
             Link
           </span>
           <input
@@ -514,7 +513,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({
 
         {/* Tags row */}
         <div className="flex items-center gap-2 py-2.5 px-5 border-b border-terminal-dim/15 flex-wrap">
-          <span className="text-xs tracking-widest text-terminal-dim/60 font-mono uppercase flex-shrink-0">
+          <span className="text-sm tracking-widest text-terminal-dim/60 font-mono uppercase flex-shrink-0">
             Tags
           </span>
           {tags.map((tag) => (
@@ -522,7 +521,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({
               key={tag}
               type="button"
               onClick={() => setTags(tags.filter((t) => t !== tag))}
-              className="flex items-center gap-1 border border-terminal-dim/40 bg-terminal-bg py-0.5 px-2 text-terminal-text font-mono text-xs hover:border-terminal-alert/60 hover:text-terminal-alert/80 transition-colors group"
+              className="flex items-center gap-1 border border-terminal-dim/40 bg-terminal-bg py-0.5 px-2 text-terminal-text font-mono text-sm hover:border-terminal-alert/60 hover:text-terminal-alert/80 transition-colors group"
             >
               <span>#{tag}</span>
               <X size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -541,7 +540,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({
                 }
                 setTagInput('');
               }}
-              className="border border-dashed border-terminal-dim/40 py-0.5 px-2 text-terminal-dim/50 font-mono text-xs bg-transparent focus:outline-none focus:border-terminal-dim/60 focus:text-terminal-dim placeholder:text-terminal-dim/30 min-w-[60px] w-20"
+              className="border border-dashed border-terminal-dim/40 py-0.5 px-2 text-terminal-dim/70 font-mono text-base md:text-sm bg-transparent focus:outline-none focus:border-terminal-dim/60 focus:text-terminal-dim placeholder:text-terminal-dim/40 min-w-[60px] w-20"
               placeholder="+ add"
             />
           )}
@@ -549,19 +548,19 @@ export const CreatePost: React.FC<CreatePostProps> = ({
 
         {/* Footer actions */}
         <div className="flex items-center justify-between py-3.5 px-5">
-          <span className="text-xs text-terminal-dim/30 font-mono">⌘⏎ transmit</span>
+          <span className="text-sm text-terminal-dim/60 font-mono">⌘⏎ transmit</span>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onCancel}
-              className="border border-terminal-dim/40 py-2 px-4 text-terminal-dim/60 font-mono text-xs hover:border-terminal-dim/60 hover:text-terminal-dim transition-colors"
+              className="border border-terminal-dim/40 py-2 px-4 text-terminal-dim/60 font-mono text-sm hover:border-terminal-dim/60 hover:text-terminal-dim transition-colors"
             >
               Discard
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="bg-terminal-text text-terminal-bg font-mono font-semibold text-xs py-2 px-5 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+              className="bg-terminal-text text-terminal-bg font-mono font-semibold text-sm py-2 px-5 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
             >
               {isSubmitting ? 'Transmitting…' : 'Transmit Bit'}
             </button>

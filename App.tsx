@@ -79,7 +79,7 @@ import {
 // Default loading fallback
 const LoadingFallback = () => (
   <div className="flex items-center justify-center py-8">
-    <div className="motion-safe:animate-pulse text-terminal-muted uppercase tracking-wider">
+    <div className="motion-safe:animate-pulse text-terminal-dim uppercase tracking-wider">
       LOADING...
     </div>
   </div>
@@ -101,7 +101,7 @@ const IdentityUnlockModal = (props: {
       <h2 className="text-lg font-terminal uppercase tracking-widest text-terminal-text">
         {props.isMigration ? 'Secure Your Identity' : 'Unlock Identity'}
       </h2>
-      <p className="mt-2 text-sm leading-relaxed text-terminal-muted">
+      <p className="mt-2 text-sm leading-relaxed text-terminal-dim">
         {props.isMigration
           ? 'BitBoard no longer stores the unlock key in localStorage. Set a passphrase to re-encrypt your existing identity securely.'
           : 'Enter your identity passphrase to decrypt your stored keypair on this device.'}
@@ -126,7 +126,7 @@ const IdentityUnlockModal = (props: {
           />
         )}
 
-        <div className="border border-terminal-alert/40 bg-terminal-alert/5 p-3 text-xs leading-relaxed text-terminal-muted">
+        <div className="border border-terminal-alert/40 bg-terminal-alert/5 p-3 text-xs leading-relaxed text-terminal-dim">
           If you forget this passphrase, BitBoard cannot recover your locally stored private key.
         </div>
 
@@ -726,7 +726,7 @@ const AppContent: React.FC = () => {
         </div>
 
         {/* Footer - hidden on mobile to make room for bottom nav */}
-        <footer className="hidden md:block text-center text-terminal-muted text-xs py-8">
+        <footer className="hidden md:block text-center text-terminal-dim text-xs py-8">
           <div className="mb-2">
             BitBoard NOSTR PROTOCOL V3.0 // RELAYS: {nostrService.getRelays().length} // NODES
             ACTIVE: {(app.boards?.length ?? 0) + (app.locationBoards?.length ?? 0)}

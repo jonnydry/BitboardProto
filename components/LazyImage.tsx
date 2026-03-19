@@ -124,7 +124,7 @@ export const LazyImage = memo<LazyImageProps>(({
         className={`lazy-image lazy-image--error ${className}`}
       >
         <div style={placeholderStyle}>
-          <span className="text-terminal-dim text-xs opacity-50">
+          <span className="text-terminal-dim text-xs opacity-70">
             ⚠ Image failed
           </span>
         </div>

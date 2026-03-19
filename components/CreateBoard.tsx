@@ -280,7 +280,7 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({
               <AlertTriangle size={12} /> {nameError}
             </span>
           ) : (
-            <span className="text-[10px] text-terminal-dim">
+            <span className="text-2xs text-terminal-dim">
               * STARTS WITH LETTER. ALPHANUMERIC + UNDERSCORE ONLY.
             </span>
           )}
@@ -327,7 +327,7 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({
             >
               <Globe size={24} />
               <span className="font-bold">PUBLIC_NET</span>
-              <span className="text-[10px] text-center">
+              <span className="text-2xs text-center">
                 Visible to all nodes. Indexed in global directory.
               </span>
             </button>
@@ -339,7 +339,7 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({
             >
               <Lock size={24} />
               <span className="font-bold">ENCRYPTED</span>
-              <span className="text-[10px] text-center">
+              <span className="text-2xs text-center">
                 Invite only. Requires private key for access.
               </span>
             </button>
@@ -383,7 +383,7 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({
               </span>
             </div>
             {!rateLimit.allowed && rateLimit.resetAt && (
-              <p className="text-[10px] text-terminal-alert mt-1">
+              <p className="text-2xs text-terminal-alert mt-1">
                 Limit reached. Resets in {boardRateLimiter.formatResetTime(rateLimit.resetAt)}.
               </p>
             )}
