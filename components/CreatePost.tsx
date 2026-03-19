@@ -54,8 +54,8 @@ export const CreatePost: React.FC<CreatePostProps> = ({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
-  const [draftSaved, setDraftSaved] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   // Validation error states
   const [titleError, setTitleError] = useState<string | null>(null);
@@ -74,6 +74,22 @@ export const CreatePost: React.FC<CreatePostProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onCancel]);
+
+  // Handle Cmd/Ctrl+Enter to submit form
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        const target = e.target as HTMLElement;
+        if (target.closest('form') === formRef.current && !isSubmitting) {
+          e.preventDefault();
+          formRef.current?.requestSubmit();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isSubmitting]);
 
   // Load draft from localStorage on mount
   useEffect(() => {
@@ -122,8 +138,6 @@ export const CreatePost: React.FC<CreatePostProps> = ({
         savedAt: Date.now(),
       };
       localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-      setDraftSaved(true);
-      setTimeout(() => setDraftSaved(false), 2000);
     }, 500);
     return () => {
       if (draftTimerRef.current) {
@@ -306,14 +320,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({
         </div>
       )}
 
-      {/* Draft Saved Indicator */}
-      {draftSaved && (
-        <div className="mb-2 p-2 border border-terminal-dim/30 bg-terminal-dim/5 text-xs text-terminal-dim text-center animate-fade-in">
-          Draft saved
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-4">
         {/* Board Selector */}
         <div className="flex flex-col gap-1">
           <label className="text-sm text-terminal-muted uppercase font-bold">Target Board</label>

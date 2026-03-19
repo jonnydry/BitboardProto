@@ -113,6 +113,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   const [showMoreActions, setShowMoreActions] = useState(false);
   const { postRef, authorProfile, profileLoadState } = usePostAuthorProfile(post.authorPubkey);
   const moreActionsRef = React.useRef<HTMLDivElement | null>(null);
+  const commentFormRef = React.useRef<HTMLFormElement>(null);
 
   const handleReportClick = useCallback(
     (e: React.MouseEvent) => {
@@ -258,6 +259,22 @@ const PostItemComponent: React.FC<PostItemProps> = ({
       }
     };
   }, [newComment, REPLY_DRAFT_KEY]);
+
+  // Handle Cmd/Ctrl+Enter to submit comment
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        const target = e.target as HTMLElement;
+        if (target.closest('form') === commentFormRef.current && !isTransmitting) {
+          e.preventDefault();
+          commentFormRef.current?.requestSubmit();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isTransmitting]);
 
   // Clear draft on successful submit
   const handleCommentSubmit = useCallback(
@@ -1012,6 +1029,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
               })()}
 
               <form
+                ref={commentFormRef}
                 onSubmit={handleCommentSubmit}
                 className="flex gap-3 items-start bg-terminal-bg/40 p-3 border border-terminal-dim/30"
               >

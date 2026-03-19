@@ -94,6 +94,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
   const [showMoreActions, setShowMoreActions] = useState(false);
   const [authorProfile, setAuthorProfile] = useState<any>(null);
   const moreActionsRef = useRef<HTMLDivElement | null>(null);
+  const replyFormRef = useRef<HTMLFormElement>(null);
 
   // Load author profile metadata from cache (profiles are pre-fetched at parent level)
   useEffect(() => {
@@ -232,6 +233,22 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
     document.addEventListener('mousedown', handleOutsideClick);
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [showMoreActions]);
+
+  // Handle Cmd/Ctrl+Enter to submit reply
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        const target = e.target as HTMLElement;
+        if (target.closest('form') === replyFormRef.current && !isSubmitting) {
+          e.preventDefault();
+          replyFormRef.current?.requestSubmit();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isSubmitting]);
 
   // Visual indentation caps at maxVisualDepth
   const visualDepth = Math.min(depth, maxVisualDepth);
@@ -616,6 +633,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
                 {/* Reply form */}
                 {isReplying && (
                   <form
+                    ref={replyFormRef}
                     onSubmit={handleSubmitReply}
                     className="mt-3 flex gap-2 items-start bg-terminal-bg/40 p-2 border border-terminal-dim/30"
                   >

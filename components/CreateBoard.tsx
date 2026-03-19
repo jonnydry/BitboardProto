@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Board, BoardType, NostrIdentity } from '../types';
 import { Globe, Lock, Hash, AlertTriangle, Shield, Copy, Check, Key } from 'lucide-react';
 import { inputValidator } from '../services/inputValidator';
@@ -36,6 +36,7 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   // Rate limit check
   const rateLimit = useMemo(() => {
@@ -44,6 +45,22 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({
     }
     return boardRateLimiter.canCreateBoard(identity.pubkey);
   }, [identity]);
+
+  // Handle Cmd/Ctrl+Enter to submit form
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        const target = e.target as HTMLElement;
+        if (target.closest('form') === formRef.current && !isSubmitting) {
+          e.preventDefault();
+          formRef.current?.requestSubmit();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isSubmitting]);
 
   const validateForm = (): boolean => {
     let isValid = true;
@@ -233,7 +250,7 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({
         &gt; INITIALIZE_NEW_FREQUENCY
       </h2>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+      <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-6">
         {/* Name Input */}
         <div className="flex flex-col gap-2">
           <div className="flex justify-between items-center">
