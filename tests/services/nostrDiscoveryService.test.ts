@@ -249,4 +249,54 @@ describe('nostrDiscoveryService', () => {
     expect(results).toHaveLength(1);
     expect(results[0].id).toBe('english-post');
   });
+
+  it('filters out stale community-approved posts outside the active time window', async () => {
+    mocks.discoverCommunities.mockResolvedValue([
+      {
+        community: {
+          id: 'stale',
+          address: '34550:pubkey:stale',
+          name: 'Stale Community',
+          moderators: ['mod1'],
+        },
+        board: {
+          id: '34550:pubkey:stale',
+          name: 'Stale Community',
+          description: 'stale',
+          memberCount: 2,
+          isPublic: true,
+          isReadOnly: true,
+          type: 0,
+        },
+        approvalCount: 4,
+        recentApprovalCount: 1,
+      },
+    ]);
+    mocks.fetchCommunityPreview.mockResolvedValue([
+      {
+        id: 'old-approved-post',
+        boardId: '34550:pubkey:stale',
+        source: 'nostr-community',
+        title: 'Old approved community list',
+        author: 'alice',
+        authorPubkey: 'pubkey-1',
+        content:
+          'This old post should not appear in a 24 hour trending window even if it is approved.',
+        timestamp: Date.now() - 1000 * 60 * 60 * 24 * 30,
+        score: 0,
+        commentCount: 0,
+        tags: ['nostr', 'history', 'community'],
+        comments: [],
+        upvotes: 0,
+        downvotes: 0,
+      },
+    ]);
+
+    const results = await nostrDiscoveryService.discoverSeedCandidates({
+      timeWindow: '24h',
+      sourceFilter: 'community-approved',
+    });
+
+    expect(results).toHaveLength(0);
+  });
 });

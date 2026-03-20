@@ -110,6 +110,10 @@ class NostrDiscoveryService {
     }
   }
 
+  private isWithinTimeWindow(timestampMs: number, window: DiscoveryTimeWindow): boolean {
+    return timestampMs >= this.getSinceTimestamp(window) * 1000;
+  }
+
   private getCommunityAddress(event: NostrEvent): string | undefined {
     const addressTag = event.tags.find(
       (tag) => (tag[0] === 'A' || tag[0] === 'a') && tag[1]?.startsWith('34550:'),
@@ -166,7 +170,14 @@ class NostrDiscoveryService {
   }
 
   private isLikelyEnglishText(input: string): boolean {
-    const text = input.replace(/https?:\/\/\S+/g, ' ').trim();
+    const text = input
+      .replace(/https?:\/\/\S+/g, ' ')
+      .replace(/nostr:[^\s]+/gi, ' ')
+      .replace(
+        /\b(?:npub|nprofile|note|naddr|nevent|nsec)1[023456789acdefghjklmnpqrstuvwxyz]+\b/gi,
+        ' ',
+      )
+      .trim();
     if (!text) return false;
 
     const nonAsciiChars = Array.from(text).filter((char) => char.charCodeAt(0) > 127).length;
@@ -180,13 +191,12 @@ class NostrDiscoveryService {
     }
 
     const stopwordCount = words.filter((word) => this.ENGLISH_STOPWORDS.has(word)).length;
-    if (stopwordCount >= 2) {
+    const stopwordRatio = stopwordCount / words.length;
+    if (stopwordCount >= 3 && stopwordRatio >= 0.08) {
       return true;
     }
 
-    const averageWordLength =
-      words.reduce((sum: number, word: string) => sum + word.length, 0) / words.length;
-    return words.length >= 10 && averageWordLength >= 3.5;
+    return false;
   }
 
   private mapGeneralEventToPost(event: NostrEvent): Post | null {
@@ -442,6 +452,7 @@ class NostrDiscoveryService {
     return previewGroups.flatMap(({ community, posts }) =>
       posts
         .filter((post) => {
+          if (!this.isWithinTimeWindow(post.timestamp, opts.timeWindow)) return false;
           if (!this.isLikelyEnglishPost(post)) return false;
           if (!query) return true;
           const haystack =
