@@ -40,9 +40,20 @@ class NostrDiscoveryService {
   private readonly GENERAL_QUALITY_THRESHOLD = 18;
   private readonly COMMUNITY_SAMPLE_LIMIT = 6;
   private readonly COMMUNITY_PREVIEW_LIMIT = 4;
+  private readonly DIRECTORY_REFERENCE_THRESHOLD = 3;
   private readonly ENGLISH_STOPWORDS = new Set([
     'the',
     'and',
+    'a',
+    'an',
+    'to',
+    'of',
+    'in',
+    'on',
+    'is',
+    'be',
+    'as',
+    'at',
     'for',
     'with',
     'this',
@@ -96,6 +107,18 @@ class NostrDiscoveryService {
     'who',
     'all',
   ]);
+  private readonly SPAM_PATTERNS = [
+    /signals?ia/i,
+    /trade signals?/i,
+    /entry:\s*\d/i,
+    /btcusdc|ethusdc|solusdc/i,
+    /mempool madness/i,
+    /pot rolls over/i,
+    /no winner this round/i,
+    /verified comment/i,
+    /block art/i,
+    /kamikaze drones target/i,
+  ];
 
   private getSinceTimestamp(window: DiscoveryTimeWindow): number {
     const nowSeconds = Math.floor(Date.now() / 1000);
@@ -150,6 +173,39 @@ class NostrDiscoveryService {
       .join(' ');
     const haystack = `${title} ${event.content} ${tags}`.toLowerCase();
     return haystack.includes(normalizedQuery);
+  }
+
+  private countDirectoryReferences(text: string): number {
+    const nostrRefs = (text.match(/nostr:[^\s]+/gi) ?? []).length;
+    const bech32Refs =
+      text.match(
+        /\b(?:npub|nprofile|note|naddr|nevent|nsec)1[023456789acdefghjklmnpqrstuvwxyz]+\b/gi,
+      )?.length ?? 0;
+    return nostrRefs + bech32Refs;
+  }
+
+  private looksLikeDirectoryOrDump(text: string): boolean {
+    const lineCount = text.split('\n').filter((line) => line.trim().length > 0).length;
+    const directoryRefs = this.countDirectoryReferences(text);
+    const listMarkers = (text.match(/(^|\n)\s*(?:[-*#]|\d+\.)\s+/g) ?? []).length;
+
+    if (directoryRefs >= this.DIRECTORY_REFERENCE_THRESHOLD) return true;
+    if (lineCount >= 8 && listMarkers >= 3) return true;
+    if (/(directory|index|master list|resource list|communities list|tutorial list)/i.test(text)) {
+      return true;
+    }
+    return false;
+  }
+
+  private matchesSpamPattern(text: string): boolean {
+    return this.SPAM_PATTERNS.some((pattern) => pattern.test(text));
+  }
+
+  private isJunkCandidate(post: Post): boolean {
+    const combined = `${post.title}\n${post.content}`;
+    if (this.matchesSpamPattern(combined)) return true;
+    if (this.looksLikeDirectoryOrDump(combined)) return true;
+    return false;
   }
 
   private isLikelyEnglishEvent(event: NostrEvent): boolean {
@@ -261,8 +317,41 @@ class NostrDiscoveryService {
     if (textLength < 80 && tagCount === 0 && !hasCommunityContext) score -= 6;
     if (/^(thanks|nice|lol|yes|no|true|same|gm|gn|ok)[.! ]*$/i.test(post.content.trim()))
       score -= 12;
+    if (this.looksLikeDirectoryOrDump(`${post.title}\n${post.content}`)) score -= 20;
+    if (this.matchesSpamPattern(`${post.title}\n${post.content}`)) score -= 20;
 
     return score;
+  }
+
+  private isEligibleGeneralPost(
+    post: Post,
+    window: DiscoveryTimeWindow,
+    zapCount = 0,
+    zapSats = 0,
+  ): boolean {
+    if (!this.isWithinTimeWindow(post.timestamp, window)) return false;
+    if (this.isJunkCandidate(post)) return false;
+
+    const qualityScore = this.scoreGeneralQuality(post, zapCount, zapSats);
+    const hasStrongEngagement = zapCount >= 3 || zapSats >= 500;
+    const hasStrongLink = !!post.url && post.content.trim().length >= 80;
+    const hasCommunityContext = !!post.communityAddress && post.content.trim().length >= 90;
+
+    return (
+      qualityScore >= this.GENERAL_QUALITY_THRESHOLD &&
+      (hasStrongLink || hasStrongEngagement || hasCommunityContext)
+    );
+  }
+
+  private isEligibleCommunityApprovedPost(post: Post, window: DiscoveryTimeWindow): boolean {
+    if (!this.isWithinTimeWindow(post.timestamp, window)) return false;
+    if (this.isJunkCandidate(post)) return false;
+
+    const hasStrongLink = !!post.url && post.content.trim().length >= 70;
+    const hasStrongContext = post.content.trim().length >= 110 || post.tags.length >= 3;
+    const hasEditorialShape = post.title.trim().length >= 20 && post.content.trim().length >= 80;
+
+    return hasEditorialShape && (hasStrongLink || hasStrongContext);
   }
 
   private scoreCandidate(candidate: Omit<SeedCandidate, 'discoveryScore'>): number {
@@ -384,7 +473,7 @@ class NostrDiscoveryService {
     const filteredPosts = posts.filter((post) => {
       const zapCount = post.nostrEventId ? (zapTallies.get(post.nostrEventId)?.zapCount ?? 0) : 0;
       const zapSats = post.nostrEventId ? (zapTallies.get(post.nostrEventId)?.totalSats ?? 0) : 0;
-      return this.scoreGeneralQuality(post, zapCount, zapSats) >= this.GENERAL_QUALITY_THRESHOLD;
+      return this.isEligibleGeneralPost(post, opts.timeWindow, zapCount, zapSats);
     });
 
     const pubkeys = Array.from(
@@ -452,8 +541,8 @@ class NostrDiscoveryService {
     return previewGroups.flatMap(({ community, posts }) =>
       posts
         .filter((post) => {
-          if (!this.isWithinTimeWindow(post.timestamp, opts.timeWindow)) return false;
           if (!this.isLikelyEnglishPost(post)) return false;
+          if (!this.isEligibleCommunityApprovedPost(post, opts.timeWindow)) return false;
           if (!query) return true;
           const haystack =
             `${post.title} ${post.content} ${post.tags.join(' ')} ${community.community.name}`.toLowerCase();

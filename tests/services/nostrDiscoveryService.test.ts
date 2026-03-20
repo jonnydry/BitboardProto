@@ -299,4 +299,79 @@ describe('nostrDiscoveryService', () => {
 
     expect(results).toHaveLength(0);
   });
+
+  it('filters out directory-style dumps with many nostr references', async () => {
+    mocks.discoverCommunities.mockResolvedValue([
+      {
+        community: {
+          id: 'directory',
+          address: '34550:pubkey:directory',
+          name: 'Directory Community',
+          moderators: ['mod1'],
+        },
+        board: {
+          id: '34550:pubkey:directory',
+          name: 'Directory Community',
+          description: 'directory',
+          memberCount: 2,
+          isPublic: true,
+          isReadOnly: true,
+          type: 0,
+        },
+        approvalCount: 8,
+        recentApprovalCount: 4,
+      },
+    ]);
+    mocks.fetchCommunityPreview.mockResolvedValue([
+      {
+        id: 'directory-post',
+        boardId: '34550:pubkey:directory',
+        source: 'nostr-community',
+        title: 'Communities directory',
+        author: 'alice',
+        authorPubkey: 'pubkey-1',
+        content:
+          'Directory\nnostr:nprofile1abc\nnostr:naddr1def\nnostr:nprofile1ghi\nnostr:naddr1jkl\nResource list\n- item one\n- item two',
+        timestamp: Date.now(),
+        score: 0,
+        commentCount: 0,
+        tags: ['nostr', 'directory', 'resources'],
+        comments: [],
+        upvotes: 0,
+        downvotes: 0,
+      },
+    ]);
+
+    const results = await nostrDiscoveryService.discoverSeedCandidates({
+      timeWindow: '24h',
+      sourceFilter: 'community-approved',
+    });
+
+    expect(results).toHaveLength(0);
+  });
+
+  it('filters out obvious trading and signal spam', async () => {
+    mocks.queryEvents.mockResolvedValue([
+      {
+        id: 'signal-post',
+        kind: NOSTR_KINDS.POST,
+        pubkey: 'eeeeee555555',
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ['lang', 'en'],
+          ['r', 'https://example.com/signal'],
+          ['t', 'signals'],
+        ],
+        content:
+          'Verified comment in BTCUSDC. Trade signal alert. Entry: 70202.1. No winner this round. Pot rolls over.',
+      },
+    ]);
+
+    const results = await nostrDiscoveryService.discoverSeedCandidates({
+      timeWindow: '24h',
+      sourceFilter: 'general',
+    });
+
+    expect(results).toHaveLength(0);
+  });
 });
