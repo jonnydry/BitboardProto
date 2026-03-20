@@ -118,7 +118,7 @@ export type SyncStatus = 'pending' | 'synced' | 'failed';
 export interface Post {
   id: string;
   boardId: string;
-  source?: 'bitboard' | 'nostr-community';
+  source?: 'bitboard' | 'nostr-community' | 'nostr';
   sourceEventKind?: number;
   communityAddress?: string;
   seededFrom?: 'nostr';
@@ -178,6 +178,7 @@ export interface UserState {
 
 export enum ViewMode {
   FEED = 'FEED',
+  DISCOVER_NOSTR = 'DISCOVER_NOSTR',
   CREATE = 'CREATE',
   ABOUT = 'ABOUT',
   SINGLE_BIT = 'SINGLE_BIT',

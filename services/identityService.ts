@@ -10,6 +10,7 @@ import { bytesToHex, hexToBytes } from 'nostr-tools/utils';
 import type { NostrIdentity, PublicNostrIdentity, UnsignedNostrEvent } from '../types';
 import { cryptoService } from './cryptoService';
 import { logger } from './loggingService';
+import { clearSessionPassphrase } from './sessionPassphrase';
 
 const STORAGE_KEYS = {
   // Legacy unencrypted identity (pre-encryption era)
@@ -451,6 +452,7 @@ class IdentityService {
     localStorage.removeItem(STORAGE_KEYS.IDENTITY_ENCRYPTED);
     cryptoService.deleteEncryptionKey();
     cryptoService.clearKey();
+    clearSessionPassphrase();
     this._needsPassphrase = false;
     this._needsMigration = false;
     this._migrationPlaintext = null;

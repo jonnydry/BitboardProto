@@ -22,6 +22,11 @@ import { analyticsService, AnalyticsEvents } from './services/analyticsService';
 import { sentryService } from './services/sentryService';
 import type { Notification } from './services/notificationService';
 import { identityService } from './services/identityService';
+import {
+  clearSessionPassphrase,
+  readSessionPassphrase,
+  writeSessionPassphrase,
+} from './services/sessionPassphrase';
 import { useUIStore } from './stores/uiStore';
 import { useUserStore } from './stores/userStore';
 
@@ -56,6 +61,11 @@ const BoardBrowser = lazy(() =>
 const ExternalCommunitiesBrowser = lazy(() =>
   import('./components/ExternalCommunitiesBrowser').then((module) => ({
     default: module.ExternalCommunitiesBrowser,
+  })),
+);
+const NostrDiscoveryBrowser = lazy(() =>
+  import('./components/NostrDiscoveryBrowser').then((module) => ({
+    default: module.NostrDiscoveryBrowser,
   })),
 );
 const PrivacyPolicy = lazy(() =>
@@ -98,8 +108,10 @@ const IdentityUnlockModal = (props: {
   confirmPassphrase: string;
   error: string | null;
   isSubmitting: boolean;
+  rememberSession: boolean;
   onPassphraseChange: (value: string) => void;
   onConfirmPassphraseChange: (value: string) => void;
+  onRememberSessionChange: (value: boolean) => void;
   onSubmit: () => void;
   onReset: () => void;
 }) => (
@@ -114,11 +126,18 @@ const IdentityUnlockModal = (props: {
           : 'Enter your identity passphrase to decrypt your stored keypair on this device.'}
       </p>
 
-      <div className="mt-4 space-y-3">
+      <form
+        className="mt-4 space-y-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!props.isSubmitting) props.onSubmit();
+        }}
+      >
         <input
           type="password"
           value={props.passphrase}
           onChange={(e) => props.onPassphraseChange(e.target.value)}
+          autoComplete="current-password"
           className="w-full border border-terminal-dim bg-terminal-bg p-3 text-sm text-terminal-text font-mono placeholder:text-terminal-dim/50 focus:border-terminal-text focus:outline-none"
           placeholder={props.isMigration ? 'Create a passphrase' : 'Enter passphrase'}
         />
@@ -128,10 +147,24 @@ const IdentityUnlockModal = (props: {
             type="password"
             value={props.confirmPassphrase}
             onChange={(e) => props.onConfirmPassphraseChange(e.target.value)}
+            autoComplete="new-password"
             className="w-full border border-terminal-dim bg-terminal-bg p-3 text-sm text-terminal-text font-mono placeholder:text-terminal-dim/50 focus:border-terminal-text focus:outline-none"
             placeholder="Repeat passphrase"
           />
         )}
+
+        <label className="flex items-start gap-2 cursor-pointer text-xs leading-snug text-terminal-dim">
+          <input
+            type="checkbox"
+            checked={props.rememberSession}
+            onChange={(e) => props.onRememberSessionChange(e.target.checked)}
+            className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded-sm border border-terminal-dim bg-terminal-bg accent-terminal-text"
+          />
+          <span>
+            Remember for this browser tab — skip unlock after refresh until you close the tab or reset
+            identity (passphrase stored in session only, not on disk).
+          </span>
+        </label>
 
         <div className="border border-terminal-alert/40 bg-terminal-alert/5 p-3 text-xs leading-relaxed text-terminal-dim font-mono">
           If you forget this passphrase, BitBoard cannot recover your locally stored private key.
@@ -144,8 +177,7 @@ const IdentityUnlockModal = (props: {
         )}
 
         <button
-          type="button"
-          onClick={props.onSubmit}
+          type="submit"
           disabled={props.isSubmitting}
           className="w-full border border-terminal-text bg-terminal-text px-4 py-3 font-mono font-bold uppercase tracking-wide text-black transition-colors hover:bg-terminal-dim hover:text-terminal-bg disabled:opacity-60"
         >
@@ -166,7 +198,7 @@ const IdentityUnlockModal = (props: {
         >
           Reset Local Identity
         </button>
-      </div>
+      </form>
     </div>
   </div>
 );
@@ -174,6 +206,7 @@ const IdentityUnlockModal = (props: {
 // Main App component that uses context
 const AppContent: React.FC = () => {
   const app = useApp();
+  const handleIdentityChange = useUserStore((s) => s.handleIdentityChange);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -183,6 +216,7 @@ const AppContent: React.FC = () => {
   const [unlockPassphraseConfirm, setUnlockPassphraseConfirm] = useState('');
   const [unlockError, setUnlockError] = useState<string | null>(null);
   const [isUnlockingIdentity, setIsUnlockingIdentity] = useState(false);
+  const [rememberSessionUnlock, setRememberSessionUnlock] = useState(false);
   const [notificationDmTargetPubkey, setNotificationDmTargetPubkey] = useState<
     string | undefined
   >();
@@ -201,21 +235,43 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
 
-    identityService.getIdentityAsync().then(() => {
+    (async () => {
+      try {
+        await identityService.getIdentityAsync();
+      } catch {
+        // ignore
+      }
       if (cancelled) return;
+
       if (identityService.needsMigration()) {
         setIdentityUnlockMode('migrate');
         setShowIdentityUnlock(true);
-      } else if (identityService.needsPassphrase()) {
+        return;
+      }
+
+      if (identityService.needsPassphrase()) {
+        const cached = readSessionPassphrase();
+        if (cached) {
+          const ok = await identityService.unlockWithPassphrase(cached);
+          if (cancelled) return;
+          if (ok) {
+            const unlockedIdentity = await identityService.getIdentityAsync();
+            if (unlockedIdentity) {
+              handleIdentityChange(unlockedIdentity);
+            }
+            return;
+          }
+          clearSessionPassphrase();
+        }
         setIdentityUnlockMode('unlock');
         setShowIdentityUnlock(true);
       }
-    });
+    })();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [handleIdentityChange]);
 
   const handleIdentityUnlock = async () => {
     const passphrase = unlockPassphrase.trim();
@@ -248,11 +304,18 @@ const AppContent: React.FC = () => {
 
       const unlockedIdentity = await identityService.getIdentityAsync();
       if (unlockedIdentity) {
-        app.handleIdentityChange(unlockedIdentity);
+        handleIdentityChange(unlockedIdentity);
+      }
+
+      if (rememberSessionUnlock) {
+        writeSessionPassphrase(passphrase);
+      } else {
+        clearSessionPassphrase();
       }
 
       setUnlockPassphrase('');
       setUnlockPassphraseConfirm('');
+      setRememberSessionUnlock(false);
       setShowIdentityUnlock(false);
     } finally {
       setIsUnlockingIdentity(false);
@@ -261,9 +324,10 @@ const AppContent: React.FC = () => {
 
   const handleResetLockedIdentity = () => {
     identityService.clearIdentity();
-    app.handleIdentityChange(null);
+    handleIdentityChange(null);
     setUnlockPassphrase('');
     setUnlockPassphraseConfirm('');
+    setRememberSessionUnlock(false);
     setUnlockError(null);
     setShowIdentityUnlock(false);
   };
@@ -311,9 +375,9 @@ const AppContent: React.FC = () => {
 
     keyboardShortcutsService.register({
       key: 'e',
-      description: 'Browse external communities',
+      description: 'Discover Nostr content',
       category: 'navigation',
-      action: () => useUIStore.getState().setViewMode(ViewMode.EXTERNAL_COMMUNITIES),
+      action: () => useUIStore.getState().setViewMode(ViewMode.DISCOVER_NOSTR),
     });
 
     const focusSearchInput = () => {
@@ -448,8 +512,10 @@ const AppContent: React.FC = () => {
           confirmPassphrase={unlockPassphraseConfirm}
           error={unlockError}
           isSubmitting={isUnlockingIdentity}
+          rememberSession={rememberSessionUnlock}
           onPassphraseChange={setUnlockPassphrase}
           onConfirmPassphraseChange={setUnlockPassphraseConfirm}
+          onRememberSessionChange={setRememberSessionUnlock}
           onSubmit={handleIdentityUnlock}
           onReset={handleResetLockedIdentity}
         />
@@ -466,10 +532,10 @@ const AppContent: React.FC = () => {
         isOpen={showOnboarding}
         onComplete={handleOnboardingComplete}
         onSkip={handleOnboardingSkip}
-        onIdentityChange={app.handleIdentityChange}
+        onIdentityChange={handleIdentityChange}
       />
 
-      <div className="min-h-screen bg-terminal-bg text-terminal-text font-mono selection:bg-terminal-text selection:text-black relative overflow-x-hidden">
+      <div className="min-h-screen bg-terminal-bg text-terminal-text font-mono selection:bg-terminal-text selection:text-black relative overflow-x-clip">
         <ToastHost />
         {/* Offline Status Banner */}
         <OfflineBanner />
@@ -619,6 +685,17 @@ const AppContent: React.FC = () => {
                   />
                 </Suspense>
               )}
+              {app.viewMode === ViewMode.DISCOVER_NOSTR && (
+                <Suspense fallback={<LoadingFallback />}>
+                  <NostrDiscoveryBrowser
+                    externalCommunities={app.externalCommunities ?? []}
+                    onNavigateToBoard={app.navigateToBoard}
+                    onJoinNostrCommunity={app.joinNostrCommunity}
+                    onClose={() => app.setViewMode(ViewMode.FEED)}
+                    onSeedPost={app.requestSeedPost}
+                  />
+                </Suspense>
+              )}
               {app.viewMode === ViewMode.EXTERNAL_COMMUNITIES && (
                 <Suspense fallback={<LoadingFallback />}>
                   <ExternalCommunitiesBrowser
@@ -633,7 +710,7 @@ const AppContent: React.FC = () => {
               {app.viewMode === ViewMode.IDENTITY && (
                 <Suspense fallback={<LoadingFallback />}>
                   <IdentityManager
-                    onIdentityChange={app.handleIdentityChange}
+                    onIdentityChange={handleIdentityChange}
                     onClose={() => app.setViewMode(ViewMode.FEED)}
                     onViewProfile={app.handleViewProfile}
                     initialIntent={identityEntryIntent ?? undefined}

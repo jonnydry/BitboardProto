@@ -4,6 +4,7 @@ import {
   Globe,
   Bookmark,
   Bell,
+  Compass,
   Wifi,
   WifiOff,
   Settings,
@@ -98,6 +99,13 @@ export const MobileDrawer = React.memo(function MobileDrawer({
       label: 'NOTIFICATIONS',
       isActive: viewMode === ViewMode.NOTIFICATIONS,
       onClick: () => handleNavClick(() => onSetViewMode(ViewMode.NOTIFICATIONS)),
+    },
+    {
+      id: 'discover-nostr',
+      icon: Compass,
+      label: 'DISCOVER_NOSTR',
+      isActive: viewMode === ViewMode.DISCOVER_NOSTR,
+      onClick: () => handleNavClick(() => onSetViewMode(ViewMode.DISCOVER_NOSTR)),
     },
     ...(identity
       ? [

@@ -17,28 +17,28 @@
 export const UserConfig = {
   /** Maximum bits a user can have per day */
   MAX_DAILY_BITS: 100,
-  
+
   /** Starting bits for new users */
   INITIAL_BITS: 100,
-  
+
   /** Cost to create a post */
   POST_COST: 0,
-  
+
   /**
    * Cost to vote (refunded if vote is retracted)
-   * 
+   *
    * BIT-TO-VOTE MAPPING:
    * - 1 bit = permission to cast 1 cryptographic Nostr vote
    * - Bits are spent locally BEFORE publishing to Nostr
    * - If Nostr publish fails, bit is refunded (rollback)
    * - Switching vote direction is FREE (bit stays locked)
    * - Retracting vote refunds the bit
-   * 
+   *
    * This matches the cryptographic model: one vote per pubkey per post.
    * Bits gate access; Nostr enforces the rule cryptographically.
    */
   VOTE_COST: 1,
-  
+
   /** Cost to create a board */
   BOARD_COST: 0,
 } as const;
@@ -56,27 +56,28 @@ export const NostrConfig = {
     'wss://relay.snort.social',
     'wss://nostr.wine',
     'wss://relay.nostr.info',
+    'wss://relay.primal.net',
   ] as const,
 
   /** Maximum number of posts to fetch at once */
   DEFAULT_FETCH_LIMIT: 50,
-  
+
   /** Maximum number of boards to fetch */
   BOARDS_FETCH_LIMIT: 100,
-  
+
   /** Subscription lookback window (1 hour in seconds) */
   SUBSCRIPTION_SINCE_SECONDS: 3600,
 
   // Relay backoff configuration (matches BitChat)
   /** Initial backoff interval in ms */
   RELAY_INITIAL_BACKOFF_MS: 1000,
-  
+
   /** Maximum backoff interval in ms (5 minutes) */
   RELAY_MAX_BACKOFF_MS: 300000,
-  
+
   /** Backoff multiplier */
   RELAY_BACKOFF_MULTIPLIER: 2.0,
-  
+
   /** Maximum reconnection attempts before giving up */
   RELAY_MAX_RECONNECT_ATTEMPTS: 10,
 
@@ -89,7 +90,7 @@ export const NostrConfig = {
   // Geohash settings
   /** Initial lookback for geohash queries (1 hour) */
   GEOHASH_INITIAL_LOOKBACK_SECONDS: 3600,
-  
+
   /** Limit for geohash queries */
   GEOHASH_QUERY_LIMIT: 200,
 } as const;
@@ -101,31 +102,31 @@ export const NostrConfig = {
 export const InputLimits = {
   /** Maximum username/display name length */
   MAX_USERNAME_LENGTH: 50,
-  
+
   /** Maximum post title length */
   MAX_TITLE_LENGTH: 300,
-  
+
   /** Maximum post content length (60KB - matches BitChat) */
   MAX_POST_CONTENT_LENGTH: 60000,
-  
+
   /** Maximum comment length */
   MAX_COMMENT_LENGTH: 10000,
-  
+
   /** Maximum single tag length */
   MAX_TAG_LENGTH: 50,
-  
+
   /** Maximum number of tags per post */
   MAX_TAGS_COUNT: 10,
-  
+
   /** Maximum URL length */
   MAX_URL_LENGTH: 2048,
-  
+
   /** Maximum board name length */
   MAX_BOARD_NAME_LENGTH: 50,
-  
+
   /** Maximum board description length */
   MAX_BOARD_DESCRIPTION_LENGTH: 500,
-  
+
   /** Timestamp validation window (1 hour in ms) */
   TIMESTAMP_WINDOW_MS: 60 * 60 * 1000,
 } as const;
@@ -179,10 +180,10 @@ export const RateLimitConfig = {
 export const DeduplicatorConfig = {
   /** Maximum age of tracked messages (5 minutes) */
   MAX_AGE_MS: 5 * 60 * 1000,
-  
+
   /** Maximum number of messages to track */
   MAX_COUNT: 1000,
-  
+
   /** Cleanup interval (1 minute) */
   CLEANUP_INTERVAL_MS: 60 * 1000,
 } as const;
@@ -195,40 +196,40 @@ export const UIConfig = {
   // Feed settings
   /** Number of posts to show initially */
   INITIAL_POSTS_COUNT: 50,
-  
+
   /** Number of posts to load on scroll */
   POSTS_LOAD_MORE_COUNT: 25,
-  
+
   /** Comment expansion threshold (show inline vs full page) */
   COMMENT_EXPANSION_THRESHOLD: 5,
-  
+
   /** Number of comments to show in inline preview */
   INLINE_PREVIEW_COMMENT_COUNT: 5,
 
   // Animation durations (in ms)
   /** Short animation duration */
   ANIMATION_SHORT_MS: 150,
-  
+
   /** Medium animation duration */
   ANIMATION_MEDIUM_MS: 200,
-  
+
   /** Long animation duration */
   ANIMATION_LONG_MS: 300,
 
   // Debounce/throttle
   /** Scroll throttle interval */
   SCROLL_THROTTLE_MS: 500,
-  
+
   /** Search debounce interval */
   SEARCH_DEBOUNCE_MS: 300,
-  
+
   /** Auto-save debounce interval */
   AUTOSAVE_DEBOUNCE_MS: 2000,
 
   // Timeouts
   /** Network request timeout */
   NETWORK_TIMEOUT_MS: 30000,
-  
+
   /** Toast notification duration */
   TOAST_DURATION_MS: 3000,
 } as const;
@@ -240,16 +241,16 @@ export const UIConfig = {
 export const SecurityConfig = {
   /** Maximum message size (64KB - Noise spec) */
   MAX_MESSAGE_SIZE: 65535,
-  
+
   /** Session timeout (24 hours in ms) */
   SESSION_TIMEOUT_MS: 24 * 60 * 60 * 1000,
-  
+
   /** Encryption key size in bits */
   ENCRYPTION_KEY_BITS: 256,
-  
+
   /** IV size for AES-GCM in bytes */
   AES_GCM_IV_SIZE: 12,
-  
+
   /** Tag size for AES-GCM in bits */
   AES_GCM_TAG_BITS: 128,
 } as const;
@@ -261,13 +262,13 @@ export const SecurityConfig = {
 export const GeohashConfig = {
   /** Default precision for location boards */
   DEFAULT_PRECISION: 6, // ~1.2km (NEIGHBORHOOD)
-  
+
   /** Minimum precision (country level) */
   MIN_PRECISION: 2,
-  
+
   /** Maximum precision (block level) */
   MAX_PRECISION: 7,
-  
+
   // Precision descriptions
   PRECISION_LABELS: {
     2: 'COUNTRY',
@@ -277,7 +278,7 @@ export const GeohashConfig = {
     6: 'NEIGHBORHOOD',
     7: 'BLOCK',
   } as const,
-  
+
   PRECISION_RADIUS: {
     2: '~2500km',
     3: '~625km',
@@ -297,15 +298,15 @@ export const StorageKeys = {
   IDENTITY_ENCRYPTED: 'bitboard_identity_v2',
   IDENTITY_LEGACY: 'bitboard_identity',
   ENCRYPTION_KEY: 'bitboard_enc_key',
-  
+
   // User preferences
   THEME: 'bitboard_theme',
   DISPLAY_NAME: 'bitboard_display_name',
-  
+
   // Cache
   BOARDS_CACHE: 'bitboard_boards_cache',
   POSTS_CACHE: 'bitboard_posts_cache',
-  
+
   // Bookmarks
   FAVORITE_BOARDS: 'bitboard_favorite_boards',
   GEOHASH_BOOKMARKS: 'bitboard_geohash_bookmarks',
@@ -318,19 +319,19 @@ export const StorageKeys = {
 export const WoTConfig = {
   /** Cache TTL for WoT calculations (5 minutes) */
   CACHE_TTL_MS: 5 * 60 * 1000,
-  
+
   /** Maximum graph depth to traverse */
   MAX_GRAPH_DEPTH: 3,
-  
+
   /** Maximum follows to process per user (prevent explosion) */
   MAX_FOLLOWS_PER_LEVEL: 500,
-  
+
   /** Trust decay factor per hop (0.5 = halves each hop) */
   TRUST_DECAY_FACTOR: 0.5,
-  
+
   /** Default max distance for "trusted" status */
   DEFAULT_TRUST_DISTANCE: 2,
-  
+
   /** Minimum score to show in feeds (0 = show all) */
   MIN_FEED_SCORE: 0,
 } as const;
@@ -342,19 +343,19 @@ export const WoTConfig = {
 export const ZapConfig = {
   /** Cache TTL for zap tallies (1 minute) */
   CACHE_TTL_MS: 60 * 1000,
-  
+
   /** Maximum zap comment length */
   MAX_COMMENT_LENGTH: 280,
-  
+
   /** Suggested zap amounts in satoshis */
   SUGGESTED_AMOUNTS: [21, 100, 500, 1000, 5000, 10000] as const,
-  
+
   /** Default zap amount in satoshis */
   DEFAULT_AMOUNT: 100,
-  
+
   /** Timeout for LNURL requests */
   LNURL_TIMEOUT_MS: 10000,
-  
+
   /** Maximum number of top zappers to display */
   MAX_TOP_ZAPPERS: 10,
 } as const;
@@ -366,37 +367,37 @@ export const ZapConfig = {
 export const FeatureFlags = {
   /** Enable geohash/location features */
   ENABLE_GEOHASH: true,
-  
+
   /** Enable Gemini AI link scanning */
   ENABLE_LINK_SCANNING: true,
-  
+
   /** Enable NIP-07 browser extension support */
   ENABLE_NIP07: true,
-  
+
   /** Enable offline mode with cached data */
   ENABLE_OFFLINE_MODE: true,
-  
+
   /** Enable debug logging */
   ENABLE_DEBUG_LOGGING: import.meta.env.DEV,
-  
+
   /** Enable NIP-57 Lightning Zaps (Layer 2 engagement) */
   ENABLE_ZAPS: true,
-  
+
   /** Enable NIP-58 Badges */
   ENABLE_BADGES: true,
-  
+
   /** Enable Web of Trust filtering */
   ENABLE_WOT: true,
-  
+
   /** Enable NIP-72 Moderated Communities */
   ENABLE_COMMUNITIES: true,
-  
+
   /** Enable NIP-51 Lists (bookmarks, etc.) */
   ENABLE_LISTS: true,
-  
+
   /** Enable NIP-23 Long-form content */
   ENABLE_LONG_FORM: true,
-  
+
   /** Enable NIP-53 Live Events */
   ENABLE_LIVE_EVENTS: false, // Disabled by default until implemented
 } as const;
@@ -421,5 +422,3 @@ export const Config = {
 } as const;
 
 export default Config;
-
-

@@ -19,6 +19,7 @@ import {
   WifiOff,
   RefreshCw,
   ExternalLink,
+  Compass,
 } from 'lucide-react';
 import type { Board } from '../../types';
 import { BoardType, ThemeId, ViewMode } from '../../types';
@@ -517,11 +518,25 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
       </CollapsibleSection>
 
       <CollapsibleSection
-        title="EXTERNAL_COMMUNITIES"
-        icon={ExternalLink}
+        title="DISCOVER_NOSTR"
+        icon={Compass}
         defaultOpen={false}
         badge={<span className="text-xs text-terminal-dim">({externalCommunities.length})</span>}
       >
+        <p className="text-xs text-terminal-dim leading-tight">
+          Discover broad trending Nostr posts worth seeding into BitBoard. Communities remain
+          available as a secondary lens.
+        </p>
+        <button
+          onClick={() => onSetViewMode(ViewMode.DISCOVER_NOSTR)}
+          className="mt-2 w-full text-xs border border-terminal-dim border-dashed text-terminal-dim p-1.5 md:p-2 hover:text-terminal-bg hover:bg-terminal-text hover:border-solid transition-all uppercase"
+        >
+          [~] Discover_Nostr
+        </button>
+        <div className="border-t border-terminal-dim/30 my-2"></div>
+        <div className="text-[10px] uppercase tracking-wide text-terminal-dim mb-2">
+          Saved Communities
+        </div>
         {externalCommunities.length > 0 ? (
           <div className="flex flex-col gap-1 max-h-[150px] md:max-h-[220px] overflow-y-auto pr-1">
             {externalCommunities.map((board) => (
@@ -573,10 +588,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
             ))}
           </div>
         ) : (
-          <p className="text-xs text-terminal-dim leading-tight">
-            Discover moderated communities from the wider Nostr network and save the ones you want
-            to follow.
-          </p>
+          <p className="text-xs text-terminal-dim leading-tight">No saved communities yet.</p>
         )}
         <button
           onClick={() => onSetViewMode(ViewMode.EXTERNAL_COMMUNITIES)}

@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback, useState, useEffect } from 'react';
-import { MapPin, Share2, Lock, ChevronUp, Calendar, Radio } from 'lucide-react';
+import { MapPin, Share2, Lock, ChevronUp, Calendar, Radio, Plus } from 'lucide-react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import type { Post, SortMode } from '../../types';
 import { BoardType, ViewMode } from '../../types';
@@ -314,10 +314,10 @@ export function FeedView(props: {
             </p>
           </div>
           <button
-            onClick={() => setViewMode(ViewMode.EXTERNAL_COMMUNITIES)}
+            onClick={() => setViewMode(ViewMode.DISCOVER_NOSTR)}
             className="mt-4 px-4 py-2 border border-terminal-dim hover:bg-terminal-dim hover:text-white transition-colors uppercase text-sm"
           >
-            [ BROWSE_COMMUNITIES ]
+            [ DISCOVER_NOSTR ]
           </button>
         </div>
       );
@@ -381,7 +381,7 @@ export function FeedView(props: {
 
   return (
     <div className="space-y-2">
-      <div className="sticky top-0 z-20 mb-6 border-b border-terminal-dim/40 bg-terminal-bg/90 backdrop-blur-sm">
+      <div className="mb-6 border-b border-terminal-dim/40">
         <div className="px-0 py-4">
           <SearchBar onSearch={handleSearch} placeholder="scan_network..." />
         </div>
@@ -590,9 +590,21 @@ export function FeedView(props: {
         <ShareBoardLink board={activeBoard} onClose={() => setShowShareModal(false)} />
       )}
 
+      {/* New Bit FAB — persistent (feed only); mirrors jump-to-top on the right */}
+      <button
+        type="button"
+        onClick={() => setViewMode(ViewMode.CREATE)}
+        className="fixed bottom-24 md:bottom-8 left-4 md:left-8 z-30 w-12 h-12 bg-terminal-text text-black rounded-sm shadow-hard flex items-center justify-center hover:brightness-110 hover:scale-110 transition-all"
+        aria-label="New bit"
+        title="New bit"
+      >
+        <Plus size={24} strokeWidth={2.5} />
+      </button>
+
       {/* Jump to top FAB */}
       {showJumpToTop && (
         <button
+          type="button"
           onClick={handleJumpToTop}
           className="fixed bottom-24 md:bottom-8 right-4 md:right-8 z-30 w-12 h-12 bg-terminal-text text-black rounded-sm shadow-hard flex items-center justify-center hover:brightness-110 hover:scale-110 transition-all"
           aria-label="Jump to top"

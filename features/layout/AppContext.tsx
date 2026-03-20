@@ -338,7 +338,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
 
   const requestSeedPost = useCallback(
     (post: Post) => {
-      if (post.source !== 'nostr-community') return;
+      if (post.source !== 'nostr-community' && post.source !== 'nostr') return;
 
       if (!userCtx.userState.identity) {
         setSeedIdentityPromptPost(post);

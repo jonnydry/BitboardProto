@@ -2,10 +2,9 @@
  * Link Preview Service
  *
  * Fetches OpenGraph metadata from URLs and caches results.
- * Uses a CORS proxy for direct fetching with fallback to Gemini AI.
+ * Uses CORS proxies for direct fetching only.
  */
 
-import { scanLink } from './geminiService';
 import { logger } from './loggingService';
 
 export interface LinkPreviewData {
@@ -152,28 +151,6 @@ const fetchWithProxy = async (url: string): Promise<string | null> => {
 };
 
 /**
- * Fetch link preview using Gemini AI as fallback
- */
-const fetchWithGemini = async (url: string): Promise<LinkPreviewData | null> => {
-  try {
-    const result = await scanLink(url);
-    if (result) {
-      return {
-        url,
-        title: result.title,
-        description: result.description,
-        image: result.imageUrl || undefined,
-        siteName: extractDomain(url),
-        favicon: getFaviconUrl(url),
-      };
-    }
-  } catch (error) {
-    console.debug('[LinkPreview] Gemini fallback failed:', error);
-  }
-  return null;
-};
-
-/**
  * Fetch link preview data for a URL
  */
 export const fetchLinkPreview = async (url: string): Promise<LinkPreviewData> => {
@@ -211,14 +188,6 @@ export const fetchLinkPreview = async (url: string): Promise<LinkPreviewData> =>
           cacheTimestamps.set(url, Date.now());
           return preview;
         }
-      }
-
-      // Fallback to Gemini AI
-      const geminiResult = await fetchWithGemini(url);
-      if (geminiResult) {
-        previewCache.set(url, geminiResult);
-        cacheTimestamps.set(url, Date.now());
-        return geminiResult;
       }
 
       // Return minimal preview with just the URL info

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, lazy, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import { Zap, Menu, Settings as SettingsIcon, Search } from 'lucide-react';
 
 const AdvancedSearch = lazy(() =>
@@ -36,6 +37,39 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showBitsPanel, setShowBitsPanel] = useState(false);
+  const bitsSentinelRef = useRef<HTMLDivElement>(null);
+  const bitsBarMeasureRef = useRef<HTMLDivElement>(null);
+  const [bitsBarPinned, setBitsBarPinned] = useState(false);
+  const [bitsBarHeight, setBitsBarHeight] = useState(0);
+
+  useLayoutEffect(() => {
+    const el = bitsBarMeasureRef.current;
+    if (!el) return;
+    const syncHeight = () => setBitsBarHeight(el.getBoundingClientRect().height);
+    syncHeight();
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(syncHeight);
+      ro.observe(el);
+      return () => ro.disconnect();
+    }
+    window.addEventListener('resize', syncHeight);
+    return () => window.removeEventListener('resize', syncHeight);
+  }, []);
+
+  useEffect(() => {
+    const updatePinned = () => {
+      const s = bitsSentinelRef.current;
+      if (!s) return;
+      setBitsBarPinned(s.getBoundingClientRect().top < 0);
+    };
+    window.addEventListener('scroll', updatePinned, { passive: true });
+    window.addEventListener('resize', updatePinned);
+    updatePinned();
+    return () => {
+      window.removeEventListener('scroll', updatePinned);
+      window.removeEventListener('resize', updatePinned);
+    };
+  }, []);
   const ownProfile = identity ? profileService.getCachedProfileSync(identity.pubkey) : null;
   const identityDisplayName =
     ownProfile?.display_name ||
@@ -109,7 +143,7 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
   };
 
   return (
-    <header className="flex flex-col mb-4 md:mb-6 lg:mb-8 border-b-2 border-terminal-dim py-[5px] gap-2 md:gap-3 lg:gap-4">
+    <header className="flex flex-col mb-4 md:mb-6 lg:mb-8 py-[5px] gap-2 md:gap-3 lg:gap-4">
       {/* Mobile Header Row */}
       <div className="flex items-center justify-between md:hidden">
         {/* Hamburger Menu Button */}
@@ -334,94 +368,114 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
       </nav>
 
       {/* Full-width Bits Bar */}
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => setShowBitsPanel((p) => !p)}
-          className="w-full flex items-center gap-3 md:gap-4 py-2 px-1 text-terminal-text hover:bg-terminal-dim/5 transition-colors"
-          title="Bits — click to learn more"
-        >
-          <div className="flex items-center gap-2 shrink-0">
-            <Zap
-              size={14}
-              className={userState.bits === 0 ? 'text-terminal-alert' : 'text-terminal-text'}
-            />
-            <span className="text-2xs md:text-xs uppercase tracking-wide text-terminal-dim hidden sm:inline">
-              Bits available
-            </span>
-          </div>
-          <div className="flex-1 h-2 md:h-3 overflow-hidden border border-terminal-dim/30 bg-terminal-bg/70 rounded">
-            <div
-              className={`h-full transition-all duration-300 ${userState.bits === 0 ? 'bg-terminal-alert' : 'bg-terminal-text'}`}
-              style={{
-                width: `${Math.max(0, Math.min(100, (userState.bits / Math.max(1, userState.maxBits)) * 100))}%`,
-              }}
-            />
-          </div>
-          <div className="flex items-center gap-1 shrink-0 font-mono">
-            <span
-              className={`text-sm md:text-base font-bold ${userState.bits === 0 ? 'text-terminal-alert' : 'text-terminal-text'}`}
-            >
-              {userState.bits}
-            </span>
-            <span className="text-terminal-dim text-xs md:text-sm">/</span>
-            <span className="text-terminal-dim text-xs md:text-sm">{userState.maxBits}</span>
-          </div>
-        </button>
-
-        {showBitsPanel && (
-          <div
-            className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center px-4"
-            onClick={() => setShowBitsPanel(false)}
+      <div ref={bitsSentinelRef} className="h-px w-full shrink-0" aria-hidden />
+      {bitsBarPinned && (
+        <div
+          className="w-full shrink-0"
+          style={{ height: Math.max(bitsBarHeight, 40) }}
+          aria-hidden
+        />
+      )}
+      <div
+        ref={bitsBarMeasureRef}
+        className={`border-t-2 border-terminal-dim bg-terminal-bg/95 backdrop-blur-sm border-b border-terminal-dim/40 ${
+          bitsBarPinned ? 'fixed top-0 left-0 right-0 z-[35]' : 'relative'
+        }`}
+      >
+        <div className={bitsBarPinned ? 'max-w-[1174px] mx-auto px-3 md:px-6' : undefined}>
+          <button
+            type="button"
+            onClick={() => setShowBitsPanel((p) => !p)}
+            className="w-full flex items-center gap-3 md:gap-4 py-2 px-1 text-terminal-text hover:bg-terminal-dim/5 transition-colors"
+            title="Bits — click to learn more"
           >
-            <div
-              className="bg-terminal-bg border-2 border-terminal-text w-full max-w-md max-h-[80vh] overflow-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="px-4 py-3 border-b border-terminal-dim/30 flex items-start gap-3">
-                <Zap size={16} className="text-terminal-text shrink-0 mt-0.5" />
-                <p className="text-sm text-terminal-dim leading-relaxed">
-                  <span className="text-terminal-text font-bold">Bit-weighted global feed:</span>{' '}
-                  verified identities spend limited bits to push the best posts upward.
-                </p>
-              </div>
-              <div className="px-4 py-4 space-y-3">
-                <div className="text-2xs uppercase tracking-widest text-terminal-dim">
-                  How bits work
-                </div>
-                <BitsExplanation size="desktop" />
-              </div>
-              <div className="px-4 py-3 border-t border-terminal-dim/30">
-                <button
-                  type="button"
-                  onClick={() => setShowBitsPanel(false)}
-                  className="w-full border border-terminal-dim/40 px-4 py-2 text-xs uppercase tracking-wide text-terminal-dim hover:border-terminal-text hover:text-terminal-text transition-colors"
-                >
-                  Close
-                </button>
-              </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Zap
+                size={14}
+                className={userState.bits === 0 ? 'text-terminal-alert' : 'text-terminal-text'}
+              />
+              <span className="text-2xs md:text-xs uppercase tracking-wide text-terminal-dim hidden sm:inline">
+                Bits available
+              </span>
             </div>
-          </div>
-        )}
+            <div className="flex-1 h-2 md:h-3 overflow-hidden border border-terminal-dim/30 bg-terminal-bg/70 rounded">
+              <div
+                className={`h-full transition-all duration-300 ${userState.bits === 0 ? 'bg-terminal-alert' : 'bg-terminal-text'}`}
+                style={{
+                  width: `${Math.max(0, Math.min(100, (userState.bits / Math.max(1, userState.maxBits)) * 100))}%`,
+                }}
+              />
+            </div>
+            <div className="flex items-center gap-1 shrink-0 font-mono">
+              <span
+                className={`text-sm md:text-base font-bold ${userState.bits === 0 ? 'text-terminal-alert' : 'text-terminal-text'}`}
+              >
+                {userState.bits}
+              </span>
+              <span className="text-terminal-dim text-xs md:text-sm">/</span>
+              <span className="text-terminal-dim text-xs md:text-sm">{userState.maxBits}</span>
+            </div>
+          </button>
+        </div>
+
+        {showBitsPanel &&
+          createPortal(
+            <div
+              className="fixed inset-0 z-[100] flex items-center justify-center px-4 py-6 sm:py-10 bg-black/70"
+              role="presentation"
+              onClick={() => setShowBitsPanel(false)}
+            >
+              <div
+                className="bg-terminal-bg border-2 border-terminal-text w-full max-w-md max-h-[min(80vh,calc(100dvh-3rem))] overflow-y-auto shadow-hard-lg"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-4 py-3 border-b border-terminal-dim/30 flex items-start gap-3">
+                  <Zap size={16} className="text-terminal-text shrink-0 mt-0.5" />
+                  <p className="text-sm text-terminal-dim leading-relaxed">
+                    <span className="text-terminal-text font-bold">Bit-weighted global feed:</span>{' '}
+                    verified identities spend limited bits to push the best posts upward.
+                  </p>
+                </div>
+                <div className="px-4 py-4 space-y-3">
+                  <div className="text-2xs uppercase tracking-widest text-terminal-dim">
+                    How bits work
+                  </div>
+                  <BitsExplanation size="desktop" />
+                </div>
+                <div className="px-4 py-3 border-t border-terminal-dim/30">
+                  <button
+                    type="button"
+                    onClick={() => setShowBitsPanel(false)}
+                    className="w-full border border-terminal-dim/40 px-4 py-2 text-xs uppercase tracking-wide text-terminal-dim hover:border-terminal-text hover:text-terminal-text transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )}
       </div>
 
       {/* Search Modal */}
-      {showSearch && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-start justify-center pt-20 px-4">
-          <div className="bg-terminal-bg border-2 border-terminal-text w-full max-w-2xl max-h-[80vh] overflow-auto">
-            <Suspense
-              fallback={
-                <div className="p-8 text-center text-terminal-dim animate-pulse">LOADING...</div>
-              }
-            >
-              <AdvancedSearch
-                onClose={() => setShowSearch(false)}
-                onResultClick={handleSearchResultClick}
-              />
-            </Suspense>
-          </div>
-        </div>
-      )}
+      {showSearch &&
+        createPortal(
+          <div className="fixed inset-0 z-[100] flex items-start justify-center pt-16 sm:pt-20 px-4 bg-black/70">
+            <div className="bg-terminal-bg border-2 border-terminal-text w-full max-w-2xl max-h-[min(80vh,calc(100dvh-4rem))] overflow-auto shadow-hard-lg">
+              <Suspense
+                fallback={
+                  <div className="p-8 text-center text-terminal-dim animate-pulse">LOADING...</div>
+                }
+              >
+                <AdvancedSearch
+                  onClose={() => setShowSearch(false)}
+                  onResultClick={handleSearchResultClick}
+                />
+              </Suspense>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {/* Notification Center Modal */}
       {showNotifications && <NotificationCenterV2 onClose={() => setShowNotifications(false)} />}

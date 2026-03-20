@@ -28,6 +28,7 @@ interface ExternalCommunitiesBrowserProps {
   onJoinNostrCommunity: (reference: string) => Promise<string>;
   onClose: () => void;
   onSeedPost?: (post: Post) => void;
+  embedded?: boolean;
 }
 
 export function ExternalCommunitiesBrowser({
@@ -36,6 +37,7 @@ export function ExternalCommunitiesBrowser({
   onJoinNostrCommunity,
   onClose,
   onSeedPost,
+  embedded = false,
 }: ExternalCommunitiesBrowserProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCommunityId, setSelectedCommunityId] = useState<string | null>(null);
@@ -286,13 +288,15 @@ export function ExternalCommunitiesBrowser({
 
   return (
     <div className="animate-fade-in space-y-6">
-      <button
-        onClick={onClose}
-        className="flex items-center gap-2 text-terminal-dim hover:text-terminal-text uppercase text-sm font-bold group"
-      >
-        <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-        BACK TO FEED
-      </button>
+      {!embedded && (
+        <button
+          onClick={onClose}
+          className="flex items-center gap-2 text-terminal-dim hover:text-terminal-text uppercase text-sm font-bold group"
+        >
+          <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
+          BACK TO FEED
+        </button>
+      )}
 
       <div className="border-b border-terminal-dim/30 pb-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
