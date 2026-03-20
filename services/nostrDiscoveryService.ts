@@ -41,6 +41,27 @@ class NostrDiscoveryService {
   private readonly COMMUNITY_SAMPLE_LIMIT = 6;
   private readonly COMMUNITY_PREVIEW_LIMIT = 4;
   private readonly DIRECTORY_REFERENCE_THRESHOLD = 3;
+  private readonly HIGH_SIGNAL_DOMAIN_PATTERNS = [
+    /(^|\.)github\.com$/i,
+    /(^|\.)gitlab\.com$/i,
+    /(^|\.)arxiv\.org$/i,
+    /(^|\.)wikipedia\.org$/i,
+    /(^|\.)readthedocs\.io$/i,
+    /(^|\.)stacker\.news$/i,
+    /(^|\.)gov$/i,
+    /(^|\.)edu$/i,
+    /(^|\.)docs\./i,
+  ];
+  private readonly LOW_SIGNAL_DOMAIN_PATTERNS = [
+    /(^|\.)x\.com$/i,
+    /(^|\.)twitter\.com$/i,
+    /(^|\.)instagram\.com$/i,
+    /(^|\.)tiktok\.com$/i,
+    /(^|\.)youtube\.com$/i,
+    /(^|\.)youtu\.be$/i,
+    /(^|\.)tenor\.com$/i,
+    /(^|\.)giphy\.com$/i,
+  ];
   private readonly ENGLISH_STOPWORDS = new Set([
     'the',
     'and',
@@ -161,6 +182,13 @@ class NostrDiscoveryService {
     } catch {
       return undefined;
     }
+  }
+
+  private getDomainTrust(domain?: string): 'high' | 'neutral' | 'low' {
+    if (!domain) return 'neutral';
+    if (this.HIGH_SIGNAL_DOMAIN_PATTERNS.some((pattern) => pattern.test(domain))) return 'high';
+    if (this.LOW_SIGNAL_DOMAIN_PATTERNS.some((pattern) => pattern.test(domain))) return 'low';
+    return 'neutral';
   }
 
   private eventMatchesQuery(event: NostrEvent, query: string): boolean {
@@ -300,6 +328,7 @@ class NostrDiscoveryService {
     const hasLink = !!post.url;
     const hasCommunityContext = !!post.communityAddress;
     const tagCount = post.tags.length;
+    const domainTrust = this.getDomainTrust(this.getDomain(post.url));
     const sentenceCount = post.content
       .split(/[.!?\n]+/)
       .filter((chunk) => chunk.trim().length > 20).length;
@@ -312,6 +341,7 @@ class NostrDiscoveryService {
     score += hasLink ? 8 : 0;
     score += hasCommunityContext ? 6 : 0;
     score += Math.min(zapCount * 1.5 + zapSats / 400, 12);
+    score += domainTrust === 'high' ? 8 : domainTrust === 'low' ? -4 : 0;
 
     if (textLength < 45 && !hasLink) score -= 10;
     if (textLength < 80 && tagCount === 0 && !hasCommunityContext) score -= 6;
@@ -332,14 +362,21 @@ class NostrDiscoveryService {
     if (!this.isWithinTimeWindow(post.timestamp, window)) return false;
     if (this.isJunkCandidate(post)) return false;
 
+    const domainTrust = this.getDomainTrust(this.getDomain(post.url));
     const qualityScore = this.scoreGeneralQuality(post, zapCount, zapSats);
     const hasStrongEngagement = zapCount >= 3 || zapSats >= 500;
     const hasStrongLink = !!post.url && post.content.trim().length >= 80;
+    const hasHighTrustLink = !!post.url && domainTrust === 'high';
     const hasCommunityContext = !!post.communityAddress && post.content.trim().length >= 90;
+    const hasSubstantiveAnalysis = post.content.trim().length >= 180 && post.tags.length >= 2;
 
     return (
       qualityScore >= this.GENERAL_QUALITY_THRESHOLD &&
-      (hasStrongLink || hasStrongEngagement || hasCommunityContext)
+      (hasHighTrustLink ||
+        hasStrongLink ||
+        hasStrongEngagement ||
+        hasCommunityContext ||
+        hasSubstantiveAnalysis)
     );
   }
 
@@ -374,6 +411,8 @@ class NostrDiscoveryService {
       candidate.confidence === 'high' ? 18 : candidate.confidence === 'medium' ? 9 : 0;
     const zapBoost = Math.min((candidate.zapCount ?? 0) * 2 + (candidate.zapSats ?? 0) / 250, 24);
     const linkBoost = candidate.post.url ? 14 : 0;
+    const domainTrust = this.getDomainTrust(this.getDomain(candidate.post.url));
+    const domainTrustBoost = domainTrust === 'high' ? 10 : domainTrust === 'low' ? -6 : 0;
     const approvalBoost =
       candidate.sourceType === 'community-approved'
         ? 30 + (candidate.approvalCount ?? 0) * 1.5 + (candidate.recentApprovalCount ?? 0) * 3
@@ -388,6 +427,7 @@ class NostrDiscoveryService {
       confidenceBoost +
       zapBoost +
       linkBoost +
+      domainTrustBoost +
       approvalBoost
     );
   }
@@ -413,7 +453,13 @@ class NostrDiscoveryService {
     }
 
     if (candidate.post.url) {
-      reasons.push(`links to ${this.getDomain(candidate.post.url) ?? 'an external source'}`);
+      const domain = this.getDomain(candidate.post.url);
+      const trust = this.getDomainTrust(domain);
+      reasons.push(
+        trust === 'high'
+          ? `links to high-signal source ${domain ?? 'external source'}`
+          : `links to ${domain ?? 'an external source'}`,
+      );
     }
 
     if (candidate.post.tags.length >= 3) {
@@ -439,7 +485,49 @@ class NostrDiscoveryService {
         byId.set(candidate.id, candidate);
       }
     }
-    return Array.from(byId.values()).sort((a, b) => b.discoveryScore - a.discoveryScore);
+    return this.diversifyCandidates(
+      Array.from(byId.values()).sort((a, b) => b.discoveryScore - a.discoveryScore),
+    );
+  }
+
+  private diversifyCandidates(candidates: SeedCandidate[]): SeedCandidate[] {
+    const remaining = [...candidates];
+    const ordered: SeedCandidate[] = [];
+    const authorCounts = new Map<string, number>();
+    const domainCounts = new Map<string, number>();
+
+    while (remaining.length > 0) {
+      let bestIndex = 0;
+      let bestScore = -Infinity;
+
+      remaining.forEach((candidate, index) => {
+        const authorPenalty = candidate.post.authorPubkey
+          ? (authorCounts.get(candidate.post.authorPubkey) ?? 0) * 18
+          : 0;
+        const domain = this.getDomain(candidate.post.url);
+        const domainPenalty = domain ? (domainCounts.get(domain) ?? 0) * 10 : 0;
+        const adjustedScore = candidate.discoveryScore - authorPenalty - domainPenalty;
+        if (adjustedScore > bestScore) {
+          bestScore = adjustedScore;
+          bestIndex = index;
+        }
+      });
+
+      const [selected] = remaining.splice(bestIndex, 1);
+      ordered.push(selected);
+      if (selected.post.authorPubkey) {
+        authorCounts.set(
+          selected.post.authorPubkey,
+          (authorCounts.get(selected.post.authorPubkey) ?? 0) + 1,
+        );
+      }
+      const domain = this.getDomain(selected.post.url);
+      if (domain) {
+        domainCounts.set(domain, (domainCounts.get(domain) ?? 0) + 1);
+      }
+    }
+
+    return ordered;
   }
 
   private async fetchGeneralCandidates(

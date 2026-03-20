@@ -86,6 +86,7 @@ describe('Sidebar', () => {
     removeFailedDecryptionKey: vi.fn(),
     navigateToBoard: vi.fn(),
     onSetViewMode: vi.fn(),
+    onRequestCloseNav: vi.fn(),
     inMobileDrawer: false,
   } as any;
 
@@ -109,6 +110,7 @@ describe('Sidebar', () => {
     fireEvent.click(screen.getByText('>> TOPIC_NET'));
     fireEvent.click(screen.getByText('Public One'));
     expect(baseProps.navigateToBoard).toHaveBeenCalledWith('pub-1');
+    expect(baseProps.onRequestCloseNav).toHaveBeenCalled();
 
     fireEvent.click(screen.getByText('>> VISUAL_CORE'));
     fireEvent.click(screen.getAllByText('amber')[0]);
@@ -123,6 +125,7 @@ describe('Sidebar', () => {
     fireEvent.click(screen.getByText('>> SECURE_NET'));
     fireEvent.click(screen.getByText('Secure One'));
     expect(baseProps.navigateToBoard).toHaveBeenCalledWith('secure-1');
+    expect(baseProps.onRequestCloseNav).toHaveBeenCalled();
 
     fireEvent.click(screen.getByTitle('Remove invalid key'));
     expect(baseProps.removeFailedDecryptionKey).toHaveBeenCalledWith('broken-1');
@@ -133,5 +136,6 @@ describe('Sidebar', () => {
 
     fireEvent.click(screen.getByText(/Manage_Keys/i));
     expect(baseProps.onSetViewMode).toHaveBeenCalledWith(ViewMode.IDENTITY);
+    expect(baseProps.onRequestCloseNav).toHaveBeenCalled();
   });
 });

@@ -28,12 +28,26 @@ import { geohashService } from '../../services/geohashService';
 import { encryptedBoardService } from '../../services/encryptedBoardService';
 import { nostrService, type RelayStatus } from '../../services/nostr/NostrService';
 
+/** Short blurbs for theme tiles (drawer / mobile). */
+const THEME_TAGLINES: Record<ThemeId, string> = {
+  [ThemeId.AMBER]: 'OG warm CRT',
+  [ThemeId.PHOSPHOR]: 'Matrix glow',
+  [ThemeId.PLASMA]: 'Ice trace',
+  [ThemeId.VERMILION]: 'Angry HUD',
+  [ThemeId.SLATE]: 'No drama',
+  [ThemeId.PATRIOT]: 'Stars & bars',
+  [ThemeId.SAKURA]: 'Cherry shock',
+  [ThemeId.BITBORING]: 'Spreadsheet',
+};
+
 // Collapsible section component for mobile
 function CollapsibleSection({
   title,
   icon: Icon,
   defaultOpen = false,
   mobileOnly = true,
+  collapseOnDesktop = false,
+  variant = 'default',
   badge,
   children,
 }: {
@@ -41,17 +55,33 @@ function CollapsibleSection({
   icon: React.ElementType;
   defaultOpen?: boolean;
   mobileOnly?: boolean;
+  /** When true, section stays collapsible at md+ (overlay drawer). */
+  collapseOnDesktop?: boolean;
+  variant?: 'default' | 'overlay';
   badge?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const contentId = React.useId();
+  const expandOnMd = mobileOnly && !collapseOnDesktop;
+  const isOverlay = variant === 'overlay';
 
   return (
-    <div className="border border-terminal-dim p-2 md:p-3 bg-terminal-bg shadow-hard">
+    <div
+      className={
+        isOverlay
+          ? 'border border-terminal-dim/20 bg-terminal-bg/70 px-3 py-2.5 shadow-[-4px_4px_0_rgba(0,0,0,0.18)] backdrop-blur-[2px]'
+          : 'border border-terminal-dim bg-terminal-bg p-2 shadow-hard md:p-3'
+      }
+    >
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full font-bold border-b border-terminal-dim mb-2 pb-1 text-xs md:text-sm flex items-center gap-2 ${mobileOnly ? 'md:cursor-default' : ''}`}
+        type="button"
+        className={
+          isOverlay
+            ? `flex w-full items-center gap-2 text-left text-sm font-bold transition-colors hover:text-terminal-text ${isOpen ? 'border-b border-terminal-dim/20 pb-2.5' : ''}`
+            : `flex w-full items-center gap-2 border-b border-terminal-dim pb-1 text-xs font-bold md:text-sm ${expandOnMd ? 'md:cursor-default' : ''} mb-2`
+        }
         aria-expanded={isOpen}
         aria-controls={contentId}
       >
@@ -60,13 +90,13 @@ function CollapsibleSection({
           {'>>'} {title}
         </span>
         {badge}
-        <span className={`transition-transform ${mobileOnly ? 'md:hidden' : ''}`}>
+        <span className={`transition-transform ${expandOnMd ? 'md:hidden' : ''}`}>
           {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </span>
       </button>
       <div
         id={contentId}
-        className={`${isOpen ? 'block' : 'hidden'} ${mobileOnly ? 'md:block' : ''}`}
+        className={`${isOpen ? 'block' : 'hidden'} ${expandOnMd ? 'md:block' : ''} ${isOverlay ? 'pt-3' : ''}`}
       >
         {children}
       </div>
@@ -93,7 +123,10 @@ interface SidebarProps {
   removeFailedDecryptionKey?: (boardId: string) => void;
   navigateToBoard: (id: string | null) => void;
   onSetViewMode: (mode: ViewMode) => void;
+  onRequestCloseNav?: () => void;
   inMobileDrawer?: boolean;
+  /** Desktop overlay drawer - collapsible sections + padded column. */
+  layout?: 'column' | 'overlay';
 }
 
 export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
@@ -115,8 +148,17 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
     removeFailedDecryptionKey,
     navigateToBoard,
     onSetViewMode,
+    onRequestCloseNav,
     inMobileDrawer = false,
+    layout = 'column',
   } = props;
+
+  const collapseDesktop = layout === 'overlay';
+  const isOverlayLayout = layout === 'overlay';
+  const useThemeTiles = inMobileDrawer || layout === 'overlay';
+  const sectionVariant = isOverlayLayout ? 'overlay' : 'default';
+  const overlayPanelClass =
+    'border border-terminal-dim/20 bg-terminal-bg/70 shadow-[-4px_4px_0_rgba(0,0,0,0.18)] backdrop-blur-[2px]';
 
   // Nearby activity state
   const [nearbyActivity, setNearbyActivity] = useState<GeoChannel[]>([]);
@@ -204,12 +246,61 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
       .filter((board): board is Board => board !== undefined && board.isEncrypted === true);
   }, [boardsById]);
 
+  const navigateToBoardAndClose = (boardId: string | null) => {
+    navigateToBoard(boardId);
+    onRequestCloseNav?.();
+  };
+
+  const setViewModeAndClose = (mode: ViewMode) => {
+    onSetViewMode(mode);
+    onRequestCloseNav?.();
+  };
+
+  const identityConfigContent = (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-bold uppercase text-terminal-dim">Display_Handle:</label>
+        <div className="relative">
+          <span className="absolute left-2 top-1.5 text-terminal-dim">{'>'}</span>
+          <input
+            type="text"
+            value={userState.username}
+            onChange={(e) => setUserState((prev) => ({ ...prev, username: e.target.value }))}
+            className="w-full border border-terminal-dim bg-terminal-bg py-1 pl-6 pr-2 font-mono text-sm text-terminal-text transition-all focus:border-terminal-text focus:outline-none focus:ring-1 focus:ring-terminal-text/50"
+          />
+        </div>
+      </div>
+      <button
+        onClick={() => setViewModeAndClose(ViewMode.SETTINGS)}
+        className="mt-2 flex items-center justify-center gap-1 border border-terminal-dim/30 p-1.5 text-xs text-terminal-dim transition-all hover:border-terminal-dim hover:text-terminal-text"
+      >
+        <HelpCircle size={10} /> Settings
+      </button>
+      {userState.identity && (
+        <button
+          onClick={() => setViewModeAndClose(ViewMode.IDENTITY)}
+          className="mt-2 flex items-center justify-center gap-1 border border-terminal-dim/30 p-1.5 text-xs text-terminal-dim transition-all hover:border-terminal-dim hover:text-terminal-text"
+        >
+          <Key size={10} /> Manage_Keys
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <aside
-      className={inMobileDrawer ? 'space-y-2' : 'order-first md:order-none space-y-2 md:space-y-4'}
+      className={
+        layout === 'overlay'
+          ? 'flex h-full min-h-0 w-full flex-col gap-2.5'
+          : inMobileDrawer
+            ? 'space-y-2'
+            : 'order-first md:order-none space-y-2 md:space-y-4'
+      }
     >
       {/* Connection Status - Always visible but compact on mobile */}
-      <div className="border border-terminal-dim p-2 md:p-3 bg-terminal-bg shadow-hard relative overflow-hidden group">
+      <div
+        className={`relative overflow-hidden group ${isOverlayLayout ? `${overlayPanelClass} p-3 md:p-4` : 'border border-terminal-dim bg-terminal-bg p-2 shadow-hard md:p-3'}`}
+      >
         <div className="absolute inset-0 bg-terminal-dim/5 translate-x-[-100%] group-hover:translate-x-full transition-transform duration-1000 pointer-events-none" />
         <div className="flex items-center justify-between text-xs mb-1">
           <span className="text-terminal-dim font-bold text-xs">SYSTEM_STATUS</span>
@@ -315,7 +406,13 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
 
       {/* Feed Filter (when on global feed) - Collapsible on mobile */}
       {!activeBoardId && viewMode === ViewMode.FEED && (
-        <CollapsibleSection title="FILTER_MODE" icon={Radio} defaultOpen={true}>
+        <CollapsibleSection
+          title="FILTER_MODE"
+          icon={Radio}
+          defaultOpen={true}
+          collapseOnDesktop={collapseDesktop}
+          variant={sectionVariant}
+        >
           <div className="flex flex-row md:flex-col gap-1 overflow-x-auto md:overflow-x-visible pb-1 md:pb-0">
             {[
               { id: 'all', label: 'ALL', fullLabel: 'ALL_SIGNALS', icon: Globe },
@@ -368,6 +465,8 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
         title="TOPIC_NET"
         icon={Hash}
         defaultOpen={false}
+        collapseOnDesktop={collapseDesktop}
+        variant={sectionVariant}
         badge={<span className="text-xs text-terminal-dim">({topicBoards.length})</span>}
       >
         {/* Board search */}
@@ -388,7 +487,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
 
         <div className="flex flex-col gap-1 max-h-[200px] md:max-h-[300px] overflow-y-auto pr-1">
           <button
-            onClick={() => navigateToBoard(null)}
+            onClick={() => navigateToBoardAndClose(null)}
             style={activeBoardId === null ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
             className={`text-left text-xs md:text-sm px-2 py-1.5 transition-all flex items-center gap-2 group
               ${
@@ -432,7 +531,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
                 {visibleBoards.map((board) => (
                   <button
                     key={board.id}
-                    onClick={() => navigateToBoard(board.id)}
+                    onClick={() => navigateToBoardAndClose(board.id)}
                     style={
                       activeBoardId === board.id
                         ? { color: 'rgb(var(--color-terminal-bg))' }
@@ -483,7 +582,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
                   </button>
                 )}
                 <button
-                  onClick={() => onSetViewMode(ViewMode.BROWSE_BOARDS)}
+                  onClick={() => setViewModeAndClose(ViewMode.BROWSE_BOARDS)}
                   className="text-left text-xs md:text-sm px-2 py-1.5 text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10 transition-all flex items-center gap-2 group w-full"
                 >
                   <span className="shrink-0 text-xs opacity-60 group-hover:opacity-100">
@@ -510,7 +609,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
             ))}
         </div>
         <button
-          onClick={() => onSetViewMode(ViewMode.CREATE_BOARD)}
+          onClick={() => setViewModeAndClose(ViewMode.CREATE_BOARD)}
           className="mt-2 md:mt-4 w-full text-xs md:text-sm border border-terminal-dim border-dashed text-terminal-dim p-1.5 md:p-2 hover:text-terminal-bg hover:bg-terminal-text hover:border-solid transition-all uppercase"
         >
           [+] Init_Board
@@ -521,6 +620,8 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
         title="DISCOVER_NOSTR"
         icon={Compass}
         defaultOpen={false}
+        collapseOnDesktop={collapseDesktop}
+        variant={sectionVariant}
         badge={<span className="text-xs text-terminal-dim">({externalCommunities.length})</span>}
       >
         <p className="text-xs text-terminal-dim leading-tight">
@@ -528,7 +629,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
           available as a secondary lens.
         </p>
         <button
-          onClick={() => onSetViewMode(ViewMode.DISCOVER_NOSTR)}
+          onClick={() => setViewModeAndClose(ViewMode.DISCOVER_NOSTR)}
           className="mt-2 w-full text-xs border border-terminal-dim border-dashed text-terminal-dim p-1.5 md:p-2 hover:text-terminal-bg hover:bg-terminal-text hover:border-solid transition-all uppercase"
         >
           [~] Discover_Nostr
@@ -542,7 +643,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
             {externalCommunities.map((board) => (
               <button
                 key={board.id}
-                onClick={() => navigateToBoard(board.id)}
+                onClick={() => navigateToBoardAndClose(board.id)}
                 style={
                   activeBoardId === board.id
                     ? { color: 'rgb(var(--color-terminal-bg))' }
@@ -591,7 +692,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
           <p className="text-xs text-terminal-dim leading-tight">No saved communities yet.</p>
         )}
         <button
-          onClick={() => onSetViewMode(ViewMode.EXTERNAL_COMMUNITIES)}
+          onClick={() => setViewModeAndClose(ViewMode.EXTERNAL_COMMUNITIES)}
           className="mt-2 w-full text-xs border border-terminal-dim border-dashed text-terminal-dim p-1.5 md:p-2 hover:text-terminal-bg hover:bg-terminal-text hover:border-solid transition-all uppercase"
         >
           [~] Explore_Communities
@@ -600,12 +701,18 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
 
       {/* Encrypted Boards - Show if user has any encrypted board keys */}
       {encryptedBoards.length > 0 && (
-        <CollapsibleSection title="SECURE_NET" icon={Shield} defaultOpen={false}>
+        <CollapsibleSection
+          title="SECURE_NET"
+          icon={Shield}
+          defaultOpen={false}
+          collapseOnDesktop={collapseDesktop}
+          variant={sectionVariant}
+        >
           <div className="flex flex-col gap-1 max-h-[150px] md:max-h-[200px] overflow-y-auto pr-1">
             {encryptedBoards.map((board) => (
               <button
                 key={board.id}
-                onClick={() => navigateToBoard(board.id)}
+                onClick={() => navigateToBoardAndClose(board.id)}
                 style={
                   activeBoardId === board.id
                     ? { color: 'rgb(var(--color-terminal-bg))' }
@@ -696,6 +803,8 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
         title="GEO_NET"
         icon={MapPin}
         defaultOpen={false}
+        collapseOnDesktop={collapseDesktop}
+        variant={sectionVariant}
         badge={
           totalNearbyPosts > 0 ? (
             <span className="flex items-center gap-1 text-2xs text-terminal-text font-normal">
@@ -715,7 +824,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
                   key={channel.geohash}
                   onClick={() => {
                     const board = geonetDiscoveryService.channelToBoard(channel);
-                    navigateToBoard(board.id);
+                    navigateToBoardAndClose(board.id);
                   }}
                   className="text-xs px-1.5 py-0.5 bg-terminal-dim/20 hover:bg-terminal-text hover:text-terminal-bg transition-colors font-mono"
                   title={`${channel.postCount} posts, ${channel.uniqueAuthors} users`}
@@ -748,7 +857,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
               return (
                 <button
                   key={board.id}
-                  onClick={() => navigateToBoard(board.id)}
+                  onClick={() => navigateToBoardAndClose(board.id)}
                   style={
                     activeBoardId === board.id
                       ? { color: 'rgb(var(--color-terminal-bg))' }
@@ -797,7 +906,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
           )}
         </div>
         <button
-          onClick={() => onSetViewMode(ViewMode.LOCATION)}
+          onClick={() => setViewModeAndClose(ViewMode.LOCATION)}
           className="mt-2 md:mt-4 w-full text-xs border border-terminal-dim border-dashed text-terminal-dim p-1.5 md:p-2 hover:text-terminal-bg hover:bg-terminal-text hover:border-solid transition-all flex items-center justify-center gap-2 uppercase"
         >
           <MapPin size={12} /> {isLoadingActivity ? 'Scanning...' : 'Scan_Nearby'}
@@ -805,119 +914,176 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
       </CollapsibleSection>
 
       {/* Theme Selector - Horizontal scroll on mobile, grid on desktop */}
-      <CollapsibleSection title="VISUAL_CORE" icon={Eye} defaultOpen={false}>
-        {/* Mobile: Horizontal scroll */}
-        <div className="flex md:hidden gap-2 py-1 overflow-x-auto pb-2 -mx-1 px-1">
-          {Object.values(ThemeId).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTheme(t)}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-1.5 font-mono text-xs transition-all border rounded
+      <CollapsibleSection
+        title="VISUAL_CORE"
+        icon={Eye}
+        defaultOpen={false}
+        collapseOnDesktop={collapseDesktop}
+        variant={sectionVariant}
+      >
+        {useThemeTiles ? (
+          <p className="mb-2 text-[10px] leading-snug text-terminal-dim">
+            Spin the deck — whole UI re-tints. Tap a tile.
+          </p>
+        ) : null}
+        {useThemeTiles ? (
+          <div className="grid grid-cols-2 gap-2 py-1 sm:grid-cols-4">
+            {Object.values(ThemeId).map((t) => {
+              const active = theme === t;
+              const swatchStyle: React.CSSProperties = {
+                background:
+                  t === ThemeId.PATRIOT
+                    ? 'linear-gradient(135deg, #ff1428 0%, #ffffff 50%, #0a4bff 100%)'
+                    : undefined,
+                backgroundColor: t === ThemeId.PATRIOT ? undefined : getThemeColor(t),
+                border:
+                  t === ThemeId.BITBORING || t === ThemeId.PATRIOT || t === ThemeId.SAKURA
+                    ? '1px solid #888'
+                    : 'none',
+                boxShadow: active
+                  ? `0 0 12px ${t === ThemeId.PATRIOT ? 'rgba(255,255,255,0.35)' : getThemeColor(t)}`
+                  : undefined,
+              };
+              const label =
+                t === ThemeId.BITBORING
+                  ? 'BitBoring'
+                  : t === ThemeId.PHOSPHOR
+                    ? 'Phosphor'
+                    : t.charAt(0).toUpperCase() + t.slice(1);
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTheme(t)}
+                  title={
+                    t === ThemeId.BITBORING ? 'BITBORING (UGLY MODE)' : `${String(t).toUpperCase()}`
+                  }
+                  className={`flex min-h-[5.5rem] flex-col items-center justify-center gap-1.5 border px-1 py-2.5 font-mono transition-all ${
+                    active
+                      ? 'border-terminal-text bg-terminal-dim/15 shadow-[0_0_14px_rgba(var(--color-terminal-text),0.2)]'
+                      : 'border-terminal-dim/25 bg-terminal-bg/50 hover:border-terminal-dim/50 hover:bg-terminal-dim/10'
+                  }`}
+                >
+                  <span className="h-8 w-8 shrink-0 rounded-full" style={swatchStyle} aria-hidden />
+                  <span
+                    className={`text-[8px] font-bold uppercase tracking-tight ${active ? 'text-terminal-text' : 'text-terminal-dim'}`}
+                  >
+                    {label}
+                  </span>
+                  <span className="px-0.5 text-center text-[6px] leading-tight text-terminal-dim/90">
+                    {THEME_TAGLINES[t]}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <>
+            <div className="flex md:hidden gap-2 py-1 overflow-x-auto pb-2 -mx-1 px-1">
+              {Object.values(ThemeId).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTheme(t)}
+                  className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-1.5 font-mono text-xs transition-all border rounded
                 ${
                   theme === t
                     ? 'border-terminal-text bg-terminal-dim/10 text-terminal-text'
                     : 'border-terminal-dim/30 text-terminal-dim'
                 }
               `}
-              title={t === ThemeId.BITBORING ? 'BITBORING (UGLY MODE)' : String(t).toUpperCase()}
-            >
-              <span
-                className={`w-3 h-3 rounded-full transition-transform ${theme === t ? 'scale-110' : 'scale-100'}`}
-                style={{
-                  background:
-                    t === ThemeId.PATRIOT
-                      ? 'linear-gradient(90deg, #ff1428 0 33%, #ffffff 33% 66%, #0a4bff 66% 100%)'
-                      : undefined,
-                  backgroundColor: t === ThemeId.PATRIOT ? undefined : getThemeColor(t),
-                  border:
-                    t === ThemeId.BITBORING || t === ThemeId.PATRIOT || t === ThemeId.SAKURA
-                      ? '1px solid #888'
-                      : 'none',
-                  boxShadow:
-                    theme === t
-                      ? `0 0 5px ${t === ThemeId.PATRIOT ? '#ffffff' : getThemeColor(t)}`
-                      : 'none',
-                }}
-              />
-              <span className="uppercase">{t}</span>
-            </button>
-          ))}
-        </div>
-        {/* Desktop: Grid */}
-        <div className="hidden md:grid grid-cols-2 gap-2 py-2">
-          {Object.values(ThemeId).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTheme(t)}
-              className={`group flex items-center gap-2 px-2 py-1.5 font-mono text-xs transition-all border
+                  title={
+                    t === ThemeId.BITBORING ? 'BITBORING (UGLY MODE)' : String(t).toUpperCase()
+                  }
+                >
+                  <span
+                    className={`w-3 h-3 rounded-full transition-transform ${theme === t ? 'scale-110' : 'scale-100'}`}
+                    style={{
+                      background:
+                        t === ThemeId.PATRIOT
+                          ? 'linear-gradient(90deg, #ff1428 0 33%, #ffffff 33% 66%, #0a4bff 66% 100%)'
+                          : undefined,
+                      backgroundColor: t === ThemeId.PATRIOT ? undefined : getThemeColor(t),
+                      border:
+                        t === ThemeId.BITBORING || t === ThemeId.PATRIOT || t === ThemeId.SAKURA
+                          ? '1px solid #888'
+                          : 'none',
+                      boxShadow:
+                        theme === t
+                          ? `0 0 5px ${t === ThemeId.PATRIOT ? '#ffffff' : getThemeColor(t)}`
+                          : 'none',
+                    }}
+                  />
+                  <span className="uppercase">{t}</span>
+                </button>
+              ))}
+            </div>
+            <div className="hidden md:grid grid-cols-2 gap-2 py-2">
+              {Object.values(ThemeId).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTheme(t)}
+                  className={`group flex items-center gap-2 px-2 py-1.5 font-mono text-xs transition-all border
                 ${
                   theme === t
                     ? 'border-terminal-text bg-terminal-dim/10 text-terminal-text'
                     : 'border-transparent hover:border-terminal-dim/50 text-terminal-dim'
                 }
               `}
-              title={t === ThemeId.BITBORING ? 'BITBORING (UGLY MODE)' : String(t).toUpperCase()}
-            >
-              <span
-                className={`w-2 h-2 rounded-full transition-transform ${theme === t ? 'scale-125' : 'scale-100 group-hover:scale-110'}`}
-                style={{
-                  background:
-                    t === ThemeId.PATRIOT
-                      ? 'linear-gradient(90deg, #ff1428 0 33%, #ffffff 33% 66%, #0a4bff 66% 100%)'
-                      : undefined,
-                  backgroundColor: t === ThemeId.PATRIOT ? undefined : getThemeColor(t),
-                  border:
-                    t === ThemeId.BITBORING || t === ThemeId.PATRIOT || t === ThemeId.SAKURA
-                      ? '1px solid #888'
-                      : 'none',
-                  boxShadow:
-                    theme === t
-                      ? `0 0 5px ${t === ThemeId.PATRIOT ? '#ffffff' : getThemeColor(t)}`
-                      : 'none',
-                }}
-              />
-              <span className="uppercase whitespace-nowrap overflow-hidden text-ellipsis">{t}</span>
-            </button>
-          ))}
-        </div>
+                  title={
+                    t === ThemeId.BITBORING ? 'BITBORING (UGLY MODE)' : String(t).toUpperCase()
+                  }
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full transition-transform ${theme === t ? 'scale-125' : 'scale-100 group-hover:scale-110'}`}
+                    style={{
+                      background:
+                        t === ThemeId.PATRIOT
+                          ? 'linear-gradient(90deg, #ff1428 0 33%, #ffffff 33% 66%, #0a4bff 66% 100%)'
+                          : undefined,
+                      backgroundColor: t === ThemeId.PATRIOT ? undefined : getThemeColor(t),
+                      border:
+                        t === ThemeId.BITBORING || t === ThemeId.PATRIOT || t === ThemeId.SAKURA
+                          ? '1px solid #888'
+                          : 'none',
+                      boxShadow:
+                        theme === t
+                          ? `0 0 5px ${t === ThemeId.PATRIOT ? '#ffffff' : getThemeColor(t)}`
+                          : 'none',
+                    }}
+                  />
+                  <span className="uppercase whitespace-nowrap overflow-hidden text-ellipsis">
+                    {t}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </CollapsibleSection>
 
-      {/* ID Config - Hidden on mobile unless rendered in drawer */}
-      <div
-        className={`${inMobileDrawer ? 'block' : 'hidden md:block'} border border-terminal-dim p-3 bg-terminal-bg shadow-hard`}
-      >
-        <h3 className="font-bold border-b border-terminal-dim mb-2 pb-1 text-sm flex items-center gap-2">
-          <HelpCircle size={14} /> {'>>'} ID_CONFIG
-        </h3>
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-terminal-dim uppercase font-bold">Display_Handle:</label>
-            <div className="relative">
-              <span className="absolute left-2 top-1.5 text-terminal-dim">{'>'}</span>
-              <input
-                type="text"
-                value={userState.username}
-                onChange={(e) => setUserState((prev) => ({ ...prev, username: e.target.value }))}
-                className="w-full bg-terminal-bg border border-terminal-dim py-1 pl-6 pr-2 text-sm text-terminal-text font-mono focus:outline-none focus:border-terminal-text focus:ring-1 focus:ring-terminal-text/50 transition-all"
-              />
-            </div>
-          </div>
-          <button
-            onClick={() => onSetViewMode(ViewMode.SETTINGS)}
-            className="text-xs text-terminal-dim hover:text-terminal-text flex items-center gap-1 mt-2 border border-terminal-dim/30 hover:border-terminal-dim p-1.5 justify-center transition-all"
-          >
-            <HelpCircle size={10} /> Settings
-          </button>
-          {userState.identity && (
-            <button
-              onClick={() => onSetViewMode(ViewMode.IDENTITY)}
-              className="text-xs text-terminal-dim hover:text-terminal-text flex items-center gap-1 mt-2 border border-terminal-dim/30 hover:border-terminal-dim p-1.5 justify-center transition-all"
-            >
-              <Key size={10} /> Manage_Keys
-            </button>
-          )}
+      {/* ID Config - Hidden on desktop except drawer */}
+      {isOverlayLayout ? (
+        <CollapsibleSection
+          title="ID_CONFIG"
+          icon={HelpCircle}
+          defaultOpen={false}
+          collapseOnDesktop={collapseDesktop}
+          variant={sectionVariant}
+        >
+          {identityConfigContent}
+        </CollapsibleSection>
+      ) : (
+        <div
+          className={`${inMobileDrawer ? 'block' : 'hidden md:block'} border border-terminal-dim bg-terminal-bg p-3 shadow-hard`}
+        >
+          <h3 className="mb-2 flex items-center gap-2 border-b border-terminal-dim pb-1 text-sm font-bold">
+            <HelpCircle size={14} /> {'>>'} ID_CONFIG
+          </h3>
+          {identityConfigContent}
         </div>
-      </div>
+      )}
     </aside>
   );
 });

@@ -5,12 +5,12 @@ import {
   Bookmark,
   Bell,
   Compass,
-  Wifi,
-  WifiOff,
+  User,
   Settings,
   MapPin,
   MessageSquare,
   Search,
+  Key,
 } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { ViewMode } from '../../types';
@@ -19,10 +19,11 @@ interface MobileDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   viewMode: ViewMode;
+  activeBoardId: string | null;
   onSetViewMode: (mode: ViewMode) => void;
   onNavigateGlobal: () => void;
   identity?: { npub: string };
-  _userState?: { bits: number; maxBits: number };
+  userState?: { bits: number; maxBits: number };
   bookmarkedCount: number;
   isNostrConnected: boolean;
   children?: React.ReactNode;
@@ -32,15 +33,17 @@ export const MobileDrawer = React.memo(function MobileDrawer({
   isOpen,
   onClose,
   viewMode,
+  activeBoardId,
   onSetViewMode,
   onNavigateGlobal,
   identity,
-  _userState,
+  userState: _userState,
   bookmarkedCount,
   isNostrConnected,
   children,
 }: MobileDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const setShowSearch = useUIStore((s) => s.setShowSearch);
 
   // Close on escape key
@@ -66,11 +69,16 @@ export const MobileDrawer = React.memo(function MobileDrawer({
     };
   }, [isOpen]);
 
-  // Focus trap
+  // Focus the drawer and restore focus on close
   useEffect(() => {
     if (isOpen && drawerRef.current) {
+      previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
       drawerRef.current.focus();
+      return;
     }
+
+    previouslyFocusedRef.current?.focus();
+    previouslyFocusedRef.current = null;
   }, [isOpen]);
 
   const handleNavClick = (action: () => void) => {
@@ -83,7 +91,7 @@ export const MobileDrawer = React.memo(function MobileDrawer({
       id: 'global',
       icon: Globe,
       label: 'GLOBAL_FEED',
-      isActive: viewMode === ViewMode.FEED,
+      isActive: viewMode === ViewMode.FEED && activeBoardId === null,
       onClick: () => handleNavClick(onNavigateGlobal),
     },
     {
@@ -127,7 +135,7 @@ export const MobileDrawer = React.memo(function MobileDrawer({
     },
     {
       id: 'identity',
-      icon: identity ? Wifi : WifiOff,
+      icon: identity ? User : Key,
       label: identity ? 'IDENTITY' : 'CONNECT',
       isActive: viewMode === ViewMode.IDENTITY,
       onClick: () => handleNavClick(() => onSetViewMode(ViewMode.IDENTITY)),

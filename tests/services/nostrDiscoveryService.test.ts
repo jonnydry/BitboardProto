@@ -374,4 +374,101 @@ describe('nostrDiscoveryService', () => {
 
     expect(results).toHaveLength(0);
   });
+
+  it('prefers high-signal source domains over lower-signal social links', async () => {
+    mocks.queryEvents.mockResolvedValue([
+      {
+        id: 'social-link-post',
+        kind: NOSTR_KINDS.POST,
+        pubkey: 'author-one',
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ['lang', 'en'],
+          ['r', 'https://x.com/example/status/1'],
+          ['t', 'policy'],
+          ['t', 'bitcoin'],
+        ],
+        content:
+          'This post discusses a policy topic with enough English substance and a social link for reference, but not a high-signal domain.',
+      },
+      {
+        id: 'github-link-post',
+        kind: NOSTR_KINDS.POST,
+        pubkey: 'author-two',
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ['lang', 'en'],
+          ['r', 'https://github.com/example/repo'],
+          ['t', 'policy'],
+          ['t', 'bitcoin'],
+        ],
+        content:
+          'This post discusses a policy topic with enough English substance and links directly to a GitHub repository with source material.',
+      },
+    ]);
+
+    const results = await nostrDiscoveryService.discoverSeedCandidates({
+      timeWindow: '24h',
+      sourceFilter: 'general',
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].id).toBe('github-link-post');
+  });
+
+  it('suppresses repeated authors so one source cannot dominate top results', async () => {
+    mocks.queryEvents.mockResolvedValue([
+      {
+        id: 'author-a-1',
+        kind: NOSTR_KINDS.POST,
+        pubkey: 'same-author',
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ['lang', 'en'],
+          ['r', 'https://github.com/example/one'],
+          ['t', 'bitcoin'],
+          ['t', 'policy'],
+        ],
+        content:
+          'First substantial post from the same author with a useful GitHub source and enough context to pass filtering.',
+      },
+      {
+        id: 'author-a-2',
+        kind: NOSTR_KINDS.POST,
+        pubkey: 'same-author',
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ['lang', 'en'],
+          ['r', 'https://github.com/example/two'],
+          ['t', 'bitcoin'],
+          ['t', 'policy'],
+        ],
+        content:
+          'Second substantial post from the same author with a useful GitHub source and enough context to pass filtering.',
+      },
+      {
+        id: 'author-b-1',
+        kind: NOSTR_KINDS.POST,
+        pubkey: 'different-author',
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ['lang', 'en'],
+          ['r', 'https://github.com/example/three'],
+          ['t', 'bitcoin'],
+          ['t', 'policy'],
+        ],
+        content:
+          'A substantial post from a different author with a useful GitHub source and enough context to pass filtering.',
+      },
+    ]);
+
+    const results = await nostrDiscoveryService.discoverSeedCandidates({
+      timeWindow: '24h',
+      sourceFilter: 'general',
+    });
+
+    expect(results).toHaveLength(3);
+    expect(results[0].post.authorPubkey).toBe('same-author');
+    expect(results[1].post.authorPubkey).toBe('different-author');
+  });
 });

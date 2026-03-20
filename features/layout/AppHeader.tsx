@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
-import { Zap, Menu, Settings as SettingsIcon, Search } from 'lucide-react';
+import { Zap, Menu, Search } from 'lucide-react';
 
 const AdvancedSearch = lazy(() =>
   import('../../components/AdvancedSearch').then((m) => ({ default: m.AdvancedSearch })),
@@ -18,9 +18,14 @@ import { useAppNavigationHandlers } from './useAppNavigationHandlers';
 
 interface AppHeaderProps {
   onOpenDrawer?: () => void;
+  /** md+: opens the desktop nav drawer. */
+  onOpenDesktopNav?: () => void;
 }
 
-export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHeaderProps) {
+export const AppHeader = React.memo(function AppHeader({
+  onOpenDrawer,
+  onOpenDesktopNav,
+}: AppHeaderProps) {
   const theme = useUIStore((s) => s.theme);
   const isNostrConnected = useUIStore((s) => s.isNostrConnected);
   const viewMode = useUIStore((s) => s.viewMode);
@@ -76,6 +81,15 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
     ownProfile?.name ||
     identity?.displayName ||
     (identity ? `${identity.npub.slice(0, 10)}...` : 'CONNECT');
+  const isGlobalFeedActive = viewMode === ViewMode.FEED && activeBoardId === null;
+  const desktopActionClass = (active = false, emphasis = false) =>
+    `flex items-center gap-2 border px-3 py-1.5 font-mono text-xs uppercase tracking-[0.16em] transition-colors lg:text-sm ${
+      active
+        ? 'border-terminal-text bg-terminal-dim/10 text-terminal-text'
+        : emphasis
+          ? 'border-terminal-dim/40 text-terminal-text hover:border-terminal-text/45 hover:bg-terminal-dim/10'
+          : 'border-transparent text-terminal-dim hover:border-terminal-dim/40 hover:text-terminal-text'
+    }`;
 
   useEffect(() => {
     const unsubscribe = notificationService.subscribe(() => {
@@ -279,68 +293,84 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
       </button>
 
       {/* Desktop Navigation (hidden on mobile) */}
-      <nav className="hidden md:flex items-center justify-between gap-6 text-xs lg:text-sm">
-        <div className="flex items-center gap-2 lg:gap-4 flex-wrap">
+      <nav className="hidden md:flex items-center justify-between gap-4 border border-terminal-dim/20 bg-terminal-bg/45 px-3 py-2 text-xs lg:text-sm backdrop-blur-sm">
+        <div className="flex items-center gap-2 flex-wrap">
+          {onOpenDesktopNav && (
+            <button
+              type="button"
+              onClick={onOpenDesktopNav}
+              className={desktopActionClass(false, true)}
+              aria-label="Open navigation drawer"
+              title="Browse navigation"
+            >
+              <Menu size={18} strokeWidth={2} />
+              <span>Browse</span>
+            </button>
+          )}
           <button
             onClick={() => navigateToBoard(null)}
-            className={`uppercase border px-3 py-1.5 tracking-wider whitespace-nowrap transition-colors ${viewMode === ViewMode.FEED && activeBoardId === null ? 'border-terminal-text text-terminal-text bg-terminal-dim/10' : 'border-transparent text-terminal-dim hover:border-terminal-dim/40 hover:text-terminal-text'}`}
+            className={desktopActionClass(isGlobalFeedActive)}
             title="Global Feed"
           >
             <span>GLOBAL FEED</span>
           </button>
           <button
             onClick={() => setViewMode(ViewMode.CREATE)}
-            className={`uppercase border px-3 py-1.5 tracking-wider whitespace-nowrap transition-colors ${viewMode === ViewMode.CREATE ? 'border-terminal-text text-terminal-text bg-terminal-dim/10' : 'border-transparent text-terminal-dim hover:border-terminal-dim/40 hover:text-terminal-text'}`}
+            className={desktopActionClass(viewMode === ViewMode.CREATE)}
             title="Create New Bit"
           >
             <span>NEW BIT</span>
           </button>
           <button
+            type="button"
+            onClick={() => setShowSearch(true)}
+            className={desktopActionClass(showSearch)}
+            title="Search"
+          >
+            <Search size={14} />
+            <span className="hidden lg:inline">SEARCH</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <button
+            type="button"
             onClick={() => setViewMode(ViewMode.BOOKMARKS)}
-            className={`uppercase border px-3 py-1.5 tracking-wider whitespace-nowrap transition-colors ${viewMode === ViewMode.BOOKMARKS ? 'border-terminal-text text-terminal-text bg-terminal-dim/10' : 'border-transparent text-terminal-dim hover:border-terminal-dim/40 hover:text-terminal-text'}`}
+            className={desktopActionClass(viewMode === ViewMode.BOOKMARKS)}
             title="Saved Posts"
           >
             <span>SAVED{bookmarkedCount > 0 ? ` (${bookmarkedCount})` : ''}</span>
           </button>
           <button
+            type="button"
             onClick={() => setShowNotifications(true)}
-            className={`uppercase border px-3 py-1.5 tracking-wider whitespace-nowrap transition-colors ${showNotifications ? 'border-terminal-text text-terminal-text bg-terminal-dim/10' : 'border-transparent text-terminal-dim hover:border-terminal-dim/40 hover:text-terminal-text'}`}
+            className={desktopActionClass(showNotifications)}
             title="Notifications"
           >
             <span>ALERTS{unreadCount > 0 ? ` (${unreadCount})` : ''}</span>
           </button>
           {identity && (
             <button
+              type="button"
               onClick={() => setViewMode(ViewMode.DIRECT_MESSAGES)}
-              className={`uppercase border px-3 py-1.5 tracking-wider whitespace-nowrap transition-colors ${viewMode === ViewMode.DIRECT_MESSAGES ? 'border-terminal-text text-terminal-text bg-terminal-dim/10' : 'border-transparent text-terminal-dim hover:border-terminal-dim/40 hover:text-terminal-text'}`}
+              className={desktopActionClass(viewMode === ViewMode.DIRECT_MESSAGES)}
               title="Direct Messages"
             >
               <span>DMs</span>
             </button>
           )}
-          <button
-            onClick={() => setViewMode(ViewMode.RELAYS)}
-            className={`uppercase border px-3 py-1.5 tracking-wider whitespace-nowrap transition-colors ${viewMode === ViewMode.RELAYS ? 'border-terminal-text text-terminal-text bg-terminal-dim/10' : 'border-transparent text-terminal-dim hover:border-terminal-dim/40 hover:text-terminal-text'}`}
-            title={isNostrConnected ? 'Relays Connected' : 'Relays Disconnected'}
-          >
-            <span>RELAYS</span>
-          </button>
-          <button
-            onClick={() => setShowSearch(true)}
-            className="border-transparent text-terminal-dim hover:border-terminal-dim/40 hover:text-terminal-text border px-3 py-1.5 transition-colors"
-            title="Search"
-          >
-            <Search size={14} />
-          </button>
-        </div>
-
-        <div className="hidden lg:flex items-center gap-3 shrink-0">
           <NetworkIndicator compact />
-          <InlineNetworkStatus />
+          <div className="hidden xl:flex">
+            <InlineNetworkStatus />
+          </div>
           <button
             type="button"
             onClick={() => setViewMode(ViewMode.IDENTITY)}
-            className="flex items-center gap-2 border border-terminal-dim px-3 py-1.5 text-terminal-text hover:border-terminal-text hover:bg-terminal-dim/10 transition-colors font-mono"
+            className={`flex items-center gap-2 border px-3 py-1.5 font-mono transition-colors ${
+              viewMode === ViewMode.IDENTITY
+                ? 'border-terminal-text bg-terminal-dim/10 text-terminal-text'
+                : 'border-terminal-dim/40 text-terminal-text hover:border-terminal-text hover:bg-terminal-dim/10'
+            }`}
             title={identity ? 'Identity Settings' : 'Connect Identity'}
           >
             {identity && ownProfile?.picture ? (
@@ -355,14 +385,6 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
               </span>
             ) : null}
             {identityDisplayName}
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode(ViewMode.SETTINGS)}
-            className={`p-1.5 border transition-colors ${viewMode === ViewMode.SETTINGS ? 'border-terminal-text text-terminal-text bg-terminal-dim/10' : 'border-transparent text-terminal-dim hover:border-terminal-dim/40 hover:text-terminal-text'}`}
-            title="Settings"
-          >
-            <SettingsIcon size={16} />
           </button>
         </div>
       </nav>

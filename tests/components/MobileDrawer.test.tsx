@@ -15,9 +15,10 @@ describe('MobileDrawer', () => {
         isOpen={true}
         onClose={() => undefined}
         viewMode={ViewMode.FEED}
+        activeBoardId={null}
         onSetViewMode={() => undefined}
         onNavigateGlobal={() => undefined}
-        _userState={{ bits: 2, maxBits: 4 }}
+        userState={{ bits: 2, maxBits: 4 }}
         bookmarkedCount={0}
         isNostrConnected={true}
       />,
@@ -30,9 +31,10 @@ describe('MobileDrawer', () => {
         isOpen={false}
         onClose={() => undefined}
         viewMode={ViewMode.FEED}
+        activeBoardId={null}
         onSetViewMode={() => undefined}
         onNavigateGlobal={() => undefined}
-        _userState={{ bits: 2, maxBits: 4 }}
+        userState={{ bits: 2, maxBits: 4 }}
         bookmarkedCount={0}
         isNostrConnected={true}
       />,
@@ -50,10 +52,11 @@ describe('MobileDrawer', () => {
         isOpen={true}
         onClose={onClose}
         viewMode={ViewMode.FEED}
+        activeBoardId={null}
         onSetViewMode={onSetViewMode}
         onNavigateGlobal={onNavigateGlobal}
         identity={{ npub: 'npub1234567890' }}
-        _userState={{ bits: 2, maxBits: 4 }}
+        userState={{ bits: 2, maxBits: 4 }}
         bookmarkedCount={2}
         isNostrConnected={true}
       >
@@ -78,9 +81,10 @@ describe('MobileDrawer', () => {
         isOpen={true}
         onClose={onClose}
         viewMode={ViewMode.FEED}
+        activeBoardId={null}
         onSetViewMode={() => undefined}
         onNavigateGlobal={() => undefined}
-        _userState={{ bits: 2, maxBits: 4 }}
+        userState={{ bits: 2, maxBits: 4 }}
         bookmarkedCount={0}
         isNostrConnected={true}
       />,
@@ -88,5 +92,23 @@ describe('MobileDrawer', () => {
 
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('does not mark global feed active when a board is selected', () => {
+    render(
+      <MobileDrawer
+        isOpen={true}
+        onClose={() => undefined}
+        viewMode={ViewMode.FEED}
+        activeBoardId={'board-1'}
+        onSetViewMode={() => undefined}
+        onNavigateGlobal={() => undefined}
+        userState={{ bits: 2, maxBits: 4 }}
+        bookmarkedCount={0}
+        isNostrConnected={true}
+      />,
+    );
+
+    expect(screen.getByText('GLOBAL_FEED').closest('button')).not.toHaveClass('bg-terminal-text');
   });
 });

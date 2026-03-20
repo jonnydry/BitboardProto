@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ChevronDown,
@@ -57,6 +57,7 @@ export function NostrDiscoveryBrowser({
   const [error, setError] = useState<string | null>(null);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [linkPreviews, setLinkPreviews] = useState<Record<string, LinkPreviewData>>({});
+  const requestIdRef = useRef(0);
 
   const formatAge = (timestamp: number) => {
     const diffHours = Math.max(1, Math.floor((Date.now() - timestamp) / (1000 * 60 * 60)));
@@ -75,41 +76,48 @@ export function NostrDiscoveryBrowser({
     }
   };
 
-  const loadCandidates = async () => {
+  const loadCandidates = async (params?: {
+    query?: string;
+    timeWindow?: DiscoveryTimeWindow;
+    sourceFilter?: DiscoverySourceFilter;
+  }) => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setError(null);
     try {
       const nextCandidates = await nostrDiscoveryService.discoverSeedCandidates({
-        query,
-        timeWindow,
-        sourceFilter,
+        query: params?.query ?? query,
+        timeWindow: params?.timeWindow ?? timeWindow,
+        sourceFilter: params?.sourceFilter ?? sourceFilter,
         limit: 60,
       });
+      if (requestId !== requestIdRef.current) return;
       setCandidates(nextCandidates);
     } catch (loadError) {
+      if (requestId !== requestIdRef.current) return;
       setError(loadError instanceof Error ? loadError.message : 'Failed to discover Nostr posts.');
     } finally {
+      if (requestId !== requestIdRef.current) return;
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
     if (activeTab !== 'trending') return;
-    void loadCandidates();
-  }, [activeTab, timeWindow, sourceFilter]);
-
-  useEffect(() => {
-    if (activeTab !== 'trending') return;
-    if (!query.trim()) return;
-    const timeout = window.setTimeout(() => {
-      void loadCandidates();
-    }, 250);
+    const nextQuery = query.trim();
+    const timeout = window.setTimeout(
+      () => {
+        void loadCandidates({ query: nextQuery, timeWindow, sourceFilter });
+      },
+      nextQuery ? 250 : 0,
+    );
     return () => window.clearTimeout(timeout);
-  }, [activeTab, query]);
+  }, [activeTab, query, timeWindow, sourceFilter]);
 
   useEffect(() => {
     if (activeTab !== 'trending') return;
     if (!candidates.some((candidate) => candidate.post.url)) return;
+    let cancelled = false;
 
     candidates
       .filter((candidate) => !!candidate.post.url)
@@ -134,15 +142,21 @@ export function NostrDiscoveryBrowser({
 
         void fetchLinkPreview(url)
           .then((preview) => {
+            if (cancelled) return;
             setLinkPreviews((current) => ({ ...current, [url]: preview }));
           })
           .catch(() => {
+            if (cancelled) return;
             setLinkPreviews((current) => ({
               ...current,
               [url]: { url, error: 'Failed to load preview' },
             }));
           });
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [activeTab, candidates]);
 
   const summary = useMemo(() => {
@@ -161,6 +175,25 @@ export function NostrDiscoveryBrowser({
         ? candidates.reduce((sum, candidate) => sum + candidate.discoveryScore, 0) /
           candidates.length
         : 0;
+    const topAuthors = Array.from(
+      candidates.slice(0, 20).reduce((map, candidate) => {
+        const key = candidate.post.author;
+        map.set(key, (map.get(key) ?? 0) + 1);
+        return map;
+      }, new Map<string, number>()),
+    )
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+    const topDomains = Array.from(
+      candidates.slice(0, 20).reduce((map, candidate) => {
+        const domain = getDomain(candidate.post.url);
+        if (!domain) return map;
+        map.set(domain, (map.get(domain) ?? 0) + 1);
+        return map;
+      }, new Map<string, number>()),
+    )
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
     return {
       approved,
       general,
@@ -169,6 +202,8 @@ export function NostrDiscoveryBrowser({
       lowConfidence,
       communityContext,
       averageRank,
+      topAuthors,
+      topDomains,
     };
   }, [candidates]);
 
@@ -377,7 +412,7 @@ export function NostrDiscoveryBrowser({
           </div>
 
           {showDiagnostics && (
-            <div className="grid gap-3 border border-terminal-dim/30 bg-terminal-bg/20 p-4 text-xs uppercase tracking-wide text-terminal-dim md:grid-cols-3">
+            <div className="grid gap-3 border border-terminal-dim/30 bg-terminal-bg/20 p-4 text-xs uppercase tracking-wide text-terminal-dim md:grid-cols-5">
               <div>
                 <div className="text-terminal-text">Source Mix</div>
                 <div className="mt-2 space-y-1">
@@ -400,6 +435,34 @@ export function NostrDiscoveryBrowser({
                   <div>Window {timeWindow}</div>
                   <div>Filter {sourceFilter}</div>
                   <div>Avg rank {summary.averageRank.toFixed(1)}</div>
+                </div>
+              </div>
+              <div>
+                <div className="text-terminal-text">Top Authors</div>
+                <div className="mt-2 space-y-1">
+                  {summary.topAuthors.length > 0 ? (
+                    summary.topAuthors.map(([author, count]) => (
+                      <div key={author} className="truncate">
+                        {author} x{count}
+                      </div>
+                    ))
+                  ) : (
+                    <div>none</div>
+                  )}
+                </div>
+              </div>
+              <div>
+                <div className="text-terminal-text">Top Domains</div>
+                <div className="mt-2 space-y-1">
+                  {summary.topDomains.length > 0 ? (
+                    summary.topDomains.map(([domain, count]) => (
+                      <div key={domain} className="truncate">
+                        {domain} x{count}
+                      </div>
+                    ))
+                  ) : (
+                    <div>none</div>
+                  )}
                 </div>
               </div>
             </div>

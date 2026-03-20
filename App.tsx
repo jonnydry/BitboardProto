@@ -8,6 +8,11 @@ import { ConsentBanner } from './components/ConsentBanner';
 import { AppProvider, useApp } from './features/layout/AppContext';
 import { AppHeader } from './features/layout/AppHeader';
 import { Sidebar } from './features/layout/Sidebar';
+import {
+  DesktopNavChrome,
+  readStoredDesktopNavOpen,
+  writeStoredDesktopNavOpen,
+} from './features/layout/DesktopNavChrome';
 import { MobileNav } from './features/layout/MobileNav';
 import { MobileDrawer } from './features/layout/MobileDrawer';
 import { MemoizedFeedView as FeedView } from './features/feed/FeedView';
@@ -161,8 +166,8 @@ const IdentityUnlockModal = (props: {
             className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded-sm border border-terminal-dim bg-terminal-bg accent-terminal-text"
           />
           <span>
-            Remember for this browser tab — skip unlock after refresh until you close the tab or reset
-            identity (passphrase stored in session only, not on disk).
+            Remember for this browser tab — skip unlock after refresh until you close the tab or
+            reset identity (passphrase stored in session only, not on disk).
           </span>
         </label>
 
@@ -208,6 +213,16 @@ const AppContent: React.FC = () => {
   const app = useApp();
   const handleIdentityChange = useUserStore((s) => s.handleIdentityChange);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [desktopNavOpen, setDesktopNavOpenState] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(min-width: 768px)').matches ? readStoredDesktopNavOpen() : false;
+  });
+  const setDesktopNavOpen = (open: boolean) => {
+    setDesktopNavOpenState(open);
+    if (typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches) {
+      writeStoredDesktopNavOpen(open);
+    }
+  };
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showIdentityUnlock, setShowIdentityUnlock] = useState(false);
@@ -231,6 +246,25 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     keyboardModalStateRef.current = { showKeyboardHelp, showOnboarding };
   }, [showKeyboardHelp, showOnboarding]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const mediaQuery = window.matchMedia('(min-width: 768px)');
+    const syncDesktopNavState = () => {
+      if (!mediaQuery.matches) {
+        setDesktopNavOpenState(false);
+        return;
+      }
+
+      setDesktopNavOpenState(readStoredDesktopNavOpen());
+    };
+
+    syncDesktopNavState();
+    mediaQuery.addEventListener('change', syncDesktopNavState);
+
+    return () => mediaQuery.removeEventListener('change', syncDesktopNavState);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -549,6 +583,7 @@ const AppContent: React.FC = () => {
           isOpen={isDrawerOpen}
           onClose={() => setIsDrawerOpen(false)}
           viewMode={app.viewMode}
+          activeBoardId={app.activeBoardId}
           onSetViewMode={app.setViewMode}
           onNavigateGlobal={() => app.navigateToBoard(null)}
           identity={app.userState.identity || undefined}
@@ -575,16 +610,51 @@ const AppContent: React.FC = () => {
             removeFailedDecryptionKey={app.removeFailedDecryptionKey}
             navigateToBoard={app.navigateToBoard}
             onSetViewMode={app.setViewMode}
+            onRequestCloseNav={() => setIsDrawerOpen(false)}
             inMobileDrawer={true}
           />
         </MobileDrawer>
 
-        <div className="max-w-[1174px] mx-auto p-3 md:p-6 relative z-10 pb-20 md:pb-6">
-          <AppHeader onOpenDrawer={() => setIsDrawerOpen(true)} />
+        <DesktopNavChrome
+          drawerOpen={desktopNavOpen}
+          onCloseDrawer={() => setDesktopNavOpen(false)}
+          navigateToBoard={app.navigateToBoard}
+          onSetViewMode={app.setViewMode}
+          hasIdentity={!!app.userState.identity}
+        >
+          <Sidebar
+            userState={app.userState}
+            setUserState={app.setUserState}
+            theme={app.theme}
+            setTheme={app.setTheme}
+            getThemeColor={app.getThemeColor}
+            isNostrConnected={app.isNostrConnected}
+            viewMode={app.viewMode}
+            activeBoardId={app.activeBoardId}
+            feedFilter={app.feedFilter}
+            setFeedFilter={app.setFeedFilter}
+            topicBoards={app.topicBoards ?? []}
+            externalCommunities={app.externalCommunities ?? []}
+            geohashBoards={app.geohashBoards ?? []}
+            boardsById={app.boardsById ?? new Map()}
+            decryptionFailedBoardIds={app.decryptionFailedBoardIds}
+            removeFailedDecryptionKey={app.removeFailedDecryptionKey}
+            navigateToBoard={app.navigateToBoard}
+            onSetViewMode={app.setViewMode}
+            onRequestCloseNav={() => setDesktopNavOpen(false)}
+            layout="overlay"
+          />
+        </DesktopNavChrome>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-8 py-[5px]">
-            {/* Main Content */}
-            <main className="md:col-span-3">
+        <div className="max-w-[1174px] mx-auto p-3 md:p-6 relative z-10 pb-20 md:pb-6">
+          <AppHeader
+            onOpenDrawer={() => setIsDrawerOpen(true)}
+            onOpenDesktopNav={() => setDesktopNavOpen(true)}
+          />
+
+          <div className="grid grid-cols-1 gap-4 md:gap-8 py-[5px]">
+            {/* Main Content — full width; 56px rail + drawer live in DesktopNavChrome */}
+            <main className="min-w-0">
               {/* Feed View */}
               {app.viewMode === ViewMode.FEED && (
                 <FeedView
@@ -812,30 +882,6 @@ const AppContent: React.FC = () => {
                 </Suspense>
               )}
             </main>
-
-            {/* Sidebar - desktop only, mobile content lives in drawer */}
-            <aside className="hidden md:block md:order-2">
-              <Sidebar
-                userState={app.userState}
-                setUserState={app.setUserState}
-                theme={app.theme}
-                setTheme={app.setTheme}
-                getThemeColor={app.getThemeColor}
-                isNostrConnected={app.isNostrConnected}
-                viewMode={app.viewMode}
-                activeBoardId={app.activeBoardId}
-                feedFilter={app.feedFilter}
-                setFeedFilter={app.setFeedFilter}
-                topicBoards={app.topicBoards ?? []}
-                externalCommunities={app.externalCommunities ?? []}
-                geohashBoards={app.geohashBoards ?? []}
-                boardsById={app.boardsById ?? new Map()}
-                decryptionFailedBoardIds={app.decryptionFailedBoardIds}
-                removeFailedDecryptionKey={app.removeFailedDecryptionKey}
-                navigateToBoard={app.navigateToBoard}
-                onSetViewMode={app.setViewMode}
-              />
-            </aside>
           </div>
         </div>
 
