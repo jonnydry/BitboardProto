@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
   getCachedResult: vi.fn(() => ({ channels: [] })),
   isRecentlyActive: vi.fn(() => true),
   getCachedPosition: vi.fn(() => ({ coords: { latitude: 1, longitude: 2 } })),
-  getEncryptedBoardIds: vi.fn(() => ['secure-1']),
+  getEncryptedBoardIds: vi.fn(() => ['secure-1', 'broken-1']),
 }));
 
 vi.mock('../../services/geonetDiscoveryService', () => ({
@@ -87,8 +87,8 @@ describe('Sidebar', () => {
     navigateToBoard: vi.fn(),
     onSetViewMode: vi.fn(),
     onRequestCloseNav: vi.fn(),
-    inMobileDrawer: false,
-  } as any;
+    layout: 'inline' as const,
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -96,46 +96,61 @@ describe('Sidebar', () => {
     mocks.getCachedResult.mockReturnValue({ channels: [] });
   });
 
-  it('toggles relay details, feed filter, board navigation, and theme selection', () => {
+  it('navigates to a topic board and closes the nav', () => {
     act(() => {
       render(<Sidebar {...baseProps} />);
     });
 
-    fireEvent.click(screen.getByText(/RELAY_LINK:/i));
-    expect(screen.getByText('relay.one')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText('TOPIC'));
-    expect(baseProps.setFeedFilter).toHaveBeenCalledWith('topic');
-
-    fireEvent.click(screen.getByText('>> TOPIC_NET'));
     fireEvent.click(screen.getByText('Public One'));
     expect(baseProps.navigateToBoard).toHaveBeenCalledWith('pub-1');
     expect(baseProps.onRequestCloseNav).toHaveBeenCalled();
-
-    fireEvent.click(screen.getByText('>> VISUAL_CORE'));
-    fireEvent.click(screen.getAllByText('amber')[0]);
-    expect(baseProps.setTheme).toHaveBeenCalledWith(ThemeId.AMBER);
   });
 
-  it('handles secure boards, failed decryption removal, geonet navigation, and identity config', () => {
+  it('navigates to a secure board and closes the nav', () => {
     act(() => {
-      render(<Sidebar {...baseProps} inMobileDrawer={true} />);
+      render(<Sidebar {...baseProps} layout="drawer" />);
     });
 
-    fireEvent.click(screen.getByText('>> SECURE_NET'));
     fireEvent.click(screen.getByText('Secure One'));
     expect(baseProps.navigateToBoard).toHaveBeenCalledWith('secure-1');
     expect(baseProps.onRequestCloseNav).toHaveBeenCalled();
+  });
 
+  it('removes a failed decryption key', () => {
+    act(() => {
+      render(<Sidebar {...baseProps} layout="drawer" />);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /SECURE_NET/i }));
     fireEvent.click(screen.getByTitle('Remove invalid key'));
     expect(baseProps.removeFailedDecryptionKey).toHaveBeenCalledWith('broken-1');
+  });
 
-    fireEvent.click(screen.getByText('>> GEO_NET'));
-    fireEvent.click(screen.getByText('#abcd1234'));
-    expect(baseProps.navigateToBoard).toHaveBeenCalledWith('geo-1');
+  it('opens identity settings and closes the nav', () => {
+    act(() => {
+      render(<Sidebar {...baseProps} layout="drawer" />);
+    });
 
-    fireEvent.click(screen.getByText(/Manage_Keys/i));
+    fireEvent.click(screen.getByText('Keys'));
     expect(baseProps.onSetViewMode).toHaveBeenCalledWith(ViewMode.IDENTITY);
     expect(baseProps.onRequestCloseNav).toHaveBeenCalled();
+  });
+
+  it('changes the theme', () => {
+    act(() => {
+      render(<Sidebar {...baseProps} />);
+    });
+
+    fireEvent.click(screen.getByText('Phosphor'));
+    expect(baseProps.setTheme).toHaveBeenCalledWith(ThemeId.PHOSPHOR);
+  });
+
+  it('changes the feed filter', () => {
+    act(() => {
+      render(<Sidebar {...baseProps} />);
+    });
+
+    fireEvent.click(screen.getByText('TOPIC'));
+    expect(baseProps.setFeedFilter).toHaveBeenCalledWith('topic');
   });
 });

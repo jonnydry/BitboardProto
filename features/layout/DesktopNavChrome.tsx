@@ -1,29 +1,30 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 import {
   ChevronRight,
-  Compass,
-  ExternalLink,
+  Menu,
   Globe,
   Hash,
+  Compass,
+  ExternalLink,
   MapPin,
   User,
-  Wifi,
-  WifiOff,
+  Settings,
+  Bookmark,
+  Bell,
 } from 'lucide-react';
 import { ViewMode } from '../../types';
 import { nostrService, type RelayStatus } from '../../services/nostr/NostrService';
 
-const DRAWER_W = 'w-[24rem]';
+const DRAWER_W = 'w-[20rem]';
 const STORAGE_KEY = 'bitboard-desktop-nav-open';
 
 export interface DesktopNavChromeProps {
   drawerOpen: boolean;
   onCloseDrawer: () => void;
+  onOpenDrawer: () => void;
   navigateToBoard: (id: string | null) => void;
   onSetViewMode: (mode: ViewMode) => void;
-  /** When true, account utility opens Identity; otherwise Settings. */
   hasIdentity?: boolean;
-  children: React.ReactNode;
 }
 
 function useRelaySummary() {
@@ -40,45 +41,32 @@ function useRelaySummary() {
     const total = statuses.length;
     const connected = statuses.filter((s) => s.isConnected).length;
     let health: 'good' | 'degraded' | 'offline' = 'offline';
-    if (connected > 0) {
-      health = connected >= total / 2 ? 'good' : 'degraded';
-    }
+    if (connected > 0) health = connected >= total / 2 ? 'good' : 'degraded';
     return { total, connected, health };
   }, [statuses]);
 }
 
-function QuickActionCard({
-  label,
-  detail,
+function DrawerRow({
   icon: Icon,
+  label,
+  badge,
   onClick,
 }: {
-  label: string;
-  detail: string;
   icon: React.ElementType;
+  label: string;
+  badge?: React.ReactNode;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="group flex min-h-[5.25rem] flex-col justify-between border border-terminal-dim/20 bg-terminal-bg/75 px-3 py-3 text-left transition-all hover:border-terminal-text/35 hover:bg-terminal-dim/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-terminal-text/50"
+      className="group flex w-full items-center gap-3 border-l-4 border-l-transparent px-4 py-2.5 text-left text-terminal-dim transition-all hover:border-l-terminal-dim/40 hover:bg-terminal-dim/5 hover:text-terminal-text"
     >
-      <div className="flex items-start justify-between gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-terminal-dim/25 bg-terminal-dim/5 text-terminal-text transition-colors group-hover:border-terminal-text/35 group-hover:bg-terminal-text/10">
-          <Icon className="h-4 w-4" strokeWidth={1.75} />
-        </span>
-        <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-terminal-dim transition-transform group-hover:translate-x-0.5 group-hover:text-terminal-text" />
-      </div>
-      <div>
-        <div className="font-mono text-[8px] uppercase tracking-[0.24em] text-terminal-dim/75">
-          Quick Jump
-        </div>
-        <div className="mt-1 font-mono text-xs font-semibold uppercase tracking-[0.14em] text-terminal-text">
-          {label}
-        </div>
-        <div className="mt-1 text-[11px] leading-snug text-terminal-dim">{detail}</div>
-      </div>
+      <Icon size={15} strokeWidth={1.75} className="shrink-0" />
+      <span className="flex-1 font-mono text-sm uppercase tracking-[0.12em]">{label}</span>
+      {badge}
+      <span className="opacity-0 group-hover:opacity-60 transition-opacity">→</span>
     </button>
   );
 }
@@ -86,225 +74,197 @@ function QuickActionCard({
 export const DesktopNavChrome = React.memo(function DesktopNavChrome({
   drawerOpen,
   onCloseDrawer,
+  onOpenDrawer,
   navigateToBoard,
   onSetViewMode,
   hasIdentity = false,
-  children,
 }: DesktopNavChromeProps) {
   const relay = useRelaySummary();
   const drawerRef = useRef<HTMLDivElement>(null);
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
-  const titleId = React.useId();
-  const utilityMode = hasIdentity ? ViewMode.IDENTITY : ViewMode.SETTINGS;
-  const utilityLabel = hasIdentity ? 'Identity & Keys' : 'Settings';
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const railRef = useRef<HTMLButtonElement>(null);
+  const prevFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!drawerOpen) {
       document.body.style.overflow = '';
-      previouslyFocusedRef.current?.focus();
-      previouslyFocusedRef.current = null;
+      prevFocusRef.current?.focus();
+      prevFocusRef.current = null;
       return;
     }
 
-    previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
+    prevFocusRef.current = document.activeElement as HTMLElement;
     document.body.style.overflow = 'hidden';
-    closeButtonRef.current?.focus();
+    closeRef.current?.focus();
 
-    const onKeyDown = (e: KeyboardEvent) => {
+    const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
         onCloseDrawer();
         return;
       }
+      if (e.key !== 'Tab' || !drawerRef.current) return;
 
-      if (e.key !== 'Tab') return;
-
-      const drawer = drawerRef.current;
-      if (!drawer) return;
-
-      const focusable = Array.from(
-        drawer.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      const els = Array.from(
+        drawerRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])',
         ),
       ) as HTMLElement[];
-
-      if (focusable.length === 0) {
+      if (!els.length) {
         e.preventDefault();
-        drawer.focus();
+        drawerRef.current.focus();
         return;
       }
 
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      const active = document.activeElement as HTMLElement | null;
+      const first = els[0];
+      const last = els[els.length - 1];
+      const cur = document.activeElement as HTMLElement | null;
 
-      if (e.shiftKey && active === first) {
+      if (e.shiftKey && cur === first) {
         e.preventDefault();
         last.focus();
-      } else if (!e.shiftKey && active === last) {
+      } else if (!e.shiftKey && cur === last) {
         e.preventDefault();
         first.focus();
       }
     };
 
-    document.addEventListener('keydown', onKeyDown);
-
+    document.addEventListener('keydown', handleKey);
     return () => {
       document.body.style.overflow = '';
-      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('keydown', handleKey);
     };
   }, [drawerOpen, onCloseDrawer]);
 
-  const openGlobalFeed = () => {
-    navigateToBoard(null);
-    onSetViewMode(ViewMode.FEED);
-    onCloseDrawer();
-  };
-
-  const goToFullView = (mode: ViewMode) => {
+  const go = (mode: ViewMode) => {
     onSetViewMode(mode);
     onCloseDrawer();
   };
 
-  const quickActions = [
-    {
-      label: 'Global Feed',
-      detail: 'Return to the main timeline and close the drawer.',
-      icon: Globe,
-      onClick: openGlobalFeed,
-    },
-    {
-      label: 'Board Directory',
-      detail: 'Open the full boards browser instead of hunting through a list.',
-      icon: Hash,
-      onClick: () => goToFullView(ViewMode.BROWSE_BOARDS),
-    },
-    {
-      label: 'Discover Nostr',
-      detail: 'Jump into seeded discovery and trending posts.',
-      icon: Compass,
-      onClick: () => goToFullView(ViewMode.DISCOVER_NOSTR),
-    },
-    {
-      label: 'Communities',
-      detail: 'Browse saved and external Nostr communities.',
-      icon: ExternalLink,
-      onClick: () => goToFullView(ViewMode.EXTERNAL_COMMUNITIES),
-    },
-    {
-      label: 'Nearby',
-      detail: 'Check local channels and location-based activity.',
-      icon: MapPin,
-      onClick: () => goToFullView(ViewMode.LOCATION),
-    },
-    {
-      label: utilityLabel,
-      detail: hasIdentity
-        ? 'Manage keys, session state, and account controls.'
-        : 'Open preferences and connection setup.',
-      icon: User,
-      onClick: () => goToFullView(utilityMode),
-    },
-  ];
-
   return (
     <>
-      {drawerOpen ? (
-        <>
+      {/* Rail button — always visible on desktop */}
+      <button
+        ref={railRef}
+        type="button"
+        onClick={() => (drawerOpen ? onCloseDrawer() : onOpenDrawer())}
+        aria-label={drawerOpen ? 'Close navigation panel' : 'Open navigation panel'}
+        className="fixed right-0 top-1/2 -translate-y-1/2 z-[44] flex h-12 w-6 items-center justify-center border-l-2 border-b border-r-0 border-t-2 border-terminal-dim/40 bg-terminal-bg/90 text-terminal-dim transition-all duration-200 hover:border-terminal-text hover:text-terminal-text"
+        style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
+      >
+        <ChevronRight
+          size={14}
+          strokeWidth={2}
+          className={`transition-transform duration-200 ${drawerOpen ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {/* Scrim */}
+      <button
+        type="button"
+        aria-label="Close navigation overlay"
+        className={`fixed inset-0 z-[42] cursor-default border-0 bg-black/30 backdrop-blur-[1px] transition-opacity duration-200 ${
+          drawerOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={onCloseDrawer}
+      />
+
+      {/* Panel */}
+      <div
+        ref={drawerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Navigation"
+        tabIndex={-1}
+        className={`fixed bottom-0 right-0 top-0 z-[43] flex w-full flex-col border-l border-terminal-dim/25 bg-terminal-bg/98 shadow-[-8px_0_24px_rgba(0,0,0,0.4)] transition-transform duration-200 ease-out ${
+          DRAWER_W
+        } ${drawerOpen ? 'translate-x-0' : 'translate-x-full'}`}
+      >
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between border-b border-terminal-dim/20 px-4 py-3">
+          <div>
+            <p className="font-mono text-[8px] uppercase tracking-[0.3em] text-terminal-dim/60">
+              Navigate
+            </p>
+            <p className="mt-0.5 font-mono text-lg font-bold tracking-tight text-terminal-text">
+              BitBoard
+            </p>
+          </div>
+          <button
+            ref={closeRef}
+            type="button"
+            onClick={onCloseDrawer}
+            className="flex h-9 w-9 items-center justify-center border border-terminal-dim/30 bg-terminal-text/5 text-terminal-dim transition-colors hover:border-terminal-dim/60 hover:text-terminal-text focus:outline-none focus-visible:ring-2 focus-visible:ring-terminal-text/50"
+            aria-label="Close navigation"
+          >
+            <ChevronRight size={13} strokeWidth={2} />
+          </button>
+        </div>
+
+        {/* Quick nav */}
+        <nav className="flex-1 overflow-y-auto py-2" aria-label="Quick navigation">
+          <DrawerRow
+            icon={Globe}
+            label="Global Feed"
+            onClick={() => {
+              navigateToBoard(null);
+              onCloseDrawer();
+            }}
+          />
+          <DrawerRow
+            icon={Hash}
+            label="Board Directory"
+            onClick={() => go(ViewMode.BROWSE_BOARDS)}
+          />
+          <DrawerRow
+            icon={Compass}
+            label="Discover Nostr"
+            onClick={() => go(ViewMode.DISCOVER_NOSTR)}
+          />
+          <DrawerRow
+            icon={ExternalLink}
+            label="Communities"
+            onClick={() => go(ViewMode.EXTERNAL_COMMUNITIES)}
+          />
+          <DrawerRow icon={MapPin} label="Nearby" onClick={() => go(ViewMode.LOCATION)} />
+          <DrawerRow icon={Bookmark} label="Bookmarks" onClick={() => go(ViewMode.BOOKMARKS)} />
+          <DrawerRow icon={Bell} label="Notifications" onClick={() => go(ViewMode.NOTIFICATIONS)} />
+          {hasIdentity && (
+            <DrawerRow icon={User} label="Identity & Keys" onClick={() => go(ViewMode.IDENTITY)} />
+          )}
+          {!hasIdentity && (
+            <DrawerRow icon={User} label="Connect Identity" onClick={() => go(ViewMode.IDENTITY)} />
+          )}
+          <DrawerRow icon={Settings} label="Settings" onClick={() => go(ViewMode.SETTINGS)} />
+        </nav>
+
+        {/* Relay health footer */}
+        <div className="border-t border-terminal-dim/20 px-4 py-3">
           <button
             type="button"
-            aria-label="Close navigation menu"
-            className="fixed inset-0 z-[42] hidden border-0 bg-black/55 backdrop-blur-[1.5px] md:block"
-            onClick={onCloseDrawer}
-          />
-
-          <div
-            ref={drawerRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            tabIndex={-1}
-            className={`fixed bottom-0 right-0 top-0 z-[44] hidden ${DRAWER_W} flex-col border-l border-terminal-dim/20 bg-terminal-bg/95 shadow-[-16px_0_42px_rgba(0,0,0,0.55)] md:flex`}
+            onClick={() => go(ViewMode.RELAYS)}
+            className="flex w-full items-center justify-between text-left"
           >
-            <header className="shrink-0 border-b border-terminal-dim/20 bg-terminal-bg px-5 py-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="font-mono text-[8px] uppercase tracking-[0.28em] text-terminal-dim/70">
-                    Control Deck
-                  </div>
-                  <div
-                    id={titleId}
-                    className="mt-2 truncate font-mono text-3xl font-bold tracking-tight text-terminal-text"
-                  >
-                    BitBoard
-                  </div>
-                  <p className="mt-2 max-w-[18rem] text-[11px] leading-relaxed text-terminal-dim">
-                    Keep the CRT mood, but lead with clear destinations and a calmer right-side
-                    menu.
-                  </p>
-                </div>
-                <button
-                  ref={closeButtonRef}
-                  type="button"
-                  onClick={onCloseDrawer}
-                  className="flex h-12 min-w-[3.5rem] shrink-0 items-center justify-center gap-1 border border-terminal-dim/30 bg-terminal-text/5 px-3 text-terminal-dim transition-colors hover:border-terminal-text/40 hover:text-terminal-text focus:outline-none focus-visible:ring-2 focus-visible:ring-terminal-text/50"
-                  aria-label="Close menu"
-                >
-                  <ChevronRight className="h-4 w-4 shrink-0 text-terminal-text" strokeWidth={2} />
-                  <span className="font-mono text-[7px] font-semibold uppercase tracking-[0.24em] text-terminal-dim">
-                    Close
-                  </span>
-                </button>
-              </div>
-
-              <div
-                className="mt-4 grid grid-cols-2 gap-2"
-                aria-label="Desktop navigation quick access"
-              >
-                {quickActions.map((action) => (
-                  <div key={action.label}>
-                    <QuickActionCard
-                      label={action.label}
-                      detail={action.detail}
-                      icon={action.icon}
-                      onClick={action.onClick}
-                    />
-                  </div>
-                ))}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => goToFullView(ViewMode.RELAYS)}
-                className="mt-3 flex w-full items-center gap-3 border border-terminal-dim/20 bg-terminal-dim/5 px-3 py-2.5 text-left transition-colors hover:border-terminal-text/35 hover:bg-terminal-dim/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-terminal-text/50"
-              >
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-terminal-dim/25 bg-terminal-bg/60">
-                  {relay.health === 'good' ? (
-                    <Wifi className="h-4 w-4 text-terminal-text" />
-                  ) : (
-                    <WifiOff className="h-4 w-4 text-terminal-alert" />
-                  )}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="font-mono text-[8px] uppercase tracking-[0.24em] text-terminal-dim/70">
-                    Relay Health
-                  </div>
-                  <div className="mt-1 font-mono text-xs font-semibold uppercase tracking-[0.14em] text-terminal-text">
-                    Open Relay Settings
-                  </div>
-                </div>
-                <span className="font-mono text-sm font-bold tabular-nums text-terminal-text">
-                  {relay.connected}/{relay.total}
-                </span>
-              </button>
-            </header>
-            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 pb-5 pt-4">
-              {children}
-            </div>
-          </div>
-        </>
-      ) : null}
+            <span className="flex items-center gap-2">
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  relay.health === 'good'
+                    ? 'bg-terminal-text'
+                    : relay.health === 'degraded'
+                      ? 'bg-yellow-500'
+                      : 'bg-terminal-alert'
+                }`}
+              />
+              <span className="font-mono text-[10px] uppercase tracking-wider text-terminal-dim">
+                Relay Status
+              </span>
+            </span>
+            <span className="font-mono text-xs font-bold tabular-nums text-terminal-text">
+              {relay.connected}/{relay.total}
+            </span>
+          </button>
+        </div>
+      </div>
     </>
   );
 });

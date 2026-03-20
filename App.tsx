@@ -611,40 +611,18 @@ const AppContent: React.FC = () => {
             navigateToBoard={app.navigateToBoard}
             onSetViewMode={app.setViewMode}
             onRequestCloseNav={() => setIsDrawerOpen(false)}
-            inMobileDrawer={true}
+            layout="drawer"
           />
         </MobileDrawer>
 
         <DesktopNavChrome
           drawerOpen={desktopNavOpen}
           onCloseDrawer={() => setDesktopNavOpen(false)}
+          onOpenDrawer={() => setDesktopNavOpen(true)}
           navigateToBoard={app.navigateToBoard}
           onSetViewMode={app.setViewMode}
           hasIdentity={!!app.userState.identity}
-        >
-          <Sidebar
-            userState={app.userState}
-            setUserState={app.setUserState}
-            theme={app.theme}
-            setTheme={app.setTheme}
-            getThemeColor={app.getThemeColor}
-            isNostrConnected={app.isNostrConnected}
-            viewMode={app.viewMode}
-            activeBoardId={app.activeBoardId}
-            feedFilter={app.feedFilter}
-            setFeedFilter={app.setFeedFilter}
-            topicBoards={app.topicBoards ?? []}
-            externalCommunities={app.externalCommunities ?? []}
-            geohashBoards={app.geohashBoards ?? []}
-            boardsById={app.boardsById ?? new Map()}
-            decryptionFailedBoardIds={app.decryptionFailedBoardIds}
-            removeFailedDecryptionKey={app.removeFailedDecryptionKey}
-            navigateToBoard={app.navigateToBoard}
-            onSetViewMode={app.setViewMode}
-            onRequestCloseNav={() => setDesktopNavOpen(false)}
-            layout="overlay"
-          />
-        </DesktopNavChrome>
+        />
 
         <div className="max-w-[1174px] mx-auto p-3 md:p-6 relative z-10 pb-20 md:pb-6">
           <AppHeader
@@ -652,9 +630,8 @@ const AppContent: React.FC = () => {
             onOpenDesktopNav={() => setDesktopNavOpen(true)}
           />
 
-          <div className="grid grid-cols-1 gap-4 md:gap-8 py-[5px]">
-            {/* Main Content — full width; 56px rail + drawer live in DesktopNavChrome */}
-            <main className="min-w-0">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4 md:gap-6 py-[5px]">
+            <main className="min-w-0 md:col-span-3">
               {/* Feed View */}
               {app.viewMode === ViewMode.FEED && (
                 <FeedView
@@ -882,6 +859,31 @@ const AppContent: React.FC = () => {
                 </Suspense>
               )}
             </main>
+
+            {/* Desktop sidebar — always visible on md+, hidden on mobile */}
+            <aside className="hidden md:block">
+              <Sidebar
+                userState={app.userState}
+                setUserState={app.setUserState}
+                theme={app.theme}
+                setTheme={app.setTheme}
+                getThemeColor={app.getThemeColor}
+                isNostrConnected={app.isNostrConnected}
+                viewMode={app.viewMode}
+                activeBoardId={app.activeBoardId}
+                feedFilter={app.feedFilter}
+                setFeedFilter={app.setFeedFilter}
+                topicBoards={app.topicBoards ?? []}
+                externalCommunities={app.externalCommunities ?? []}
+                geohashBoards={app.geohashBoards ?? []}
+                boardsById={app.boardsById ?? new Map()}
+                decryptionFailedBoardIds={app.decryptionFailedBoardIds}
+                removeFailedDecryptionKey={app.removeFailedDecryptionKey}
+                navigateToBoard={app.navigateToBoard}
+                onSetViewMode={app.setViewMode}
+                layout="inline"
+              />
+            </aside>
           </div>
         </div>
 

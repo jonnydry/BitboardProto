@@ -1,14 +1,12 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   HelpCircle,
   Hash,
-  Lock,
   Globe,
   Eye,
   Key,
   MapPin,
   Radio,
-  Activity,
   User,
   ChevronDown,
   ChevronRight,
@@ -28,85 +26,11 @@ import { geohashService } from '../../services/geohashService';
 import { encryptedBoardService } from '../../services/encryptedBoardService';
 import { nostrService, type RelayStatus } from '../../services/nostr/NostrService';
 
-/** Short blurbs for theme tiles (drawer / mobile). */
-const THEME_TAGLINES: Record<ThemeId, string> = {
-  [ThemeId.AMBER]: 'OG warm CRT',
-  [ThemeId.PHOSPHOR]: 'Matrix glow',
-  [ThemeId.PLASMA]: 'Ice trace',
-  [ThemeId.VERMILION]: 'Angry HUD',
-  [ThemeId.SLATE]: 'No drama',
-  [ThemeId.PATRIOT]: 'Stars & bars',
-  [ThemeId.SAKURA]: 'Cherry shock',
-  [ThemeId.BITBORING]: 'Spreadsheet',
-};
-
-// Collapsible section component for mobile
-function CollapsibleSection({
-  title,
-  icon: Icon,
-  defaultOpen = false,
-  mobileOnly = true,
-  collapseOnDesktop = false,
-  variant = 'default',
-  badge,
-  children,
-}: {
-  title: string;
-  icon: React.ElementType;
-  defaultOpen?: boolean;
-  mobileOnly?: boolean;
-  /** When true, section stays collapsible at md+ (overlay drawer). */
-  collapseOnDesktop?: boolean;
-  variant?: 'default' | 'overlay';
-  badge?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-  const contentId = React.useId();
-  const expandOnMd = mobileOnly && !collapseOnDesktop;
-  const isOverlay = variant === 'overlay';
-
-  return (
-    <div
-      className={
-        isOverlay
-          ? 'border border-terminal-dim/20 bg-terminal-bg/70 px-3 py-2.5 shadow-[-4px_4px_0_rgba(0,0,0,0.18)] backdrop-blur-[2px]'
-          : 'border border-terminal-dim bg-terminal-bg p-2 shadow-hard md:p-3'
-      }
-    >
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        type="button"
-        className={
-          isOverlay
-            ? `flex w-full items-center gap-2 text-left text-sm font-bold transition-colors hover:text-terminal-text ${isOpen ? 'border-b border-terminal-dim/20 pb-2.5' : ''}`
-            : `flex w-full items-center gap-2 border-b border-terminal-dim pb-1 text-xs font-bold md:text-sm ${expandOnMd ? 'md:cursor-default' : ''} mb-2`
-        }
-        aria-expanded={isOpen}
-        aria-controls={contentId}
-      >
-        <Icon size={14} />
-        <span className="flex-1 text-left">
-          {'>>'} {title}
-        </span>
-        {badge}
-        <span className={`transition-transform ${expandOnMd ? 'md:hidden' : ''}`}>
-          {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        </span>
-      </button>
-      <div
-        id={contentId}
-        className={`${isOpen ? 'block' : 'hidden'} ${expandOnMd ? 'md:block' : ''} ${isOverlay ? 'pt-3' : ''}`}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
+export type SidebarLayout = 'inline' | 'drawer';
 
 interface SidebarProps {
-  userState: any;
-  setUserState: (value: any) => void;
+  userState: { identity?: { npub: string; pubkey: string }; username: string };
+  setUserState: (value: (prev: any) => any) => void;
   theme: ThemeId;
   setTheme: (theme: ThemeId) => void;
   getThemeColor: (id: ThemeId) => string;
@@ -114,7 +38,7 @@ interface SidebarProps {
   viewMode: ViewMode;
   activeBoardId: string | null;
   feedFilter: string;
-  setFeedFilter: (filter: any) => void;
+  setFeedFilter: (filter: string) => void;
   topicBoards: Board[];
   externalCommunities: Board[];
   geohashBoards: Board[];
@@ -123,10 +47,68 @@ interface SidebarProps {
   removeFailedDecryptionKey?: (boardId: string) => void;
   navigateToBoard: (id: string | null) => void;
   onSetViewMode: (mode: ViewMode) => void;
+  /** Called after a navigation action — use to close a containing drawer. */
   onRequestCloseNav?: () => void;
-  inMobileDrawer?: boolean;
-  /** Desktop overlay drawer - collapsible sections + padded column. */
-  layout?: 'column' | 'overlay';
+  /** 'inline' = always-visible desktop panel; 'drawer' = inside a mobile/full-screen drawer */
+  layout?: SidebarLayout;
+}
+
+function SectionButton({
+  isOpen,
+  onClick,
+  children,
+}: {
+  isOpen: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-2 border-b border-terminal-dim/30 py-2 text-left text-xs font-bold uppercase tracking-wider text-terminal-dim transition-colors hover:text-terminal-text"
+    >
+      <span className="text-[10px]">
+        {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+      </span>
+      {children}
+    </button>
+  );
+}
+
+function NavRow({
+  icon: Icon,
+  label,
+  active,
+  badge,
+  onClick,
+}: {
+  icon: React.ElementType;
+  label: string;
+  active?: boolean;
+  badge?: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group flex w-full items-center gap-3 border px-3 py-2.5 text-left text-xs transition-all ${
+        active
+          ? 'border-terminal-text bg-terminal-dim/10 text-terminal-text'
+          : 'border-transparent text-terminal-dim hover:border-terminal-dim/30 hover:bg-terminal-dim/5 hover:text-terminal-text'
+      }`}
+    >
+      <Icon size={14} strokeWidth={1.75} className="shrink-0" />
+      <span className="flex-1 font-mono uppercase tracking-[0.12em]">{label}</span>
+      {badge}
+      <span
+        className={`text-terminal-dim transition-transform ${active ? 'opacity-100' : 'opacity-0 group-hover:opacity-70'}`}
+      >
+        →
+      </span>
+    </button>
+  );
 }
 
 export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
@@ -139,7 +121,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
     viewMode,
     activeBoardId,
     feedFilter,
-    setFeedFilter: setFeedFilterRaw,
+    setFeedFilter,
     topicBoards = [],
     externalCommunities = [],
     geohashBoards = [],
@@ -149,941 +131,461 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
     navigateToBoard,
     onSetViewMode,
     onRequestCloseNav,
-    inMobileDrawer = false,
-    layout = 'column',
+    layout = 'inline',
   } = props;
 
-  const collapseDesktop = layout === 'overlay';
-  const isOverlayLayout = layout === 'overlay';
-  const useThemeTiles = inMobileDrawer || layout === 'overlay';
-  const sectionVariant = isOverlayLayout ? 'overlay' : 'default';
-  const overlayPanelClass =
-    'border border-terminal-dim/20 bg-terminal-bg/70 shadow-[-4px_4px_0_rgba(0,0,0,0.18)] backdrop-blur-[2px]';
+  const isDrawer = layout === 'drawer';
 
-  // Nearby activity state
-  const [nearbyActivity, setNearbyActivity] = useState<GeoChannel[]>([]);
-  const [isLoadingActivity, setIsLoadingActivity] = useState(false);
-  // Board search filter
-  const [boardSearchQuery, setBoardSearchQuery] = useState('');
-  // Pagination for boards
-  const [visibleBoardCount, setVisibleBoardCount] = useState(10);
-  // Relay status state
-  const [relayStatuses, setRelayStatuses] = useState<RelayStatus[]>([]);
+  // ── Relay status ──────────────────────────────────────────────────────────
+  const [relayStatuses, setRelayStatuses] = useState<RelayStatus[]>(() =>
+    nostrService.getRelayStatuses(),
+  );
   const [showRelayDetails, setShowRelayDetails] = useState(false);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    FILTER: true,
+    TOPIC_NET: true,
+    COMMUNITIES: false,
+    SECURE_NET: false,
+    GEO_NET: false,
+    DISCOVER: false,
+    THEME: false,
+    IDENTITY: false,
+  });
+  const toggleSection = (key: string) =>
+    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
 
-  // Update relay statuses periodically
   useEffect(() => {
-    const updateRelayStatuses = () => {
-      setRelayStatuses(nostrService.getRelayStatuses());
-    };
-
-    // Initial load
-    updateRelayStatuses();
-
-    // Update every 5 seconds
-    const interval = setInterval(updateRelayStatuses, 5000);
-
-    return () => clearInterval(interval);
+    const tick = () => setRelayStatuses(nostrService.getRelayStatuses());
+    tick();
+    const id = window.setInterval(tick, 5000);
+    return () => window.clearInterval(id);
   }, []);
 
-  // Calculate relay health metrics
   const relayMetrics = useMemo(() => {
     const total = relayStatuses.length;
     const connected = relayStatuses.filter((s) => s.isConnected).length;
-    const errored = relayStatuses.filter((s) => s.lastError && !s.isConnected).length;
-    const reconnecting = relayStatuses.filter((s) => s.nextReconnectTime && !s.isConnected).length;
-
-    // Overall health: green if >50% connected, yellow if >0 connected, red if none
-    let healthStatus: 'good' | 'degraded' | 'offline' = 'offline';
-    if (connected > 0) {
-      healthStatus = connected >= total / 2 ? 'good' : 'degraded';
-    }
-
-    return { total, connected, errored, reconnecting, healthStatus };
+    let health: 'good' | 'degraded' | 'offline' = 'offline';
+    if (connected > 0) health = connected >= total / 2 ? 'good' : 'degraded';
+    return { total, connected, health };
   }, [relayStatuses]);
 
-  // Load cached discovery result on mount
+  // ── Nearby activity ───────────────────────────────────────────────────────
+  const [nearbyActivity, setNearbyActivity] = useState<GeoChannel[]>([]);
+  const [isLoadingActivity, setIsLoadingActivity] = useState(false);
+
   useEffect(() => {
     const cached = geonetDiscoveryService.getCachedResult();
-    if (cached) {
-      setNearbyActivity(cached.channels);
-    }
+    if (cached) setNearbyActivity(cached.channels);
   }, []);
 
-  // Discover nearby activity when user has location boards
   useEffect(() => {
-    if (geohashBoards.length > 0) {
-      // User has location enabled, try to get activity
-      const cachedPosition = geohashService.getCachedPosition();
-      if (cachedPosition) {
-        setIsLoadingActivity(true);
-        geonetDiscoveryService
-          .discoverNearbyChannels(cachedPosition.coords.latitude, cachedPosition.coords.longitude)
-          .then((result) => {
-            setNearbyActivity(result.channels);
-          })
-          .catch((err) => {
-            console.warn('[Sidebar] Failed to discover activity:', err);
-          })
-          .finally(() => {
-            setIsLoadingActivity(false);
-          });
-      }
-    }
+    if (geohashBoards.length === 0) return;
+    const cached = geohashService.getCachedPosition();
+    if (!cached) return;
+    setIsLoadingActivity(true);
+    geonetDiscoveryService
+      .discoverNearbyChannels(cached.coords.latitude, cached.coords.longitude)
+      .then((r) => setNearbyActivity(r.channels))
+      .catch(() => {})
+      .finally(() => setIsLoadingActivity(false));
   }, [geohashBoards.length]);
 
-  // Calculate total nearby posts
-  const totalNearbyPosts = nearbyActivity.reduce((sum, ch) => sum + ch.postCount, 0);
-  const recentlyActiveCount = nearbyActivity.filter((ch) =>
-    geonetDiscoveryService.isRecentlyActive(ch),
-  ).length;
+  const totalNearbyPosts = nearbyActivity.reduce((s, ch) => s + ch.postCount, 0);
 
-  // Get encrypted boards the user has keys for
+  // ── Boards ───────────────────────────────────────────────────────────────
   const encryptedBoards = useMemo(() => {
-    const encryptedIds = encryptedBoardService.getEncryptedBoardIds();
-    return encryptedIds
+    return encryptedBoardService
+      .getEncryptedBoardIds()
       .map((id) => boardsById.get(id))
-      .filter((board): board is Board => board !== undefined && board.isEncrypted === true);
+      .filter((b): b is Board => b !== undefined && b.isEncrypted === true);
   }, [boardsById]);
 
-  const navigateToBoardAndClose = (boardId: string | null) => {
-    navigateToBoard(boardId);
-    onRequestCloseNav?.();
-  };
-
-  const setViewModeAndClose = (mode: ViewMode) => {
-    onSetViewMode(mode);
-    onRequestCloseNav?.();
-  };
-
-  const identityConfigContent = (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-bold uppercase text-terminal-dim">Display_Handle:</label>
-        <div className="relative">
-          <span className="absolute left-2 top-1.5 text-terminal-dim">{'>'}</span>
-          <input
-            type="text"
-            value={userState.username}
-            onChange={(e) => setUserState((prev) => ({ ...prev, username: e.target.value }))}
-            className="w-full border border-terminal-dim bg-terminal-bg py-1 pl-6 pr-2 font-mono text-sm text-terminal-text transition-all focus:border-terminal-text focus:outline-none focus:ring-1 focus:ring-terminal-text/50"
-          />
-        </div>
-      </div>
-      <button
-        onClick={() => setViewModeAndClose(ViewMode.SETTINGS)}
-        className="mt-2 flex items-center justify-center gap-1 border border-terminal-dim/30 p-1.5 text-xs text-terminal-dim transition-all hover:border-terminal-dim hover:text-terminal-text"
-      >
-        <HelpCircle size={10} /> Settings
-      </button>
-      {userState.identity && (
-        <button
-          onClick={() => setViewModeAndClose(ViewMode.IDENTITY)}
-          className="mt-2 flex items-center justify-center gap-1 border border-terminal-dim/30 p-1.5 text-xs text-terminal-dim transition-all hover:border-terminal-dim hover:text-terminal-text"
-        >
-          <Key size={10} /> Manage_Keys
-        </button>
-      )}
-    </div>
+  const publicTopicBoards = useMemo(
+    () => topicBoards.filter((b) => b.type === BoardType.TOPIC && b.isPublic),
+    [topicBoards],
   );
 
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  const nav = (action: () => void) => {
+    action();
+    onRequestCloseNav?.();
+  };
+
+  // ── Theme taglines ────────────────────────────────────────────────────────
+  const THEME_LABELS: Record<ThemeId, string> = {
+    [ThemeId.AMBER]: 'Amber',
+    [ThemeId.PHOSPHOR]: 'Phosphor',
+    [ThemeId.PLASMA]: 'Plasma',
+    [ThemeId.VERMILION]: 'Vermilion',
+    [ThemeId.SLATE]: 'Slate',
+    [ThemeId.PATRIOT]: 'Patriot',
+    [ThemeId.SAKURA]: 'Sakura',
+    [ThemeId.BITBORING]: 'Boring',
+  };
+
+  const BASE = isDrawer ? 'flex flex-col gap-3 overflow-y-auto p-4' : 'order-first space-y-3';
+
   return (
-    <aside
-      className={
-        layout === 'overlay'
-          ? 'flex h-full min-h-0 w-full flex-col gap-2.5'
-          : inMobileDrawer
-            ? 'space-y-2'
-            : 'order-first md:order-none space-y-2 md:space-y-4'
-      }
-    >
-      {/* Connection Status - Always visible but compact on mobile */}
-      <div
-        className={`relative overflow-hidden group ${isOverlayLayout ? `${overlayPanelClass} p-3 md:p-4` : 'border border-terminal-dim bg-terminal-bg p-2 shadow-hard md:p-3'}`}
-      >
-        <div className="absolute inset-0 bg-terminal-dim/5 translate-x-[-100%] group-hover:translate-x-full transition-transform duration-1000 pointer-events-none" />
-        <div className="flex items-center justify-between text-xs mb-1">
-          <span className="text-terminal-dim font-bold text-xs">SYSTEM_STATUS</span>
-          <div className="flex gap-1 items-center">
-            {/* Relay health indicator dots */}
-            {relayMetrics.healthStatus === 'good' && (
-              <div
-                className="w-2 h-2 rounded-sm bg-terminal-text animate-pulse"
-                title="Relays healthy"
-              />
-            )}
-            {relayMetrics.healthStatus === 'degraded' && (
-              <div
-                className="w-2 h-2 rounded-sm bg-yellow-500 animate-pulse"
-                title="Some relays offline"
-              />
-            )}
-            {relayMetrics.healthStatus === 'offline' && (
-              <div className="w-2 h-2 rounded-sm bg-terminal-alert" title="All relays offline" />
-            )}
-            <div
-              className={`w-2 h-2 rounded-sm ${userState.identity ? 'bg-terminal-text' : 'bg-terminal-dim/30'}`}
-            />
-          </div>
-        </div>
-        <div className="font-mono text-xs text-terminal-dim leading-tight">
-          {/* Relay connection with click to expand */}
-          <button
-            onClick={() => setShowRelayDetails(!showRelayDetails)}
-            className="w-full flex justify-between items-center hover:text-terminal-text transition-colors"
-          >
-            <span className="flex items-center gap-1">
-              {relayMetrics.connected > 0 ? <Wifi size={10} /> : <WifiOff size={10} />}
-              RELAY_LINK:
-            </span>
+    <aside className={BASE}>
+      {/* ── Relay status ── */}
+      <div className="border border-terminal-dim bg-terminal-bg p-3">
+        <button
+          type="button"
+          onClick={() => setShowRelayDetails(!showRelayDetails)}
+          className="flex w-full items-center justify-between text-xs text-terminal-dim hover:text-terminal-text transition-colors"
+        >
+          <span className="flex items-center gap-2 font-mono uppercase tracking-wider">
             <span
-              className={`flex items-center gap-1 ${
-                relayMetrics.healthStatus === 'good'
+              className={`h-2 w-2 rounded-full ${
+                relayMetrics.health === 'good'
+                  ? 'bg-terminal-text animate-pulse'
+                  : relayMetrics.health === 'degraded'
+                    ? 'bg-yellow-500 animate-pulse'
+                    : 'bg-terminal-alert'
+              }`}
+            />
+            RELAY [{relayMetrics.connected}/{relayMetrics.total}]
+          </span>
+          <span className="flex items-center gap-1">
+            <span
+              className={`font-mono text-terminal-text ${
+                relayMetrics.health === 'good'
                   ? 'text-terminal-text'
-                  : relayMetrics.healthStatus === 'degraded'
+                  : relayMetrics.health === 'degraded'
                     ? 'text-yellow-500'
                     : 'text-terminal-alert'
               }`}
             >
-              [{relayMetrics.connected}/{relayMetrics.total}]
-              <ChevronDown
-                size={10}
-                className={`transition-transform ${showRelayDetails ? 'rotate-180' : ''}`}
-              />
+              {relayMetrics.health.toUpperCase()}
             </span>
-          </button>
+            <ChevronDown
+              size={10}
+              className={`transition-transform ${showRelayDetails ? 'rotate-180' : ''}`}
+            />
+          </span>
+        </button>
 
-          {/* Expanded relay details */}
-          {showRelayDetails && (
-            <div className="mt-2 space-y-1 border-t border-terminal-dim/30 pt-2 max-h-[150px] overflow-y-auto">
-              {relayStatuses.map((relay) => {
-                const urlShort = relay.url.replace('wss://', '').replace('ws://', '').split('/')[0];
-                return (
-                  <div key={relay.url} className="flex items-center justify-between gap-2">
-                    <span className="truncate flex-1" title={relay.url}>
-                      {urlShort}
-                    </span>
-                    <span className="flex items-center gap-1 flex-shrink-0">
-                      {relay.isConnected ? (
-                        <span className="text-terminal-text flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-terminal-text" />
-                          OK
-                        </span>
-                      ) : relay.nextReconnectTime ? (
-                        <span className="text-yellow-500 flex items-center gap-1">
-                          <RefreshCw size={8} className="animate-spin" />
-                          RETRY
-                        </span>
-                      ) : (
-                        <span className="text-terminal-alert flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-terminal-alert" />
-                          ERR
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                );
-              })}
-              {relayStatuses.length === 0 && (
-                <div className="text-terminal-dim/70 text-center py-1">No relays configured</div>
-              )}
-            </div>
-          )}
-
-          <div className="flex justify-between mt-0.5">
-            <span>USER_AUTH:</span>
-            <span className={userState.identity ? 'text-terminal-text' : 'text-terminal-dim'}>
-              {userState.identity ? '[VERIFIED]' : '[GUEST]'}
-            </span>
-          </div>
-        </div>
-        {userState.identity && (
-          <div className="hidden md:block mt-2 text-sm text-terminal-dim truncate border-t border-terminal-dim/30 pt-1">
-            KEY: {userState.identity.npub.slice(0, 16)}...
+        {showRelayDetails && (
+          <div className="mt-2 space-y-1 border-t border-terminal-dim/25 pt-2 max-h-32 overflow-y-auto">
+            {relayStatuses.map((r) => {
+              const host = r.url.replace('wss://', '').replace('ws://', '').split('/')[0];
+              return (
+                <div key={r.url} className="flex items-center justify-between gap-2 text-[10px]">
+                  <span className="truncate font-mono text-terminal-dim" title={r.url}>
+                    {host}
+                  </span>
+                  <span className="shrink-0">
+                    {r.isConnected ? (
+                      <span className="text-terminal-text">● OK</span>
+                    ) : r.nextReconnectTime ? (
+                      <span className="text-yellow-500 animate-pulse">↻</span>
+                    ) : (
+                      <span className="text-terminal-alert">✕</span>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+            {relayStatuses.length === 0 && (
+              <p className="text-[10px] text-terminal-dim/60 text-center py-1">No relays</p>
+            )}
           </div>
         )}
       </div>
 
-      {/* Feed Filter (when on global feed) - Collapsible on mobile */}
+      {/* ── Feed filter (global feed only) ── */}
       {!activeBoardId && viewMode === ViewMode.FEED && (
-        <CollapsibleSection
-          title="FILTER_MODE"
-          icon={Radio}
-          defaultOpen={true}
-          collapseOnDesktop={collapseDesktop}
-          variant={sectionVariant}
-        >
-          <div className="flex flex-row md:flex-col gap-1 overflow-x-auto md:overflow-x-visible pb-1 md:pb-0">
+        <div className="border border-terminal-dim bg-terminal-bg p-3">
+          <SectionButton
+            isOpen={openSections.FILTER}
+            onClick={() => toggleSection('FILTER')}
+          >
+            FILTER
+          </SectionButton>
+          {openSections.FILTER && (
+          <div className="mt-2 flex flex-wrap gap-1">
             {[
-              { id: 'all', label: 'ALL', fullLabel: 'ALL_SIGNALS', icon: Globe },
-              { id: 'topic', label: 'TOPIC', fullLabel: 'TOPIC_BOARDS', icon: Hash },
-              { id: 'location', label: 'GEO', fullLabel: 'GEO_CHANNELS', icon: MapPin },
-              { id: 'following', label: 'FOLLOW', fullLabel: 'FOLLOWING', icon: User },
-            ].map(({ id, label, fullLabel, icon: Icon }) => (
+              { id: 'all', label: 'ALL', Icon: Globe },
+              { id: 'topic', label: 'TOPIC', Icon: Hash },
+              { id: 'location', label: 'GEO', Icon: MapPin },
+              { id: 'following', label: 'FOLLOW', Icon: User },
+            ].map(({ id, label, Icon }) => (
               <button
                 key={id}
-                onClick={() => setFeedFilterRaw(id as typeof feedFilter)}
-                style={feedFilter === id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
-                className={`text-left text-xs md:text-sm px-2 py-1.5 transition-all flex items-center gap-1 md:gap-2 group cursor-pointer whitespace-nowrap flex-shrink-0
-                  ${
-                    feedFilter === id
-                      ? 'bg-terminal-text font-bold border border-terminal-text'
-                      : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10 border border-transparent md:border-none'
-                  }
-                `}
+                type="button"
+                onClick={() => nav(() => setFeedFilter(id))}
+                className={`flex items-center gap-1.5 border px-2 py-1 font-mono text-[10px] uppercase tracking-wider transition-all ${
+                  feedFilter === id
+                    ? 'border-terminal-text bg-terminal-dim/10 text-terminal-text'
+                    : 'border-terminal-dim/30 text-terminal-dim hover:border-terminal-dim/60 hover:text-terminal-text'
+                }`}
               >
-                <span
-                  style={feedFilter === id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
-                  className={`hidden md:inline opacity-0 group-hover:opacity-100 transition-opacity ${feedFilter === id ? 'opacity-100' : 'text-terminal-text'}`}
-                >
-                  {'>'}
-                </span>
-                <Icon
-                  size={12}
-                  style={feedFilter === id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
-                />
-                <span
-                  style={feedFilter === id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
-                  className="md:hidden"
-                >
-                  {label}
-                </span>
-                <span
-                  style={feedFilter === id ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
-                  className="hidden md:inline"
-                >
-                  {fullLabel}
-                </span>
+                <Icon size={10} />
+                {label}
               </button>
             ))}
           </div>
-        </CollapsibleSection>
+          )}
+        </div>
       )}
 
-      {/* Topic Board Directory - Collapsible on mobile */}
-      <CollapsibleSection
-        title="TOPIC_NET"
-        icon={Hash}
-        defaultOpen={false}
-        collapseOnDesktop={collapseDesktop}
-        variant={sectionVariant}
-        badge={<span className="text-xs text-terminal-dim">({topicBoards.length})</span>}
-      >
-        {/* Board search */}
-        {topicBoards.length > 5 && (
-          <div className="mb-2">
-            <input
-              type="text"
-              value={boardSearchQuery}
-              onChange={(e) => {
-                setBoardSearchQuery(e.target.value);
-                setVisibleBoardCount(10); // Reset pagination on search
-              }}
-              placeholder="Filter boards..."
-              className="w-full bg-terminal-bg border border-terminal-dim/50 px-2 py-1 text-xs focus:border-terminal-text focus:outline-none"
-            />
-          </div>
-        )}
-
-        <div className="flex flex-col gap-1 max-h-[200px] md:max-h-[300px] overflow-y-auto pr-1">
-          <button
-            onClick={() => navigateToBoardAndClose(null)}
-            style={activeBoardId === null ? { color: 'rgb(var(--color-terminal-bg))' } : undefined}
-            className={`text-left text-xs md:text-sm px-2 py-1.5 transition-all flex items-center gap-2 group
-              ${
+      {/* ── Topic boards + global ── */}
+      <div className="border border-terminal-dim bg-terminal-bg p-3">
+        <SectionButton
+          isOpen={openSections.TOPIC_NET}
+          onClick={() => toggleSection('TOPIC_NET')}
+        >
+          TOPIC_NET ({publicTopicBoards.length})
+        </SectionButton>
+        {openSections.TOPIC_NET && (
+          <div className="mt-2 space-y-0.5 max-h-48 overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => nav(() => navigateToBoard(null))}
+              className={`flex w-full items-center gap-2 border-l-2 px-2 py-1.5 text-left text-xs font-mono transition-all ${
                 activeBoardId === null
-                  ? 'bg-terminal-text font-bold'
-                  : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
-              }
-            `}
-          >
-            <Globe
-              size={12}
-              style={
-                activeBoardId === null ? { color: 'rgb(var(--color-terminal-bg))' } : undefined
-              }
-            />
-            <span
-              style={
-                activeBoardId === null ? { color: 'rgb(var(--color-terminal-bg))' } : undefined
-              }
-              className="truncate"
+                  ? 'border-l-terminal-text bg-terminal-dim/10 text-terminal-text'
+                  : 'border-l-transparent text-terminal-dim hover:border-l-terminal-dim/40 hover:bg-terminal-dim/5 hover:text-terminal-text'
+              }`}
             >
-              GLOBAL_NET
-            </span>
-          </button>
-          {(() => {
-            const publicBoards = topicBoards.filter(
-              (b) => b.type === BoardType.TOPIC && b.isPublic,
-            );
-            // Filter by search query
-            const filteredBoards = boardSearchQuery
-              ? publicBoards.filter((b) =>
-                  b.name.toLowerCase().includes(boardSearchQuery.toLowerCase()),
-                )
-              : publicBoards;
-            // Paginate
-            const visibleBoards = filteredBoards.slice(0, visibleBoardCount);
-            const hiddenCount = Math.max(0, filteredBoards.length - visibleBoards.length);
-
-            return (
-              <>
-                {visibleBoards.map((board) => (
-                  <button
-                    key={board.id}
-                    onClick={() => navigateToBoardAndClose(board.id)}
-                    style={
-                      activeBoardId === board.id
-                        ? { color: 'rgb(var(--color-terminal-bg))' }
-                        : undefined
-                    }
-                    className={`text-left text-xs md:text-sm px-2 py-1 transition-all flex items-center gap-2 group w-full
-                      ${
-                        activeBoardId === board.id
-                          ? 'bg-terminal-text font-bold'
-                          : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
-                      }
-                    `}
-                  >
-                    <span
-                      style={
-                        activeBoardId === board.id
-                          ? { color: 'rgb(var(--color-terminal-bg))' }
-                          : undefined
-                      }
-                      className={`shrink-0 text-2xs opacity-70 group-hover:opacity-100 ${activeBoardId === board.id ? 'opacity-100' : ''}`}
-                    >
-                      //
-                    </span>
-                    <span
-                      style={
-                        activeBoardId === board.id
-                          ? { color: 'rgb(var(--color-terminal-bg))' }
-                          : undefined
-                      }
-                      className="truncate"
-                    >
-                      {board.name}
-                    </span>
-                  </button>
-                ))}
-                {/* Show more toggle */}
-                {hiddenCount > 0 && (
-                  <button
-                    onClick={() => setVisibleBoardCount((v) => v + 10)}
-                    className="text-left text-xs px-2 py-1.5 text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10 transition-all flex items-center gap-2 group w-full"
-                  >
-                    <span className="shrink-0 text-xs opacity-60 group-hover:opacity-100">
-                      {'+'}
-                    </span>
-                    <span className="truncate">
-                      Show {Math.min(10, hiddenCount)} more ({hiddenCount} remaining)
-                    </span>
-                  </button>
-                )}
-                <button
-                  onClick={() => setViewModeAndClose(ViewMode.BROWSE_BOARDS)}
-                  className="text-left text-xs md:text-sm px-2 py-1.5 text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10 transition-all flex items-center gap-2 group w-full"
-                >
-                  <span className="shrink-0 text-xs opacity-60 group-hover:opacity-100">
-                    {'>>'}
-                  </span>
-                  <span className="truncate">
-                    BROWSE_ALL{hiddenCount > 0 ? ` (+${hiddenCount})` : ''}
-                  </span>
-                </button>
-              </>
-            );
-          })()}
-          <div className="border-t border-terminal-dim/30 my-2"></div>
-          {topicBoards
-            .filter((b) => b.type === BoardType.TOPIC && !b.isPublic)
-            .map((board) => (
+              <Globe size={10} />
+              <span className="truncate">GLOBAL</span>
+            </button>
+            {publicTopicBoards.map((board) => (
               <button
                 key={board.id}
-                disabled
-                className="text-left text-xs md:text-sm px-2 py-1 text-terminal-dim/30 flex items-center gap-2 cursor-not-allowed italic"
-              >
-                <Lock size={10} /> {board.name}
-              </button>
-            ))}
-        </div>
-        <button
-          onClick={() => setViewModeAndClose(ViewMode.CREATE_BOARD)}
-          className="mt-2 md:mt-4 w-full text-xs md:text-sm border border-terminal-dim border-dashed text-terminal-dim p-1.5 md:p-2 hover:text-terminal-bg hover:bg-terminal-text hover:border-solid transition-all uppercase"
-        >
-          [+] Init_Board
-        </button>
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="DISCOVER_NOSTR"
-        icon={Compass}
-        defaultOpen={false}
-        collapseOnDesktop={collapseDesktop}
-        variant={sectionVariant}
-        badge={<span className="text-xs text-terminal-dim">({externalCommunities.length})</span>}
-      >
-        <p className="text-xs text-terminal-dim leading-tight">
-          Discover broad trending Nostr posts worth seeding into BitBoard. Communities remain
-          available as a secondary lens.
-        </p>
-        <button
-          onClick={() => setViewModeAndClose(ViewMode.DISCOVER_NOSTR)}
-          className="mt-2 w-full text-xs border border-terminal-dim border-dashed text-terminal-dim p-1.5 md:p-2 hover:text-terminal-bg hover:bg-terminal-text hover:border-solid transition-all uppercase"
-        >
-          [~] Discover_Nostr
-        </button>
-        <div className="border-t border-terminal-dim/30 my-2"></div>
-        <div className="text-[10px] uppercase tracking-wide text-terminal-dim mb-2">
-          Saved Communities
-        </div>
-        {externalCommunities.length > 0 ? (
-          <div className="flex flex-col gap-1 max-h-[150px] md:max-h-[220px] overflow-y-auto pr-1">
-            {externalCommunities.map((board) => (
-              <button
-                key={board.id}
-                onClick={() => navigateToBoardAndClose(board.id)}
-                style={
+                type="button"
+                onClick={() => nav(() => navigateToBoard(board.id))}
+                className={`flex w-full items-center gap-2 border-l-2 px-2 py-1.5 text-left text-xs font-mono transition-all ${
                   activeBoardId === board.id
-                    ? { color: 'rgb(var(--color-terminal-bg))' }
-                    : undefined
-                }
-                className={`text-left text-xs md:text-sm px-2 py-1 transition-all flex items-center gap-2 group w-full
-                  ${
-                    activeBoardId === board.id
-                      ? 'bg-terminal-text font-bold'
-                      : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
-                  }
-                `}
+                    ? 'border-l-terminal-text bg-terminal-dim/10 text-terminal-text'
+                    : 'border-l-transparent text-terminal-dim hover:border-l-terminal-dim/40 hover:bg-terminal-dim/5 hover:text-terminal-text'
+                }`}
               >
-                <ExternalLink
-                  size={10}
-                  style={
-                    activeBoardId === board.id
-                      ? { color: 'rgb(var(--color-terminal-bg))' }
-                      : undefined
-                  }
-                />
-                <span
-                  style={
-                    activeBoardId === board.id
-                      ? { color: 'rgb(var(--color-terminal-bg))' }
-                      : undefined
-                  }
-                  className="truncate flex-1"
-                >
-                  {board.name}
-                </span>
-                <span
-                  style={
-                    activeBoardId === board.id
-                      ? { color: 'rgb(var(--color-terminal-bg))' }
-                      : undefined
-                  }
-                  className="text-[9px] uppercase opacity-60"
-                >
-                  Nostr
-                </span>
+                <Hash size={10} />
+                <span className="truncate">{board.name}</span>
               </button>
             ))}
           </div>
-        ) : (
-          <p className="text-xs text-terminal-dim leading-tight">No saved communities yet.</p>
         )}
         <button
-          onClick={() => setViewModeAndClose(ViewMode.EXTERNAL_COMMUNITIES)}
-          className="mt-2 w-full text-xs border border-terminal-dim border-dashed text-terminal-dim p-1.5 md:p-2 hover:text-terminal-bg hover:bg-terminal-text hover:border-solid transition-all uppercase"
+          type="button"
+          onClick={() => nav(() => onSetViewMode(ViewMode.BROWSE_BOARDS))}
+          className="mt-2 w-full border border-dashed border-terminal-dim/30 px-2 py-1.5 text-[10px] font-mono uppercase text-terminal-dim hover:border-terminal-dim/60 hover:text-terminal-text transition-all"
         >
-          [~] Explore_Communities
+          + Browse All
         </button>
-      </CollapsibleSection>
+      </div>
 
-      {/* Encrypted Boards - Show if user has any encrypted board keys */}
-      {encryptedBoards.length > 0 && (
-        <CollapsibleSection
-          title="SECURE_NET"
-          icon={Shield}
-          defaultOpen={false}
-          collapseOnDesktop={collapseDesktop}
-          variant={sectionVariant}
-        >
-          <div className="flex flex-col gap-1 max-h-[150px] md:max-h-[200px] overflow-y-auto pr-1">
-            {encryptedBoards.map((board) => (
+      {/* ── External communities ── */}
+      {externalCommunities.length > 0 && (
+        <div className="border border-terminal-dim bg-terminal-bg p-3">
+          <SectionButton
+            isOpen={openSections.COMMUNITIES}
+            onClick={() => toggleSection('COMMUNITIES')}
+          >
+            COMMUNITIES ({externalCommunities.length})
+          </SectionButton>
+          <div className="mt-2 space-y-0.5 max-h-40 overflow-y-auto">
+            {externalCommunities.slice(0, 8).map((board) => (
               <button
                 key={board.id}
-                onClick={() => navigateToBoardAndClose(board.id)}
-                style={
+                type="button"
+                onClick={() => nav(() => navigateToBoard(board.id))}
+                className={`flex w-full items-center gap-2 border-l-2 px-2 py-1.5 text-left text-xs font-mono transition-all ${
                   activeBoardId === board.id
-                    ? { color: 'rgb(var(--color-terminal-bg))' }
-                    : undefined
-                }
-                className={`text-left text-xs md:text-sm px-2 py-1.5 transition-all flex items-center gap-2 group w-full
-                  ${
-                    activeBoardId === board.id
-                      ? 'bg-terminal-text font-bold'
-                      : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
-                  }
-                `}
+                    ? 'border-l-terminal-text bg-terminal-dim/10 text-terminal-text'
+                    : 'border-l-transparent text-terminal-dim hover:border-l-terminal-dim/40 hover:bg-terminal-dim/5 hover:text-terminal-text'
+                }`}
               >
-                <Lock
-                  size={10}
-                  style={
-                    activeBoardId === board.id
-                      ? { color: 'rgb(var(--color-terminal-bg))' }
-                      : undefined
-                  }
-                />
-                <span
-                  style={
-                    activeBoardId === board.id
-                      ? { color: 'rgb(var(--color-terminal-bg))' }
-                      : undefined
-                  }
-                  className="truncate flex-1"
-                >
-                  {board.name}
-                </span>
-                <span
-                  style={
-                    activeBoardId === board.id
-                      ? { color: 'rgb(var(--color-terminal-bg))' }
-                      : undefined
-                  }
-                  className="text-[9px] opacity-60"
-                >
-                  [DECRYPTED]
-                </span>
+                <ExternalLink size={10} />
+                <span className="truncate">{board.name}</span>
               </button>
             ))}
           </div>
-          <p className="text-xs text-terminal-dim mt-2 md:mt-3 leading-tight">
-            Boards with stored encryption keys. Content is decrypted locally.
-          </p>
-
-          {/* Show failed decryption boards */}
-          {decryptionFailedBoardIds && decryptionFailedBoardIds.size > 0 && (
-            <div className="mt-3 pt-2 border-t border-terminal-alert/30">
-              <div className="flex items-center gap-1 text-xs text-terminal-alert mb-2">
-                <AlertTriangle size={10} />
-                <span className="uppercase font-bold">Failed Keys</span>
-              </div>
-              {Array.from(decryptionFailedBoardIds).map((boardId) => {
-                const board = boardsById.get(boardId);
-                return (
-                  <div
-                    key={boardId}
-                    className="flex items-center justify-between text-xs px-2 py-1.5 bg-terminal-alert/10 border border-terminal-alert/30 mb-1"
-                  >
-                    <span className="text-terminal-dim truncate flex-1">
-                      {board?.name || boardId.slice(0, 12) + '...'}
-                    </span>
-                    {removeFailedDecryptionKey && (
-                      <button
-                        onClick={() => removeFailedDecryptionKey(boardId)}
-                        className="ml-2 text-terminal-alert hover:text-terminal-text transition-colors p-1"
-                        title="Remove invalid key"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-              <p className="text-xs text-terminal-dim mt-1">
-                These keys failed to decrypt. Remove and import a new share link.
-              </p>
-            </div>
-          )}
-        </CollapsibleSection>
+          <button
+            type="button"
+            onClick={() => nav(() => onSetViewMode(ViewMode.EXTERNAL_COMMUNITIES))}
+            className="mt-2 w-full border border-dashed border-terminal-dim/30 px-2 py-1.5 text-[10px] font-mono uppercase text-terminal-dim hover:border-terminal-dim/60 hover:text-terminal-text transition-all"
+          >
+            + Explore
+          </button>
+        </div>
       )}
 
-      {/* Location Channels - Collapsible on mobile */}
-      <CollapsibleSection
-        title="GEO_NET"
-        icon={MapPin}
-        defaultOpen={false}
-        collapseOnDesktop={collapseDesktop}
-        variant={sectionVariant}
-        badge={
-          totalNearbyPosts > 0 ? (
-            <span className="flex items-center gap-1 text-2xs text-terminal-text font-normal">
-              <Activity size={10} className={recentlyActiveCount > 0 ? 'animate-pulse' : ''} />
-              {totalNearbyPosts}
-            </span>
-          ) : undefined
-        }
-      >
-        {/* Nearby Activity Summary */}
-        {nearbyActivity.length > 0 && (
-          <div className="mb-2 md:mb-3 p-1.5 md:p-2 bg-terminal-dim/10 border border-terminal-dim/30">
-            <div className="text-xs text-terminal-dim uppercase mb-1">Active Channels</div>
-            <div className="flex flex-wrap gap-1">
-              {nearbyActivity.slice(0, 3).map((channel) => (
-                <button
-                  key={channel.geohash}
-                  onClick={() => {
-                    const board = geonetDiscoveryService.channelToBoard(channel);
-                    navigateToBoardAndClose(board.id);
-                  }}
-                  className="text-xs px-1.5 py-0.5 bg-terminal-dim/20 hover:bg-terminal-text hover:text-terminal-bg transition-colors font-mono"
-                  title={`${channel.postCount} posts, ${channel.uniqueAuthors} users`}
-                >
-                  #{channel.geohash.slice(0, 4)}
-                  {geonetDiscoveryService.isRecentlyActive(channel) && (
-                    <span className="ml-1 text-terminal-text">●</span>
-                  )}
-                </button>
-              ))}
-              {nearbyActivity.length > 3 && (
-                <span className="text-xs text-terminal-dim px-1">
-                  +{nearbyActivity.length - 3} more
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
-        <div className="flex flex-col gap-1">
-          {geohashBoards.length === 0 ? (
-            <p className="text-xs text-terminal-dim py-1 md:py-2 font-mono">
-              [NO_SIGNAL] Enable location to scan.
-            </p>
-          ) : (
-            geohashBoards.map((board) => {
-              // Find activity for this board's geohash
-              const activity = nearbyActivity.find((ch) => ch.geohash === board.geohash);
-
+      {/* ── Secure boards ── */}
+      {encryptedBoards.length > 0 && (
+        <div className="border border-terminal-dim bg-terminal-bg p-3">
+          <SectionButton
+            isOpen={openSections.SECURE_NET}
+            onClick={() => toggleSection('SECURE_NET')}
+          >
+            SECURE_NET ({encryptedBoards.length})
+          </SectionButton>
+          <div className="mt-2 space-y-0.5 max-h-40 overflow-y-auto">
+            {encryptedBoards.map((board) => {
+              const failed = decryptionFailedBoardIds.has(board.id);
               return (
-                <button
-                  key={board.id}
-                  onClick={() => navigateToBoardAndClose(board.id)}
-                  style={
-                    activeBoardId === board.id
-                      ? { color: 'rgb(var(--color-terminal-bg))' }
-                      : undefined
-                  }
-                  className={`text-left text-xs md:text-sm px-2 py-1 transition-all flex items-center gap-2 group w-full
-                    ${
+                <div key={board.id} className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => nav(() => navigateToBoard(board.id))}
+                    className={`flex flex-1 items-center gap-2 border-l-2 px-2 py-1.5 text-left text-xs font-mono transition-all ${
                       activeBoardId === board.id
-                        ? 'bg-terminal-text font-bold'
-                        : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
-                    }
-                  `}
-                >
-                  <MapPin
-                    size={10}
-                    style={
-                      activeBoardId === board.id
-                        ? { color: 'rgb(var(--color-terminal-bg))' }
-                        : undefined
-                    }
-                  />
-                  <span
-                    style={
-                      activeBoardId === board.id
-                        ? { color: 'rgb(var(--color-terminal-bg))' }
-                        : undefined
-                    }
-                    className="truncate flex-1"
+                        ? 'border-l-terminal-text bg-terminal-dim/10 text-terminal-text'
+                        : 'border-l-transparent text-terminal-dim hover:border-l-terminal-dim/40 hover:bg-terminal-dim/5 hover:text-terminal-text'
+                    }`}
                   >
-                    #{board.geohash}
-                  </span>
-                  {activity && activity.postCount > 0 && (
-                    <span
-                      className={`text-xs px-1 ${
-                        activeBoardId === board.id
-                          ? 'bg-terminal-bg/20'
-                          : 'bg-terminal-dim/30 text-terminal-text'
-                      }`}
+                    <Shield size={10} />
+                    <span className="truncate">{board.name}</span>
+                  </button>
+                  {failed && removeFailedDecryptionKey && (
+                    <button
+                      type="button"
+                      onClick={() => removeFailedDecryptionKey(board.id)}
+                      title="Remove invalid key"
+                      className="shrink-0 p-1 text-terminal-alert hover:text-terminal-alert/70 transition-colors"
                     >
-                      {activity.postCount}
-                    </span>
+                      <Trash2 size={10} />
+                    </button>
                   )}
-                </button>
+                </div>
               );
-            })
-          )}
+            })}
+          </div>
         </div>
-        <button
-          onClick={() => setViewModeAndClose(ViewMode.LOCATION)}
-          className="mt-2 md:mt-4 w-full text-xs border border-terminal-dim border-dashed text-terminal-dim p-1.5 md:p-2 hover:text-terminal-bg hover:bg-terminal-text hover:border-solid transition-all flex items-center justify-center gap-2 uppercase"
-        >
-          <MapPin size={12} /> {isLoadingActivity ? 'Scanning...' : 'Scan_Nearby'}
-        </button>
-      </CollapsibleSection>
+      )}
 
-      {/* Theme Selector - Horizontal scroll on mobile, grid on desktop */}
-      <CollapsibleSection
-        title="VISUAL_CORE"
-        icon={Eye}
-        defaultOpen={false}
-        collapseOnDesktop={collapseDesktop}
-        variant={sectionVariant}
-      >
-        {useThemeTiles ? (
-          <p className="mb-2 text-[10px] leading-snug text-terminal-dim">
-            Spin the deck — whole UI re-tints. Tap a tile.
-          </p>
-        ) : null}
-        {useThemeTiles ? (
-          <div className="grid grid-cols-2 gap-2 py-1 sm:grid-cols-4">
-            {Object.values(ThemeId).map((t) => {
-              const active = theme === t;
-              const swatchStyle: React.CSSProperties = {
-                background:
-                  t === ThemeId.PATRIOT
-                    ? 'linear-gradient(135deg, #ff1428 0%, #ffffff 50%, #0a4bff 100%)'
-                    : undefined,
-                backgroundColor: t === ThemeId.PATRIOT ? undefined : getThemeColor(t),
-                border:
-                  t === ThemeId.BITBORING || t === ThemeId.PATRIOT || t === ThemeId.SAKURA
-                    ? '1px solid #888'
-                    : 'none',
-                boxShadow: active
-                  ? `0 0 12px ${t === ThemeId.PATRIOT ? 'rgba(255,255,255,0.35)' : getThemeColor(t)}`
-                  : undefined,
-              };
-              const label =
-                t === ThemeId.BITBORING
-                  ? 'BitBoring'
-                  : t === ThemeId.PHOSPHOR
-                    ? 'Phosphor'
-                    : t.charAt(0).toUpperCase() + t.slice(1);
+      {/* ── Location / geo boards ── */}
+      {geohashBoards.length > 0 && (
+        <div className="border border-terminal-dim bg-terminal-bg p-3">
+          <SectionButton isOpen={openSections.GEO_NET} onClick={() => toggleSection('GEO_NET')}>
+            GEO_NET ({totalNearbyPosts > 0 ? `${totalNearbyPosts} sig` : geohashBoards.length})
+          </SectionButton>
+          <div className="mt-2 space-y-0.5 max-h-40 overflow-y-auto">
+            {nearbyActivity.slice(0, 6).map((ch) => {
+              const board = geonetDiscoveryService.channelToBoard(ch);
               return (
                 <button
-                  key={t}
+                  key={ch.geohash}
                   type="button"
-                  onClick={() => setTheme(t)}
-                  title={
-                    t === ThemeId.BITBORING ? 'BITBORING (UGLY MODE)' : `${String(t).toUpperCase()}`
-                  }
-                  className={`flex min-h-[5.5rem] flex-col items-center justify-center gap-1.5 border px-1 py-2.5 font-mono transition-all ${
-                    active
-                      ? 'border-terminal-text bg-terminal-dim/15 shadow-[0_0_14px_rgba(var(--color-terminal-text),0.2)]'
-                      : 'border-terminal-dim/25 bg-terminal-bg/50 hover:border-terminal-dim/50 hover:bg-terminal-dim/10'
-                  }`}
+                  onClick={() => nav(() => navigateToBoard(board.id))}
+                  className="flex w-full items-center gap-2 border-l-2 border-l-transparent px-2 py-1.5 text-left text-xs font-mono text-terminal-dim hover:border-l-terminal-dim/40 hover:bg-terminal-dim/5 hover:text-terminal-text transition-all"
                 >
-                  <span className="h-8 w-8 shrink-0 rounded-full" style={swatchStyle} aria-hidden />
-                  <span
-                    className={`text-[8px] font-bold uppercase tracking-tight ${active ? 'text-terminal-text' : 'text-terminal-dim'}`}
-                  >
-                    {label}
-                  </span>
-                  <span className="px-0.5 text-center text-[6px] leading-tight text-terminal-dim/90">
-                    {THEME_TAGLINES[t]}
-                  </span>
+                  <MapPin size={10} />
+                  <span className="truncate font-mono">#{ch.geohash}</span>
+                  <span className="ml-auto text-[9px] text-terminal-dim/60">{ch.postCount}p</span>
                 </button>
               );
             })}
           </div>
-        ) : (
-          <>
-            <div className="flex md:hidden gap-2 py-1 overflow-x-auto pb-2 -mx-1 px-1">
-              {Object.values(ThemeId).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setTheme(t)}
-                  className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-1.5 font-mono text-xs transition-all border rounded
-                ${
-                  theme === t
-                    ? 'border-terminal-text bg-terminal-dim/10 text-terminal-text'
-                    : 'border-terminal-dim/30 text-terminal-dim'
-                }
-              `}
-                  title={
-                    t === ThemeId.BITBORING ? 'BITBORING (UGLY MODE)' : String(t).toUpperCase()
-                  }
-                >
-                  <span
-                    className={`w-3 h-3 rounded-full transition-transform ${theme === t ? 'scale-110' : 'scale-100'}`}
-                    style={{
-                      background:
-                        t === ThemeId.PATRIOT
-                          ? 'linear-gradient(90deg, #ff1428 0 33%, #ffffff 33% 66%, #0a4bff 66% 100%)'
-                          : undefined,
-                      backgroundColor: t === ThemeId.PATRIOT ? undefined : getThemeColor(t),
-                      border:
-                        t === ThemeId.BITBORING || t === ThemeId.PATRIOT || t === ThemeId.SAKURA
-                          ? '1px solid #888'
-                          : 'none',
-                      boxShadow:
-                        theme === t
-                          ? `0 0 5px ${t === ThemeId.PATRIOT ? '#ffffff' : getThemeColor(t)}`
-                          : 'none',
-                    }}
-                  />
-                  <span className="uppercase">{t}</span>
-                </button>
-              ))}
-            </div>
-            <div className="hidden md:grid grid-cols-2 gap-2 py-2">
-              {Object.values(ThemeId).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setTheme(t)}
-                  className={`group flex items-center gap-2 px-2 py-1.5 font-mono text-xs transition-all border
-                ${
-                  theme === t
-                    ? 'border-terminal-text bg-terminal-dim/10 text-terminal-text'
-                    : 'border-transparent hover:border-terminal-dim/50 text-terminal-dim'
-                }
-              `}
-                  title={
-                    t === ThemeId.BITBORING ? 'BITBORING (UGLY MODE)' : String(t).toUpperCase()
-                  }
-                >
-                  <span
-                    className={`w-2 h-2 rounded-full transition-transform ${theme === t ? 'scale-125' : 'scale-100 group-hover:scale-110'}`}
-                    style={{
-                      background:
-                        t === ThemeId.PATRIOT
-                          ? 'linear-gradient(90deg, #ff1428 0 33%, #ffffff 33% 66%, #0a4bff 66% 100%)'
-                          : undefined,
-                      backgroundColor: t === ThemeId.PATRIOT ? undefined : getThemeColor(t),
-                      border:
-                        t === ThemeId.BITBORING || t === ThemeId.PATRIOT || t === ThemeId.SAKURA
-                          ? '1px solid #888'
-                          : 'none',
-                      boxShadow:
-                        theme === t
-                          ? `0 0 5px ${t === ThemeId.PATRIOT ? '#ffffff' : getThemeColor(t)}`
-                          : 'none',
-                    }}
-                  />
-                  <span className="uppercase whitespace-nowrap overflow-hidden text-ellipsis">
-                    {t}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-      </CollapsibleSection>
-
-      {/* ID Config - Hidden on desktop except drawer */}
-      {isOverlayLayout ? (
-        <CollapsibleSection
-          title="ID_CONFIG"
-          icon={HelpCircle}
-          defaultOpen={false}
-          collapseOnDesktop={collapseDesktop}
-          variant={sectionVariant}
-        >
-          {identityConfigContent}
-        </CollapsibleSection>
-      ) : (
-        <div
-          className={`${inMobileDrawer ? 'block' : 'hidden md:block'} border border-terminal-dim bg-terminal-bg p-3 shadow-hard`}
-        >
-          <h3 className="mb-2 flex items-center gap-2 border-b border-terminal-dim pb-1 text-sm font-bold">
-            <HelpCircle size={14} /> {'>>'} ID_CONFIG
-          </h3>
-          {identityConfigContent}
+          <button
+            type="button"
+            onClick={() => nav(() => onSetViewMode(ViewMode.LOCATION))}
+            className="mt-2 w-full border border-dashed border-terminal-dim/30 px-2 py-1.5 text-[10px] font-mono uppercase text-terminal-dim hover:border-terminal-dim/60 hover:text-terminal-text transition-all flex items-center justify-center gap-1"
+          >
+            <MapPin size={10} />
+            {isLoadingActivity ? 'Scanning...' : 'Scan Nearby'}
+          </button>
         </div>
       )}
+
+      {/* ── Discover ── */}
+      <div className="border border-terminal-dim bg-terminal-bg p-3">
+        <SectionButton isOpen={openSections.DISCOVER} onClick={() => toggleSection('DISCOVER')}>
+          DISCOVER
+        </SectionButton>
+        <div className="mt-2 space-y-1">
+          <NavRow
+            icon={Compass}
+            label="Discover Nostr"
+            onClick={() => nav(() => onSetViewMode(ViewMode.DISCOVER_NOSTR))}
+          />
+          <NavRow
+            icon={ExternalLink}
+            label="Communities"
+            onClick={() => nav(() => onSetViewMode(ViewMode.EXTERNAL_COMMUNITIES))}
+          />
+        </div>
+      </div>
+
+      {/* ── Theme selector ── */}
+      <div className="border border-terminal-dim bg-terminal-bg p-3">
+        <SectionButton isOpen={openSections.THEME} onClick={() => toggleSection('THEME')}>
+          THEME
+        </SectionButton>
+        <div className="mt-2 grid grid-cols-4 gap-1">
+          {Object.values(ThemeId).map((t) => {
+            const active = theme === t;
+            const swatchStyle: React.CSSProperties = {
+              backgroundColor: t === ThemeId.PATRIOT ? undefined : getThemeColor(t),
+              background:
+                t === ThemeId.PATRIOT
+                  ? 'linear-gradient(135deg, #ff1428 25%, #fff 25% 75%, #0a4bff 75%)'
+                  : undefined,
+              border: ['bitboring', 'patriot', 'sakura'].includes(t) ? '1px solid #555' : 'none',
+            };
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => nav(() => setTheme(t))}
+                title={`${THEME_LABELS[t]} theme`}
+                className={`flex flex-col items-center gap-1 border p-1.5 transition-all ${
+                  active
+                    ? 'border-terminal-text bg-terminal-dim/10 shadow-[0_0_8px_rgba(var(--color-terminal-text),0.25)]'
+                    : 'border-transparent hover:border-terminal-dim/40'
+                }`}
+              >
+                <span className="h-5 w-5 rounded-full" style={swatchStyle} />
+                <span
+                  className={`text-[7px] font-mono uppercase ${active ? 'text-terminal-text' : 'text-terminal-dim'}`}
+                >
+                  {THEME_LABELS[t]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Identity / settings ── */}
+      <div className="border border-terminal-dim bg-terminal-bg p-3">
+        <SectionButton isOpen={openSections.IDENTITY} onClick={() => toggleSection('IDENTITY')}>
+          IDENTITY
+        </SectionButton>
+        <div className="mt-2 space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-terminal-dim/40" />
+            <span className="font-mono text-[10px] uppercase tracking-wider text-terminal-dim">
+              {userState.identity ? 'VERIFIED' : 'GUEST'}
+            </span>
+          </div>
+          {userState.identity && (
+            <p className="truncate font-mono text-[9px] text-terminal-dim/60">
+              {userState.identity.npub.slice(0, 20)}...
+            </p>
+          )}
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={() => nav(() => onSetViewMode(ViewMode.SETTINGS))}
+              className="flex-1 border border-terminal-dim/30 px-2 py-1.5 text-[10px] font-mono uppercase text-terminal-dim hover:border-terminal-dim/60 hover:text-terminal-text transition-all"
+            >
+              Settings
+            </button>
+            {userState.identity && (
+              <button
+                type="button"
+                onClick={() => nav(() => onSetViewMode(ViewMode.IDENTITY))}
+                className="flex-1 border border-terminal-dim/30 px-2 py-1.5 text-[10px] font-mono uppercase text-terminal-dim hover:border-terminal-dim/60 hover:text-terminal-text transition-all"
+              >
+                Keys
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
     </aside>
   );
 });

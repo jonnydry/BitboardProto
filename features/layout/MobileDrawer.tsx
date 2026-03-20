@@ -141,13 +141,6 @@ export const MobileDrawer = React.memo(function MobileDrawer({
       onClick: () => handleNavClick(() => onSetViewMode(ViewMode.IDENTITY)),
     },
     {
-      id: 'relays',
-      icon: Settings,
-      label: 'RELAYS',
-      isActive: viewMode === ViewMode.RELAYS,
-      onClick: () => handleNavClick(() => onSetViewMode(ViewMode.RELAYS)),
-    },
-    {
       id: 'search',
       icon: Search,
       label: 'SEARCH',
