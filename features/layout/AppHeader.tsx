@@ -293,100 +293,96 @@ export const AppHeader = React.memo(function AppHeader({
       </button>
 
       {/* Desktop Navigation (hidden on mobile) */}
-      <nav className="hidden md:flex items-center justify-between gap-4 border border-terminal-dim/20 bg-terminal-bg/45 px-3 py-2 text-xs lg:text-sm backdrop-blur-sm">
-        <div className="flex items-center gap-2 flex-wrap">
-          {onOpenDesktopNav && (
-            <button
-              type="button"
-              onClick={onOpenDesktopNav}
-              className={desktopActionClass(false, true)}
-              aria-label="Open navigation drawer"
-              title="Browse navigation"
-            >
-              <Menu size={18} strokeWidth={2} />
-              <span>Browse</span>
-            </button>
-          )}
-          <button
-            onClick={() => navigateToBoard(null)}
-            className={desktopActionClass(isGlobalFeedActive)}
-            title="Global Feed"
-          >
-            <span>GLOBAL FEED</span>
-          </button>
-          <button
-            onClick={() => setViewMode(ViewMode.CREATE)}
-            className={desktopActionClass(viewMode === ViewMode.CREATE)}
-            title="Create New Bit"
-          >
-            <span>NEW BIT</span>
-          </button>
+      <nav className="hidden md:flex flex-wrap items-center gap-x-2 gap-y-2 border border-terminal-dim/20 bg-terminal-bg/45 px-3 py-2 text-xs backdrop-blur-sm lg:gap-x-3 lg:text-sm">
+        {onOpenDesktopNav && (
           <button
             type="button"
-            onClick={() => setShowSearch(true)}
-            className={desktopActionClass(showSearch)}
-            title="Search"
+            onClick={onOpenDesktopNav}
+            className={desktopActionClass(false, true)}
+            aria-label="Open navigation drawer"
+            title="Browse navigation"
           >
-            <Search size={14} />
-            <span className="hidden lg:inline">SEARCH</span>
+            <Menu size={18} strokeWidth={2} />
+            <span>Browse</span>
           </button>
-        </div>
+        )}
+        <button
+          onClick={() => navigateToBoard(null)}
+          className={desktopActionClass(isGlobalFeedActive)}
+          title="Global Feed"
+        >
+          <span>GLOBAL FEED</span>
+        </button>
+        <button
+          onClick={() => setViewMode(ViewMode.CREATE)}
+          className={desktopActionClass(viewMode === ViewMode.CREATE)}
+          title="Create New Bit"
+        >
+          <span>NEW BIT</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowSearch(true)}
+          className={desktopActionClass(showSearch)}
+          title="Search"
+        >
+          <Search size={14} />
+          <span className="hidden lg:inline">SEARCH</span>
+        </button>
 
-        <div className="flex items-center gap-2 flex-wrap justify-end">
+        <button
+          type="button"
+          onClick={() => setViewMode(ViewMode.BOOKMARKS)}
+          className={desktopActionClass(viewMode === ViewMode.BOOKMARKS)}
+          title="Saved Posts"
+        >
+          <span>SAVED{bookmarkedCount > 0 ? ` (${bookmarkedCount})` : ''}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowNotifications(true)}
+          className={desktopActionClass(showNotifications)}
+          title="Notifications"
+        >
+          <span>ALERTS{unreadCount > 0 ? ` (${unreadCount})` : ''}</span>
+        </button>
+        {identity && (
           <button
             type="button"
-            onClick={() => setViewMode(ViewMode.BOOKMARKS)}
-            className={desktopActionClass(viewMode === ViewMode.BOOKMARKS)}
-            title="Saved Posts"
+            onClick={() => setViewMode(ViewMode.DIRECT_MESSAGES)}
+            className={desktopActionClass(viewMode === ViewMode.DIRECT_MESSAGES)}
+            title="Direct Messages"
           >
-            <span>SAVED{bookmarkedCount > 0 ? ` (${bookmarkedCount})` : ''}</span>
+            <span>DMs</span>
           </button>
-          <button
-            type="button"
-            onClick={() => setShowNotifications(true)}
-            className={desktopActionClass(showNotifications)}
-            title="Notifications"
-          >
-            <span>ALERTS{unreadCount > 0 ? ` (${unreadCount})` : ''}</span>
-          </button>
-          {identity && (
-            <button
-              type="button"
-              onClick={() => setViewMode(ViewMode.DIRECT_MESSAGES)}
-              className={desktopActionClass(viewMode === ViewMode.DIRECT_MESSAGES)}
-              title="Direct Messages"
-            >
-              <span>DMs</span>
-            </button>
-          )}
-          <NetworkIndicator compact />
-          <div className="hidden xl:flex">
-            <InlineNetworkStatus />
-          </div>
-          <button
-            type="button"
-            onClick={() => setViewMode(ViewMode.IDENTITY)}
-            className={`flex items-center gap-2 border px-3 py-1.5 font-mono transition-colors ${
-              viewMode === ViewMode.IDENTITY
-                ? 'border-terminal-text bg-terminal-dim/10 text-terminal-text'
-                : 'border-terminal-dim/40 text-terminal-text hover:border-terminal-text hover:bg-terminal-dim/10'
-            }`}
-            title={identity ? 'Identity Settings' : 'Connect Identity'}
-          >
-            {identity && ownProfile?.picture ? (
-              <img
-                src={ownProfile.picture}
-                alt={identityDisplayName}
-                className="h-5 w-5 rounded-full object-cover border border-terminal-dim/40"
-              />
-            ) : identity ? (
-              <span className="flex h-5 w-5 items-center justify-center rounded-full border border-terminal-dim/40 bg-terminal-dim/10 text-2xs uppercase">
-                {identityDisplayName.slice(0, 1)}
-              </span>
-            ) : null}
-            {identityDisplayName}
-          </button>
+        )}
+        <NetworkIndicator compact />
+        <div className="hidden xl:flex">
+          <InlineNetworkStatus />
         </div>
+        <button
+          type="button"
+          onClick={() => setViewMode(ViewMode.IDENTITY)}
+          className={`flex items-center gap-2 border px-3 py-1.5 font-mono transition-colors ${
+            viewMode === ViewMode.IDENTITY
+              ? 'border-terminal-text bg-terminal-dim/10 text-terminal-text'
+              : 'border-terminal-dim/40 text-terminal-text hover:border-terminal-text hover:bg-terminal-dim/10'
+          }`}
+          title={identity ? 'Identity Settings' : 'Connect Identity'}
+        >
+          {identity && ownProfile?.picture ? (
+            <img
+              src={ownProfile.picture}
+              alt={identityDisplayName}
+              className="h-5 w-5 rounded-full border border-terminal-dim/40 object-cover"
+            />
+          ) : identity ? (
+            <span className="flex h-5 w-5 items-center justify-center rounded-full border border-terminal-dim/40 bg-terminal-dim/10 text-2xs uppercase">
+              {identityDisplayName.slice(0, 1)}
+            </span>
+          ) : null}
+          {identityDisplayName}
+        </button>
       </nav>
 
       {/* Full-width Bits Bar */}
