@@ -182,62 +182,68 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({
   // Show share link after creating an encrypted board
   if (shareLink && generatedKey) {
     return (
-      <div className="border-2 border-terminal-text bg-terminal-bg p-6 max-w-2xl mx-auto w-full shadow-hard-lg animate-fade-in">
-        <div className="text-center mb-6">
-          <div className="w-16 h-16 border-2 border-terminal-text rounded-full flex items-center justify-center mx-auto mb-4">
-            <Key size={32} className="text-terminal-text" />
+      <div className="ui-surface-editor overflow-hidden">
+        <div className="flex items-center justify-between border-b border-terminal-dim/15 px-5 py-3">
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 w-1.5 rounded-full bg-terminal-text" />
+            <span className="font-mono text-sm uppercase tracking-[0.12em] text-terminal-dim">
+              Private Board Ready
+            </span>
           </div>
-          <h2 className="text-2xl font-bold mb-2">ENCRYPTED_BOARD_CREATED</h2>
-          <p className="text-sm text-terminal-dim">
-            Your private board has been created. Share the link below to grant access.
-          </p>
         </div>
 
-        <div className="space-y-4">
-          {/* Warning */}
-          <div className="p-3 border border-terminal-alert/30 bg-terminal-alert/5 flex items-start gap-2">
-            <AlertTriangle size={14} className="text-terminal-alert mt-0.5 shrink-0" />
-            <p className="text-xs text-terminal-dim">
-              <span className="text-terminal-alert font-bold">Important:</span> Anyone with this
-              link can access the board. The encryption key is embedded in the link and never sent
-              to servers.
+        <div className="px-5 py-5">
+          <div className="mb-6 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-terminal-dim/30 bg-terminal-dim/10">
+              <Key size={32} className="text-terminal-text" />
+            </div>
+            <h2 className="font-display text-3xl font-semibold text-terminal-text">
+              Encrypted board created
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-terminal-dim">
+              Your private board has been created. Share the link below to grant access.
             </p>
           </div>
 
-          {/* Share Link */}
-          <div className="space-y-2">
-            <label className="text-xs text-terminal-dim uppercase font-bold">Share Link</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={shareLink}
-                readOnly
-                className="flex-1 bg-terminal-dim/10 border border-terminal-dim p-3 text-terminal-text font-mono text-sm"
-              />
-              <button
-                type="button"
-                onClick={handleCopyLink}
-                className={`px-4 border transition-colors flex items-center gap-2 ${
-                  copied
-                    ? 'border-terminal-text bg-terminal-text text-black'
-                    : 'border-terminal-dim text-terminal-dim hover:border-terminal-text hover:text-terminal-text'
-                }`}
-              >
-                {copied ? <Check size={16} /> : <Copy size={16} />}
-                {copied ? 'Copied!' : 'Copy'}
+          <div className="space-y-4">
+            {/* Warning */}
+            <div className="flex items-start gap-2 border border-terminal-alert/30 bg-terminal-alert/5 p-3">
+              <AlertTriangle size={14} className="text-terminal-alert mt-0.5 shrink-0" />
+              <p className="text-xs text-terminal-dim">
+                <span className="text-terminal-alert font-bold">Important:</span> Anyone with this
+                link can access the board. The encryption key is embedded in the link and never sent
+                to servers.
+              </p>
+            </div>
+
+            {/* Share Link */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-[0.12em] text-terminal-dim">
+                Share Link
+              </label>
+              <div className="flex gap-2">
+                <input type="text" value={shareLink} readOnly className="ui-input flex-1" />
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className={`flex items-center gap-2 px-4 font-mono text-sm uppercase tracking-[0.12em] transition-colors ${
+                    copied
+                      ? 'border border-terminal-text/30 bg-terminal-text text-black'
+                      : 'border border-terminal-dim/30 text-terminal-dim hover:border-terminal-dim/60 hover:text-terminal-text'
+                  }`}
+                >
+                  {copied ? <Check size={16} /> : <Copy size={16} />}
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-4 border-t border-terminal-dim/20 pt-4">
+              <button type="button" onClick={onCancel} className="ui-button-primary flex-1">
+                Continue to board
               </button>
             </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-4 pt-4 border-t border-terminal-dim/30">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="flex-1 bg-terminal-text text-black font-bold px-6 py-3 hover:bg-terminal-dim hover:text-white transition-colors uppercase tracking-widest"
-            >
-              [ CONTINUE TO BOARD ]
-            </button>
           </div>
         </div>
       </div>
@@ -245,16 +251,24 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({
   }
 
   return (
-    <div className="border-2 border-terminal-text bg-terminal-bg p-6 max-w-2xl mx-auto w-full shadow-hard-lg animate-fade-in">
-      <h2 className="text-2xl font-bold mb-6 border-b border-terminal-dim pb-2">
-        &gt; INITIALIZE_NEW_FREQUENCY
-      </h2>
+    <div className="ui-surface-editor overflow-hidden">
+      <div className="flex items-center justify-between border-b border-terminal-dim/15 px-5 py-3">
+        <div className="flex items-center gap-2">
+          <div className="h-1.5 w-1.5 rounded-full bg-terminal-text" />
+          <span className="font-mono text-sm uppercase tracking-[0.12em] text-terminal-dim">
+            New Board
+          </span>
+        </div>
+        <span className="font-mono text-xs uppercase tracking-[0.08em] text-terminal-dim/70">
+          Topic network
+        </span>
+      </div>
 
-      <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-6">
+      <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-6 px-5 py-5">
         {/* Name Input */}
         <div className="flex flex-col gap-2">
           <div className="flex justify-between items-center">
-            <label className="text-sm text-terminal-dim uppercase font-bold flex items-center gap-2">
+            <label className="text-sm text-terminal-dim uppercase tracking-[0.12em] font-bold flex items-center gap-2">
               <Hash size={14} /> Frequency Name (ID)
             </label>
             <span className="text-xs text-terminal-dim">
@@ -262,15 +276,17 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({
             </span>
           </div>
           <div className="flex items-center">
-            <span className="bg-terminal-dim/20 border border-r-0 border-terminal-dim p-3 text-terminal-dim font-mono">
+            <span className="border border-r-0 border-terminal-dim/30 bg-terminal-dim/10 p-3 text-terminal-dim font-mono">
               //
             </span>
             <input
               type="text"
               value={name}
               onChange={handleNameChange}
-              className={`flex-1 bg-terminal-bg border p-3 text-terminal-text focus:border-terminal-text focus:outline-none font-mono text-lg tracking-widest uppercase ${
-                nameError ? 'border-terminal-alert' : 'border-terminal-dim'
+              className={`flex-1 border bg-terminal-bg/60 p-3 text-lg font-mono uppercase tracking-widest text-terminal-text focus:outline-none ${
+                nameError
+                  ? 'border-terminal-alert focus:border-terminal-alert'
+                  : 'border-terminal-dim/30 focus:border-terminal-dim'
               }`}
               placeholder="MYBOARD"
             />
@@ -289,7 +305,7 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({
         {/* Description */}
         <div className="flex flex-col gap-2">
           <div className="flex justify-between items-center">
-            <label className="text-sm text-terminal-dim uppercase font-bold">
+            <label className="text-sm text-terminal-dim uppercase tracking-[0.12em] font-bold">
               Manifesto / Description
             </label>
             <span
@@ -304,8 +320,10 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({
               setDescription(e.target.value);
               setDescriptionError(null);
             }}
-            className={`bg-terminal-bg border p-3 text-terminal-text focus:border-terminal-text focus:outline-none font-mono min-h-[100px] ${
-              descriptionError ? 'border-terminal-alert' : 'border-terminal-dim'
+            className={`min-h-[100px] border bg-terminal-bg/60 p-3 font-mono text-terminal-text focus:outline-none ${
+              descriptionError
+                ? 'border-terminal-alert focus:border-terminal-alert'
+                : 'border-terminal-dim/30 focus:border-terminal-dim'
             }`}
             placeholder="Define the purpose of this communication node..."
           />
@@ -318,12 +336,14 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({
 
         {/* Visibility Toggle */}
         <div className="flex flex-col gap-2">
-          <label className="text-sm text-terminal-dim uppercase font-bold">Signal Visibility</label>
+          <label className="text-sm text-terminal-dim uppercase tracking-[0.12em] font-bold">
+            Signal Visibility
+          </label>
           <div className="grid grid-cols-2 gap-4">
             <button
               type="button"
               onClick={() => setIsPublic(true)}
-              className={`border p-4 flex flex-col items-center gap-2 transition-all ${isPublic ? 'border-terminal-text bg-terminal-dim/10' : 'border-terminal-dim opacity-50 hover:opacity-100'}`}
+              className={`border p-4 flex flex-col items-center gap-2 transition-all ${isPublic ? 'border-terminal-dim/60 bg-terminal-dim/10 text-terminal-text' : 'border-terminal-dim/20 text-terminal-dim/70 hover:border-terminal-dim/40 hover:text-terminal-dim'}`}
             >
               <Globe size={24} />
               <span className="font-bold">PUBLIC_NET</span>
@@ -335,7 +355,7 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({
             <button
               type="button"
               onClick={() => setIsPublic(false)}
-              className={`border p-4 flex flex-col items-center gap-2 transition-all ${!isPublic ? 'border-terminal-alert text-terminal-alert bg-terminal-alert/10' : 'border-terminal-dim opacity-50 hover:opacity-100'}`}
+              className={`border p-4 flex flex-col items-center gap-2 transition-all ${!isPublic ? 'border-terminal-alert/50 text-terminal-alert bg-terminal-alert/10' : 'border-terminal-dim/20 text-terminal-dim/70 hover:border-terminal-dim/40 hover:text-terminal-dim'}`}
             >
               <Lock size={24} />
               <span className="font-bold">ENCRYPTED</span>
@@ -352,7 +372,7 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({
             <div className="flex items-start gap-3">
               <Shield size={20} className="text-terminal-alert mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm text-terminal-alert font-bold mb-1">Identity Required</p>
+                <p className="mb-1 text-sm font-bold text-terminal-alert">Identity Required</p>
                 <p className="text-xs text-terminal-dim mb-3">
                   To prevent spam, board creation requires a Nostr identity. Your identity is used
                   to sign and verify the board.
@@ -361,7 +381,7 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({
                   <button
                     type="button"
                     onClick={onConnectIdentity}
-                    className="text-xs border border-terminal-alert text-terminal-alert px-3 py-1.5 hover:bg-terminal-alert hover:text-black transition-colors uppercase"
+                    className="border border-terminal-alert/50 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-terminal-alert transition-colors hover:bg-terminal-alert hover:text-black"
                   >
                     Connect Identity
                   </button>
@@ -390,20 +410,20 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({
           </div>
         )}
 
-        <div className="flex gap-4 mt-6 pt-4 border-t border-terminal-dim/30">
+        <div className="mt-6 flex gap-4 border-t border-terminal-dim/20 pt-4">
           <button
             type="submit"
             disabled={isSubmitting || !name.trim() || !identity || !rateLimit.allowed}
-            className="bg-terminal-text text-black font-bold px-6 py-3 hover:bg-terminal-dim hover:text-white transition-colors uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed flex-1"
+            className="ui-button-primary flex-1"
           >
-            {isSubmitting ? 'ESTABLISHING...' : 'CREATE BOARD'}
+            {isSubmitting ? 'Establishing...' : 'Create Board'}
           </button>
           <button
             type="button"
             onClick={onCancel}
-            className="border border-terminal-alert text-terminal-alert px-6 py-3 hover:bg-terminal-alert hover:text-black transition-colors uppercase tracking-widest"
+            className="ui-button-secondary border-terminal-alert/40 text-terminal-alert hover:border-terminal-alert"
           >
-            DISCARD
+            Discard
           </button>
         </div>
       </form>

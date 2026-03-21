@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Users, ShieldCheck, ShieldAlert, Shield } from 'lucide-react';
 import { wotService } from '../services/wotService';
 import { FeatureFlags } from '../config';
@@ -20,7 +21,12 @@ export const TrustIndicator: React.FC<TrustIndicatorProps> = ({
     followedBy: string[];
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [flipTooltip, setFlipTooltip] = useState(false);
+  const [tooltipOpen, setTooltipOpen] = useState(false);
+  const [tooltipPos, setTooltipPos] = useState<{ top: number; left: number; placeAbove: boolean }>({
+    top: 0,
+    left: 0,
+    placeAbove: true,
+  });
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -62,20 +68,31 @@ export const TrustIndicator: React.FC<TrustIndicatorProps> = ({
     };
   }, [pubkey]);
 
-  useEffect(() => {
-    const updateFlipState = () => {
-      const top = rootRef.current?.getBoundingClientRect().top ?? 9999;
-      setFlipTooltip(top < 200);
-    };
-
-    updateFlipState();
-    window.addEventListener('scroll', updateFlipState, { passive: true });
-    window.addEventListener('resize', updateFlipState);
-    return () => {
-      window.removeEventListener('scroll', updateFlipState);
-      window.removeEventListener('resize', updateFlipState);
-    };
+  const updateTooltipPosition = useCallback(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const margin = 8;
+    const estH = 200;
+    const placeAbove = r.top >= estH + margin;
+    const top = placeAbove ? r.top - margin : r.bottom + margin;
+    const halfW = 112; /* ~w-56 / 2 */
+    const pad = 10;
+    const vw = window.innerWidth;
+    const left = Math.min(Math.max(r.left + r.width / 2, pad + halfW), vw - pad - halfW);
+    setTooltipPos({ top, left, placeAbove });
   }, []);
+
+  useEffect(() => {
+    if (!tooltipOpen) return;
+    updateTooltipPosition();
+    window.addEventListener('scroll', updateTooltipPosition, true);
+    window.addEventListener('resize', updateTooltipPosition);
+    return () => {
+      window.removeEventListener('scroll', updateTooltipPosition, true);
+      window.removeEventListener('resize', updateTooltipPosition);
+    };
+  }, [tooltipOpen, updateTooltipPosition]);
 
   if (!FeatureFlags.ENABLE_WOT || (!isLoading && !wotInfo)) {
     return null;
@@ -102,11 +119,72 @@ export const TrustIndicator: React.FC<TrustIndicatorProps> = ({
 
   const colorClass = getTrustColor(distance);
 
+  const tooltipContent = (
+    <div
+      className={`pointer-events-none fixed z-[120] w-56 -translate-x-1/2 border border-terminal-dim/30 bg-terminal-bg/95 p-3 text-2xs uppercase leading-tight shadow-glow ${
+        tooltipPos.placeAbove ? '-translate-y-full' : ''
+      }`}
+      style={{ top: tooltipPos.top, left: tooltipPos.left }}
+      role="tooltip"
+    >
+      <div className="mb-2 flex items-center gap-2 border-b border-terminal-dim/30 pb-2">
+        <Shield size={16} className="text-terminal-text" />
+        <p className="font-bold text-terminal-text">Web_of_Trust_Report</p>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex justify-between">
+          <span className="text-terminal-dim">Distance:</span>
+          <span className="font-bold text-terminal-text">
+            {distance === 0 ? 'SELF' : `${distance} HOP(S)`}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-terminal-dim">Trust_Score:</span>
+          <span className="font-bold text-terminal-text">{(wotInfo!.score * 100).toFixed(0)}%</span>
+        </div>
+
+        {wotInfo!.followedBy.length > 0 && (
+          <div className="mt-2 border-t border-terminal-dim/20 pt-2">
+            <p className="mb-1 flex items-center gap-1 text-terminal-dim">
+              <Users size={10} /> Followed_By:
+            </p>
+            <p className="italic lowercase text-terminal-text">
+              {wotInfo!.followedBy.length} of your follows
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-2 border-t border-terminal-dim/30 pt-2 text-center text-2xs text-terminal-dim">
+        NOSTR_WOT_CALCULATION_ACTIVE
+      </div>
+
+      <div
+        className={`absolute left-1/2 h-0 w-0 -translate-x-1/2 border-l-[6px] border-r-[6px] border-transparent ${
+          tooltipPos.placeAbove
+            ? 'top-full border-t-[6px] border-t-terminal-text'
+            : 'bottom-full border-b-[6px] border-b-terminal-text'
+        }`}
+      />
+    </div>
+  );
+
   return (
     <div
       ref={rootRef}
       tabIndex={0}
-      className={`group relative inline-flex items-center gap-1 cursor-help focus:outline-none`}
+      className="relative inline-flex cursor-help items-center gap-1 focus:outline-none"
+      onMouseEnter={() => {
+        updateTooltipPosition();
+        setTooltipOpen(true);
+      }}
+      onMouseLeave={() => setTooltipOpen(false)}
+      onFocus={() => {
+        updateTooltipPosition();
+        setTooltipOpen(true);
+      }}
+      onBlur={() => setTooltipOpen(false)}
     >
       {distance <= 1 ? (
         <ShieldCheck size={compact ? 12 : 14} className="text-terminal-text" />
@@ -118,56 +196,15 @@ export const TrustIndicator: React.FC<TrustIndicatorProps> = ({
 
       {showDistance && !compact && (
         <span
-          className={`text-[9px] font-bold uppercase tracking-tighter px-1 border border-current rounded-sm ${colorClass}`}
+          className={`rounded-sm border border-current px-1 text-[9px] font-bold uppercase tracking-tighter ${colorClass}`}
         >
           DIST_{distance === 0 ? 'SELF' : distance}
         </span>
       )}
 
-      {/* Tooltip */}
-      <div
-        className={`absolute left-1/2 -translate-x-1/2 w-56 p-3 bg-terminal-bg border-2 border-terminal-text shadow-glow opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity z-50 text-2xs uppercase leading-tight ${flipTooltip ? 'top-full mt-2' : 'bottom-full mb-2'}`}
-      >
-        <div className="flex items-center gap-2 mb-2 pb-2 border-b border-terminal-dim/30">
-          <Shield size={16} className="text-terminal-text" />
-          <p className="font-bold text-terminal-text">Web_of_Trust_Report</p>
-        </div>
-
-        <div className="space-y-2">
-          <div className="flex justify-between">
-            <span className="text-terminal-dim">Distance:</span>
-            <span className="text-terminal-text font-bold">
-              {distance === 0 ? 'SELF' : `${distance} HOP(S)`}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-terminal-dim">Trust_Score:</span>
-            <span className="text-terminal-text font-bold">
-              {(wotInfo!.score * 100).toFixed(0)}%
-            </span>
-          </div>
-
-          {wotInfo!.followedBy.length > 0 && (
-            <div className="mt-2 pt-2 border-t border-terminal-dim/20">
-              <p className="text-terminal-dim mb-1 flex items-center gap-1">
-                <Users size={10} /> Followed_By:
-              </p>
-              <p className="text-terminal-text lowercase italic">
-                {wotInfo!.followedBy.length} of your follows
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="mt-2 pt-2 border-t border-terminal-dim/30 text-2xs text-terminal-dim text-center">
-          NOSTR_WOT_CALCULATION_ACTIVE
-        </div>
-
-        {/* Arrow */}
-        <div
-          className={`absolute left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent ${flipTooltip ? 'bottom-full border-b-[6px] border-b-terminal-text' : 'top-full border-t-[6px] border-t-terminal-text'}`}
-        />
-      </div>
+      {tooltipOpen &&
+        typeof document !== 'undefined' &&
+        createPortal(tooltipContent, document.body)}
     </div>
   );
 };

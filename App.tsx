@@ -120,9 +120,9 @@ const IdentityUnlockModal = (props: {
   onSubmit: () => void;
   onReset: () => void;
 }) => (
-  <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 px-4 font-mono text-terminal-text">
-    <div className="w-full max-w-md border-2 border-terminal-text bg-terminal-bg p-6 shadow-hard-lg">
-      <h2 className="text-lg font-terminal uppercase tracking-widest text-terminal-text">
+  <div className="ui-overlay z-[110] flex items-center justify-center px-4 font-mono text-terminal-text">
+    <div className="ui-surface-modal max-w-md p-6">
+      <h2 className="font-display text-2xl font-semibold text-terminal-text">
         {props.isMigration ? 'Secure Your Identity' : 'Unlock Identity'}
       </h2>
       <p className="mt-2 text-sm leading-relaxed text-terminal-dim">
@@ -143,7 +143,7 @@ const IdentityUnlockModal = (props: {
           value={props.passphrase}
           onChange={(e) => props.onPassphraseChange(e.target.value)}
           autoComplete="current-password"
-          className="w-full border border-terminal-dim bg-terminal-bg p-3 text-sm text-terminal-text font-mono placeholder:text-terminal-dim/50 focus:border-terminal-text focus:outline-none"
+          className="ui-input"
           placeholder={props.isMigration ? 'Create a passphrase' : 'Enter passphrase'}
         />
 
@@ -153,7 +153,7 @@ const IdentityUnlockModal = (props: {
             value={props.confirmPassphrase}
             onChange={(e) => props.onConfirmPassphraseChange(e.target.value)}
             autoComplete="new-password"
-            className="w-full border border-terminal-dim bg-terminal-bg p-3 text-sm text-terminal-text font-mono placeholder:text-terminal-dim/50 focus:border-terminal-text focus:outline-none"
+            className="ui-input"
             placeholder="Repeat passphrase"
           />
         )}
@@ -184,7 +184,7 @@ const IdentityUnlockModal = (props: {
         <button
           type="submit"
           disabled={props.isSubmitting}
-          className="w-full border border-terminal-text bg-terminal-text px-4 py-3 font-mono font-bold uppercase tracking-wide text-black transition-colors hover:bg-terminal-dim hover:text-terminal-bg disabled:opacity-60"
+          className="ui-button-primary w-full py-3 disabled:opacity-60"
         >
           {props.isSubmitting
             ? props.isMigration
@@ -199,7 +199,7 @@ const IdentityUnlockModal = (props: {
           type="button"
           onClick={props.onReset}
           disabled={props.isSubmitting}
-          className="w-full border border-terminal-dim px-4 py-3 text-xs font-mono uppercase tracking-wide text-terminal-dim transition-colors hover:border-terminal-alert hover:text-terminal-alert disabled:opacity-60"
+          className="ui-button-secondary w-full py-3 text-xs hover:border-terminal-alert hover:text-terminal-alert disabled:opacity-60"
         >
           Reset Local Identity
         </button>
@@ -619,19 +619,39 @@ const AppContent: React.FC = () => {
           drawerOpen={desktopNavOpen}
           onCloseDrawer={() => setDesktopNavOpen(false)}
           onOpenDrawer={() => setDesktopNavOpen(true)}
-          navigateToBoard={app.navigateToBoard}
-          onSetViewMode={app.setViewMode}
-          hasIdentity={!!app.userState.identity}
-        />
+        >
+          <Sidebar
+            userState={app.userState}
+            setUserState={app.setUserState}
+            theme={app.theme}
+            setTheme={app.setTheme}
+            getThemeColor={app.getThemeColor}
+            isNostrConnected={app.isNostrConnected}
+            viewMode={app.viewMode}
+            activeBoardId={app.activeBoardId}
+            feedFilter={app.feedFilter}
+            setFeedFilter={app.setFeedFilter}
+            topicBoards={app.topicBoards ?? []}
+            externalCommunities={app.externalCommunities ?? []}
+            geohashBoards={app.geohashBoards ?? []}
+            boardsById={app.boardsById ?? new Map()}
+            decryptionFailedBoardIds={app.decryptionFailedBoardIds}
+            removeFailedDecryptionKey={app.removeFailedDecryptionKey}
+            navigateToBoard={app.navigateToBoard}
+            onSetViewMode={app.setViewMode}
+            onRequestCloseNav={() => setDesktopNavOpen(false)}
+            layout="drawer"
+          />
+        </DesktopNavChrome>
 
-        <div className="max-w-[1174px] mx-auto p-3 md:p-6 relative z-10 pb-20 md:pb-6">
+        <div className="relative z-10 mx-auto max-w-[1174px] px-4 py-3 pb-20 md:px-6 md:py-6 md:pb-6">
           <AppHeader
             onOpenDrawer={() => setIsDrawerOpen(true)}
             onOpenDesktopNav={() => setDesktopNavOpen(true)}
           />
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-4 md:gap-6 py-[5px]">
-            <main className="min-w-0 md:col-span-3">
+          <div className="grid grid-cols-1 gap-4 py-[5px]">
+            <main className="min-w-0">
               {/* Feed View */}
               {app.viewMode === ViewMode.FEED && (
                 <FeedView
@@ -859,31 +879,6 @@ const AppContent: React.FC = () => {
                 </Suspense>
               )}
             </main>
-
-            {/* Desktop sidebar — always visible on md+, hidden on mobile */}
-            <aside className="hidden md:block">
-              <Sidebar
-                userState={app.userState}
-                setUserState={app.setUserState}
-                theme={app.theme}
-                setTheme={app.setTheme}
-                getThemeColor={app.getThemeColor}
-                isNostrConnected={app.isNostrConnected}
-                viewMode={app.viewMode}
-                activeBoardId={app.activeBoardId}
-                feedFilter={app.feedFilter}
-                setFeedFilter={app.setFeedFilter}
-                topicBoards={app.topicBoards ?? []}
-                externalCommunities={app.externalCommunities ?? []}
-                geohashBoards={app.geohashBoards ?? []}
-                boardsById={app.boardsById ?? new Map()}
-                decryptionFailedBoardIds={app.decryptionFailedBoardIds}
-                removeFailedDecryptionKey={app.removeFailedDecryptionKey}
-                navigateToBoard={app.navigateToBoard}
-                onSetViewMode={app.setViewMode}
-                layout="inline"
-              />
-            </aside>
           </div>
         </div>
 

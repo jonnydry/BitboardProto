@@ -90,7 +90,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({ postId, postTitle }) =
       {/* Share button */}
       <button
         onClick={hasNativeShare ? handleNativeShare : handleCopyLink}
-        className="p-2.5 md:p-1 text-terminal-dim hover:text-terminal-text transition-colors min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center"
+        className="inline-flex h-11 w-11 shrink-0 items-center justify-center text-terminal-dim transition-colors hover:text-terminal-text md:h-9 md:w-9"
         title={hasNativeShare ? 'Share post' : 'Copy link'}
         aria-label={hasNativeShare ? 'Share post' : 'Copy link to post'}
       >

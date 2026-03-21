@@ -462,11 +462,11 @@ const NewConversationModal: React.FC<{
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-terminal-bg border-2 border-terminal-text p-6 max-w-md w-full">
-        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+    <div className="ui-overlay flex items-center justify-center p-4">
+      <div className="ui-surface-modal max-w-md p-6">
+        <h2 className="mb-4 flex items-center gap-2 font-display text-2xl font-semibold text-terminal-text">
           <MessageCircle size={20} />
-          NEW MESSAGE
+          New Message
         </h2>
 
         <div className="space-y-4">
@@ -482,7 +482,7 @@ const NewConversationModal: React.FC<{
                 setError(null);
               }}
               placeholder="npub1... or 64-character hex public key..."
-              className="w-full bg-terminal-bg border border-terminal-dim p-3 text-terminal-text focus:border-terminal-text focus:outline-none font-mono text-sm"
+              className="ui-input"
             />
             {error && <p className="text-terminal-alert text-xs mt-1">* {error}</p>}
           </div>
@@ -491,15 +491,12 @@ const NewConversationModal: React.FC<{
             <button
               onClick={handleStart}
               disabled={!pubkey.trim()}
-              className="flex-1 bg-terminal-text text-black font-bold py-3 hover:bg-terminal-dim hover:text-white transition-colors disabled:opacity-50"
+              className="ui-button-primary flex-1 py-3 disabled:opacity-50"
             >
-              START CHAT
+              Start Chat
             </button>
-            <button
-              onClick={onClose}
-              className="px-6 border border-terminal-dim text-terminal-dim hover:border-terminal-text hover:text-terminal-text transition-colors"
-            >
-              CANCEL
+            <button onClick={onClose} className="ui-button-secondary px-6">
+              Cancel
             </button>
           </div>
         </div>

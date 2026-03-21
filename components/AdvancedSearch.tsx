@@ -1,8 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Search, Filter, X, Clock, Save, Trash2, 
-  ChevronDown, ChevronUp, Image, Link2, TrendingUp,
-  MessageSquare, Hash, User
+import {
+  Search,
+  Filter,
+  X,
+  Clock,
+  Save,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  Image,
+  Link2,
+  TrendingUp,
+  MessageSquare,
+  Hash,
+  User,
 } from 'lucide-react';
 import {
   advancedSearchService,
@@ -42,7 +53,7 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  
+
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
@@ -67,7 +78,7 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
 
     setIsSearching(true);
     setShowSuggestions(false);
-    
+
     try {
       const searchResults = await advancedSearchService.search({
         query,
@@ -92,10 +103,14 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
   // Save current search
   const handleSaveSearch = () => {
     if (!query.trim()) return;
-    
+
     const name = prompt('Name this search:', query);
     if (name) {
-      advancedSearchService.saveSearch(name, { query, ...filters, sortBy: filters.sortBy || SearchSortBy.RELEVANCE });
+      advancedSearchService.saveSearch(name, {
+        query,
+        ...filters,
+        sortBy: filters.sortBy || SearchSortBy.RELEVANCE,
+      });
       setSavedSearches(advancedSearchService.getSavedSearches());
     }
   };
@@ -105,7 +120,7 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
     setQuery(saved.filters.query);
     setFilters(saved.filters);
     setShowSavedSearches(false);
-    
+
     setIsSearching(true);
     try {
       const searchResults = await advancedSearchService.executeSavedSearch(saved.id);
@@ -160,9 +175,9 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
                 onKeyDown={handleKeyPress}
                 onFocus={() => query.length >= 2 && setShowSuggestions(true)}
                 placeholder="Search posts, comments, users..."
-                className="w-full px-4 py-2 bg-black border border-terminal-dim focus:border-terminal-text outline-none"
+                className="w-full border border-terminal-dim/30 bg-black px-4 py-2 focus:border-terminal-dim focus:outline-none"
               />
-              
+
               {/* Suggestions Dropdown */}
               {showSuggestions && suggestions.length > 0 && (
                 <div
@@ -186,7 +201,7 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
             <button
               onClick={handleSearch}
               disabled={isSearching}
-              className="px-4 py-2 bg-terminal-text text-black font-bold hover:bg-terminal-dim hover:text-white transition-colors"
+              className="ui-button-primary px-4 py-2"
             >
               {isSearching ? '...' : 'SEARCH'}
             </button>
@@ -202,7 +217,7 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
               Filters
               {showFilters ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
             </button>
-            
+
             <button
               onClick={() => setShowSavedSearches(!showSavedSearches)}
               className="flex items-center gap-1 text-terminal-dim hover:text-terminal-text transition-colors"
@@ -229,7 +244,7 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
         <div className="p-3 border-b border-terminal-dim bg-terminal-dim/10">
           <div className="text-xs font-bold mb-2 text-terminal-dim">SAVED SEARCHES</div>
           <div className="flex flex-wrap gap-2">
-            {savedSearches.map(saved => (
+            {savedSearches.map((saved) => (
               <button
                 key={saved.id}
                 onClick={() => handleExecuteSavedSearch(saved)}
@@ -249,19 +264,15 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
       )}
 
       {/* Filters Panel */}
-      {showFilters && (
-        <SearchFiltersPanel filters={filters} onChange={setFilters} />
-      )}
+      {showFilters && <SearchFiltersPanel filters={filters} onChange={setFilters} />}
 
       {/* Results */}
       <div className="flex-1 overflow-y-auto">
         {results.length === 0 && !isSearching && query && (
-          <div className="p-8 text-center text-terminal-dim">
-            No results found for "{query}"
-          </div>
+          <div className="p-8 text-center text-terminal-dim">No results found for "{query}"</div>
         )}
 
-        {results.map(result => (
+        {results.map((result) => (
           <SearchResultItem
             key={result.id}
             result={result}
@@ -342,7 +353,9 @@ const SearchFiltersPanel: React.FC<{
           <input
             type="number"
             value={filters.minScore || ''}
-            onChange={(e) => updateFilter('minScore', e.target.value ? parseInt(e.target.value) : undefined)}
+            onChange={(e) =>
+              updateFilter('minScore', e.target.value ? parseInt(e.target.value) : undefined)
+            }
             placeholder="Any"
             min={0}
             className="w-full px-2 py-1 bg-black border border-terminal-dim focus:border-terminal-text outline-none"
@@ -362,7 +375,7 @@ const SearchFiltersPanel: React.FC<{
           <Image size={14} />
           <span className="text-xs">Has Image</span>
         </label>
-        
+
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
@@ -401,9 +414,7 @@ const SearchResultItem: React.FC<{
       className="p-4 border-b border-terminal-dim/30 hover:bg-terminal-dim/10 cursor-pointer transition-colors"
     >
       {/* Title */}
-      {result.title && (
-        <h3 className="font-bold text-terminal-text mb-1">{result.title}</h3>
-      )}
+      {result.title && <h3 className="font-bold text-terminal-text mb-1">{result.title}</h3>}
 
       {/* Content Preview */}
       <p className="text-sm text-terminal-dim line-clamp-2">
@@ -416,32 +427,30 @@ const SearchResultItem: React.FC<{
           <User size={12} />
           {result.authorName || result.authorPubkey.slice(0, 8)}...
         </span>
-        
+
         {result.boardName && (
           <span className="flex items-center gap-1">
             <Hash size={12} />
             {result.boardName}
           </span>
         )}
-        
+
         <span className="flex items-center gap-1">
           <TrendingUp size={12} />
           {result.score}
         </span>
-        
+
         <span className="flex items-center gap-1">
           <MessageSquare size={12} />
           {result.commentCount}
         </span>
-        
-        <span className="ml-auto">
-          {formatDate(result.timestamp)}
-        </span>
+
+        <span className="ml-auto">{formatDate(result.timestamp)}</span>
       </div>
 
       {/* Match Indicators */}
       <div className="flex gap-1 mt-2">
-        {result.matchedOn.map(match => (
+        {result.matchedOn.map((match) => (
           <span
             key={match}
             className="px-1.5 py-0.5 text-xs bg-terminal-dim/20 border border-terminal-dim/50"
@@ -526,8 +535,8 @@ export const QuickSearchBar: React.FC<{
           {isSearching && (
             <div className="p-3 text-sm text-terminal-dim text-center">Searching...</div>
           )}
-          
-          {results.map(result => (
+
+          {results.map((result) => (
             <button
               key={result.id}
               onClick={() => {
@@ -568,12 +577,12 @@ function formatDate(timestamp: number): string {
   const date = new Date(timestamp);
   const now = new Date();
   const diff = now.getTime() - date.getTime();
-  
+
   if (diff < 60000) return 'just now';
   if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
   if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
-  
+
   return date.toLocaleDateString();
 }
 

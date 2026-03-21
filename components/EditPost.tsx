@@ -127,13 +127,13 @@ export const EditPost: React.FC<EditPostProps> = ({ post, boards, onSave, onDele
         CANCEL EDIT
       </button>
 
-      <div className="border-2 border-terminal-text bg-terminal-bg p-6 shadow-hard-lg">
-        <h2 className="text-2xl font-bold mb-6 border-b border-terminal-dim pb-2 flex justify-between items-end">
-          <span>&gt; EDIT_BIT</span>
+      <div className="ui-surface-editor max-w-none overflow-hidden">
+        <div className="flex items-end justify-between border-b border-terminal-dim/15 px-5 py-4">
+          <h2 className="font-display text-3xl font-semibold text-terminal-text">Edit Bit</h2>
           <span className="text-xs text-terminal-dim font-normal">
             Board: <span className="text-terminal-text">//{boardName}</span>
           </span>
-        </h2>
+        </div>
 
         <form
           ref={formRef}
@@ -141,7 +141,7 @@ export const EditPost: React.FC<EditPostProps> = ({ post, boards, onSave, onDele
             e.preventDefault();
             handleSave();
           }}
-          className="flex flex-col gap-4"
+          className="flex flex-col gap-4 px-5 py-5"
         >
           {/* Title */}
           <div className="flex flex-col gap-1">
@@ -157,7 +157,7 @@ export const EditPost: React.FC<EditPostProps> = ({ post, boards, onSave, onDele
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className={`bg-terminal-bg border p-2 text-base md:text-sm text-terminal-text font-mono focus:outline-none focus:border-terminal-text
+              className={`ui-input text-base md:text-sm
                 ${errors.title ? 'border-terminal-alert' : 'border-terminal-dim'}
               `}
             />
@@ -180,7 +180,7 @@ export const EditPost: React.FC<EditPostProps> = ({ post, boards, onSave, onDele
               value={content}
               onChange={(e) => setContent(e.target.value)}
               rows={6}
-              className={`bg-terminal-bg border p-2 text-base md:text-sm text-terminal-text font-mono focus:outline-none focus:border-terminal-text resize-y min-h-[100px]
+              className={`ui-input min-h-[100px] resize-y text-base md:text-sm
                 ${errors.content ? 'border-terminal-alert' : 'border-terminal-dim'}
               `}
             />
@@ -199,7 +199,7 @@ export const EditPost: React.FC<EditPostProps> = ({ post, boards, onSave, onDele
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://..."
-              className={`bg-terminal-bg border p-2 text-terminal-text font-mono focus:outline-none focus:border-terminal-text
+              className={`ui-input
                 ${errors.url ? 'border-terminal-alert' : 'border-terminal-dim'}
               `}
             />
@@ -216,7 +216,7 @@ export const EditPost: React.FC<EditPostProps> = ({ post, boards, onSave, onDele
               value={imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
               placeholder="https://..."
-              className={`bg-terminal-bg border p-2 text-terminal-text font-mono focus:outline-none focus:border-terminal-text
+              className={`ui-input
                 ${errors.imageUrl ? 'border-terminal-alert' : 'border-terminal-dim'}
               `}
             />
@@ -235,12 +235,12 @@ export const EditPost: React.FC<EditPostProps> = ({ post, boards, onSave, onDele
               value={tagsStr}
               onChange={(e) => setTagsStr(e.target.value)}
               placeholder="tag1, tag2, tag3"
-              className="bg-terminal-bg border border-terminal-dim p-2 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
+              className="ui-input"
             />
           </div>
 
           {/* Actions */}
-          <div className="flex justify-between items-center mt-4 pt-4 border-t border-terminal-dim">
+          <div className="mt-4 flex items-center justify-between border-t border-terminal-dim/20 pt-4">
             {/* Delete Button */}
             <div>
               {showDeleteConfirm ? (
@@ -249,14 +249,14 @@ export const EditPost: React.FC<EditPostProps> = ({ post, boards, onSave, onDele
                   <button
                     type="button"
                     onClick={handleDelete}
-                    className="px-3 py-1 border border-terminal-alert text-terminal-alert hover:bg-terminal-alert hover:text-black transition-colors text-xs uppercase"
+                    className="border border-terminal-alert/40 px-3 py-1 text-xs uppercase tracking-[0.12em] text-terminal-alert transition-colors hover:bg-terminal-alert hover:text-black"
                   >
                     YES
                   </button>
                   <button
                     type="button"
                     onClick={() => setShowDeleteConfirm(false)}
-                    className="px-3 py-1 border border-terminal-dim text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors text-xs uppercase"
+                    className="ui-button-secondary px-3 py-1 text-xs"
                   >
                     NO
                   </button>
@@ -265,7 +265,7 @@ export const EditPost: React.FC<EditPostProps> = ({ post, boards, onSave, onDele
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="flex items-center gap-2 px-3 py-1 border border-terminal-alert/50 text-terminal-alert/70 hover:border-terminal-alert hover:text-terminal-alert transition-colors text-xs uppercase"
+                  className="flex items-center gap-2 border border-terminal-alert/40 px-3 py-1 text-xs uppercase tracking-[0.12em] text-terminal-alert/80 transition-colors hover:border-terminal-alert hover:text-terminal-alert"
                 >
                   <Trash2 size={14} />
                   DELETE
@@ -278,17 +278,17 @@ export const EditPost: React.FC<EditPostProps> = ({ post, boards, onSave, onDele
               <button
                 type="button"
                 onClick={onCancel}
-                className="px-4 py-2 border border-terminal-dim text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors uppercase text-sm"
+                className="ui-button-secondary px-4 py-2 text-sm"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSaving}
-                className="flex items-center gap-2 px-4 py-2 border border-terminal-text text-terminal-text hover:bg-terminal-text hover:text-black transition-colors uppercase text-sm disabled:opacity-50"
+                className="ui-button-primary flex items-center gap-2 px-4 py-2 text-sm disabled:opacity-50"
               >
                 <Save size={14} />
-                {isSaving ? 'SAVING...' : 'SAVE_CHANGES'}
+                {isSaving ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>
@@ -296,7 +296,7 @@ export const EditPost: React.FC<EditPostProps> = ({ post, boards, onSave, onDele
 
         {/* Warning about Nostr */}
         {post.nostrEventId && (
-          <div className="mt-4 p-3 border border-terminal-alert/30 bg-terminal-alert/5 flex items-start gap-2">
+          <div className="mx-5 mb-5 flex items-start gap-2 border border-terminal-alert/30 bg-terminal-alert/5 p-3">
             <AlertTriangle size={14} className="text-terminal-alert mt-0.5 shrink-0" />
             <p className="text-xs text-terminal-dim">
               <span className="text-terminal-alert font-bold">Note:</span> This post is published on

@@ -119,12 +119,12 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
   );
 
   return (
-    <div className="border-2 border-terminal-text bg-terminal-bg p-6 max-w-3xl mx-auto w-full shadow-hard-lg animate-fade-in">
-      <div className="flex items-center justify-between mb-6 border-b border-terminal-dim pb-2">
+    <div className="ui-surface-editor max-w-3xl overflow-hidden">
+      <div className="flex items-center justify-between border-b border-terminal-dim/15 px-5 py-3">
         <div>
-          <h2 className="text-xl font-bold">RELAY_SETTINGS</h2>
-          <p className="text-xs text-terminal-dim mt-1">
-            CONNECTED: <span className="text-terminal-text font-bold">{connectedCount}</span> /{' '}
+          <h2 className="font-display text-2xl font-semibold text-terminal-text">Relay Settings</h2>
+          <p className="mt-1 text-xs text-terminal-dim">
+            Connected: <span className="font-bold text-terminal-text">{connectedCount}</span> /{' '}
             {statuses.length}
           </p>
         </div>
@@ -132,338 +132,342 @@ export const RelaySettings: React.FC<{ onClose: () => void }> = ({ onClose }) =>
           onClick={onClose}
           className="text-terminal-dim hover:text-terminal-text transition-colors"
         >
-          [ ESC ]
+          ESC
         </button>
       </div>
 
-      {error && (
-        <div className="mb-4 p-3 border border-terminal-alert bg-terminal-alert/10 text-terminal-alert flex items-center gap-2 text-sm">
-          <AlertTriangle size={16} />
-          {error}
-        </div>
-      )}
-
-      <div className="mb-6 border border-terminal-dim/40 bg-terminal-dim/10 p-4 text-sm text-terminal-dim leading-relaxed">
-        Relays are independent servers that store and distribute your Nostr messages. Add a few
-        trusted relays for better reach and resilience.
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <section className="border border-terminal-dim p-4">
-          <h3 className="font-bold border-b border-terminal-dim mb-3 pb-1 text-sm">USER_RELAYS</h3>
-
-          <div className="flex gap-2 mb-3">
-            <label htmlFor="relay-url-input" className="sr-only">
-              Relay URL
-            </label>
-            <input
-              id="relay-url-input"
-              value={newRelay}
-              onChange={(e) => setNewRelay(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleAddRelay();
-              }}
-              placeholder="wss://relay.example.com"
-              className="flex-1 min-w-0 bg-terminal-bg border border-terminal-dim p-2 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
-            />
-            <button
-              onClick={handleAddRelay}
-              className="px-4 border border-terminal-dim text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors flex items-center gap-2 whitespace-nowrap font-bold"
-              title="Add relay"
-            >
-              <Plus size={14} />
-              ADD
-            </button>
+      <div className="px-5 py-5">
+        {error && (
+          <div className="mb-4 flex items-center gap-2 border border-terminal-alert/40 bg-terminal-alert/10 p-3 text-sm text-terminal-alert">
+            <AlertTriangle size={16} />
+            {error}
           </div>
+        )}
 
-          {userRelays.length === 0 ? (
-            <p className="text-xs text-terminal-dim">No user relays set. Using defaults only.</p>
-          ) : (
-            <ul className="space-y-2">
-              {userRelays.map((url) => (
-                <li key={url} className="flex items-center gap-2">
-                  <code className="flex-1 text-xs bg-terminal-dim/10 border border-terminal-dim/30 p-2 break-all">
-                    {url}
-                  </code>
+        <div className="mb-6 border border-terminal-dim/30 bg-terminal-dim/10 p-4 text-sm leading-relaxed text-terminal-dim">
+          Relays are independent servers that store and distribute your Nostr messages. Add a few
+          trusted relays for better reach and resilience.
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <section className="border border-terminal-dim/25 p-4">
+            <h3 className="ui-section-title mb-3">User Relays</h3>
+
+            <div className="flex gap-2 mb-3">
+              <label htmlFor="relay-url-input" className="sr-only">
+                Relay URL
+              </label>
+              <input
+                id="relay-url-input"
+                value={newRelay}
+                onChange={(e) => setNewRelay(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAddRelay();
+                }}
+                placeholder="wss://relay.example.com"
+                className="ui-input flex-1 min-w-0 py-2"
+              />
+              <button
+                onClick={handleAddRelay}
+                className="ui-button-secondary flex items-center gap-2 whitespace-nowrap px-4 py-2"
+                title="Add relay"
+              >
+                <Plus size={14} />
+                ADD
+              </button>
+            </div>
+
+            {userRelays.length === 0 ? (
+              <p className="text-xs text-terminal-dim">No user relays set. Using defaults only.</p>
+            ) : (
+              <ul className="space-y-2">
+                {userRelays.map((url) => (
+                  <li key={url} className="flex items-center gap-2">
+                    <code className="flex-1 break-all border border-terminal-dim/20 bg-terminal-dim/10 p-2 text-xs">
+                      {url}
+                    </code>
+                    <button
+                      onClick={() => handleRemoveRelay(url)}
+                      className="border border-terminal-alert/40 p-2 text-terminal-alert transition-colors hover:bg-terminal-alert hover:text-black"
+                      title="Remove relay"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="mt-4 flex items-center justify-between border-t border-terminal-dim/20 pt-3">
+              <button
+                onClick={() => setIsConfirmingReset(true)}
+                className="ui-button-secondary px-3 py-2 text-xs"
+              >
+                RESET_TO_DEFAULTS
+              </button>
+            </div>
+
+            {isConfirmingReset && (
+              <div className="mt-3 space-y-3 border border-terminal-alert/40 bg-terminal-alert/10 p-3">
+                <div className="flex items-start gap-2 text-terminal-alert">
+                  <AlertTriangle size={14} className="mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold uppercase tracking-wide">Reset relay list?</p>
+                    <p className="mt-1 text-sm text-terminal-dim">
+                      This removes all custom relays and falls back to the default set.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
                   <button
-                    onClick={() => handleRemoveRelay(url)}
-                    className="p-2 border border-terminal-alert text-terminal-alert hover:bg-terminal-alert hover:text-black transition-colors"
-                    title="Remove relay"
+                    onClick={() => setIsConfirmingReset(false)}
+                    className="ui-button-secondary px-3 py-2 text-xs"
                   >
-                    <Trash2 size={14} />
+                    Cancel
                   </button>
+                  <button
+                    onClick={handleResetDefaults}
+                    className="border border-terminal-alert/40 bg-terminal-alert px-3 py-2 text-xs uppercase tracking-[0.12em] text-black transition-colors hover:opacity-90"
+                  >
+                    Confirm Reset
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+
+          <section className="border border-terminal-dim/25 p-4">
+            <h3 className="ui-section-title mb-3">Effective Relays</h3>
+            <p className="text-xs text-terminal-dim mb-3">
+              These are the relays BitBoard will use for reads/writes (user relays first, then
+              defaults).
+            </p>
+            <ul className="space-y-2">
+              {effectiveRelays.map((relay) => (
+                <li key={relay.url}>
+                  <code className="block break-all border border-terminal-dim/20 bg-terminal-dim/10 p-2 text-xs">
+                    {relay.url}
+                  </code>
                 </li>
               ))}
             </ul>
-          )}
+          </section>
+        </div>
 
-          <div className="mt-4 pt-3 border-t border-terminal-dim/30 flex items-center justify-between">
+        <section className="mt-6 border border-terminal-dim/25 p-4">
+          <div className="mb-3 flex items-center justify-between border-b border-terminal-dim/20 pb-1">
+            <h3 className="ui-section-title border-b-0 pb-0">Relay Status</h3>
             <button
-              onClick={() => setIsConfirmingReset(true)}
-              className="text-xs border border-terminal-dim px-3 py-2 text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors"
+              onClick={refreshStatuses}
+              className="ui-button-secondary flex items-center gap-2 px-3 py-1 text-xs"
             >
-              RESET_TO_DEFAULTS
+              <RefreshCw size={12} />
+              Refresh
             </button>
           </div>
 
-          {isConfirmingReset && (
-            <div className="mt-3 border border-terminal-alert bg-terminal-alert/10 p-3 space-y-3">
-              <div className="flex items-start gap-2 text-terminal-alert">
-                <AlertTriangle size={14} className="mt-0.5" />
-                <div>
-                  <p className="text-sm font-bold uppercase tracking-wide">Reset relay list?</p>
-                  <p className="mt-1 text-sm text-terminal-dim">
-                    This removes all custom relays and falls back to the default set.
-                  </p>
-                </div>
-              </div>
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => setIsConfirmingReset(false)}
-                  className="border border-terminal-dim px-3 py-2 text-xs uppercase tracking-wide text-terminal-dim transition-colors hover:border-terminal-text hover:text-terminal-text"
+          <div className="space-y-3 md:hidden">
+            {statuses.map((s) => {
+              const statusText = s.isConnected
+                ? 'CONNECTED'
+                : s.lastError
+                  ? 'ERROR'
+                  : 'DISCONNECTED';
+              const nextRetry = s.nextReconnectTime
+                ? new Date(s.nextReconnectTime).toLocaleTimeString()
+                : '-';
+
+              return (
+                <div
+                  key={s.url}
+                  className="space-y-2 border border-terminal-dim/20 p-3 text-sm font-mono"
                 >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleResetDefaults}
-                  className="border border-terminal-alert bg-terminal-alert px-3 py-2 text-xs uppercase tracking-wide text-black transition-colors hover:opacity-90"
-                >
-                  Confirm Reset
-                </button>
-              </div>
-            </div>
-          )}
-        </section>
-
-        <section className="border border-terminal-dim p-4">
-          <h3 className="font-bold border-b border-terminal-dim mb-3 pb-1 text-sm">
-            EFFECTIVE_RELAYS
-          </h3>
-          <p className="text-xs text-terminal-dim mb-3">
-            These are the relays BitBoard will use for reads/writes (user relays first, then
-            defaults).
-          </p>
-          <ul className="space-y-2">
-            {effectiveRelays.map((relay) => (
-              <li key={relay.url}>
-                <code className="block text-xs bg-terminal-dim/10 border border-terminal-dim/30 p-2 break-all">
-                  {relay.url}
-                </code>
-              </li>
-            ))}
-          </ul>
-        </section>
-      </div>
-
-      <section className="mt-6 border border-terminal-dim p-4">
-        <div className="flex items-center justify-between border-b border-terminal-dim mb-3 pb-1">
-          <h3 className="font-bold text-sm">RELAY_STATUS</h3>
-          <button
-            onClick={refreshStatuses}
-            className="text-xs border border-terminal-dim px-3 py-1 text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors flex items-center gap-2"
-          >
-            <RefreshCw size={12} />
-            REFRESH
-          </button>
-        </div>
-
-        <div className="space-y-3 md:hidden">
-          {statuses.map((s) => {
-            const statusText = s.isConnected ? 'CONNECTED' : s.lastError ? 'ERROR' : 'DISCONNECTED';
-            const nextRetry = s.nextReconnectTime
-              ? new Date(s.nextReconnectTime).toLocaleTimeString()
-              : '-';
-
-            return (
-              <div
-                key={s.url}
-                className="border border-terminal-dim/30 p-3 text-sm font-mono space-y-2"
-              >
-                <div className="break-all text-terminal-text">{s.url}</div>
-                <div className="flex items-center justify-between gap-3">
-                  <span
-                    className={
-                      s.isConnected
-                        ? 'text-terminal-text'
-                        : s.lastError
-                          ? 'text-terminal-alert'
-                          : 'text-terminal-dim'
-                    }
-                    title={s.lastError ? s.lastError.message : ''}
-                  >
-                    {statusText}
-                  </span>
-                  <button
-                    onClick={() => handleRetry(s.url)}
-                    className="text-xs border border-terminal-dim px-2 py-1 text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors"
-                  >
-                    RETRY
-                  </button>
-                </div>
-                <div className="text-xs text-terminal-dim space-y-1">
-                  <div>Retries: {s.reconnectAttempts}</div>
-                  <div>Next retry: {nextRetry}</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="hidden md:block overflow-auto">
-          <table className="w-full text-xs font-mono">
-            <thead>
-              <tr className="text-terminal-dim border-b border-terminal-dim/30">
-                <th className="text-left py-2 pr-2">URL</th>
-                <th className="text-left py-2 pr-2">STATUS</th>
-                <th className="text-left py-2 pr-2">RETRIES</th>
-                <th className="text-left py-2 pr-2">NEXT_RETRY</th>
-                <th className="text-left py-2 pr-2">ACTION</th>
-              </tr>
-            </thead>
-            <tbody>
-              {statuses.map((s) => {
-                const statusText = s.isConnected
-                  ? 'CONNECTED'
-                  : s.lastError
-                    ? 'ERROR'
-                    : 'DISCONNECTED';
-                const nextRetry = s.nextReconnectTime
-                  ? new Date(s.nextReconnectTime).toLocaleTimeString()
-                  : '-';
-                return (
-                  <tr key={s.url} className="border-b border-terminal-dim/10">
-                    <td className="py-2 pr-2 break-all">{s.url}</td>
-                    <td
-                      className={`py-2 pr-2 ${s.isConnected ? 'text-terminal-text' : s.lastError ? 'text-terminal-alert' : 'text-terminal-dim'}`}
+                  <div className="break-all text-terminal-text">{s.url}</div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span
+                      className={
+                        s.isConnected
+                          ? 'text-terminal-text'
+                          : s.lastError
+                            ? 'text-terminal-alert'
+                            : 'text-terminal-dim'
+                      }
                       title={s.lastError ? s.lastError.message : ''}
                     >
                       {statusText}
-                    </td>
-                    <td className="py-2 pr-2 text-terminal-dim">{s.reconnectAttempts}</td>
-                    <td className="py-2 pr-2 text-terminal-dim">{nextRetry}</td>
-                    <td className="py-2 pr-2">
-                      <button
-                        onClick={() => handleRetry(s.url)}
-                        className="text-xs border border-terminal-dim px-2 py-1 text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors"
-                      >
-                        RETRY
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="mt-6 border border-terminal-dim p-4">
-        <div className="flex items-center justify-between border-b border-terminal-dim mb-3 pb-1">
-          <div className="flex items-center gap-3">
-            <h3 className="font-bold text-sm">DIAGNOSTICS</h3>
-            <span className="text-2xs text-terminal-dim border border-terminal-dim/30 px-2 py-0.5">
-              QUEUED_MESSAGES: {queuedCount}
-            </span>
-          </div>
-          <button
-            onClick={() => diagnosticsService.clear()}
-            className="text-xs border border-terminal-dim px-3 py-1 text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors"
-          >
-            CLEAR
-          </button>
-        </div>
-
-        {diagnostics.length === 0 ? (
-          <p className="text-xs text-terminal-dim">No diagnostics recorded.</p>
-        ) : (
-          <>
-            <div className="space-y-2 md:hidden max-h-48 overflow-auto">
-              {diagnostics
-                .slice(-20)
-                .reverse()
-                .map((d) => (
-                  <div key={d.id} className="border border-terminal-dim/20 p-2 text-xs font-mono">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-terminal-dim">
-                        {new Date(d.at).toLocaleTimeString()}
-                      </span>
-                      <span
-                        className={
-                          d.level === 'error'
-                            ? 'text-terminal-alert'
-                            : d.level === 'warn'
-                              ? 'text-terminal-text'
-                              : 'text-terminal-dim'
-                        }
-                      >
-                        {d.level.toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="mt-1 text-terminal-dim">{d.source}</div>
-                    <div className="mt-1 text-terminal-text break-words">{d.message}</div>
-                    {d.detail ? (
-                      <div className="mt-1 text-terminal-dim break-words">{d.detail}</div>
-                    ) : null}
+                    </span>
+                    <button
+                      onClick={() => handleRetry(s.url)}
+                      className="ui-button-secondary px-2 py-1 text-xs"
+                    >
+                      Retry
+                    </button>
                   </div>
-                ))}
-            </div>
+                  <div className="text-xs text-terminal-dim space-y-1">
+                    <div>Retries: {s.reconnectAttempts}</div>
+                    <div>Next retry: {nextRetry}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
 
-            <div className="hidden md:block max-h-48 overflow-auto border border-terminal-dim/30">
-              <table className="w-full text-2xs font-mono">
-                <thead>
-                  <tr className="text-terminal-dim border-b border-terminal-dim/30">
-                    <th className="text-left py-2 px-2">TIME</th>
-                    <th className="text-left py-2 px-2">LVL</th>
-                    <th className="text-left py-2 px-2">SRC</th>
-                    <th className="text-left py-2 px-2">MSG</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {diagnostics
-                    .slice(-40)
-                    .reverse()
-                    .map((d) => (
-                      <tr key={d.id} className="border-b border-terminal-dim/10 align-top">
-                        <td className="py-2 px-2 text-terminal-dim whitespace-nowrap">
+          <div className="hidden md:block overflow-auto">
+            <table className="w-full text-xs font-mono">
+              <thead>
+                <tr className="text-terminal-dim border-b border-terminal-dim/30">
+                  <th className="text-left py-2 pr-2">URL</th>
+                  <th className="text-left py-2 pr-2">STATUS</th>
+                  <th className="text-left py-2 pr-2">RETRIES</th>
+                  <th className="text-left py-2 pr-2">NEXT_RETRY</th>
+                  <th className="text-left py-2 pr-2">ACTION</th>
+                </tr>
+              </thead>
+              <tbody>
+                {statuses.map((s) => {
+                  const statusText = s.isConnected
+                    ? 'CONNECTED'
+                    : s.lastError
+                      ? 'ERROR'
+                      : 'DISCONNECTED';
+                  const nextRetry = s.nextReconnectTime
+                    ? new Date(s.nextReconnectTime).toLocaleTimeString()
+                    : '-';
+                  return (
+                    <tr key={s.url} className="border-b border-terminal-dim/10">
+                      <td className="py-2 pr-2 break-all">{s.url}</td>
+                      <td
+                        className={`py-2 pr-2 ${s.isConnected ? 'text-terminal-text' : s.lastError ? 'text-terminal-alert' : 'text-terminal-dim'}`}
+                        title={s.lastError ? s.lastError.message : ''}
+                      >
+                        {statusText}
+                      </td>
+                      <td className="py-2 pr-2 text-terminal-dim">{s.reconnectAttempts}</td>
+                      <td className="py-2 pr-2 text-terminal-dim">{nextRetry}</td>
+                      <td className="py-2 pr-2">
+                        <button
+                          onClick={() => handleRetry(s.url)}
+                          className="ui-button-secondary px-2 py-1 text-xs"
+                        >
+                          Retry
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="mt-6 border border-terminal-dim/25 p-4">
+          <div className="mb-3 flex items-center justify-between border-b border-terminal-dim/20 pb-1">
+            <div className="flex items-center gap-3">
+              <h3 className="ui-section-title border-b-0 pb-0">Diagnostics</h3>
+              <span className="text-2xs text-terminal-dim border border-terminal-dim/30 px-2 py-0.5">
+                Queued Messages: {queuedCount}
+              </span>
+            </div>
+            <button
+              onClick={() => diagnosticsService.clear()}
+              className="ui-button-secondary px-3 py-1 text-xs"
+            >
+              Clear
+            </button>
+          </div>
+
+          {diagnostics.length === 0 ? (
+            <p className="text-xs text-terminal-dim">No diagnostics recorded.</p>
+          ) : (
+            <>
+              <div className="space-y-2 md:hidden max-h-48 overflow-auto">
+                {diagnostics
+                  .slice(-20)
+                  .reverse()
+                  .map((d) => (
+                    <div key={d.id} className="border border-terminal-dim/20 p-2 text-xs font-mono">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-terminal-dim">
                           {new Date(d.at).toLocaleTimeString()}
-                        </td>
-                        <td
-                          className={`py-2 px-2 whitespace-nowrap ${
+                        </span>
+                        <span
+                          className={
                             d.level === 'error'
                               ? 'text-terminal-alert'
                               : d.level === 'warn'
                                 ? 'text-terminal-text'
                                 : 'text-terminal-dim'
-                          }`}
+                          }
                         >
                           {d.level.toUpperCase()}
-                        </td>
-                        <td className="py-2 px-2 text-terminal-dim whitespace-nowrap">
-                          {d.source}
-                        </td>
-                        <td className="py-2 px-2 text-terminal-text break-words">
-                          {d.message}
-                          {d.detail ? (
-                            <div className="text-terminal-dim mt-1 break-words">{d.detail}</div>
-                          ) : null}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-      </section>
+                        </span>
+                      </div>
+                      <div className="mt-1 text-terminal-dim">{d.source}</div>
+                      <div className="mt-1 text-terminal-text break-words">{d.message}</div>
+                      {d.detail ? (
+                        <div className="mt-1 text-terminal-dim break-words">{d.detail}</div>
+                      ) : null}
+                    </div>
+                  ))}
+              </div>
 
-      <div className="mt-6 pt-4 border-t border-terminal-dim/30">
-        <button
-          onClick={onClose}
-          className="flex items-center gap-2 text-terminal-dim hover:text-terminal-text transition-colors uppercase text-sm font-bold group"
-        >
-          <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-          BACK
-        </button>
+              <div className="hidden md:block max-h-48 overflow-auto border border-terminal-dim/30">
+                <table className="w-full text-2xs font-mono">
+                  <thead>
+                    <tr className="text-terminal-dim border-b border-terminal-dim/30">
+                      <th className="text-left py-2 px-2">TIME</th>
+                      <th className="text-left py-2 px-2">LVL</th>
+                      <th className="text-left py-2 px-2">SRC</th>
+                      <th className="text-left py-2 px-2">MSG</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {diagnostics
+                      .slice(-40)
+                      .reverse()
+                      .map((d) => (
+                        <tr key={d.id} className="border-b border-terminal-dim/10 align-top">
+                          <td className="py-2 px-2 text-terminal-dim whitespace-nowrap">
+                            {new Date(d.at).toLocaleTimeString()}
+                          </td>
+                          <td
+                            className={`py-2 px-2 whitespace-nowrap ${
+                              d.level === 'error'
+                                ? 'text-terminal-alert'
+                                : d.level === 'warn'
+                                  ? 'text-terminal-text'
+                                  : 'text-terminal-dim'
+                            }`}
+                          >
+                            {d.level.toUpperCase()}
+                          </td>
+                          <td className="py-2 px-2 text-terminal-dim whitespace-nowrap">
+                            {d.source}
+                          </td>
+                          <td className="py-2 px-2 text-terminal-text break-words">
+                            {d.message}
+                            {d.detail ? (
+                              <div className="text-terminal-dim mt-1 break-words">{d.detail}</div>
+                            ) : null}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </section>
+
+        <div className="mt-6 border-t border-terminal-dim/20 pt-4">
+          <button
+            onClick={onClose}
+            className="flex items-center gap-2 text-terminal-dim hover:text-terminal-text transition-colors uppercase text-sm font-bold group"
+          >
+            <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
+            BACK
+          </button>
+        </div>
       </div>
     </div>
   );

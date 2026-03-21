@@ -44,12 +44,7 @@ export const About: React.FC = () => {
       </button>
 
       {/* Hero */}
-      <div className="border-2 border-terminal-text/60 p-6 md:p-8 relative shadow-[0_0_30px_rgba(var(--color-terminal-text),0.06)]">
-        <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-terminal-text" />
-        <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-terminal-text" />
-        <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-terminal-text" />
-        <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-terminal-text" />
-
+      <div className="ui-page-hero shadow-[0_0_30px_rgba(var(--color-terminal-text),0.04)] md:p-8">
         <div className="flex items-center gap-5 mb-4">
           <div className="relative w-14 h-14 shrink-0">
             <div
@@ -69,7 +64,7 @@ export const About: React.FC = () => {
             />
           </div>
           <div>
-            <h1 className="text-3xl md:text-4xl font-terminal tracking-tight uppercase leading-none text-terminal-text">
+            <h1 className="font-display text-4xl font-semibold leading-none text-terminal-text md:text-5xl">
               BitBoard
             </h1>
             <p className="text-xs tracking-[0.25em] text-terminal-dim uppercase mt-1">
@@ -117,7 +112,7 @@ export const About: React.FC = () => {
 
       {/* Core concepts */}
       <section className="space-y-3">
-        <h2 className="text-sm tracking-[0.3em] uppercase text-terminal-dim border-b border-terminal-dim/30 pb-2 flex items-center gap-2">
+        <h2 className="ui-section-title flex items-center gap-2">
           <KeyRound size={14} className="text-terminal-text/60 shrink-0" />
           HOW IT WORKS
         </h2>
@@ -133,37 +128,29 @@ export const About: React.FC = () => {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm tracking-[0.3em] uppercase text-terminal-dim border-b border-terminal-dim/30 pb-2 flex items-center gap-2">
+        <h2 className="ui-section-title flex items-center gap-2">
           <Coins size={14} className="text-terminal-text/60 shrink-0" />
           BITS
         </h2>
-        <div className="border border-terminal-text/20 bg-terminal-text/[0.02] p-4 pl-5 relative">
-          <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-terminal-text/30" />
-          <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-terminal-text/30" />
-          <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-terminal-text/30" />
-          <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-terminal-text/30" />
+        <div className="border border-terminal-text/20 bg-terminal-text/[0.02] p-4 pl-5">
           <div className="flex gap-3">
             <Coins size={18} className="text-terminal-dim/40 shrink-0 mt-0.5 hidden sm:block" />
             <p className="text-sm text-terminal-dim leading-relaxed">
-              You get <span className="text-terminal-text font-medium">100 bits</span> each day. Each
-              vote costs <span className="text-terminal-text font-medium">1 bit</span> — change your
-              mind? Retract and it comes back. Because every vote costs something, the signal stays
-              honest. No bots flooding the feed.
+              You get <span className="text-terminal-text font-medium">100 bits</span> each day.
+              Each vote costs <span className="text-terminal-text font-medium">1 bit</span> — change
+              your mind? Retract and it comes back. Because every vote costs something, the signal
+              stays honest. No bots flooding the feed.
             </p>
           </div>
         </div>
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm tracking-[0.3em] uppercase text-terminal-dim border-b border-terminal-dim/30 pb-2 flex items-center gap-2">
+        <h2 className="ui-section-title flex items-center gap-2">
           <LayoutGrid size={14} className="text-terminal-text/60 shrink-0" />
           FEATURES
         </h2>
-        <div className="border border-terminal-dim/40 p-4 md:p-5 relative">
-          <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-terminal-dim/50" />
-          <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-terminal-dim/50" />
-          <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-terminal-dim/50" />
-          <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-terminal-dim/50" />
+        <div className="border border-terminal-dim/25 bg-terminal-dim/[0.03] p-4 md:p-5">
           <ul className="text-sm text-terminal-dim space-y-2.5 columns-1 md:columns-2 gap-x-8">
             <li className="flex gap-2 break-inside-avoid">
               <Globe size={14} className="text-terminal-dim shrink-0 mt-0.5" />
@@ -190,11 +177,7 @@ export const About: React.FC = () => {
       </section>
 
       {/* Prototype notice */}
-      <div className="border border-terminal-alert/40 bg-terminal-alert/5 p-4 rounded-sm relative">
-        <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-terminal-alert/50" />
-        <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-terminal-alert/50" />
-        <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-terminal-alert/50" />
-        <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-terminal-alert/50" />
+      <div className="border border-terminal-alert/40 bg-terminal-alert/5 p-4 rounded-sm">
         <span className="text-terminal-alert font-bold uppercase tracking-wider text-xs">
           ⚠ Prototype
         </span>

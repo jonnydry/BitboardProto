@@ -277,7 +277,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
     <div
       ref={postRef}
       style={{ contentVisibility: 'auto', containIntrinsicSize: '420px' } as React.CSSProperties}
-      className={`w-full border transition-all duration-200 mb-4 relative group font-mono
+      className={`group/post relative mb-4 w-full border font-mono transition-all duration-200
         ${
           post.syncStatus === 'pending'
             ? 'border-terminal-dim/30 bg-terminal-bg/80 animate-pulse'
@@ -333,14 +333,14 @@ const PostItemComponent: React.FC<PostItemProps> = ({
       )}
 
       {/* Decorator corners */}
-      <div className="absolute -top-px -left-px w-2 h-2 border-t border-l border-terminal-dim/60 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-      <div className="absolute -bottom-px -right-px w-2 h-2 border-b border-r border-terminal-dim/60 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+      <div className="absolute -left-px -top-px h-2 w-2 border-l border-t border-terminal-dim/60 opacity-0 transition-opacity group-hover/post:opacity-100"></div>
+      <div className="absolute -bottom-px -right-px h-2 w-2 border-b border-r border-terminal-dim/60 opacity-0 transition-opacity group-hover/post:opacity-100"></div>
 
       <div
-        className={`flex flex-row gap-2 md:gap-3 p-2 ${post.syncStatus && post.syncStatus !== 'synced' ? 'pt-8' : ''}`}
+        className={`flex min-w-0 flex-row gap-2 md:gap-3 p-2 ${post.syncStatus && post.syncStatus !== 'synced' ? 'pt-8' : ''}`}
       >
-        {/* Voting Column */}
-        <div className="flex flex-col items-center w-11 border-r border-terminal-dim/20 pr-2 justify-start pt-1 gap-1 flex-shrink-0">
+        {/* Voting column — wide enough for labels + icons; narrow cols + long words clip under overflow-x-clip */}
+        <div className="flex w-[3.25rem] shrink-0 flex-col items-center justify-start gap-1 border-r border-terminal-dim/20 pt-1 pr-2 sm:w-14">
           <button
             onClick={handleVoteUp}
             className={`p-2 md:p-1 hover:bg-terminal-dim/10 transition-colors min-w-[40px] min-h-[40px] md:min-w-0 md:min-h-0 flex items-center justify-center ${isUpvoted ? 'text-terminal-text' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -420,7 +420,10 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                       </span>
                     )}
                   </div>
-                  <span className="text-xs uppercase tracking-wide text-terminal-dim">
+                  <span
+                    className="whitespace-nowrap text-center text-[8px] font-mono uppercase tracking-wide text-terminal-dim"
+                    title="Votes verified on Nostr"
+                  >
                     verified
                   </span>
                 </div>
@@ -444,103 +447,111 @@ const PostItemComponent: React.FC<PostItemProps> = ({
         </div>
 
         {/* Content Column */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <div className="text-sm text-terminal-dim mb-1 flex flex-wrap items-center gap-2">
-            <button
-              onClick={handleAuthorClick}
-              className="flex items-center gap-1.5 font-bold text-terminal-dim hover:text-terminal-text hover:underline transition-colors cursor-pointer"
-              title={`View ${profileService.getDisplayName(post.author, authorProfile)}'s profile`}
-            >
-              {/* Avatar with placeholder and fade-in */}
-              <div className="relative w-7 h-7 flex-shrink-0">
-                {profileLoadState === 'loading' && (
-                  <div className="absolute inset-0 rounded-full bg-terminal-dim/30 animate-pulse" />
-                )}
-                {profileLoadState === 'loaded' && authorProfile?.picture ? (
-                  <img
-                    src={authorProfile.picture}
-                    alt={`${post.author}'s avatar`}
-                    className="w-7 h-7 rounded-full object-cover transition-opacity duration-300"
-                    style={{ opacity: 1 }}
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                    }}
-                  />
-                ) : (
-                  profileLoadState !== 'loading' && (
-                    <div
-                      className="w-7 h-7 rounded-full bg-terminal-dim/20 border border-terminal-dim/40 flex items-center justify-center text-sm text-terminal-dim font-bold"
-                      title={post.authorPubkey ? `${post.authorPubkey.slice(0, 8)}...` : ''}
-                    >
-                      {post.author.charAt(0).toUpperCase()}
-                    </div>
-                  )
-                )}
-              </div>
-              {/* Name with loading state */}
-              <span
-                className={`transition-opacity duration-200 ${profileLoadState === 'loading' ? 'opacity-70' : 'opacity-100'}`}
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* Split meta: left cluster wraps freely; time/actions stay readable (ml-auto in one row squishes badges) */}
+          <div className="mb-1 flex min-w-0 flex-col gap-2 text-sm text-terminal-dim sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-x-3 sm:gap-y-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              <button
+                onClick={handleAuthorClick}
+                className="flex w-full min-w-0 items-center gap-1.5 font-bold text-terminal-dim transition-colors hover:text-terminal-text hover:underline sm:inline-flex sm:w-auto sm:shrink-0 cursor-pointer"
+                title={`View ${profileService.getDisplayName(post.author, authorProfile)}'s profile`}
               >
-                {profileLoadState === 'loaded'
-                  ? profileService.getDisplayName(post.author, authorProfile)
-                  : post.authorPubkey
-                    ? `${post.authorPubkey.slice(0, 8)}...`
-                    : post.author}
-              </span>
-            </button>
-            <BadgeDisplay pubkey={post.authorPubkey || ''} size="sm" />
-            <TrustIndicator pubkey={post.authorPubkey || ''} compact={true} />
-            {boardName && (
-              <>
-                <span className="text-terminal-dim/50">·</span>
-                <span className="text-terminal-dim/70 text-sm">//{boardName}</span>
-              </>
-            )}
-            {post.seededFrom === 'nostr' && (
-              <>
-                <span className="text-terminal-dim/50">·</span>
-                <span className="flex items-center gap-1 border border-terminal-dim/30 px-1 py-0.5 text-xs uppercase tracking-wider text-terminal-dim/80">
-                  <Radio size={10} /> Seeded From Nostr
+                {/* Avatar with placeholder and fade-in */}
+                <div className="relative h-7 w-7 shrink-0">
+                  {profileLoadState === 'loading' && (
+                    <div className="absolute inset-0 rounded-full bg-terminal-dim/30 animate-pulse" />
+                  )}
+                  {profileLoadState === 'loaded' && authorProfile?.picture ? (
+                    <img
+                      src={authorProfile.picture}
+                      alt={`${post.author}'s avatar`}
+                      className="w-7 h-7 rounded-full object-cover transition-opacity duration-300"
+                      style={{ opacity: 1 }}
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    profileLoadState !== 'loading' && (
+                      <div
+                        className="w-7 h-7 rounded-full bg-terminal-dim/20 border border-terminal-dim/40 flex items-center justify-center text-sm text-terminal-dim font-bold"
+                        title={post.authorPubkey ? `${post.authorPubkey.slice(0, 8)}...` : ''}
+                      >
+                        {post.author.charAt(0).toUpperCase()}
+                      </div>
+                    )
+                  )}
+                </div>
+                {/* Name with loading state */}
+                <span
+                  className={`min-w-0 flex-1 break-words text-left transition-opacity duration-200 sm:flex-none ${profileLoadState === 'loading' ? 'opacity-70' : 'opacity-100'}`}
+                >
+                  {profileLoadState === 'loaded'
+                    ? profileService.getDisplayName(post.author, authorProfile)
+                    : post.authorPubkey
+                      ? `${post.authorPubkey.slice(0, 8)}...`
+                      : post.author}
                 </span>
-              </>
-            )}
-            <span className="text-terminal-dim/50">·</span>
-            <span className="ml-auto text-terminal-dim/70 text-sm">
-              {formatTime(post.timestamp)}
-            </span>
-            {post.isEncrypted && (
-              <span
-                className="flex items-center gap-1 text-terminal-text border border-terminal-text/50 px-1 py-0.5 text-sm uppercase tracking-wider"
-                title="This post is encrypted"
-              >
-                <Lock size={10} /> Encrypted
+              </button>
+              <span className="inline-flex shrink-0 items-center">
+                <BadgeDisplay pubkey={post.authorPubkey || ''} size="sm" />
               </span>
-            )}
-            {isOwnPost && onEditPost && (
-              <button
-                onClick={handleEditClick}
-                className="flex items-center gap-1 text-terminal-dim hover:text-terminal-text transition-colors"
-                title="Edit this post"
-              >
-                <Edit3 size={10} />
-                <span className="text-sm">EDIT</span>
-              </button>
-            )}
-            {isOwnPost && onDeletePost && (
-              <button
-                onClick={handleDeleteClick}
-                className="flex items-center gap-1 text-terminal-dim hover:text-terminal-alert transition-colors"
-                title="Delete this post"
-              >
-                <Trash2 size={10} />
-                <span className="text-sm">DELETE</span>
-              </button>
-            )}
+              <span className="inline-flex shrink-0 items-center">
+                <TrustIndicator pubkey={post.authorPubkey || ''} compact={true} />
+              </span>
+              {boardName && (
+                <>
+                  <span className="text-terminal-dim/50">·</span>
+                  <span className="shrink-0 text-sm text-terminal-dim/70">//{boardName}</span>
+                </>
+              )}
+              {post.seededFrom === 'nostr' && (
+                <>
+                  <span className="text-terminal-dim/50">·</span>
+                  <span className="flex shrink-0 items-center gap-1 border border-terminal-dim/30 px-1.5 py-0.5 text-xs uppercase tracking-wider text-terminal-dim/80 whitespace-nowrap">
+                    <Radio size={10} className="shrink-0" /> Seeded From Nostr
+                  </span>
+                </>
+              )}
+            </div>
+            <div className="flex w-full shrink-0 flex-wrap items-center gap-x-2 gap-y-1 sm:w-auto sm:justify-end">
+              <span className="text-sm text-terminal-dim/70 tabular-nums">
+                {formatTime(post.timestamp)}
+              </span>
+              {post.isEncrypted && (
+                <span
+                  className="flex shrink-0 items-center gap-1 border border-terminal-text/50 px-1 py-0.5 text-sm uppercase tracking-wider text-terminal-text"
+                  title="This post is encrypted"
+                >
+                  <Lock size={10} /> Encrypted
+                </span>
+              )}
+              {isOwnPost && onEditPost && (
+                <button
+                  onClick={handleEditClick}
+                  className="flex shrink-0 items-center gap-1 text-terminal-dim transition-colors hover:text-terminal-text"
+                  title="Edit this post"
+                >
+                  <Edit3 size={10} />
+                  <span className="text-sm">EDIT</span>
+                </button>
+              )}
+              {isOwnPost && onDeletePost && (
+                <button
+                  onClick={handleDeleteClick}
+                  className="flex shrink-0 items-center gap-1 text-terminal-dim transition-colors hover:text-terminal-alert"
+                  title="Delete this post"
+                >
+                  <Trash2 size={10} />
+                  <span className="text-sm">DELETE</span>
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-start gap-2">
+          <div className="flex min-w-0 w-full flex-col gap-1 sm:flex-row sm:items-start sm:gap-2">
             {isEncryptedWithoutKey ? (
-              <div className="flex items-center gap-2 text-terminal-dim mb-2">
+              <div className="mb-2 flex w-full min-w-0 items-center gap-2 text-terminal-dim">
                 <Lock size={18} />
                 <h3 className="text-2xl font-bold">[Encrypted - Access Required]</h3>
               </div>
@@ -549,13 +560,13 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 href={post.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xl font-semibold font-display text-terminal-text leading-snug mb-1 cursor-pointer hover:underline decoration-2 underline-offset-4 transition-colors break-words"
+                className="mb-1 block w-full min-w-0 cursor-pointer text-xl font-semibold font-display leading-snug text-terminal-text underline-offset-4 decoration-2 transition-colors [overflow-wrap:anywhere] break-words hover:underline sm:flex-1"
               >
                 {post.title}
                 {post.isEncrypted && (
                   <Lock
                     size={16}
-                    className="text-terminal-dim inline ml-1"
+                    className="ml-1 inline text-terminal-dim"
                     title="Encrypted post"
                   />
                 )}
@@ -566,20 +577,20 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 onKeyDown={handleInteractionKeyDown}
                 tabIndex={0}
                 role="button"
-                className="text-xl font-semibold font-display text-terminal-text leading-snug mb-1 cursor-pointer hover:underline decoration-2 underline-offset-4 select-none break-words"
+                className="mb-1 block w-full min-w-0 cursor-pointer select-none text-xl font-semibold font-display leading-snug text-terminal-text underline-offset-4 decoration-2 [overflow-wrap:anywhere] break-words hover:underline sm:flex-1"
               >
                 {post.title}
                 {post.isEncrypted && (
                   <Lock
                     size={16}
-                    className="text-terminal-dim inline ml-1"
+                    className="ml-1 inline text-terminal-dim"
                     title="Encrypted post"
                   />
                 )}
               </h3>
             )}
             {post.url && (
-              <span className="shrink-0 mt-1 border border-terminal-dim/40 px-1.5 py-0.5 text-sm text-terminal-dim/70">
+              <span className="mt-0.5 inline-flex shrink-0 self-start border border-terminal-dim/40 px-1.5 py-0.5 text-sm text-terminal-dim/70 sm:mt-1">
                 LINK
               </span>
             )}
@@ -633,14 +644,14 @@ const PostItemComponent: React.FC<PostItemProps> = ({
             </div>
           )}
 
-          <div className="flex items-center gap-4 border-t border-terminal-dim/15 pt-2.5 mt-2">
+          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 border-t border-terminal-dim/15 py-3">
             <button
               onClick={handleCommentClick}
-              className="flex items-center gap-1.25 text-sm text-terminal-dim/70 hover:text-terminal-dim transition-colors shrink-0"
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 text-sm text-terminal-dim/70 transition-colors hover:text-terminal-dim"
               title="View full thread"
             >
-              <MessageSquare size={13} />
-              <span>{post.commentCount}</span>
+              <MessageSquare size={13} className="shrink-0" />
+              <span className="tabular-nums">{post.commentCount}</span>
             </button>
 
             <ZapButton
@@ -661,7 +672,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
 
             <button
               onClick={handleBookmarkClick}
-              className={`ml-auto p-1 transition-colors flex items-center justify-center ${isBookmarked ? 'text-terminal-text' : 'text-terminal-dim/60 hover:text-terminal-dim'}`}
+              className={`ml-auto inline-flex h-9 w-9 shrink-0 items-center justify-center transition-colors ${isBookmarked ? 'text-terminal-text' : 'text-terminal-dim/60 hover:text-terminal-dim'}`}
               title={isBookmarked ? 'Remove bookmark' : 'Save to bookmarks'}
               aria-label={isBookmarked ? 'Remove bookmark' : 'Save to bookmarks'}
               aria-pressed={isBookmarked}
@@ -678,7 +689,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                   e.stopPropagation();
                   setShowMoreActions((prev) => !prev);
                 }}
-                className="p-2.5 md:p-1 transition-colors min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center text-terminal-dim hover:text-terminal-text"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center text-terminal-dim transition-colors hover:text-terminal-text md:h-9 md:w-9"
                 title="More actions"
                 aria-label="More actions"
                 aria-expanded={showMoreActions}
@@ -750,12 +761,9 @@ const PostItemComponent: React.FC<PostItemProps> = ({
       {/* Delete Confirmation Modal - rendered via portal to escape contentVisibility containment */}
       {showDeleteConfirm &&
         createPortal(
-          <div
-            className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
-            onClick={handleCancelDelete}
-          >
+          <div className="ui-overlay flex items-center justify-center" onClick={handleCancelDelete}>
             <div
-              className="bg-terminal-bg border-2 border-terminal-alert p-6 max-w-md w-full mx-4 shadow-glow"
+              className="mx-4 w-full max-w-md border border-terminal-alert/40 bg-terminal-bg/95 p-6 shadow-glow"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center gap-3 mb-4">
@@ -782,13 +790,13 @@ const PostItemComponent: React.FC<PostItemProps> = ({
               <div className="flex gap-3 justify-end">
                 <button
                   onClick={handleCancelDelete}
-                  className="px-4 py-2 text-sm border border-terminal-dim text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors uppercase font-bold"
+                  className="ui-button-secondary px-4 py-2 text-sm"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleConfirmDelete}
-                  className="px-4 py-2 text-sm bg-terminal-alert/20 border border-terminal-alert text-terminal-alert hover:bg-terminal-alert hover:text-black transition-colors uppercase font-bold"
+                  className="border border-terminal-alert/50 bg-terminal-alert/20 px-4 py-2 text-sm font-bold uppercase tracking-[0.12em] text-terminal-alert transition-colors hover:bg-terminal-alert hover:text-black"
                 >
                   Delete
                 </button>

@@ -60,18 +60,18 @@ export const ReactionDisplay = memo<ReactionDisplayProps>(({
   if (compact && counts.total === 0) {
     // Compact mode with no reactions: just show add button
     return (
-      <div className="relative inline-flex">
+      <div className="relative inline-flex shrink-0">
         <button
           onClick={(e) => {
             e.stopPropagation();
             handleTogglePicker();
           }}
           disabled={disabled}
-          className={`p-1 text-terminal-dim hover:text-terminal-text transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+          className={`inline-flex h-9 w-9 items-center justify-center text-terminal-dim transition-colors hover:text-terminal-text ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}
           title="Add reaction"
           aria-label="Add reaction"
         >
-          <Smile size={14} />
+          <Smile size={14} className="shrink-0" />
         </button>
         
         {showPicker && (
@@ -86,7 +86,7 @@ export const ReactionDisplay = memo<ReactionDisplayProps>(({
   }
 
   return (
-    <div className="flex items-center gap-1 flex-wrap">
+    <div className="flex flex-wrap items-center gap-1">
       {/* Active reactions */}
       {activeReactions.map(emoji => (
         <button
@@ -97,7 +97,7 @@ export const ReactionDisplay = memo<ReactionDisplayProps>(({
           }}
           disabled={disabled}
           className={`
-            inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs rounded border transition-all
+            inline-flex h-9 shrink-0 items-center gap-0.5 rounded border px-2 py-0 text-xs leading-none transition-all
             ${userReaction === emoji
               ? 'border-terminal-text bg-terminal-text/10 text-terminal-text'
               : 'border-terminal-dim/50 hover:border-terminal-dim text-terminal-dim hover:text-terminal-text'
@@ -106,8 +106,8 @@ export const ReactionDisplay = memo<ReactionDisplayProps>(({
           `}
           title={`${REACTION_LABELS[emoji]}${userReaction === emoji ? ' (click to remove)' : ''}`}
         >
-          <span>{emoji}</span>
-          <span className="font-mono">{counts[emoji]}</span>
+          <span className="flex items-center justify-center text-[1.05rem] leading-none">{emoji}</span>
+          <span className="font-mono tabular-nums">{counts[emoji]}</span>
         </button>
       ))}
 
@@ -120,15 +120,14 @@ export const ReactionDisplay = memo<ReactionDisplayProps>(({
           }}
           disabled={disabled}
           className={`
-            inline-flex items-center gap-1 px-1.5 py-0.5 text-xs rounded border border-dashed
-            border-terminal-dim/30 text-terminal-dim hover:border-terminal-dim hover:text-terminal-text
-            transition-colors
-            ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
+            inline-flex h-9 shrink-0 items-center gap-1 rounded border border-dashed px-2 text-xs leading-none
+            border-terminal-dim/30 text-terminal-dim transition-colors hover:border-terminal-dim hover:text-terminal-text
+            ${disabled ? 'cursor-not-allowed opacity-50' : ''}
           `}
           title="Add reaction"
           aria-label="Add reaction"
         >
-          <Smile size={12} />
+          <Smile size={12} className="shrink-0" />
           {!compact && <span className="text-2xs">+</span>}
         </button>
 

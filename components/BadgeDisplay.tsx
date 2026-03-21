@@ -113,7 +113,7 @@ export const BadgeDisplay: React.FC<BadgeDisplayProps> = ({
               badgeRefs.current[`${badge.definition.id}-${idx}`] = node;
             }}
             tabIndex={0}
-            className={`group relative flex items-center gap-1 px-1.5 py-0.5 rounded border border-terminal-dim/30 bg-terminal-dim/5 text-terminal-text transition-all hover:border-terminal-text hover:bg-terminal-dim/10 cursor-help focus:outline-none`}
+            className={`group relative flex cursor-help items-center gap-1 rounded-sm border border-terminal-dim/25 bg-terminal-dim/[0.05] px-1.5 py-0.5 text-terminal-text transition-all hover:border-terminal-dim/60 hover:bg-terminal-dim/10 focus:outline-none`}
             title={`${badge.definition.name}${badge.definition.description ? ': ' + badge.definition.description : ''}`}
           >
             {badge.definition.image ? (
@@ -140,7 +140,7 @@ export const BadgeDisplay: React.FC<BadgeDisplayProps> = ({
 
             {/* Tooltip (CSS only for terminal feel) */}
             <div
-              className={`absolute left-1/2 -translate-x-1/2 w-48 p-2 bg-terminal-bg border-2 border-terminal-text shadow-glow opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity z-50 text-2xs uppercase leading-tight ${flipTooltipId === `${badge.definition.id}-${idx}` ? 'top-full mt-2' : 'bottom-full mb-2'}`}
+              className={`pointer-events-none absolute left-1/2 z-50 w-48 -translate-x-1/2 border border-terminal-dim/30 bg-terminal-bg/95 p-2 text-2xs uppercase leading-tight opacity-0 shadow-glow transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 ${flipTooltipId === `${badge.definition.id}-${idx}` ? 'top-full mt-2' : 'bottom-full mb-2'}`}
             >
               <p className="font-bold text-terminal-text mb-1">{badge.definition.name}</p>
               {badge.definition.description && (

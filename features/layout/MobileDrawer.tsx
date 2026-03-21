@@ -90,7 +90,7 @@ export const MobileDrawer = React.memo(function MobileDrawer({
     {
       id: 'global',
       icon: Globe,
-      label: 'GLOBAL_FEED',
+      label: 'Global Feed',
       isActive: viewMode === ViewMode.FEED && activeBoardId === null,
       onClick: () => handleNavClick(onNavigateGlobal),
     },
@@ -104,14 +104,14 @@ export const MobileDrawer = React.memo(function MobileDrawer({
     {
       id: 'notifications',
       icon: Bell,
-      label: 'NOTIFICATIONS',
+      label: 'Notifications',
       isActive: viewMode === ViewMode.NOTIFICATIONS,
       onClick: () => handleNavClick(() => onSetViewMode(ViewMode.NOTIFICATIONS)),
     },
     {
       id: 'discover-nostr',
       icon: Compass,
-      label: 'DISCOVER_NOSTR',
+      label: 'Discover Nostr',
       isActive: viewMode === ViewMode.DISCOVER_NOSTR,
       onClick: () => handleNavClick(() => onSetViewMode(ViewMode.DISCOVER_NOSTR)),
     },
@@ -120,7 +120,7 @@ export const MobileDrawer = React.memo(function MobileDrawer({
           {
             id: 'messages',
             icon: MessageSquare,
-            label: 'DIRECT_MESSAGES',
+            label: 'Direct Messages',
             isActive: viewMode === ViewMode.DIRECT_MESSAGES,
             onClick: () => handleNavClick(() => onSetViewMode(ViewMode.DIRECT_MESSAGES)),
           },
@@ -129,7 +129,7 @@ export const MobileDrawer = React.memo(function MobileDrawer({
     {
       id: 'location',
       icon: MapPin,
-      label: 'SCAN_NEARBY',
+      label: 'Scan Nearby',
       isActive: viewMode === ViewMode.LOCATION,
       onClick: () => handleNavClick(() => onSetViewMode(ViewMode.LOCATION)),
     },
@@ -160,7 +160,7 @@ export const MobileDrawer = React.memo(function MobileDrawer({
     <>
       {/* Backdrop */}
       <div
-        className={`md:hidden fixed inset-0 z-50 bg-black/70 transition-opacity duration-200 ${
+        className={`md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm transition-opacity duration-200 ${
           isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
         onClick={onClose}
@@ -174,15 +174,15 @@ export const MobileDrawer = React.memo(function MobileDrawer({
         role="dialog"
         aria-modal="true"
         aria-label="Navigation menu"
-        className={`md:hidden fixed top-0 left-0 bottom-0 z-50 w-[280px] max-w-[85vw] bg-terminal-bg border-r-2 border-terminal-text transform transition-transform duration-200 ease-out flex flex-col ${
+        className={`md:hidden fixed top-0 left-0 bottom-0 z-50 flex w-[280px] max-w-[85vw] flex-col border-r border-terminal-dim/35 bg-terminal-bg/95 transform transition-transform duration-200 ease-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-terminal-bg border-b border-terminal-dim p-4 flex items-center justify-between">
+        <div className="sticky top-0 flex items-center justify-between border-b border-terminal-dim/15 bg-terminal-bg/95 p-4">
           <div className="flex items-center gap-2">
-            <span className="text-terminal-text font-bold text-lg font-terminal tracking-wider">
-              BITBOARD
+            <span className="font-terminal text-lg tracking-wider text-terminal-text">
+              BitBoard
             </span>
             <div
               className={`w-2 h-2 rounded-full ${isNostrConnected ? 'bg-terminal-text animate-pulse' : 'bg-terminal-alert'}`}
@@ -200,21 +200,21 @@ export const MobileDrawer = React.memo(function MobileDrawer({
         <div className="flex-1 overflow-y-auto">
           {/* Navigation Links */}
           <nav className="p-2">
-            <ul className="space-y-1">
+            <ul className="space-y-1.5">
               {navLinks.map((item) => {
                 const Icon = item.icon;
                 return (
                   <li key={item.id}>
                     <button
                       onClick={item.onClick}
-                      className={`w-full flex items-center gap-3 px-3 py-3 text-sm uppercase tracking-wider transition-colors ${
+                      className={`flex w-full items-center gap-3 border px-3 py-3 text-left text-sm transition-colors ${
                         item.isActive
-                          ? 'bg-terminal-text text-terminal-bg font-bold'
-                          : 'text-terminal-dim hover:text-terminal-text hover:bg-terminal-dim/10'
+                          ? 'border-terminal-dim/60 bg-terminal-dim/10 text-terminal-text'
+                          : 'border-transparent text-terminal-dim hover:border-terminal-dim/30 hover:bg-terminal-dim/5 hover:text-terminal-text'
                       }`}
                     >
                       <Icon size={18} />
-                      <span>{item.label}</span>
+                      <span className="font-mono uppercase tracking-[0.12em]">{item.label}</span>
                     </button>
                   </li>
                 );
@@ -227,7 +227,7 @@ export const MobileDrawer = React.memo(function MobileDrawer({
         </div>
 
         {/* Footer */}
-        <div className="mt-auto p-4 border-t border-terminal-dim/30 bg-terminal-bg text-center">
+        <div className="mt-auto border-t border-terminal-dim/20 bg-terminal-bg/95 p-4 text-center">
           <span className="text-2xs text-terminal-dim uppercase tracking-wider">
             NOSTR PROTOCOL V3.0
           </span>

@@ -230,7 +230,7 @@ export const AppHeader = React.memo(function AppHeader({
       {/* Desktop Header (hidden on mobile) */}
       <button
         type="button"
-        className="hidden md:flex items-center gap-2 cursor-pointer hover:text-white transition-colors text-left shrink-0"
+        className="hidden md:flex items-center gap-2 cursor-pointer text-left shrink-0 transition-colors hover:text-terminal-text"
         onClick={() => navigateToBoard(null)}
         aria-label="Go to global feed"
       >
@@ -443,12 +443,12 @@ export const AppHeader = React.memo(function AppHeader({
         {showBitsPanel &&
           createPortal(
             <div
-              className="fixed inset-0 z-[100] flex items-center justify-center px-4 py-6 sm:py-10 bg-black/70"
+              className="ui-overlay z-[100] flex items-center justify-center px-4 py-6 sm:py-10"
               role="presentation"
               onClick={() => setShowBitsPanel(false)}
             >
               <div
-                className="bg-terminal-bg border-2 border-terminal-text w-full max-w-md max-h-[min(80vh,calc(100dvh-3rem))] overflow-y-auto shadow-hard-lg"
+                className="ui-surface-modal w-full max-w-md max-h-[min(80vh,calc(100dvh-3rem))] overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="px-4 py-3 border-b border-terminal-dim/30 flex items-start gap-3">
@@ -468,7 +468,7 @@ export const AppHeader = React.memo(function AppHeader({
                   <button
                     type="button"
                     onClick={() => setShowBitsPanel(false)}
-                    className="w-full border border-terminal-dim/40 px-4 py-2 text-xs uppercase tracking-wide text-terminal-dim hover:border-terminal-text hover:text-terminal-text transition-colors"
+                    className="ui-button-secondary w-full px-4 py-2 text-xs"
                   >
                     Close
                   </button>
@@ -482,8 +482,8 @@ export const AppHeader = React.memo(function AppHeader({
       {/* Search Modal */}
       {showSearch &&
         createPortal(
-          <div className="fixed inset-0 z-[100] flex items-start justify-center pt-16 sm:pt-20 px-4 bg-black/70">
-            <div className="bg-terminal-bg border-2 border-terminal-text w-full max-w-2xl max-h-[min(80vh,calc(100dvh-4rem))] overflow-auto shadow-hard-lg">
+          <div className="ui-overlay z-[100] flex items-start justify-center px-4 pt-16 sm:pt-20">
+            <div className="ui-surface-modal w-full max-w-2xl max-h-[min(80vh,calc(100dvh-4rem))] overflow-auto">
               <Suspense
                 fallback={
                   <div className="p-8 text-center text-terminal-dim animate-pulse">LOADING...</div>

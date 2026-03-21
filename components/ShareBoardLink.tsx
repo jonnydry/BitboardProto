@@ -44,15 +44,18 @@ export const ShareBoardLink: React.FC<ShareBoardLinkProps> = ({ board, onClose }
     return () => window.removeEventListener('keydown', handleEscape);
   }, [onClose]);
 
-  const handleBackdropClick = useCallback((e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  }, [onClose]);
+  const handleBackdropClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.target === e.currentTarget) {
+        onClose();
+      }
+    },
+    [onClose],
+  );
 
   const handleCopy = async () => {
     if (!shareLink) return;
-    
+
     try {
       await navigator.clipboard.writeText(shareLink);
       setCopied(true);
@@ -63,23 +66,26 @@ export const ShareBoardLink: React.FC<ShareBoardLinkProps> = ({ board, onClose }
   };
 
   return (
-    <div 
-      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+    <div
+      className="ui-overlay flex items-center justify-center p-4"
       onClick={handleBackdropClick}
       role="presentation"
     >
       <div
-        className="bg-terminal-bg border-2 border-terminal-text p-6 max-w-lg w-full shadow-hard-lg animate-fade-in"
+        className="ui-surface-modal max-w-lg p-6 animate-fade-in"
         role="dialog"
         aria-modal="true"
         aria-labelledby={dialogTitleId}
         aria-describedby={dialogDescId}
       >
         {/* Header */}
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-terminal-dim">
+        <div className="mb-4 flex items-center justify-between border-b border-terminal-dim/15 pb-3">
           <div className="flex items-center gap-2">
             <Link size={20} />
-            <h2 id={dialogTitleId} className="text-lg font-bold uppercase">
+            <h2
+              id={dialogTitleId}
+              className="font-display text-2xl font-semibold text-terminal-text"
+            >
               Share Encrypted Board
             </h2>
           </div>
@@ -94,7 +100,7 @@ export const ShareBoardLink: React.FC<ShareBoardLinkProps> = ({ board, onClose }
         </div>
 
         {/* Board Info */}
-        <div className="mb-4 p-3 bg-terminal-dim/10 border border-terminal-dim/30">
+        <div className="mb-4 border border-terminal-dim/20 bg-terminal-dim/10 p-3">
           <div className="flex items-center gap-2 mb-1">
             <Key size={14} className="text-terminal-dim" />
             <span className="font-bold">//{board.name}</span>
@@ -105,40 +111,42 @@ export const ShareBoardLink: React.FC<ShareBoardLinkProps> = ({ board, onClose }
         </div>
 
         {error ? (
-          <div className="p-4 border border-terminal-alert bg-terminal-alert/10 text-terminal-alert flex items-start gap-2">
+          <div className="flex items-start gap-2 border border-terminal-alert/40 bg-terminal-alert/10 p-4 text-terminal-alert">
             <AlertTriangle size={16} className="mt-0.5 shrink-0" />
             <p className="text-sm">{error}</p>
           </div>
         ) : (
           <div className="space-y-4">
             {/* Warning */}
-            <div className="p-3 border border-terminal-alert/30 bg-terminal-alert/5 flex items-start gap-2">
+            <div className="flex items-start gap-2 border border-terminal-alert/30 bg-terminal-alert/5 p-3">
               <AlertTriangle size={14} className="text-terminal-alert mt-0.5 shrink-0" />
               <p className="text-xs text-terminal-dim">
-                <span className="text-terminal-alert font-bold">Security Notice:</span> Anyone with this link 
-                can read all content in this board. The encryption key is embedded in the URL fragment 
-                and is never sent to servers.
+                <span className="text-terminal-alert font-bold">Security Notice:</span> Anyone with
+                this link can read all content in this board. The encryption key is embedded in the
+                URL fragment and is never sent to servers.
               </p>
             </div>
 
             {/* Share Link */}
             <div className="space-y-2">
-              <label className="text-xs text-terminal-dim uppercase font-bold">Share Link</label>
+              <label className="text-xs font-bold uppercase tracking-[0.12em] text-terminal-dim">
+                Share Link
+              </label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={shareLink || ''}
                   readOnly
-                  className="flex-1 bg-terminal-dim/10 border border-terminal-dim p-3 text-terminal-text font-mono text-xs"
+                  className="ui-input flex-1 text-xs"
                 />
                 <button
                   type="button"
                   onClick={handleCopy}
                   disabled={!shareLink}
-                  className={`px-4 border transition-colors flex items-center gap-2 disabled:opacity-50 ${
-                    copied 
-                      ? 'border-terminal-text bg-terminal-text text-black' 
-                      : 'border-terminal-dim text-terminal-dim hover:border-terminal-text hover:text-terminal-text'
+                  className={`flex items-center gap-2 border px-4 font-mono text-sm uppercase tracking-[0.12em] transition-colors disabled:opacity-50 ${
+                    copied
+                      ? 'border-terminal-text bg-terminal-text text-black'
+                      : 'border-terminal-dim/30 text-terminal-dim hover:border-terminal-dim/60 hover:text-terminal-text'
                   }`}
                 >
                   {copied ? <Check size={16} /> : <Copy size={16} />}
@@ -148,8 +156,8 @@ export const ShareBoardLink: React.FC<ShareBoardLinkProps> = ({ board, onClose }
             </div>
 
             {/* How it works */}
-            <div className="text-2xs text-terminal-dim space-y-1 pt-2 border-t border-terminal-dim/30">
-              <p className="font-bold uppercase">How encrypted links work:</p>
+            <div className="space-y-1 border-t border-terminal-dim/20 pt-2 text-2xs text-terminal-dim">
+              <p className="font-bold uppercase tracking-[0.12em]">How encrypted links work:</p>
               <ul className="list-disc list-inside space-y-0.5 pl-2">
                 <li>The encryption key is in the URL fragment (after #)</li>
                 <li>URL fragments are never sent to servers</li>
@@ -161,12 +169,8 @@ export const ShareBoardLink: React.FC<ShareBoardLinkProps> = ({ board, onClose }
         )}
 
         {/* Actions */}
-        <div className="flex gap-3 justify-end mt-6 pt-4 border-t border-terminal-dim/30">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 border border-terminal-dim text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors uppercase text-sm"
-          >
+        <div className="mt-6 flex justify-end gap-3 border-t border-terminal-dim/20 pt-4">
+          <button type="button" onClick={onClose} className="ui-button-secondary px-4 py-2 text-sm">
             Close
           </button>
         </div>
@@ -174,20 +178,3 @@ export const ShareBoardLink: React.FC<ShareBoardLinkProps> = ({ board, onClose }
     </div>
   );
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

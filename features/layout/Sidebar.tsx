@@ -223,7 +223,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
     [ThemeId.BITBORING]: 'Boring',
   };
 
-  const BASE = isDrawer ? 'flex flex-col gap-3 overflow-y-auto p-4' : 'order-first space-y-3';
+  const BASE = isDrawer ? 'flex min-w-0 flex-col gap-3 p-4' : 'order-first space-y-3';
 
   return (
     <aside className={BASE}>
@@ -341,7 +341,12 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
           <div className="mt-2 space-y-0.5 max-h-48 overflow-y-auto">
             <button
               type="button"
-              onClick={() => nav(() => navigateToBoard(null))}
+              onClick={() =>
+                nav(() => {
+                  navigateToBoard(null);
+                  onSetViewMode(ViewMode.FEED);
+                })
+              }
               className={`flex w-full items-center gap-2 border-l-2 px-2 py-1.5 text-left text-xs font-mono transition-all ${
                 activeBoardId === null
                   ? 'border-l-terminal-text bg-terminal-dim/10 text-terminal-text'

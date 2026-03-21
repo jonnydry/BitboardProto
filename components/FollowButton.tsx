@@ -130,9 +130,10 @@ export const FollowButton: React.FC<FollowButtonProps> = ({
   const buttonClasses = `
     ${getSizeClasses(size)}
     font-bold transition-all duration-200
-    ${isFollowing 
-      ? 'border border-terminal-text text-terminal-text hover:border-terminal-alert hover:text-terminal-alert hover:bg-terminal-alert/10' 
-      : 'bg-terminal-text text-black hover:bg-terminal-dim hover:text-white'
+    ${
+      isFollowing
+        ? 'border border-terminal-text text-terminal-text hover:border-terminal-alert hover:text-terminal-alert hover:bg-terminal-alert/10'
+        : 'bg-terminal-text text-black hover:bg-terminal-dim hover:text-white'
     }
     ${isLoading ? 'opacity-50 cursor-wait' : 'cursor-pointer'}
     flex items-center justify-center gap-2
@@ -146,9 +147,7 @@ export const FollowButton: React.FC<FollowButtonProps> = ({
       title={isFollowing ? 'Unfollow this user' : 'Follow this user'}
     >
       {buttonContent()}
-      {isMutual && variant !== 'icon' && (
-        <span className="text-xs opacity-70">(mutual)</span>
-      )}
+      {isMutual && variant !== 'icon' && <span className="text-xs opacity-70">(mutual)</span>}
     </button>
   );
 };
@@ -174,8 +173,9 @@ export const FollowStats: React.FC<FollowStatsProps> = ({
   useEffect(() => {
     if (followingCount === undefined || followersCount === undefined) {
       setIsLoading(true);
-      followServiceV2.getStatsForUser(pubkey)
-        .then(s => {
+      followServiceV2
+        .getStatsForUser(pubkey)
+        .then((s) => {
           setStats({
             following: followingCount ?? s.followingCount,
             followers: followersCount ?? s.followersCount,
@@ -192,20 +192,16 @@ export const FollowStats: React.FC<FollowStatsProps> = ({
         className="hover:text-terminal-text transition-colors"
         disabled={!onFollowingClick}
       >
-        <span className="font-bold text-terminal-text">
-          {isLoading ? '...' : stats.following}
-        </span>
+        <span className="font-bold text-terminal-text">{isLoading ? '...' : stats.following}</span>
         <span className="text-terminal-dim ml-1">Following</span>
       </button>
-      
+
       <button
         onClick={onFollowersClick}
         className="hover:text-terminal-text transition-colors"
         disabled={!onFollowersClick}
       >
-        <span className="font-bold text-terminal-text">
-          {isLoading ? '...' : stats.followers}
-        </span>
+        <span className="font-bold text-terminal-text">{isLoading ? '...' : stats.followers}</span>
         <span className="text-terminal-dim ml-1">Followers</span>
       </button>
     </div>
@@ -225,11 +221,11 @@ export const UserList: React.FC<UserListProps> = ({
   onClose,
 }) => {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-terminal-bg border-2 border-terminal-text w-full max-w-md max-h-[70vh] flex flex-col">
+    <div className="ui-overlay flex items-center justify-center p-4">
+      <div className="ui-surface-modal flex max-h-[70vh] w-full max-w-md flex-col overflow-hidden">
         {/* Header */}
-        <div className="p-4 border-b border-terminal-dim flex items-center justify-between">
-          <h2 className="text-lg font-bold flex items-center gap-2">
+        <div className="flex items-center justify-between border-b border-terminal-dim/15 p-4">
+          <h2 className="flex items-center gap-2 font-display text-2xl font-semibold text-terminal-text">
             <Users size={20} />
             {title}
           </h2>
@@ -244,11 +240,9 @@ export const UserList: React.FC<UserListProps> = ({
         {/* User List */}
         <div className="flex-1 overflow-y-auto">
           {users.length === 0 ? (
-            <div className="p-8 text-center text-terminal-dim">
-              {emptyMessage}
-            </div>
+            <div className="p-8 text-center text-terminal-dim">{emptyMessage}</div>
           ) : (
-            users.map(user => (
+            users.map((user) => (
               <UserListItem
                 key={user.pubkey}
                 user={user}
@@ -282,16 +276,14 @@ const UserListItem: React.FC<{
   return (
     <div
       onClick={onClick}
-      className="p-3 border-b border-terminal-dim/30 hover:bg-terminal-dim/10 cursor-pointer flex items-center gap-3"
+      className="flex cursor-pointer items-center gap-3 border-b border-terminal-dim/15 p-3 hover:bg-terminal-dim/10"
     >
       {/* Avatar */}
-      <div className="w-10 h-10 rounded-full border border-terminal-dim flex items-center justify-center bg-terminal-dim/20 flex-shrink-0 overflow-hidden">
+      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-terminal-dim/25 bg-terminal-dim/10">
         {user.avatar ? (
           <img src={user.avatar} alt={displayName} className="w-full h-full object-cover" />
         ) : (
-          <span className="text-terminal-dim text-lg">
-            {displayName.charAt(0).toUpperCase()}
-          </span>
+          <span className="text-terminal-dim text-lg">{displayName.charAt(0).toUpperCase()}</span>
         )}
       </div>
 

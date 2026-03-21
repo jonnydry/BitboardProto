@@ -2,6 +2,56 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  .ui-surface-editor {
+    @apply w-full max-w-2xl mx-auto border border-terminal-dim/30 bg-terminal-bg animate-fade-in;
+  }
+
+  .ui-surface-panel {
+    @apply border border-terminal-dim/30 bg-terminal-bg;
+  }
+
+  .ui-surface-modal {
+    @apply w-full border border-terminal-dim/35 bg-terminal-bg/95 shadow-hard-lg;
+  }
+
+  .ui-page-hero {
+    @apply border border-terminal-dim/25 bg-terminal-dim/[0.04] p-6;
+  }
+
+  .ui-list-action {
+    @apply flex items-center gap-2 border border-terminal-dim/30 px-3 py-2 text-left text-sm text-terminal-dim transition-colors hover:border-terminal-dim/60 hover:text-terminal-text;
+  }
+
+  .ui-overlay {
+    @apply fixed inset-0 z-50 bg-black/60 backdrop-blur-sm;
+  }
+
+  .ui-section-title {
+    @apply border-b border-terminal-dim/20 pb-2 font-mono text-sm uppercase tracking-[0.2em] text-terminal-dim;
+  }
+
+  .ui-button-primary {
+    @apply border border-terminal-text/30 bg-terminal-text px-4 py-2.5 font-mono text-sm font-bold uppercase tracking-[0.12em] text-black transition-colors hover:bg-terminal-dim hover:text-terminal-bg disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .ui-button-secondary {
+    @apply border border-terminal-dim/30 px-4 py-2.5 font-mono text-sm uppercase tracking-[0.12em] text-terminal-dim transition-colors hover:border-terminal-dim/60 hover:text-terminal-text disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .ui-input {
+    @apply w-full border border-terminal-dim/30 bg-terminal-bg/60 px-3 py-2.5 font-mono text-sm text-terminal-text transition-colors placeholder:text-terminal-dim/35 focus:border-terminal-dim focus:outline-none;
+  }
+
+  .ui-toggle {
+    @apply relative h-5 w-10 rounded-sm border border-terminal-dim/30 transition-colors;
+  }
+
+  .ui-toggle-thumb {
+    @apply absolute top-0.5 h-3.5 w-3.5 rounded-sm transition-transform;
+  }
+}
+
 :root {
   /* AMBER (Default) */
   --color-terminal-bg: 16 11 5; /* #100b05 */

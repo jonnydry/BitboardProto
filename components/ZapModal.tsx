@@ -117,22 +117,19 @@ export const ZapModal: React.FC<ZapModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 animate-fade-in"
+      className="ui-overlay flex items-center justify-center p-4 animate-fade-in"
       onClick={handleBackdropClick}
     >
       <div
         ref={modalRef}
-        className="bg-terminal-bg border-2 border-terminal-text p-6 max-w-md w-full shadow-hard-lg font-mono relative overflow-hidden"
+        className="ui-surface-modal relative w-full max-w-md overflow-hidden p-6 font-mono"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* CRT Scanline effect overlay */}
-        <div className="absolute inset-0 pointer-events-none opacity-5 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%]" />
-
         {/* Header */}
-        <div className="flex items-center justify-between mb-6 pb-3 border-b border-terminal-dim relative z-10">
+        <div className="relative z-10 mb-6 flex items-center justify-between border-b border-terminal-dim/15 pb-3">
           <div className="flex items-center gap-2 text-terminal-text">
             <Zap size={20} fill="currentColor" />
-            <h2 className="text-xl font-bold uppercase tracking-widest">Transmit_Zap</h2>
+            <h2 className="font-display text-2xl font-semibold">Transmit Zap</h2>
           </div>
           <button
             onClick={onClose}
@@ -145,17 +142,17 @@ export const ZapModal: React.FC<ZapModalProps> = ({
         {isLoading && step === 'amount' && (
           <div className="py-12 flex flex-col items-center justify-center gap-4">
             <Loader2 size={40} className="animate-spin text-terminal-text" />
-            <p className="text-sm text-terminal-dim uppercase animate-pulse">
-              Establishing_Connection...
+            <p className="text-sm uppercase text-terminal-dim animate-pulse">
+              Establishing connection...
             </p>
           </div>
         )}
 
         {error && (
-          <div className="mb-6 p-4 border border-terminal-alert bg-terminal-alert/5 text-terminal-alert flex items-start gap-3">
+          <div className="mb-6 flex items-start gap-3 border border-terminal-alert/30 bg-terminal-alert/5 p-4 text-terminal-alert">
             <AlertTriangle size={20} className="shrink-0" />
             <div>
-              <p className="font-bold uppercase mb-1">Error_Detected</p>
+              <p className="mb-1 font-bold uppercase">Error detected</p>
               <p className="text-xs leading-relaxed">{error}</p>
             </div>
           </div>
@@ -164,27 +161,29 @@ export const ZapModal: React.FC<ZapModalProps> = ({
         {!isLoading && !error && step === 'amount' && (
           <div className="relative z-10">
             <div className="mb-6">
-              <p className="text-xs text-terminal-dim uppercase mb-2">Recipient:</p>
+              <p className="mb-2 text-xs uppercase tracking-[0.12em] text-terminal-dim">
+                Recipient
+              </p>
               <p className="text-lg font-bold text-terminal-text truncate">
                 {recipientName || recipientPubkey.slice(0, 16) + '...'}
               </p>
             </div>
 
             <div className="mb-6">
-              <label className="text-xs text-terminal-dim uppercase mb-2 block">
-                Select_Amount (SATS):
+              <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-terminal-dim">
+                Select Amount (Sats)
               </label>
               <div className="grid grid-cols-3 gap-2 mb-4">
                 {suggestedAmounts.map((amt) => (
                   <button
                     key={amt}
                     onClick={() => setAmount(amt)}
-                    className={`py-2 border-2 text-sm font-bold transition-all
-                      ${
-                        amount === amt
-                          ? 'border-terminal-text bg-terminal-text text-black'
-                          : 'border-terminal-dim text-terminal-dim hover:border-terminal-text hover:text-terminal-text'
-                      }`}
+                    className={`border py-2 text-sm font-bold transition-all
+                       ${
+                         amount === amt
+                           ? 'border-terminal-dim/60 bg-terminal-dim/10 text-terminal-text'
+                           : 'border-terminal-dim/25 text-terminal-dim hover:border-terminal-dim/50 hover:text-terminal-text'
+                       }`}
                   >
                     {amt}
                   </button>
@@ -195,7 +194,7 @@ export const ZapModal: React.FC<ZapModalProps> = ({
                   type="number"
                   value={amount}
                   onChange={(e) => setAmount(parseInt(e.target.value) || 0)}
-                  className="w-full bg-terminal-bg border-2 border-terminal-dim p-3 text-terminal-text focus:border-terminal-text outline-none font-bold"
+                  className="ui-input pr-16 font-bold"
                   placeholder="Custom amount..."
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-terminal-dim font-bold">
@@ -205,28 +204,26 @@ export const ZapModal: React.FC<ZapModalProps> = ({
             </div>
 
             <div className="mb-8">
-              <label className="text-xs text-terminal-dim uppercase mb-2 block">
-                Message (Optional):
+              <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-terminal-dim">
+                Message (Optional)
               </label>
               <textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 maxLength={280}
-                className="w-full bg-terminal-bg border-2 border-terminal-dim p-3 text-sm text-terminal-text focus:border-terminal-text outline-none resize-none h-20"
+                className="ui-input h-20 resize-none text-sm"
                 placeholder="Add a comment to your zap..."
               />
-              <div className="text-2xs text-terminal-dim text-right mt-1">
-                {comment.length}/280
-              </div>
+              <div className="text-2xs text-terminal-dim text-right mt-1">{comment.length}/280</div>
             </div>
 
             <button
               onClick={handleGetInvoice}
               disabled={!identity || amount <= 0}
-              className="w-full py-4 bg-terminal-text text-black font-bold uppercase tracking-[0.2em] shadow-hard hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_rgba(var(--color-terminal-text),0.3)] active:translate-x-0 active:translate-y-0 active:shadow-hard transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="ui-button-primary flex w-full items-center justify-center gap-2 py-4"
             >
               <Zap size={18} fill="currentColor" />
-              Generate_Invoice
+              Generate Invoice
             </button>
             {!identity && (
               <p className="text-2xs text-terminal-alert mt-2 text-center">
@@ -238,35 +235,35 @@ export const ZapModal: React.FC<ZapModalProps> = ({
 
         {step === 'invoice' && invoice && (
           <div className="relative z-10 text-center animate-fade-in">
-            <p className="text-xs text-terminal-dim uppercase mb-4 font-bold">
-              Lightning_Invoice_Ready
+            <p className="mb-4 text-xs font-bold uppercase tracking-[0.12em] text-terminal-dim">
+              Lightning Invoice Ready
             </p>
 
             {/* Invoice box */}
-            <div className="bg-terminal-highlight border-2 border-terminal-dim p-4 mb-6 relative group">
+            <div className="group relative mb-6 border border-terminal-dim/25 bg-terminal-dim/10 p-4">
               <p className="text-2xs text-terminal-dim font-mono break-all line-clamp-4 mb-4 text-left">
                 {invoice}
               </p>
               <div className="flex gap-2">
                 <button
                   onClick={copyToClipboard}
-                  className="flex-1 flex items-center justify-center gap-2 py-2 border-2 border-terminal-text text-terminal-text hover:bg-terminal-text hover:text-black transition-all text-xs font-bold uppercase"
+                  className="ui-button-secondary flex flex-1 items-center justify-center gap-2 py-2 text-xs"
                 >
                   {copied ? <Check size={14} /> : <Copy size={14} />}
-                  {copied ? 'Copied' : 'Copy_Invoice'}
+                  {copied ? 'Copied' : 'Copy Invoice'}
                 </button>
                 <a
                   href={`lightning:${invoice}`}
-                  className="flex-1 flex items-center justify-center gap-2 py-2 bg-terminal-text text-black hover:bg-terminal-highlight hover:text-terminal-text border-2 border-terminal-text transition-all text-xs font-bold uppercase"
+                  className="ui-button-primary flex flex-1 items-center justify-center gap-2 py-2 text-xs"
                 >
                   <ExternalLink size={14} />
-                  Open_Wallet
+                  Open Wallet
                 </a>
               </div>
             </div>
 
-            <div className="mb-6 p-4 border border-terminal-dim bg-terminal-dim/5 text-xs text-terminal-dim leading-relaxed text-left">
-              <p className="mb-2 font-bold text-terminal-text">INSTRUCTIONS:</p>
+            <div className="mb-6 border border-terminal-dim/25 bg-terminal-dim/5 p-4 text-left text-xs leading-relaxed text-terminal-dim">
+              <p className="mb-2 font-bold text-terminal-text">Instructions:</p>
               <ol className="list-decimal list-inside space-y-1">
                 <li>Copy the invoice or click 'Open Wallet'</li>
                 <li>Pay using any Lightning-enabled wallet</li>
@@ -280,15 +277,15 @@ export const ZapModal: React.FC<ZapModalProps> = ({
                   setStatus('success');
                   onSuccess?.(amount);
                 }}
-                className="text-xs text-terminal-text underline hover:no-underline font-bold uppercase"
+                className="text-xs font-bold uppercase text-terminal-text underline hover:no-underline"
               >
-                I_Have_Paid
+                I Have Paid
               </button>
               <button
                 onClick={() => setStatus('amount')}
-                className="text-2xs text-terminal-dim hover:text-terminal-text uppercase transition-colors"
+                className="text-2xs uppercase text-terminal-dim transition-colors hover:text-terminal-text"
               >
-                Cancel_And_Change_Amount
+                Cancel And Change Amount
               </button>
             </div>
           </div>
@@ -296,20 +293,20 @@ export const ZapModal: React.FC<ZapModalProps> = ({
 
         {step === 'success' && (
           <div className="py-12 text-center animate-fade-in relative z-10">
-            <div className="w-20 h-20 border-4 border-terminal-text rounded-full flex items-center justify-center mx-auto mb-6 shadow-glow">
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-terminal-dim/30 bg-terminal-dim/10 shadow-glow">
               <Check size={40} className="text-terminal-text" />
             </div>
-            <h3 className="text-2xl font-bold text-terminal-text mb-4 uppercase tracking-widest">
-              Zap_Transmitted
+            <h3 className="mb-4 font-display text-3xl font-semibold text-terminal-text">
+              Zap transmitted
             </h3>
             <p className="text-sm text-terminal-dim mb-8">
               Transmission of {amount} SATS to {recipientName || 'creator'} completed successfully.
             </p>
             <button
               onClick={onClose}
-              className="w-full py-3 border-2 border-terminal-text text-terminal-text hover:bg-terminal-text hover:text-black transition-all font-bold uppercase tracking-widest"
+              className="ui-button-secondary w-full py-3 text-terminal-text hover:border-terminal-dim/60"
             >
-              Close_Terminal
+              Close
             </button>
           </div>
         )}

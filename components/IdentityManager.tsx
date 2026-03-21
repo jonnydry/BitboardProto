@@ -242,353 +242,359 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
   };
 
   return (
-    <div className="border-2 border-terminal-text bg-terminal-bg p-6 max-w-xl mx-auto w-full shadow-hard-lg animate-fade-in">
-      <div className="flex items-center justify-between mb-6 border-b border-terminal-dim pb-2">
-        <h2 className="text-xl font-bold flex items-center gap-2">
+    <div className="ui-surface-editor max-w-xl overflow-hidden">
+      <div className="flex items-center justify-between border-b border-terminal-dim/15 px-5 py-3">
+        <h2 className="flex items-center gap-2 font-display text-2xl font-semibold text-terminal-text">
           <Key size={20} />
-          {identity ? 'IDENTITY_CONFIG' : 'INIT_IDENTITY'}
+          {identity ? 'Identity Config' : 'Init Identity'}
         </h2>
         <button
           onClick={onClose}
           className="text-terminal-dim hover:text-terminal-text transition-colors"
         >
-          [ ESC ]
+          ESC
         </button>
       </div>
 
-      {error && (
-        <div className="mb-4 p-3 border border-terminal-alert bg-terminal-alert/10 text-terminal-alert flex items-center gap-2 text-sm">
-          <AlertTriangle size={16} />
-          {error}
-        </div>
-      )}
-
-      {identity ? (
-        // ========== IDENTITY EXISTS ==========
-        <div className="space-y-6">
-          {/* Status */}
-          <div className="flex items-center justify-between gap-3 rounded-sm border border-terminal-dim/40 bg-terminal-dim/10 p-3 text-sm">
-            <div className="flex items-center gap-2">
-              <Wifi size={14} className="text-terminal-text" />
-              <span className="text-terminal-dim">IDENTITY CONNECTED</span>
-            </div>
-            {onViewProfile && (
-              <button
-                onClick={handleViewProfile}
-                className="flex items-center gap-2 border border-terminal-dim px-3 py-1.5 text-xs text-terminal-text transition-colors hover:border-terminal-text hover:bg-terminal-dim/10"
-              >
-                <User size={12} />
-                VIEW PROFILE
-              </button>
-            )}
+      <div className="px-5 py-5">
+        {error && (
+          <div className="mb-4 flex items-center gap-2 border border-terminal-alert/40 bg-terminal-alert/10 p-3 text-sm text-terminal-alert">
+            <AlertTriangle size={16} />
+            {error}
           </div>
+        )}
 
-          {/* Public Key */}
-          <div className="space-y-2">
-            <label className="text-xs text-terminal-dim uppercase font-bold">
-              Public Key (npub)
-            </label>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 bg-terminal-dim/20 p-2 text-xs font-mono break-all">
-                {identity.npub}
-              </code>
-              <button
-                onClick={() => handleCopy(identity.npub, 'npub')}
-                className="p-2 border border-terminal-dim hover:border-terminal-text transition-colors"
-              >
-                {copied === 'npub' ? (
-                  <CheckCircle size={16} className="text-terminal-text" />
-                ) : (
-                  <Copy size={16} />
-                )}
-              </button>
+        {identity ? (
+          // ========== IDENTITY EXISTS ==========
+          <div className="space-y-6">
+            {/* Status */}
+            <div className="flex items-center justify-between gap-3 border border-terminal-dim/30 bg-terminal-dim/10 p-3 text-sm">
+              <div className="flex items-center gap-2">
+                <Wifi size={14} className="text-terminal-text" />
+                <span className="text-terminal-dim">IDENTITY CONNECTED</span>
+              </div>
+              {onViewProfile && (
+                <button
+                  onClick={handleViewProfile}
+                  className="ui-button-secondary flex items-center gap-2 px-3 py-1.5 text-xs text-terminal-text"
+                >
+                  <User size={12} />
+                  VIEW PROFILE
+                </button>
+              )}
             </div>
-          </div>
 
-          {/* Private Key (hidden by default) */}
-          {identity.kind === 'local' && (
+            {/* Public Key */}
             <div className="space-y-2">
-              <label className="text-xs text-terminal-dim uppercase font-bold flex items-center gap-2">
-                Private Key (nsec)
-                <span className="inline-flex items-center gap-1 text-terminal-alert">
-                  <AlertTriangle size={12} />
-                  KEEP SECRET
-                </span>
+              <label className="text-xs text-terminal-dim uppercase font-bold">
+                Public Key (npub)
               </label>
               <div className="flex items-center gap-2">
-                <code className="flex-1 bg-terminal-dim/20 p-2 text-xs font-mono break-all">
-                  {showPrivateKey
-                    ? identityService.exportNsec()
-                    : '••••••••••••••••••••••••••••••••'}
+                <code className="flex-1 border border-terminal-dim/20 bg-terminal-dim/10 p-2 text-xs font-mono break-all">
+                  {identity.npub}
                 </code>
                 <button
-                  onClick={() => setShowPrivateKey(!showPrivateKey)}
-                  className="p-2 border border-terminal-dim hover:border-terminal-text transition-colors text-xs"
+                  onClick={() => handleCopy(identity.npub, 'npub')}
+                  className="border border-terminal-dim/30 p-2 transition-colors hover:border-terminal-dim/60"
                 >
-                  {showPrivateKey ? 'HIDE' : 'SHOW'}
+                  {copied === 'npub' ? (
+                    <CheckCircle size={16} className="text-terminal-text" />
+                  ) : (
+                    <Copy size={16} />
+                  )}
                 </button>
-                {showPrivateKey && (
-                  <button
-                    onClick={() => handleCopy(identityService.exportNsec() || '', 'nsec')}
-                    className="p-2 border border-terminal-dim hover:border-terminal-text transition-colors"
-                  >
-                    {copied === 'nsec' ? (
-                      <CheckCircle size={16} className="text-terminal-text" />
-                    ) : (
-                      <Copy size={16} />
-                    )}
-                  </button>
-                )}
               </div>
-              {/* Storage security notice */}
-              <div className="flex gap-2 p-2 border border-terminal-alert/40 bg-terminal-alert/5 text-2xs text-terminal-dim leading-relaxed">
+            </div>
+
+            {/* Private Key (hidden by default) */}
+            {identity.kind === 'local' && (
+              <div className="space-y-2">
+                <label className="text-xs text-terminal-dim uppercase font-bold flex items-center gap-2">
+                  Private Key (nsec)
+                  <span className="inline-flex items-center gap-1 text-terminal-alert">
+                    <AlertTriangle size={12} />
+                    KEEP SECRET
+                  </span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 border border-terminal-dim/20 bg-terminal-dim/10 p-2 text-xs font-mono break-all">
+                    {showPrivateKey
+                      ? identityService.exportNsec()
+                      : '••••••••••••••••••••••••••••••••'}
+                  </code>
+                  <button
+                    onClick={() => setShowPrivateKey(!showPrivateKey)}
+                    className="border border-terminal-dim/30 p-2 text-xs transition-colors hover:border-terminal-dim/60"
+                  >
+                    {showPrivateKey ? 'HIDE' : 'SHOW'}
+                  </button>
+                  {showPrivateKey && (
+                    <button
+                      onClick={() => handleCopy(identityService.exportNsec() || '', 'nsec')}
+                      className="border border-terminal-dim/30 p-2 transition-colors hover:border-terminal-dim/60"
+                    >
+                      {copied === 'nsec' ? (
+                        <CheckCircle size={16} className="text-terminal-text" />
+                      ) : (
+                        <Copy size={16} />
+                      )}
+                    </button>
+                  )}
+                </div>
+                {/* Storage security notice */}
+                <div className="flex gap-2 p-2 border border-terminal-alert/40 bg-terminal-alert/5 text-2xs text-terminal-dim leading-relaxed">
+                  <AlertTriangle size={12} className="text-terminal-alert shrink-0 mt-0.5" />
+                  <span>
+                    Your key is stored in browser localStorage — it is protected by the browser's
+                    origin isolation but is accessible to any script running on this page. For
+                    maximum security, use a{' '}
+                    <span className="text-terminal-text">browser extension</span> (e.g. Alby or
+                    nos2x) that keeps your key outside the page entirely.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Display Name */}
+            <div className="space-y-2">
+              <label className="text-xs text-terminal-dim uppercase font-bold">Display Name</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className="ui-input flex-1 py-2"
+                  placeholder="Anonymous"
+                />
+                <button
+                  onClick={handleUpdateName}
+                  className="ui-button-secondary px-4 py-2 text-sm"
+                >
+                  Update
+                </button>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-wrap gap-3 border-t border-terminal-dim/20 pt-4">
+              <button
+                onClick={handleExportBackup}
+                className="ui-button-secondary flex items-center gap-2 px-4 py-2 text-sm"
+              >
+                <Download size={14} />
+                Backup Key
+              </button>
+              <button
+                onClick={() => setIsConfirmingLogout(true)}
+                className="flex items-center gap-2 border border-terminal-alert/40 px-4 py-2 text-sm text-terminal-alert transition-colors hover:bg-terminal-alert hover:text-black"
+              >
+                <WifiOff size={14} />
+                Logout
+              </button>
+            </div>
+
+            {isConfirmingLogout && (
+              <div className="space-y-3 border border-terminal-alert/40 bg-terminal-alert/10 p-4">
+                <div className="flex items-start gap-2 text-terminal-alert">
+                  <AlertTriangle size={16} className="mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold uppercase tracking-wide">
+                      Disconnect identity?
+                    </p>
+                    <p className="mt-1 text-sm text-terminal-dim">
+                      Your key will be removed from this browser session. Make sure you have a
+                      backup before continuing.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setIsConfirmingLogout(false)}
+                    className="ui-button-secondary px-3 py-2 text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    className="border border-terminal-alert/40 bg-terminal-alert px-3 py-2 text-xs uppercase tracking-[0.12em] text-black transition-colors hover:opacity-90"
+                  >
+                    Confirm Logout
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          // ========== NO IDENTITY ==========
+          <div className="space-y-6">
+            {/* Info */}
+            <div className="space-y-3 border border-terminal-dim/30 bg-terminal-dim/5 p-4 text-sm">
+              <p className="text-terminal-dim leading-relaxed">
+                Your identity on BitBoard is a{' '}
+                <span className="text-terminal-text">Nostr keypair</span>. No email, no password, no
+                server. Your private key is your password —{' '}
+                <span className="text-terminal-alert">back it up and never share it</span>.
+              </p>
+              <div className="flex gap-2 pt-1 border-t border-terminal-dim/30 text-2xs text-terminal-dim leading-relaxed">
                 <AlertTriangle size={12} className="text-terminal-alert shrink-0 mt-0.5" />
                 <span>
-                  Your key is stored in browser localStorage — it is protected by the browser's
-                  origin isolation but is accessible to any script running on this page. For maximum
-                  security, use a <span className="text-terminal-text">browser extension</span>{' '}
-                  (e.g. Alby or nos2x) that keeps your key outside the page entirely.
+                  Keys generated here are stored in browser localStorage. This is convenient but
+                  means your key is accessible to scripts on this page. For stronger security, use a{' '}
+                  <span className="text-terminal-text">Nostr browser extension</span> such as Alby
+                  or nos2x — your key never leaves the extension.
                 </span>
               </div>
             </div>
-          )}
 
-          {/* Display Name */}
-          <div className="space-y-2">
-            <label className="text-xs text-terminal-dim uppercase font-bold">Display Name</label>
-            <div className="flex items-center gap-2">
+            {/* Display Name (optional) */}
+            <div className="space-y-2">
+              <label className="text-xs text-terminal-dim uppercase font-bold">
+                Display Name (optional)
+              </label>
               <input
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                className="flex-1 bg-terminal-bg border border-terminal-dim p-2 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
-                placeholder="Anonymous"
+                className="ui-input"
+                placeholder="anon_xxxxxx"
               />
-              <button
-                onClick={handleUpdateName}
-                className="px-4 py-2 border border-terminal-dim hover:border-terminal-text transition-colors text-sm"
-              >
-                UPDATE
-              </button>
             </div>
-          </div>
 
-          {/* Actions */}
-          <div className="flex flex-wrap gap-3 pt-4 border-t border-terminal-dim/30">
-            <button
-              onClick={handleExportBackup}
-              className="flex items-center gap-2 px-4 py-2 border border-terminal-dim hover:border-terminal-text transition-colors text-sm"
-            >
-              <Download size={14} />
-              BACKUP_KEY
-            </button>
-            <button
-              onClick={() => setIsConfirmingLogout(true)}
-              className="flex items-center gap-2 px-4 py-2 border border-terminal-alert text-terminal-alert hover:bg-terminal-alert hover:text-black transition-colors text-sm"
-            >
-              <WifiOff size={14} />
-              LOGOUT
-            </button>
-          </div>
-
-          {isConfirmingLogout && (
-            <div className="space-y-3 rounded-sm border border-terminal-alert bg-terminal-alert/10 p-4">
-              <div className="flex items-start gap-2 text-terminal-alert">
-                <AlertTriangle size={16} className="mt-0.5" />
-                <div>
-                  <p className="text-sm font-bold uppercase tracking-wide">Disconnect identity?</p>
-                  <p className="mt-1 text-sm text-terminal-dim">
-                    Your key will be removed from this browser session. Make sure you have a backup
-                    before continuing.
-                  </p>
-                </div>
-              </div>
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => setIsConfirmingLogout(false)}
-                  className="border border-terminal-dim px-3 py-2 text-xs uppercase tracking-wide text-terminal-dim transition-colors hover:border-terminal-text hover:text-terminal-text"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="border border-terminal-alert bg-terminal-alert px-3 py-2 text-xs uppercase tracking-wide text-black transition-colors hover:opacity-90"
-                >
-                  Confirm Logout
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      ) : (
-        // ========== NO IDENTITY ==========
-        <div className="space-y-6">
-          {/* Info */}
-          <div className="p-4 border border-terminal-dim/50 bg-terminal-dim/5 text-sm space-y-3">
-            <p className="text-terminal-dim leading-relaxed">
-              Your identity on BitBoard is a{' '}
-              <span className="text-terminal-text">Nostr keypair</span>. No email, no password, no
-              server. Your private key is your password —{' '}
-              <span className="text-terminal-alert">back it up and never share it</span>.
-            </p>
-            <div className="flex gap-2 pt-1 border-t border-terminal-dim/30 text-2xs text-terminal-dim leading-relaxed">
-              <AlertTriangle size={12} className="text-terminal-alert shrink-0 mt-0.5" />
-              <span>
-                Keys generated here are stored in browser localStorage. This is convenient but means
-                your key is accessible to scripts on this page. For stronger security, use a{' '}
-                <span className="text-terminal-text">Nostr browser extension</span> such as Alby or
-                nos2x — your key never leaves the extension.
-              </span>
-            </div>
-          </div>
-
-          {/* Display Name (optional) */}
-          <div className="space-y-2">
-            <label className="text-xs text-terminal-dim uppercase font-bold">
-              Display Name (optional)
-            </label>
-            <input
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full bg-terminal-bg border border-terminal-dim p-3 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
-              placeholder="anon_xxxxxx"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs text-terminal-dim uppercase font-bold">
-              Local passphrase (generate new identity)
-            </label>
-            <input
-              type="password"
-              value={passphrase}
-              onChange={(e) => setPassphrase(e.target.value)}
-              ref={generatePassphraseRef}
-              className="w-full bg-terminal-bg border border-terminal-dim p-3 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
-              placeholder="Choose 12+ characters — not your nsec"
-            />
-            <input
-              type="password"
-              value={confirmPassphrase}
-              onChange={(e) => setConfirmPassphrase(e.target.value)}
-              className="w-full bg-terminal-bg border border-terminal-dim p-3 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
-              placeholder="Confirm passphrase"
-            />
-            <p className="text-2xs leading-relaxed text-terminal-dim">
-              This is a password <span className="text-terminal-text">you invent for BitBoard</span>{' '}
-              to encrypt your key in this browser. It is not sent anywhere and is not tied to other
-              Nostr apps.
-            </p>
-          </div>
-
-          {/* Generate New Key */}
-          <button
-            onClick={handleGenerate}
-            disabled={isGenerating}
-            className="w-full bg-terminal-text text-black font-bold px-6 py-4 hover:bg-terminal-dim hover:text-white transition-colors uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {isGenerating ? (
-              <>
-                <RefreshCw size={18} className="animate-spin" />
-                GENERATING_KEYPAIR...
-              </>
-            ) : (
-              <>
-                <Key size={18} />
-                GENERATE_NEW_IDENTITY
-              </>
-            )}
-          </button>
-
-          {/* Divider */}
-          <div className="flex items-center gap-4 text-terminal-dim text-xs">
-            <div className="flex-1 border-t border-terminal-dim/30" />
-            OR
-            <div className="flex-1 border-t border-terminal-dim/30" />
-          </div>
-
-          {/* Import Key */}
-          <div className="space-y-2">
-            <label className="text-xs text-terminal-dim uppercase font-bold flex items-center gap-2">
-              <Upload size={12} />
-              Import Existing Key
-            </label>
-            <input
-              type="password"
-              value={importKey}
-              onChange={(e) => setImportKey(e.target.value)}
-              ref={importKeyRef}
-              className="w-full bg-terminal-bg border border-terminal-dim p-3 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
-              placeholder="nsec1... or hex private key"
-            />
-            <div className="rounded border border-terminal-dim/40 bg-terminal-dim/5 p-3 text-2xs text-terminal-dim leading-relaxed">
-              <p>
-                <span className="text-terminal-text font-semibold">
-                  You are not missing a passphrase from another app.
-                </span>{' '}
-                Nostr keys are just nsec/hex. BitBoard needs a{' '}
-                <span className="text-terminal-text">new phrase you choose here</span> (12+
-                characters) to lock that key in this browser — same idea as a phone PIN for an
-                imported wallet.
+            <div className="space-y-2">
+              <label className="text-xs text-terminal-dim uppercase font-bold">
+                Local passphrase (generate new identity)
+              </label>
+              <input
+                type="password"
+                value={passphrase}
+                onChange={(e) => setPassphrase(e.target.value)}
+                ref={generatePassphraseRef}
+                className="ui-input"
+                placeholder="Choose 12+ characters — not your nsec"
+              />
+              <input
+                type="password"
+                value={confirmPassphrase}
+                onChange={(e) => setConfirmPassphrase(e.target.value)}
+                className="ui-input"
+                placeholder="Confirm passphrase"
+              />
+              <p className="text-2xs leading-relaxed text-terminal-dim">
+                This is a password{' '}
+                <span className="text-terminal-text">you invent for BitBoard</span> to encrypt your
+                key in this browser. It is not sent anywhere and is not tied to other Nostr apps.
               </p>
             </div>
-            <input
-              type="password"
-              value={passphrase}
-              onChange={(e) => setPassphrase(e.target.value)}
-              className="w-full bg-terminal-bg border border-terminal-dim p-3 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
-              placeholder="Create device passphrase (12+ characters)"
-            />
-            <input
-              type="password"
-              value={confirmPassphrase}
-              onChange={(e) => setConfirmPassphrase(e.target.value)}
-              className="w-full bg-terminal-bg border border-terminal-dim p-3 text-terminal-text font-mono focus:outline-none focus:border-terminal-text"
-              placeholder="Confirm device passphrase"
-            />
-            <p className="text-2xs leading-relaxed text-terminal-dim">
-              Required after reload. Use a password manager if you like — BitBoard cannot reset it.
-            </p>
+
+            {/* Generate New Key */}
             <button
-              onClick={handleImport}
-              disabled={isImporting || !importKey.trim()}
-              className="w-full px-4 py-3 border border-terminal-dim hover:border-terminal-text hover:bg-terminal-dim/10 transition-colors text-sm uppercase disabled:opacity-50 flex items-center justify-center gap-2"
+              onClick={handleGenerate}
+              disabled={isGenerating}
+              className="ui-button-primary flex w-full items-center justify-center gap-2 px-6 py-4"
             >
-              {isImporting ? (
+              {isGenerating ? (
                 <>
-                  <RefreshCw size={16} className="animate-spin" />
-                  IMPORTING_KEY...
+                  <RefreshCw size={18} className="animate-spin" />
+                  Generating keypair...
                 </>
               ) : (
-                'IMPORT_KEY'
+                <>
+                  <Key size={18} />
+                  Generate New Identity
+                </>
               )}
             </button>
-          </div>
 
-          {/* NIP-07 Extension */}
-          {hasNip07 && (
-            <>
-              <div className="flex items-center gap-4 text-terminal-dim text-xs">
-                <div className="flex-1 border-t border-terminal-dim/30" />
-                OR
-                <div className="flex-1 border-t border-terminal-dim/30" />
+            {/* Divider */}
+            <div className="flex items-center gap-4 text-terminal-dim text-xs">
+              <div className="flex-1 border-t border-terminal-dim/30" />
+              OR
+              <div className="flex-1 border-t border-terminal-dim/30" />
+            </div>
+
+            {/* Import Key */}
+            <div className="space-y-2">
+              <label className="text-xs text-terminal-dim uppercase font-bold flex items-center gap-2">
+                <Upload size={12} />
+                Import Existing Key
+              </label>
+              <input
+                type="password"
+                value={importKey}
+                onChange={(e) => setImportKey(e.target.value)}
+                ref={importKeyRef}
+                className="ui-input"
+                placeholder="nsec1... or hex private key"
+              />
+              <div className="rounded border border-terminal-dim/40 bg-terminal-dim/5 p-3 text-2xs text-terminal-dim leading-relaxed">
+                <p>
+                  <span className="text-terminal-text font-semibold">
+                    You are not missing a passphrase from another app.
+                  </span>{' '}
+                  Nostr keys are just nsec/hex. BitBoard needs a{' '}
+                  <span className="text-terminal-text">new phrase you choose here</span> (12+
+                  characters) to lock that key in this browser — same idea as a phone PIN for an
+                  imported wallet.
+                </p>
               </div>
-
-              <button
-                onClick={handleNip07Connect}
-                className="w-full px-4 py-3 border border-terminal-dim hover:border-terminal-text hover:bg-terminal-dim/10 transition-colors text-sm uppercase flex items-center justify-center gap-2"
-              >
-                <Wifi size={14} />
-                CONNECT_BROWSER_EXTENSION
-              </button>
-              <p className="text-xs text-terminal-dim text-center">
-                Detected: Alby, nos2x, or compatible NIP-07 extension
+              <input
+                type="password"
+                value={passphrase}
+                onChange={(e) => setPassphrase(e.target.value)}
+                className="ui-input"
+                placeholder="Create device passphrase (12+ characters)"
+              />
+              <input
+                type="password"
+                value={confirmPassphrase}
+                onChange={(e) => setConfirmPassphrase(e.target.value)}
+                className="ui-input"
+                placeholder="Confirm device passphrase"
+              />
+              <p className="text-2xs leading-relaxed text-terminal-dim">
+                Required after reload. Use a password manager if you like — BitBoard cannot reset
+                it.
               </p>
-            </>
-          )}
-        </div>
-      )}
+              <button
+                onClick={handleImport}
+                disabled={isImporting || !importKey.trim()}
+                className="ui-button-secondary flex w-full items-center justify-center gap-2 px-4 py-3 text-sm"
+              >
+                {isImporting ? (
+                  <>
+                    <RefreshCw size={16} className="animate-spin" />
+                    Importing key...
+                  </>
+                ) : (
+                  'Import Key'
+                )}
+              </button>
+            </div>
+
+            {/* NIP-07 Extension */}
+            {hasNip07 && (
+              <>
+                <div className="flex items-center gap-4 text-terminal-dim text-xs">
+                  <div className="flex-1 border-t border-terminal-dim/30" />
+                  OR
+                  <div className="flex-1 border-t border-terminal-dim/30" />
+                </div>
+
+                <button
+                  onClick={handleNip07Connect}
+                  className="ui-button-secondary flex w-full items-center justify-center gap-2 px-4 py-3 text-sm"
+                >
+                  <Wifi size={14} />
+                  Connect Browser Extension
+                </button>
+                <p className="text-xs text-terminal-dim text-center">
+                  Detected: Alby, nos2x, or compatible NIP-07 extension
+                </p>
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

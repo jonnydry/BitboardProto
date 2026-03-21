@@ -96,9 +96,12 @@ export const UserProfile: React.FC<UserProfileProps> = ({
     if (!wotService.getUserPubkey()) return;
     if (!authorPubkey) return;
 
-    wotService.getScore(authorPubkey).then((score) => {
-      setWotScore(score);
-    }).catch(() => {});
+    wotService
+      .getScore(authorPubkey)
+      .then((score) => {
+        setWotScore(score);
+      })
+      .catch(() => {});
   }, [authorPubkey]);
   // Filter posts by this user
   const userPosts = useMemo(() => {
@@ -350,234 +353,247 @@ export const UserProfile: React.FC<UserProfileProps> = ({
       </button>
 
       {/* Profile Header */}
-      <div className="border-2 border-terminal-text bg-terminal-bg p-6 mb-6 shadow-hard">
-        {/* Banner */}
-        {profileMetadata?.banner && showBannerImage && (
-          <div className="w-full h-32 mb-4 overflow-hidden rounded border border-terminal-dim">
-            <img
-              src={profileMetadata.banner}
-              alt="Profile banner"
-              className="w-full h-full object-cover"
-              onError={() => setShowBannerImage(false)}
-            />
+      <div className="ui-surface-editor max-w-none overflow-hidden">
+        <div className="flex items-center justify-between border-b border-terminal-dim/15 px-5 py-3">
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 w-1.5 rounded-full bg-terminal-text" />
+            <span className="font-mono text-sm uppercase tracking-[0.12em] text-terminal-dim">
+              Profile
+            </span>
           </div>
-        )}
-
-        <div className="flex items-start gap-4">
-          {/* Avatar */}
-          <div className="w-16 h-16 border-2 border-terminal-text flex items-center justify-center bg-terminal-dim/20 overflow-hidden rounded">
-            {profileMetadata?.picture && !showAvatarFallback ? (
+          {authorPubkey && <TrustIndicator pubkey={authorPubkey} compact={false} />}
+        </div>
+        <div className="p-6">
+          {/* Banner */}
+          {profileMetadata?.banner && showBannerImage && (
+            <div className="mb-4 h-32 w-full overflow-hidden rounded border border-terminal-dim/20">
               <img
-                src={profileMetadata.picture}
-                alt={`${username}'s avatar`}
+                src={profileMetadata.banner}
+                alt="Profile banner"
                 className="w-full h-full object-cover"
-                onError={() => setShowAvatarFallback(true)}
+                onError={() => setShowBannerImage(false)}
               />
-            ) : null}
-            <User
-              size={32}
-              className={`text-terminal-text ${showAvatarFallback ? '' : 'hidden'}`}
-            />
-          </div>
+            </div>
+          )}
 
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              <h2 className="text-2xl font-bold text-terminal-text">
-                {profileService.getDisplayName(username, profileMetadata)}
-              </h2>
-              {isOwnProfile && (
-                <span className="text-xs border border-terminal-text px-2 py-0.5 text-terminal-text">
-                  YOU
-                </span>
-              )}
+          <div className="flex items-start gap-4">
+            {/* Avatar */}
+            <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded border border-terminal-dim/25 bg-terminal-dim/10">
+              {profileMetadata?.picture && !showAvatarFallback ? (
+                <img
+                  src={profileMetadata.picture}
+                  alt={`${username}'s avatar`}
+                  className="w-full h-full object-cover"
+                  onError={() => setShowAvatarFallback(true)}
+                />
+              ) : null}
+              <User
+                size={32}
+                className={`text-terminal-text ${showAvatarFallback ? '' : 'hidden'}`}
+              />
+            </div>
 
-              {!isOwnProfile && authorPubkey && (
-                <button
-                  onClick={() => toggleMute(authorPubkey)}
-                  className={`flex items-center gap-1 text-xs border px-2 py-0.5 transition-colors uppercase
+            <div className="flex-1">
+              <div className="mb-2 flex items-center gap-3">
+                <h2 className="font-display text-3xl font-semibold text-terminal-text">
+                  {profileService.getDisplayName(username, profileMetadata)}
+                </h2>
+                {isOwnProfile && (
+                  <span className="border border-terminal-dim/30 px-2 py-0.5 text-xs uppercase tracking-[0.12em] text-terminal-text">
+                    YOU
+                  </span>
+                )}
+
+                {!isOwnProfile && authorPubkey && (
+                  <button
+                    onClick={() => toggleMute(authorPubkey)}
+                    className={`flex items-center gap-1 border px-2 py-0.5 text-xs uppercase transition-colors
                     ${
                       isMuted?.(authorPubkey)
                         ? 'border-terminal-alert text-terminal-alert hover:bg-terminal-alert hover:text-black'
                         : 'border-terminal-dim text-terminal-dim hover:text-terminal-alert hover:border-terminal-alert'
                     }`}
-                >
-                  <VolumeX size={12} />
-                  {isMuted(authorPubkey) ? 'UNMUTE' : 'MUTE'}
-                </button>
-              )}
-
-              {/* Follow/Unfollow Button */}
-              {!isOwnProfile && authorPubkey && (
-                <button
-                  onClick={handleFollowToggle}
-                  disabled={isFollowLoading}
-                  className={`flex items-center gap-1 text-xs border px-2 py-0.5 transition-colors uppercase ${
-                    isFollowing(authorPubkey)
-                      ? 'border-terminal-alert text-terminal-alert hover:bg-terminal-alert hover:text-black'
-                      : 'border-terminal-dim text-terminal-dim hover:border-terminal-text hover:text-terminal-text'
-                  }`}
-                >
-                  {isFollowing(authorPubkey) ? (
-                    <>
-                      <UserMinus size={12} />
-                      UNFOLLOW
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus size={12} />
-                      FOLLOW
-                    </>
-                  )}
-                </button>
-              )}
-
-              {/* Zap Button */}
-              {!isOwnProfile && authorPubkey && (
-                <ZapButton authorPubkey={authorPubkey} authorName={username} compact={false} />
-              )}
-
-              {/* Edit Profile Button */}
-              {isOwnProfile && (
-                <>
-                  <button
-                    onClick={handleEditProfile}
-                    className="flex items-center gap-1 text-xs border border-terminal-dim px-2 py-0.5 hover:border-terminal-text hover:text-terminal-text transition-colors uppercase"
                   >
-                    <Edit size={12} />
-                    EDIT
+                    <VolumeX size={12} />
+                    {isMuted(authorPubkey) ? 'UNMUTE' : 'MUTE'}
                   </button>
+                )}
+
+                {/* Follow/Unfollow Button */}
+                {!isOwnProfile && authorPubkey && (
                   <button
-                    onClick={handleExportData}
-                    className="flex items-center gap-1 text-xs border border-terminal-dim px-2 py-0.5 hover:border-terminal-text hover:text-terminal-text transition-colors uppercase"
-                    title="Export your data (GDPR compliant)"
+                    onClick={handleFollowToggle}
+                    disabled={isFollowLoading}
+                    className={`flex items-center gap-1 border px-2 py-0.5 text-xs uppercase transition-colors ${
+                      isFollowing(authorPubkey)
+                        ? 'border-terminal-alert text-terminal-alert hover:bg-terminal-alert hover:text-black'
+                        : 'border-terminal-dim text-terminal-dim hover:border-terminal-text hover:text-terminal-text'
+                    }`}
                   >
-                    <Download size={12} />
-                    EXPORT
+                    {isFollowing(authorPubkey) ? (
+                      <>
+                        <UserMinus size={12} />
+                        UNFOLLOW
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus size={12} />
+                        FOLLOW
+                      </>
+                    )}
                   </button>
-                  <button
-                    onClick={handleDeleteAllData}
-                    className="flex items-center gap-1 text-xs border border-terminal-red/50 text-terminal-red/70 px-2 py-0.5 hover:border-terminal-red hover:text-terminal-red transition-colors uppercase"
-                    title="Delete all your data (GDPR - Right to be Forgotten)"
-                  >
-                    <Trash2 size={12} />
-                    DELETE
-                  </button>
-                </>
-              )}
+                )}
 
-              {authorPubkey && onRefreshProfile && (
-                <button
-                  type="button"
-                  onClick={() => onRefreshProfile(authorPubkey)}
-                  disabled={!isNostrConnected || isLoadingProfile}
-                  className="ml-auto flex items-center gap-2 px-3 py-2 md:py-1 border border-terminal-dim text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors uppercase text-xs disabled:opacity-50"
-                  title={
-                    isNostrConnected
-                      ? 'Refresh profile metadata'
-                      : 'Offline: cannot refresh profile'
-                  }
-                >
-                  <RefreshCw size={12} className={isLoadingProfile ? 'animate-spin' : ''} />
-                  REFRESH
-                </button>
-              )}
-            </div>
+                {/* Zap Button */}
+                {!isOwnProfile && authorPubkey && (
+                  <ZapButton authorPubkey={authorPubkey} authorName={username} compact={false} />
+                )}
 
-            {authorPubkey && (
-              <div className="flex items-center gap-3 mb-3">
-                <p className="text-xs text-terminal-dim font-mono truncate max-w-md">
-                  npub: {authorPubkey.slice(0, 16)}...{authorPubkey.slice(-8)}
-                </p>
-                <button
-                  type="button"
-                  onClick={handleCopyPubkey}
-                  className="flex items-center gap-1 text-xs border border-terminal-dim px-2 py-1 text-terminal-dim hover:border-terminal-text hover:text-terminal-text transition-colors uppercase"
-                  title="Copy public key"
-                >
-                  {copiedField === 'pubkey' ? <CheckCircle size={12} /> : <Copy size={12} />}
-                  {copiedField === 'pubkey' ? 'COPIED' : 'COPY'}
-                </button>
-                <TrustIndicator pubkey={authorPubkey} compact={false} />
-              </div>
-            )}
-
-            {/* WoT score row */}
-            {FeatureFlags.ENABLE_WOT && wotService.getUserPubkey() && wotScore && (
-              <div className="flex items-center gap-2 text-xs text-terminal-dim font-mono mb-3">
-                <span className="text-terminal-text font-bold">WOT:</span>
-                <span>{Math.round(wotScore.score * 100)}%</span>
-                <span>·</span>
-                <span>DIST_{wotScore.distance}</span>
-                {wotScore.followedBy.length > 0 && (
+                {/* Edit Profile Button */}
+                {isOwnProfile && (
                   <>
-                    <span>·</span>
-                    <span>{wotScore.followedBy.length} mutual{wotScore.followedBy.length !== 1 ? 's' : ''}</span>
+                    <button
+                      onClick={handleEditProfile}
+                      className="flex items-center gap-1 border border-terminal-dim/30 px-2 py-0.5 text-xs uppercase transition-colors hover:border-terminal-dim/60 hover:text-terminal-text"
+                    >
+                      <Edit size={12} />
+                      EDIT
+                    </button>
+                    <button
+                      onClick={handleExportData}
+                      className="flex items-center gap-1 border border-terminal-dim/30 px-2 py-0.5 text-xs uppercase transition-colors hover:border-terminal-dim/60 hover:text-terminal-text"
+                      title="Export your data (GDPR compliant)"
+                    >
+                      <Download size={12} />
+                      EXPORT
+                    </button>
+                    <button
+                      onClick={handleDeleteAllData}
+                      className="flex items-center gap-1 border border-terminal-alert/40 px-2 py-0.5 text-xs uppercase text-terminal-alert/80 transition-colors hover:border-terminal-alert hover:text-terminal-alert"
+                      title="Delete all your data (GDPR - Right to be Forgotten)"
+                    >
+                      <Trash2 size={12} />
+                      DELETE
+                    </button>
                   </>
                 )}
-              </div>
-            )}
 
-            {/* Bio/About */}
-            {profileMetadata?.about && (
-              <p className="text-terminal-text mb-3 leading-relaxed">{profileMetadata.about}</p>
-            )}
-
-            {/* Badges */}
-            {authorPubkey && (
-              <div className="mb-4">
-                <BadgeDisplay pubkey={authorPubkey} size="md" showLabel={true} />
-              </div>
-            )}
-
-            {/* Links */}
-            {(profileMetadata?.website ||
-              profileMetadata?.nip05 ||
-              profileMetadata?.lud16 ||
-              profileMetadata?.lud06) && (
-              <div className="flex flex-wrap gap-3 mb-4">
-                {profileMetadata.website && (
-                  <a
-                    href={profileMetadata.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-xs text-terminal-dim hover:text-terminal-text transition-colors"
+                {authorPubkey && onRefreshProfile && (
+                  <button
+                    type="button"
+                    onClick={() => onRefreshProfile(authorPubkey)}
+                    disabled={!isNostrConnected || isLoadingProfile}
+                    className="ui-button-secondary ml-auto flex items-center gap-2 px-3 py-2 md:py-1 text-xs disabled:opacity-50"
+                    title={
+                      isNostrConnected
+                        ? 'Refresh profile metadata'
+                        : 'Offline: cannot refresh profile'
+                    }
                   >
-                    <Globe size={12} />
-                    Website
-                    <ExternalLink size={10} />
-                  </a>
-                )}
-                {profileMetadata.nip05 && (
-                  <div className="flex items-center gap-1 text-xs text-terminal-dim">
-                    <Mail size={12} />
-                    {profileMetadata.nip05}
-                  </div>
-                )}
-                {(profileMetadata.lud16 || profileMetadata.lud06) && (
-                  <div className="flex items-center gap-1 text-xs text-terminal-dim">
-                    <Zap size={12} />
-                    Lightning
-                  </div>
+                    <RefreshCw size={12} className={isLoadingProfile ? 'animate-spin' : ''} />
+                    REFRESH
+                  </button>
                 )}
               </div>
-            )}
 
-            {/* Stats */}
-            <div className="flex gap-6 text-sm">
-              <div className="flex items-center gap-2">
-                <FileText size={14} className="text-terminal-dim" />
-                <span className="text-terminal-text font-bold">{stats.postCount}</span>
-                <span className="text-terminal-dim">posts</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <TrendingUp size={14} className="text-terminal-dim" />
-                <span className="text-terminal-text font-bold">{stats.totalScore}</span>
-                <span className="text-terminal-dim">total score</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <MessageSquare size={14} className="text-terminal-dim" />
-                <span className="text-terminal-text font-bold">{stats.totalComments}</span>
-                <span className="text-terminal-dim">comments received</span>
+              {authorPubkey && (
+                <div className="mb-3 flex items-center gap-3">
+                  <p className="text-xs text-terminal-dim font-mono truncate max-w-md">
+                    npub: {authorPubkey.slice(0, 16)}...{authorPubkey.slice(-8)}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleCopyPubkey}
+                    className="flex items-center gap-1 border border-terminal-dim/30 px-2 py-1 text-xs uppercase text-terminal-dim transition-colors hover:border-terminal-dim/60 hover:text-terminal-text"
+                    title="Copy public key"
+                  >
+                    {copiedField === 'pubkey' ? <CheckCircle size={12} /> : <Copy size={12} />}
+                    {copiedField === 'pubkey' ? 'COPIED' : 'COPY'}
+                  </button>
+                </div>
+              )}
+
+              {/* WoT score row */}
+              {FeatureFlags.ENABLE_WOT && wotService.getUserPubkey() && wotScore && (
+                <div className="flex items-center gap-2 text-xs text-terminal-dim font-mono mb-3">
+                  <span className="text-terminal-text font-bold">WOT:</span>
+                  <span>{Math.round(wotScore.score * 100)}%</span>
+                  <span>·</span>
+                  <span>DIST_{wotScore.distance}</span>
+                  {wotScore.followedBy.length > 0 && (
+                    <>
+                      <span>·</span>
+                      <span>
+                        {wotScore.followedBy.length} mutual
+                        {wotScore.followedBy.length !== 1 ? 's' : ''}
+                      </span>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Bio/About */}
+              {profileMetadata?.about && (
+                <p className="text-terminal-text mb-3 leading-relaxed">{profileMetadata.about}</p>
+              )}
+
+              {/* Badges */}
+              {authorPubkey && (
+                <div className="mb-4 border-t border-terminal-dim/15 pt-4">
+                  <BadgeDisplay pubkey={authorPubkey} size="md" showLabel={true} />
+                </div>
+              )}
+
+              {/* Links */}
+              {(profileMetadata?.website ||
+                profileMetadata?.nip05 ||
+                profileMetadata?.lud16 ||
+                profileMetadata?.lud06) && (
+                <div className="mb-4 flex flex-wrap gap-3">
+                  {profileMetadata.website && (
+                    <a
+                      href={profileMetadata.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs text-terminal-dim hover:text-terminal-text transition-colors"
+                    >
+                      <Globe size={12} />
+                      Website
+                      <ExternalLink size={10} />
+                    </a>
+                  )}
+                  {profileMetadata.nip05 && (
+                    <div className="flex items-center gap-1 text-xs text-terminal-dim">
+                      <Mail size={12} />
+                      {profileMetadata.nip05}
+                    </div>
+                  )}
+                  {(profileMetadata.lud16 || profileMetadata.lud06) && (
+                    <div className="flex items-center gap-1 text-xs text-terminal-dim">
+                      <Zap size={12} />
+                      Lightning
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Stats */}
+              <div className="grid grid-cols-1 gap-3 border-t border-terminal-dim/15 pt-4 text-sm sm:grid-cols-3">
+                <div className="flex items-center gap-2">
+                  <FileText size={14} className="text-terminal-dim" />
+                  <span className="text-terminal-text font-bold">{stats.postCount}</span>
+                  <span className="text-terminal-dim">posts</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <TrendingUp size={14} className="text-terminal-dim" />
+                  <span className="text-terminal-text font-bold">{stats.totalScore}</span>
+                  <span className="text-terminal-dim">total score</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <MessageSquare size={14} className="text-terminal-dim" />
+                  <span className="text-terminal-text font-bold">{stats.totalComments}</span>
+                  <span className="text-terminal-dim">comments received</span>
+                </div>
               </div>
             </div>
           </div>
@@ -585,8 +601,8 @@ export const UserProfile: React.FC<UserProfileProps> = ({
       </div>
 
       {/* User's Posts */}
-      <div className="mb-4 pb-2 border-b border-terminal-dim/30">
-        <h3 className="text-lg font-bold text-terminal-text uppercase tracking-wider">
+      <div className="mb-4 border-b border-terminal-dim/20 pb-2">
+        <h3 className="font-display text-2xl font-semibold text-terminal-text">
           POSTS BY {username}
         </h3>
         <p className="text-xs text-terminal-dim mt-1">

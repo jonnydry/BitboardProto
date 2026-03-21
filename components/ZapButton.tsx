@@ -145,7 +145,7 @@ export const ZapButton: React.FC<ZapButtonProps> = ({
         className={`flex items-center gap-1.5 transition-all group rounded
           ${
             compact
-              ? 'p-1 hover:bg-terminal-text/10 text-terminal-dim hover:text-terminal-text'
+              ? 'h-9 shrink-0 px-1.5 hover:bg-terminal-text/10 text-terminal-dim hover:text-terminal-text'
               : 'px-3 py-1.5 border border-terminal-dim hover:border-terminal-text bg-terminal-bg text-terminal-dim hover:text-terminal-text shadow-sm hover:shadow-glow'
           }
         `}

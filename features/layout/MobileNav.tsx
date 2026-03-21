@@ -86,7 +86,7 @@ export const MobileNav = React.memo(function MobileNav() {
   ];
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-terminal-bg border-t-2 border-terminal-dim safe-area-bottom">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-terminal-dim/25 bg-terminal-bg/95 backdrop-blur-sm safe-area-bottom">
       <div className="flex items-stretch justify-around">
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -94,11 +94,11 @@ export const MobileNav = React.memo(function MobileNav() {
             <button
               key={item.id}
               onClick={item.onClick}
-              className={`flex-1 flex flex-col items-center justify-center py-3 px-2 transition-colors relative
+              className={`relative flex-1 flex flex-col items-center justify-center border-r border-terminal-dim/10 px-2 py-3 transition-colors last:border-r-0
                 ${
                   item.isActive
-                    ? 'text-terminal-text bg-terminal-dim/20'
-                    : 'text-terminal-dim active:bg-terminal-dim/10'
+                    ? 'bg-terminal-dim/10 text-terminal-text'
+                    : 'text-terminal-dim active:bg-terminal-dim/5'
                 }
               `}
               aria-label={item.label}
@@ -110,16 +110,16 @@ export const MobileNav = React.memo(function MobileNav() {
                   className={`transition-transform ${item.isActive ? 'drop-shadow-[0_0_4px_rgb(var(--color-terminal-text))]' : ''} ${(item as any).isRefreshing ? 'motion-safe:animate-spin' : ''}`}
                 />
                 {item.badge !== null && (
-                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 flex items-center justify-center text-2xs font-bold bg-terminal-alert text-white rounded-sm motion-safe:animate-pulse">
+                  <span className="absolute -right-2 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-sm bg-terminal-alert px-1 text-2xs font-bold text-white motion-safe:animate-pulse">
                     {item.badge > 99 ? '99+' : item.badge}
                   </span>
                 )}
               </div>
-              <span className="text-2xs mt-1 font-bold tracking-wider uppercase">
+              <span className="mt-1 font-mono text-2xs font-bold uppercase tracking-[0.12em]">
                 {item.label}
               </span>
               {item.isActive && (
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-terminal-text" />
+                <div className="absolute left-1/2 top-0 h-0.5 w-8 -translate-x-1/2 bg-terminal-text" />
               )}
             </button>
           );

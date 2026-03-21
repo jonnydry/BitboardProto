@@ -315,9 +315,9 @@ export function FeedView(props: {
           </div>
           <button
             onClick={() => setViewMode(ViewMode.DISCOVER_NOSTR)}
-            className="mt-4 px-4 py-2 border border-terminal-dim hover:bg-terminal-dim hover:text-white transition-colors uppercase text-sm"
+            className="ui-button-secondary mt-4 px-4 py-2 text-sm"
           >
-            [ DISCOVER_NOSTR ]
+            Discover Nostr
           </button>
         </div>
       );
@@ -334,9 +334,9 @@ export function FeedView(props: {
           </div>
           <button
             onClick={() => setViewMode(ViewMode.LOCATION)}
-            className="mt-4 px-4 py-2 border border-terminal-dim hover:bg-terminal-dim hover:text-white transition-colors uppercase text-sm"
+            className="ui-button-secondary mt-4 px-4 py-2 text-sm"
           >
-            [ SCAN_NEARBY ]
+            Scan Nearby
           </button>
         </div>
       );
@@ -353,9 +353,9 @@ export function FeedView(props: {
           </div>
           <button
             onClick={() => setViewMode(ViewMode.BROWSE_BOARDS)}
-            className="mt-4 px-4 py-2 border border-terminal-dim hover:bg-terminal-dim hover:text-white transition-colors uppercase text-sm"
+            className="ui-button-secondary mt-4 px-4 py-2 text-sm"
           >
-            [ BROWSE_BOARDS ]
+            Browse Boards
           </button>
         </div>
       );
@@ -371,16 +371,16 @@ export function FeedView(props: {
         </div>
         <button
           onClick={() => setViewMode(ViewMode.CREATE)}
-          className="mt-4 px-4 py-2 border border-terminal-dim hover:bg-terminal-dim hover:text-white transition-colors uppercase text-sm"
+          className="ui-button-secondary mt-4 px-4 py-2 text-sm"
         >
-          [ INIT_BIT ]
+          Init Bit
         </button>
       </div>
     );
   }, [activeBoard?.source, feedFilter, setViewMode]);
 
   return (
-    <div className="space-y-2">
+    <div className="min-w-0 space-y-2">
       <div className="mb-6 border-b border-terminal-dim/40">
         <div className="px-0 py-4">
           <SearchBar onSearch={handleSearch} placeholder="scan_network..." />

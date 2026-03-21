@@ -97,16 +97,16 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 pt-16 sm:pt-24 px-4">
-      <div className="bg-terminal-bg border-2 border-terminal-text w-full max-w-lg max-h-[70vh] flex flex-col">
+    <div className="ui-overlay flex items-start justify-center px-4 pt-16 sm:pt-24">
+      <div className="ui-surface-modal flex max-h-[70vh] w-full max-w-lg flex-col overflow-hidden">
         {/* Header */}
-        <div className="p-4 border-b border-terminal-dim">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-bold flex items-center gap-2">
+        <div className="border-b border-terminal-dim/15 px-4 py-3">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 font-display text-2xl font-semibold text-terminal-text">
               <Bell size={20} />
-              NOTIFICATIONS
+              Notifications
               {unreadCount > 0 && (
-                <span className="px-2 py-0.5 bg-terminal-text text-black text-xs font-bold rounded-full">
+                <span className="rounded-sm bg-terminal-text px-2 py-0.5 text-xs font-bold text-black">
                   {unreadCount}
                 </span>
               )}
@@ -135,11 +135,11 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
                 key={type}
                 onClick={() => setFilter(type)}
                 className={`
-                  min-h-[36px] px-3 py-2 whitespace-nowrap transition-colors uppercase tracking-wide
+                  min-h-[36px] whitespace-nowrap border px-3 py-2 transition-colors uppercase tracking-[0.12em]
                   ${
                     filter === type
-                      ? 'bg-terminal-text text-black'
-                      : 'border border-terminal-dim hover:border-terminal-text'
+                      ? 'border-terminal-dim/60 bg-terminal-dim/10 text-terminal-text'
+                      : 'border-terminal-dim/25 text-terminal-dim hover:border-terminal-dim/50 hover:text-terminal-text'
                   }
                 `}
               >
@@ -154,7 +154,7 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
 
         {/* Actions */}
         {notifications.length > 0 && (
-          <div className="px-4 py-2 border-b border-terminal-dim/30 flex justify-between text-xs">
+          <div className="flex justify-between border-b border-terminal-dim/15 px-4 py-2 text-xs">
             <button
               onClick={handleMarkAllAsRead}
               className="text-terminal-dim hover:text-terminal-text transition-colors flex items-center gap-1"
@@ -173,7 +173,7 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
         )}
 
         {isConfirmingClearAll && notifications.length > 0 && (
-          <div className="mx-4 mt-3 border border-terminal-alert bg-terminal-alert/10 p-3">
+          <div className="mx-4 mt-3 border border-terminal-alert/40 bg-terminal-alert/10 p-3">
             <div className="flex items-start gap-2 text-terminal-alert">
               <Trash2 size={14} className="mt-0.5" />
               <div className="flex-1">
@@ -188,13 +188,13 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
             <div className="mt-3 flex justify-end gap-2">
               <button
                 onClick={() => setIsConfirmingClearAll(false)}
-                className="border border-terminal-dim px-3 py-2 text-xs uppercase tracking-wide text-terminal-dim transition-colors hover:border-terminal-text hover:text-terminal-text"
+                className="ui-button-secondary px-3 py-2 text-xs"
               >
                 Cancel
               </button>
               <button
                 onClick={handleClearAll}
-                className="border border-terminal-alert bg-terminal-alert px-3 py-2 text-xs uppercase tracking-wide text-black transition-colors hover:opacity-90"
+                className="border border-terminal-alert/40 bg-terminal-alert px-3 py-2 text-xs uppercase tracking-[0.12em] text-black transition-colors hover:opacity-90"
               >
                 Confirm Clear All
               </button>
@@ -245,17 +245,17 @@ const NotificationItem: React.FC<{
     <div
       onClick={onClick}
       className={`
-        p-3 border-b border-terminal-dim/30 cursor-pointer transition-colors
+        cursor-pointer border-b border-terminal-dim/15 p-3 transition-colors
         hover:bg-terminal-dim/10
-        ${!notification.isRead ? 'bg-terminal-dim/5' : ''}
+        ${!notification.isRead ? 'bg-terminal-dim/[0.07]' : ''}
       `}
     >
       <div className="flex gap-3">
         {/* Icon */}
         <div
           className={`
-          w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0
-          ${!notification.isRead ? 'bg-terminal-text/20' : 'bg-terminal-dim/20'}
+          flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-sm border border-terminal-dim/20
+          ${!notification.isRead ? 'bg-terminal-text/10' : 'bg-terminal-dim/10'}
         `}
         >
           <Icon
@@ -267,7 +267,9 @@ const NotificationItem: React.FC<{
         {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <p className={`text-sm ${!notification.isRead ? 'font-bold' : ''}`}>
+            <p
+              className={`text-sm ${!notification.isRead ? 'font-semibold text-terminal-text' : ''}`}
+            >
               {getNotificationTitle(notification)}
             </p>
             <span className="text-xs text-terminal-dim flex-shrink-0">{timeAgo}</span>
@@ -327,9 +329,11 @@ export const NotificationSettings: React.FC<{ onClose: () => void }> = ({ onClos
   };
 
   return (
-    <div className="p-4 border-b border-terminal-dim bg-terminal-dim/10">
+    <div className="border-b border-terminal-dim/15 bg-terminal-dim/10 px-4 py-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-bold text-sm">SETTINGS</h3>
+        <h3 className="font-mono text-sm uppercase tracking-[0.12em] text-terminal-text">
+          Settings
+        </h3>
         <button onClick={onClose} className="text-xs text-terminal-dim hover:text-terminal-text">
           Done
         </button>
@@ -362,7 +366,7 @@ export const NotificationSettings: React.FC<{ onClose: () => void }> = ({ onClos
           onToggle={() => handleToggle('enableVotes')}
         />
 
-        <div className="border-t border-terminal-dim/50 pt-2 mt-2">
+        <div className="mt-2 border-t border-terminal-dim/30 pt-2">
           <SettingToggle
             label="Push notifications"
             enabled={prefs.pushEnabled}
@@ -400,16 +404,10 @@ const SettingToggle: React.FC<{
       role="switch"
       aria-checked={enabled}
       aria-label={label}
-      className={`
-        w-10 h-5 rounded-full transition-colors relative
-        ${enabled ? 'bg-terminal-text' : 'bg-terminal-dim/30'}
-      `}
+      className={`ui-toggle ${enabled ? 'bg-terminal-text' : 'bg-terminal-dim/20'}`}
     >
       <span
-        className={`
-          absolute top-0.5 w-4 h-4 rounded-full transition-transform
-          ${enabled ? 'left-5 bg-black' : 'left-0.5 bg-terminal-dim'}
-        `}
+        className={`ui-toggle-thumb ${enabled ? 'left-5 bg-black' : 'left-0.5 bg-terminal-dim'}`}
       />
     </button>
   </div>
@@ -443,7 +441,7 @@ export const NotificationBadge: React.FC<{
     >
       <Bell size={20} />
       {unreadCount > 0 && (
-        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-terminal-text text-black text-xs font-bold rounded-full flex items-center justify-center">
+        <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-sm bg-terminal-text px-1 text-xs font-bold text-black">
           {unreadCount > 99 ? '99+' : unreadCount}
         </span>
       )}

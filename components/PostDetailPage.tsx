@@ -256,9 +256,9 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
   }, [commentTree]);
 
   return (
-    <div className="animate-fade-in font-mono">
+    <div className="ui-surface-editor max-w-3xl overflow-hidden font-mono">
       {/* Nav Bar */}
-      <div className="flex items-center justify-between py-4 px-4 border-b border-terminal-dim/20 mb-0">
+      <div className="mb-0 flex items-center justify-between border-b border-terminal-dim/15 px-4 py-4">
         <button
           onClick={onBack}
           className="flex items-center gap-1.5 text-terminal-dim/60 hover:text-terminal-dim transition-colors group"
@@ -270,7 +270,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
       </div>
 
       {/* Post Section */}
-      <div className="pt-7 pb-5 px-4 border-b border-terminal-dim/20">
+      <div className="border-b border-terminal-dim/15 px-4 pb-5 pt-7">
         <div className="flex gap-4">
           {/* Vote Column */}
           <div className="flex flex-col items-center w-10 shrink-0 pt-1 gap-1.5">
@@ -408,7 +408,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
 
             {/* Media Preview */}
             {post.imageUrl && (
-              <div className="border border-terminal-dim/30 relative overflow-hidden bg-black max-w-lg">
+              <div className="relative max-w-lg overflow-hidden border border-terminal-dim/20 bg-black">
                 <a
                   href={post.url || '#'}
                   target="_blank"
@@ -462,7 +462,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
       </div>
 
       {/* Action Bar */}
-      <div className="flex items-center gap-5 py-3 px-4 border-b border-terminal-dim/20">
+      <div className="flex items-center gap-5 border-b border-terminal-dim/15 px-4 py-3">
         <button
           onClick={() => {
             const el = document.getElementById('comment-thread');
@@ -527,7 +527,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
       </div>
 
       {/* Comment Composer */}
-      <form onSubmit={handleCommentSubmit} className="py-5 px-4 border-b border-terminal-dim/20">
+      <form onSubmit={handleCommentSubmit} className="border-b border-terminal-dim/15 px-4 py-5">
         <div className="flex flex-col gap-2.5">
           <span className="text-sm text-terminal-dim/70 uppercase tracking-widest">
             Join the thread
@@ -546,7 +546,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
             <button
               type="submit"
               disabled={!newComment.trim() || isTransmitting}
-              className="bg-terminal-text text-terminal-bg text-sm font-bold px-4.5 py-1.75 disabled:opacity-50 transition-colors tracking-[0.06em]"
+              className="ui-button-primary px-4.5 py-1.75 text-sm"
             >
               {isTransmitting ? <Loader2 size={14} className="animate-spin" /> : 'Transmit'}
             </button>
@@ -557,7 +557,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
       {/* Thread Header */}
       <div
         id="comment-thread"
-        className="flex items-center justify-between pt-4 pb-2 px-4 border-b border-dashed border-terminal-dim/25"
+        className="flex items-center justify-between border-b border-dashed border-terminal-dim/20 px-4 pb-2 pt-4"
       >
         <span className="text-sm text-terminal-dim/70 uppercase tracking-[0.12em]">
           {post.commentCount} {post.commentCount === 1 ? 'reply' : 'replies'}
@@ -618,12 +618,9 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
-          onClick={handleCancelDelete}
-        >
+        <div className="ui-overlay flex items-center justify-center" onClick={handleCancelDelete}>
           <div
-            className="bg-terminal-bg border-2 border-terminal-alert p-6 max-w-md w-full mx-4 shadow-glow"
+            className="mx-4 w-full max-w-md border border-terminal-alert/40 bg-terminal-bg/95 p-6 shadow-glow"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
@@ -650,13 +647,13 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
             <div className="flex gap-3 justify-end">
               <button
                 onClick={handleCancelDelete}
-                className="px-4 py-2 text-sm border border-terminal-dim text-terminal-dim hover:text-terminal-text hover:border-terminal-text transition-colors uppercase font-bold"
+                className="ui-button-secondary px-4 py-2 text-sm"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmDelete}
-                className="px-4 py-2 text-sm bg-terminal-alert/20 border border-terminal-alert text-terminal-alert hover:bg-terminal-alert hover:text-black transition-colors uppercase font-bold"
+                className="border border-terminal-alert/50 bg-terminal-alert/20 px-4 py-2 text-sm font-bold uppercase tracking-[0.12em] text-terminal-alert transition-colors hover:bg-terminal-alert hover:text-black"
               >
                 Delete
               </button>
