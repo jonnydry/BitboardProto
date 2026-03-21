@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 
 /** Tray width — keep in sync with `TRAY_W_CLASS` and scrim `right-*`. */
 const TRAY_W_CLASS = 'w-[20rem]';
@@ -25,7 +25,6 @@ export const DesktopNavChrome = React.memo(function DesktopNavChrome({
   children,
 }: DesktopNavChromeProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
   const railRef = useRef<HTMLButtonElement>(null);
   const prevFocusRef = useRef<HTMLElement | null>(null);
 
@@ -37,7 +36,7 @@ export const DesktopNavChrome = React.memo(function DesktopNavChrome({
     }
 
     prevFocusRef.current = document.activeElement as HTMLElement;
-    closeRef.current?.focus();
+    drawerRef.current?.focus();
 
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -77,23 +76,24 @@ export const DesktopNavChrome = React.memo(function DesktopNavChrome({
 
   return (
     <>
-      {/* Tab — hugs the tray edge (viewport right when closed, left edge of tray when open) */}
+      {/* Floating toggle — styled like the feed FABs */}
       <button
         ref={railRef}
         type="button"
         onClick={() => (drawerOpen ? onCloseDrawer() : onOpenDrawer())}
         aria-label={drawerOpen ? 'Close navigation panel' : 'Open navigation panel'}
         aria-expanded={drawerOpen}
-        className="max-md:hidden fixed top-1/2 z-[44] flex h-12 w-6 -translate-y-1/2 items-center justify-center border border-terminal-dim/40 border-r-0 bg-terminal-bg/95 text-terminal-dim shadow-[-4px_0_12px_rgba(0,0,0,0.2)] transition-[right,colors] duration-200 ease-out hover:border-terminal-text hover:text-terminal-text"
+        className="max-md:hidden fixed top-8 z-[44] flex h-12 w-12 items-center justify-center rounded-sm bg-terminal-text text-black shadow-hard transition-[right,transform,filter] duration-200 ease-out hover:scale-110 hover:brightness-110"
         style={{
-          right: drawerOpen ? `${TRAY_W_REM}rem` : 0,
-          borderTopLeftRadius: 4,
-          borderBottomLeftRadius: 4,
+          right: drawerOpen ? `calc(${TRAY_W_REM}rem + 1rem)` : '1rem',
+          backgroundImage:
+            'linear-gradient(rgba(255,255,255,0.18) 50%, rgba(0,0,0,0.08) 50%), linear-gradient(90deg, rgba(255,255,255,0.12), rgba(255,255,255,0.02), rgba(255,255,255,0.12))',
+          backgroundSize: '100% 3px, 3px 100%',
         }}
       >
-        <ChevronRight
+        <ChevronLeft
           size={14}
-          strokeWidth={2}
+          strokeWidth={2.5}
           className={`transition-transform duration-200 ${drawerOpen ? 'rotate-180' : ''}`}
         />
       </button>
@@ -120,22 +120,9 @@ export const DesktopNavChrome = React.memo(function DesktopNavChrome({
           drawerOpen ? 'translate-x-0' : 'translate-x-full pointer-events-none'
         } right-0`}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-terminal-dim/20 px-3 py-2.5">
-          <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.22em] text-terminal-dim">
-            Panel
-          </p>
-          <button
-            ref={closeRef}
-            type="button"
-            onClick={onCloseDrawer}
-            className="flex h-9 w-9 items-center justify-center border border-terminal-dim/30 bg-terminal-text/5 text-terminal-dim transition-colors hover:border-terminal-dim/60 hover:text-terminal-text focus:outline-none focus-visible:ring-2 focus-visible:ring-terminal-text/50"
-            aria-label="Close panel"
-          >
-            <ChevronRight size={13} strokeWidth={2} />
-          </button>
+        <div className="hide-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          {children}
         </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">{children}</div>
       </div>
     </>
   );

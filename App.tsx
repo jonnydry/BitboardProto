@@ -20,6 +20,7 @@ import { NotificationCenterV2 } from './components/NotificationCenterV2';
 import { PostDetailPage } from './components/PostDetailPage';
 import { SeedToBitBoardModal } from './components/SeedToBitBoardModal';
 import { SeedIdentityRequiredModal } from './components/SeedIdentityRequiredModal';
+import { AppModal } from './components/AppModal';
 import { ViewMode } from './types';
 import { nostrService } from './services/nostr/NostrService';
 import { keyboardShortcutsService } from './services/keyboardShortcutsService';
@@ -32,8 +33,9 @@ import {
   readSessionPassphrase,
   writeSessionPassphrase,
 } from './services/sessionPassphrase';
-import { useUIStore } from './stores/uiStore';
+import { useUIStore, useDesktopThreadPostId } from './stores/uiStore';
 import { useUserStore } from './stores/userStore';
+import { usePostStore } from './stores/postStore';
 
 // Lazy load components that are only used in specific views
 const IdentityManager = lazy(() =>
@@ -213,6 +215,10 @@ const AppContent: React.FC = () => {
   const app = useApp();
   const handleIdentityChange = useUserStore((s) => s.handleIdentityChange);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(min-width: 768px)').matches;
+  });
   const [desktopNavOpen, setDesktopNavOpenState] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.matchMedia('(min-width: 768px)').matches ? readStoredDesktopNavOpen() : false;
@@ -238,20 +244,35 @@ const AppContent: React.FC = () => {
   const [identityEntryIntent, setIdentityEntryIntent] = useState<'generate' | 'import' | null>(
     null,
   );
+  const [lastNonComposeViewMode, setLastNonComposeViewMode] = useState<ViewMode>(ViewMode.FEED);
   const keyboardModalStateRef = React.useRef({ showKeyboardHelp: false, showOnboarding: false });
   const navigateToBoard = app.navigateToBoard;
+  const setViewMode = app.setViewMode;
   const bookmarkedIds = useUIStore((s) => s.bookmarkedIds);
   const reportedPostIds = useUIStore((s) => s.reportedPostIds);
+  const desktopThreadPostId = useDesktopThreadPostId();
+  const closeDesktopThreadModal = useUIStore((s) => s.closeDesktopThreadModal);
+  const setSelectedBitId = usePostStore((s) => s.setSelectedPostId);
+  const showCreatePostModal = isDesktop && app.viewMode === ViewMode.CREATE;
+  const mainViewMode = showCreatePostModal ? lastNonComposeViewMode : app.viewMode;
 
   useEffect(() => {
     keyboardModalStateRef.current = { showKeyboardHelp, showOnboarding };
   }, [showKeyboardHelp, showOnboarding]);
 
   useEffect(() => {
+    if (app.viewMode !== ViewMode.CREATE) {
+      setLastNonComposeViewMode(app.viewMode);
+    }
+  }, [app.viewMode]);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const mediaQuery = window.matchMedia('(min-width: 768px)');
     const syncDesktopNavState = () => {
+      setIsDesktop(mediaQuery.matches);
+
       if (!mediaQuery.matches) {
         setDesktopNavOpenState(false);
         return;
@@ -265,6 +286,50 @@ const AppContent: React.FC = () => {
 
     return () => mediaQuery.removeEventListener('change', syncDesktopNavState);
   }, []);
+
+  useEffect(() => {
+    if (isDesktop || !desktopThreadPostId) return;
+
+    closeDesktopThreadModal();
+    setViewMode(ViewMode.SINGLE_BIT);
+  }, [closeDesktopThreadModal, desktopThreadPostId, isDesktop, setViewMode]);
+
+  const handleCloseDesktopThreadModal = React.useCallback(() => {
+    closeDesktopThreadModal();
+    setSelectedBitId(null);
+  }, [closeDesktopThreadModal, setSelectedBitId]);
+
+  const handleDesktopThreadViewProfile = React.useCallback(
+    (username: string, pubkey?: string) => {
+      handleCloseDesktopThreadModal();
+      app.handleViewProfile(username, pubkey);
+    },
+    [app, handleCloseDesktopThreadModal],
+  );
+
+  const handleDesktopThreadEditPost = React.useCallback(
+    (postId: string) => {
+      handleCloseDesktopThreadModal();
+      app.handleEditPost(postId);
+    },
+    [app, handleCloseDesktopThreadModal],
+  );
+
+  const handleDesktopThreadTagClick = React.useCallback(
+    (tag: string) => {
+      handleCloseDesktopThreadModal();
+      app.handleTagClick(tag);
+    },
+    [app, handleCloseDesktopThreadModal],
+  );
+
+  const handleDesktopThreadDeletePost = React.useCallback(
+    (postId: string) => {
+      handleCloseDesktopThreadModal();
+      app.handleDeletePost(postId);
+    },
+    [app, handleCloseDesktopThreadModal],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -645,15 +710,12 @@ const AppContent: React.FC = () => {
         </DesktopNavChrome>
 
         <div className="relative z-10 mx-auto max-w-[1174px] px-4 py-3 pb-20 md:px-6 md:py-6 md:pb-6">
-          <AppHeader
-            onOpenDrawer={() => setIsDrawerOpen(true)}
-            onOpenDesktopNav={() => setDesktopNavOpen(true)}
-          />
+          <AppHeader onOpenDrawer={() => setIsDrawerOpen(true)} />
 
           <div className="grid grid-cols-1 gap-4 py-[5px]">
             <main className="min-w-0">
               {/* Feed View */}
-              {app.viewMode === ViewMode.FEED && (
+              {mainViewMode === ViewMode.FEED && (
                 <FeedView
                   sortedPosts={app.sortedPosts}
                   getBoardName={app.getBoardName}
@@ -676,7 +738,7 @@ const AppContent: React.FC = () => {
               )}
 
               {/* Single Post View */}
-              {app.viewMode === ViewMode.SINGLE_BIT && (
+              {mainViewMode === ViewMode.SINGLE_BIT && !isDesktop && (
                 <div className="animate-fade-in">
                   {app.selectedPost ? (
                     <PostDetailPage
@@ -706,7 +768,7 @@ const AppContent: React.FC = () => {
               )}
 
               {/* Notifications View */}
-              {app.viewMode === ViewMode.NOTIFICATIONS && (
+              {mainViewMode === ViewMode.NOTIFICATIONS && (
                 <div className="animate-fade-in">
                   <NotificationCenterV2
                     onClose={() => app.setViewMode(ViewMode.FEED)}
@@ -716,7 +778,7 @@ const AppContent: React.FC = () => {
               )}
 
               {/* Other views would be implemented here */}
-              {app.viewMode === ViewMode.CREATE && (
+              {mainViewMode === ViewMode.CREATE && !isDesktop && (
                 <Suspense fallback={<LoadingFallback />}>
                   <CreatePost
                     availableBoards={[
@@ -731,7 +793,7 @@ const AppContent: React.FC = () => {
                   />
                 </Suspense>
               )}
-              {app.viewMode === ViewMode.CREATE_BOARD && (
+              {mainViewMode === ViewMode.CREATE_BOARD && (
                 <Suspense fallback={<LoadingFallback />}>
                   <CreateBoard
                     onSubmit={app.handleCreateBoard}
@@ -741,7 +803,7 @@ const AppContent: React.FC = () => {
                   />
                 </Suspense>
               )}
-              {app.viewMode === ViewMode.BROWSE_BOARDS && (
+              {mainViewMode === ViewMode.BROWSE_BOARDS && (
                 <Suspense fallback={<LoadingFallback />}>
                   <BoardBrowser
                     topicBoards={app.topicBoards ?? []}
@@ -752,7 +814,7 @@ const AppContent: React.FC = () => {
                   />
                 </Suspense>
               )}
-              {app.viewMode === ViewMode.DISCOVER_NOSTR && (
+              {mainViewMode === ViewMode.DISCOVER_NOSTR && (
                 <Suspense fallback={<LoadingFallback />}>
                   <NostrDiscoveryBrowser
                     externalCommunities={app.externalCommunities ?? []}
@@ -763,7 +825,7 @@ const AppContent: React.FC = () => {
                   />
                 </Suspense>
               )}
-              {app.viewMode === ViewMode.EXTERNAL_COMMUNITIES && (
+              {mainViewMode === ViewMode.EXTERNAL_COMMUNITIES && (
                 <Suspense fallback={<LoadingFallback />}>
                   <ExternalCommunitiesBrowser
                     externalCommunities={app.externalCommunities ?? []}
@@ -774,7 +836,7 @@ const AppContent: React.FC = () => {
                   />
                 </Suspense>
               )}
-              {app.viewMode === ViewMode.IDENTITY && (
+              {mainViewMode === ViewMode.IDENTITY && (
                 <Suspense fallback={<LoadingFallback />}>
                   <IdentityManager
                     onIdentityChange={handleIdentityChange}
@@ -784,12 +846,12 @@ const AppContent: React.FC = () => {
                   />
                 </Suspense>
               )}
-              {app.viewMode === ViewMode.RELAYS && (
+              {mainViewMode === ViewMode.RELAYS && (
                 <Suspense fallback={<LoadingFallback />}>
                   <RelaySettings onClose={() => app.setViewMode(ViewMode.FEED)} />
                 </Suspense>
               )}
-              {app.viewMode === ViewMode.LOCATION && (
+              {mainViewMode === ViewMode.LOCATION && (
                 <Suspense fallback={<LoadingFallback />}>
                   <LocationSelector
                     onSelectBoard={(board) => {
@@ -806,7 +868,7 @@ const AppContent: React.FC = () => {
                   />
                 </Suspense>
               )}
-              {app.viewMode === ViewMode.USER_PROFILE && app.profileUser && (
+              {mainViewMode === ViewMode.USER_PROFILE && app.profileUser && (
                 <Suspense fallback={<LoadingFallback />}>
                   <UserProfile
                     onToggleBookmark={app.handleToggleBookmark}
@@ -821,7 +883,7 @@ const AppContent: React.FC = () => {
                   />
                 </Suspense>
               )}
-              {app.viewMode === ViewMode.BOOKMARKS && (
+              {mainViewMode === ViewMode.BOOKMARKS && (
                 <Suspense fallback={<LoadingFallback />}>
                   <Bookmarks
                     knownUsers={app.knownUsers}
@@ -835,7 +897,7 @@ const AppContent: React.FC = () => {
                   />
                 </Suspense>
               )}
-              {app.viewMode === ViewMode.EDIT_POST &&
+              {mainViewMode === ViewMode.EDIT_POST &&
                 app.editingPostId &&
                 app.postsById.get(app.editingPostId) && (
                   <Suspense fallback={<LoadingFallback />}>
@@ -848,28 +910,28 @@ const AppContent: React.FC = () => {
                     />
                   </Suspense>
                 )}
-              {app.viewMode === ViewMode.PRIVACY_POLICY && (
+              {mainViewMode === ViewMode.PRIVACY_POLICY && (
                 <Suspense fallback={<LoadingFallback />}>
                   <PrivacyPolicy />
                 </Suspense>
               )}
-              {app.viewMode === ViewMode.TERMS_OF_SERVICE && (
+              {mainViewMode === ViewMode.TERMS_OF_SERVICE && (
                 <Suspense fallback={<LoadingFallback />}>
                   <TermsOfService />
                 </Suspense>
               )}
-              {app.viewMode === ViewMode.ABOUT && (
+              {mainViewMode === ViewMode.ABOUT && (
                 <Suspense fallback={<LoadingFallback />}>
                   <About />
                 </Suspense>
               )}
-              {app.viewMode === ViewMode.SETTINGS && (
+              {mainViewMode === ViewMode.SETTINGS && (
                 <Suspense fallback={<LoadingFallback />}>
                   <Settings />
                 </Suspense>
               )}
               {/* Direct Messages View */}
-              {app.viewMode === ViewMode.DIRECT_MESSAGES && app.userState.identity?.pubkey && (
+              {mainViewMode === ViewMode.DIRECT_MESSAGES && app.userState.identity?.pubkey && (
                 <Suspense fallback={<LoadingFallback />}>
                   <DirectMessages
                     userPubkey={app.userState.identity.pubkey}
@@ -908,6 +970,64 @@ const AppContent: React.FC = () => {
             onSubmit={app.handleConfirmSeedPost}
           />
         )}
+
+        <AppModal
+          isOpen={showCreatePostModal}
+          onClose={() => app.setViewMode(lastNonComposeViewMode)}
+          className="items-start justify-center px-4 py-5 sm:py-8"
+          frameClassName="ui-modal-frame w-full max-w-3xl"
+          contentClassName="ui-modal-pop w-full max-h-[calc(100dvh-2rem)] overflow-auto hide-scrollbar"
+        >
+          <Suspense fallback={<LoadingFallback />}>
+            <CreatePost
+              availableBoards={[
+                ...app.boards.filter((b) => b.isPublic && !b.isReadOnly),
+                ...app.locationBoards,
+              ]}
+              currentBoardId={app.activeBoardId}
+              onSubmit={app.handleCreatePost}
+              onCancel={() => app.setViewMode(lastNonComposeViewMode)}
+              activeUser={app.userState.username}
+              userPubkey={app.userState.identity?.pubkey}
+            />
+          </Suspense>
+        </AppModal>
+
+        <AppModal
+          isOpen={isDesktop && !!desktopThreadPostId}
+          onClose={handleCloseDesktopThreadModal}
+          className="items-start justify-center px-4 py-3 sm:px-6 sm:py-4"
+          frameClassName="ui-modal-frame w-full max-w-[min(78rem,calc(100vw-3rem))]"
+          contentClassName="ui-modal-sheet w-full max-h-[calc(100dvh-1.5rem)] overflow-auto hide-scrollbar"
+        >
+          <div className="animate-fade-in">
+            {app.selectedPost ? (
+              <PostDetailPage
+                post={app.selectedPost}
+                boardName={app.getBoardName(app.selectedPost.id)}
+                userState={app.userState}
+                knownUsers={app.knownUsers}
+                onVote={app.handleVote}
+                onComment={app.handleComment}
+                onEditComment={app.handleEditComment}
+                onDeleteComment={app.handleDeleteComment}
+                onCommentVote={app.handleCommentVote}
+                onViewProfile={handleDesktopThreadViewProfile}
+                onEditPost={handleDesktopThreadEditPost}
+                onDeletePost={handleDesktopThreadDeletePost}
+                onTagClick={handleDesktopThreadTagClick}
+                onToggleBookmark={app.handleToggleBookmark}
+                onSeedPost={app.requestSeedPost}
+                onBack={handleCloseDesktopThreadModal}
+                isBookmarked={bookmarkedIds.includes(app.selectedPost.id)}
+                hasReported={reportedPostIds.includes(app.selectedPost.id)}
+                presentation="modal"
+              />
+            ) : (
+              <PostSkeleton />
+            )}
+          </div>
+        </AppModal>
 
         <footer className="hidden md:block text-center text-terminal-dim text-xs py-8">
           <div className="mb-2">

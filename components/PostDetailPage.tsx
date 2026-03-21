@@ -26,6 +26,7 @@ interface PostDetailPageProps {
   onToggleBookmark?: (postId: string) => void;
   onSeedPost?: (post: Post) => void;
   hasReported?: boolean;
+  presentation?: 'page' | 'modal';
 }
 
 export const PostDetailPage: React.FC<PostDetailPageProps> = ({
@@ -47,6 +48,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
   onToggleBookmark,
   onSeedPost,
   hasReported: _hasReported = false,
+  presentation = 'page',
 }) => {
   const [newComment, setNewComment] = React.useState('');
   const [isTransmitting, setIsTransmitting] = React.useState(false);
@@ -256,9 +258,17 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
   }, [commentTree]);
 
   return (
-    <div className="ui-surface-editor max-w-3xl overflow-hidden font-mono">
+    <div
+      className={`ui-surface-editor overflow-hidden font-mono ${
+        presentation === 'modal' ? 'max-w-none' : 'max-w-3xl'
+      }`}
+    >
       {/* Nav Bar */}
-      <div className="mb-0 flex items-center justify-between border-b border-terminal-dim/15 px-4 py-4">
+      <div
+        className={`mb-0 flex items-center justify-between border-b border-terminal-dim/15 px-4 py-4 ${
+          presentation === 'modal' ? 'sticky top-0 z-10 bg-terminal-bg/95 backdrop-blur-sm' : ''
+        }`}
+      >
         <button
           onClick={onBack}
           className="flex items-center gap-1.5 text-terminal-dim/60 hover:text-terminal-dim transition-colors group"

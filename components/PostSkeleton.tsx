@@ -14,20 +14,20 @@ export const PostSkeleton: React.FC<{ count?: number }> = ({ count = 1 }) => {
           style={{ containIntrinsicSize: '420px' }}
         >
           {/* Scanline effect overlay */}
-          <div className="absolute inset-0 pointer-events-none bg-scanline opacity-5" />
-          
+          <div className="crt-overlay-subtle" />
+
           <div className="flex flex-row gap-2 md:gap-3 p-2">
             {/* Voting Column Skeleton */}
             <div className="flex flex-col items-center w-10 md:w-12 border-r border-terminal-dim/30 pr-1 md:pr-2 justify-start pt-1 gap-1 flex-shrink-0">
               {/* Up arrow placeholder */}
               <div className="w-6 h-6 bg-terminal-dim/20 rounded" />
-              
+
               {/* Score placeholder */}
               <div className="w-6 h-4 bg-terminal-dim/30 rounded my-1" />
-              
+
               {/* Down arrow placeholder */}
               <div className="w-6 h-6 bg-terminal-dim/20 rounded" />
-              
+
               {/* Comment count placeholder */}
               <div className="w-8 h-4 bg-terminal-dim/20 rounded mt-2" />
             </div>
@@ -38,13 +38,13 @@ export const PostSkeleton: React.FC<{ count?: number }> = ({ count = 1 }) => {
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 {/* Author avatar placeholder */}
                 <div className="w-5 h-5 bg-terminal-dim/30 rounded-full" />
-                
+
                 {/* Author name */}
                 <div className="h-3 w-20 bg-terminal-dim/40 rounded" />
-                
+
                 {/* Timestamp */}
                 <div className="h-3 w-16 bg-terminal-dim/20 rounded" />
-                
+
                 {/* Board badge */}
                 <div className="h-4 w-24 bg-terminal-dim/20 border border-terminal-dim/30 rounded" />
               </div>
@@ -125,15 +125,33 @@ export const InlineLoadingSkeleton: React.FC = () => {
       <PostSkeleton count={2} />
       <div className="flex items-center justify-center gap-3 text-terminal-dim font-mono">
         <div className="flex gap-0.5">
-          <span className="inline-block w-2 h-4 bg-terminal-dim/40 animate-pulse" style={{ animationDelay: '0ms' }} />
-          <span className="inline-block w-2 h-4 bg-terminal-dim/40 animate-pulse" style={{ animationDelay: '150ms' }} />
-          <span className="inline-block w-2 h-4 bg-terminal-dim/40 animate-pulse" style={{ animationDelay: '300ms' }} />
+          <span
+            className="inline-block w-2 h-4 bg-terminal-dim/40 animate-pulse"
+            style={{ animationDelay: '0ms' }}
+          />
+          <span
+            className="inline-block w-2 h-4 bg-terminal-dim/40 animate-pulse"
+            style={{ animationDelay: '150ms' }}
+          />
+          <span
+            className="inline-block w-2 h-4 bg-terminal-dim/40 animate-pulse"
+            style={{ animationDelay: '300ms' }}
+          />
         </div>
         <span className="text-sm uppercase tracking-wider">Loading more signals...</span>
         <div className="flex gap-0.5">
-          <span className="inline-block w-2 h-4 bg-terminal-dim/40 animate-pulse" style={{ animationDelay: '300ms' }} />
-          <span className="inline-block w-2 h-4 bg-terminal-dim/40 animate-pulse" style={{ animationDelay: '150ms' }} />
-          <span className="inline-block w-2 h-4 bg-terminal-dim/40 animate-pulse" style={{ animationDelay: '0ms' }} />
+          <span
+            className="inline-block w-2 h-4 bg-terminal-dim/40 animate-pulse"
+            style={{ animationDelay: '300ms' }}
+          />
+          <span
+            className="inline-block w-2 h-4 bg-terminal-dim/40 animate-pulse"
+            style={{ animationDelay: '150ms' }}
+          />
+          <span
+            className="inline-block w-2 h-4 bg-terminal-dim/40 animate-pulse"
+            style={{ animationDelay: '0ms' }}
+          />
         </div>
       </div>
     </div>

@@ -6,35 +6,29 @@ import { DesktopNavChrome } from '../../features/layout/DesktopNavChrome';
 describe('DesktopNavChrome', () => {
   it('renders the tray shell and sidebar slot when open', () => {
     render(
-      <DesktopNavChrome drawerOpen={true} onCloseDrawer={() => undefined} onOpenDrawer={() => undefined}>
+      <DesktopNavChrome
+        drawerOpen={true}
+        onCloseDrawer={() => undefined}
+        onOpenDrawer={() => undefined}
+      >
         <div>Sidebar content</div>
       </DesktopNavChrome>,
     );
 
-    expect(screen.getByText('Panel')).toBeInTheDocument();
     expect(screen.getByText('Sidebar content')).toBeInTheDocument();
   });
 
-  it('closes the tray when the close button is clicked', () => {
-    const onCloseDrawer = vi.fn();
-
-    render(
-      <DesktopNavChrome drawerOpen={true} onCloseDrawer={onCloseDrawer} onOpenDrawer={() => undefined}>
-        <div />
-      </DesktopNavChrome>,
-    );
-
-    fireEvent.click(screen.getByLabelText('Close panel'));
-    expect(onCloseDrawer).toHaveBeenCalled();
-  });
-
-  it('focuses the close button and restores focus when the tray closes', () => {
+  it('focuses the tray and restores focus when the tray closes', () => {
     const trigger = <button type="button">Trigger</button>;
     const onCloseDrawer = vi.fn();
     const { rerender } = render(
       <>
         {trigger}
-        <DesktopNavChrome drawerOpen={false} onCloseDrawer={onCloseDrawer} onOpenDrawer={() => undefined}>
+        <DesktopNavChrome
+          drawerOpen={false}
+          onCloseDrawer={onCloseDrawer}
+          onOpenDrawer={() => undefined}
+        >
           <div />
         </DesktopNavChrome>
       </>,
@@ -46,18 +40,26 @@ describe('DesktopNavChrome', () => {
     rerender(
       <>
         {trigger}
-        <DesktopNavChrome drawerOpen={true} onCloseDrawer={onCloseDrawer} onOpenDrawer={() => undefined}>
+        <DesktopNavChrome
+          drawerOpen={true}
+          onCloseDrawer={onCloseDrawer}
+          onOpenDrawer={() => undefined}
+        >
           <div />
         </DesktopNavChrome>
       </>,
     );
 
-    expect(screen.getByLabelText('Close panel')).toHaveFocus();
+    expect(screen.getByRole('dialog', { name: 'Boards, relays, and appearance' })).toHaveFocus();
 
     rerender(
       <>
         {trigger}
-        <DesktopNavChrome drawerOpen={false} onCloseDrawer={onCloseDrawer} onOpenDrawer={() => undefined}>
+        <DesktopNavChrome
+          drawerOpen={false}
+          onCloseDrawer={onCloseDrawer}
+          onOpenDrawer={() => undefined}
+        >
           <div />
         </DesktopNavChrome>
       </>,
@@ -87,7 +89,11 @@ describe('DesktopNavChrome', () => {
     const onCloseDrawer = vi.fn();
 
     render(
-      <DesktopNavChrome drawerOpen={true} onCloseDrawer={onCloseDrawer} onOpenDrawer={() => undefined}>
+      <DesktopNavChrome
+        drawerOpen={true}
+        onCloseDrawer={onCloseDrawer}
+        onOpenDrawer={() => undefined}
+      >
         <div />
       </DesktopNavChrome>,
     );

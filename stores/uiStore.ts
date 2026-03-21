@@ -19,6 +19,7 @@ interface UIState {
   bookmarkedIds: string[];
   reportedPostIds: string[];
   showSearch: boolean;
+  desktopThreadPostId: string | null;
 
   // Actions
   setViewMode: (mode: ViewMode) => void;
@@ -34,6 +35,8 @@ interface UIState {
   setBookmarkedIds: (ids: string[] | ((prev: string[]) => string[])) => void;
   setReportedPostIds: (ids: string[] | ((prev: string[]) => string[])) => void;
   setShowSearch: (v: boolean) => void;
+  openDesktopThreadModal: (postId: string) => void;
+  closeDesktopThreadModal: () => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -51,6 +54,7 @@ export const useUIStore = create<UIState>()(
     bookmarkedIds: [],
     reportedPostIds: [],
     showSearch: false,
+    desktopThreadPostId: null,
 
     setViewMode: (mode) => set({ viewMode: mode }),
     setTheme: (theme) => set({ theme }),
@@ -73,6 +77,8 @@ export const useUIStore = create<UIState>()(
       set({ reportedPostIds: next });
     },
     setShowSearch: (v) => set({ showSearch: v }),
+    openDesktopThreadModal: (postId) => set({ desktopThreadPostId: postId }),
+    closeDesktopThreadModal: () => set({ desktopThreadPostId: null }),
   })),
 );
 
@@ -90,3 +96,4 @@ export const useOldestTimestamp = () => useUIStore((state) => state.oldestTimest
 export const useBookmarkedIds = () => useUIStore((state) => state.bookmarkedIds);
 export const useReportedPostIds = () => useUIStore((state) => state.reportedPostIds);
 export const useShowSearch = () => useUIStore((state) => state.showSearch);
+export const useDesktopThreadPostId = () => useUIStore((state) => state.desktopThreadPostId);

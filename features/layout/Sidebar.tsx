@@ -108,7 +108,6 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
     userState,
     theme,
     setTheme,
-    getThemeColor = () => '#ffffff',
     viewMode,
     activeBoardId,
     feedFilter,
@@ -214,6 +213,26 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
     [ThemeId.BITBORING]: 'Boring',
   };
 
+  const THEME_SWATCHES: Record<ThemeId, React.CSSProperties> = {
+    [ThemeId.AMBER]: { backgroundColor: '#ffb000' },
+    [ThemeId.PHOSPHOR]: { backgroundColor: '#00ff41' },
+    [ThemeId.PLASMA]: { backgroundColor: '#00f0ff' },
+    [ThemeId.VERMILION]: { backgroundColor: '#ff4646' },
+    [ThemeId.SLATE]: { backgroundColor: '#c8c8c8' },
+    [ThemeId.PATRIOT]: {
+      background: 'linear-gradient(135deg, #ff1428 25%, #ffffff 25% 75%, #0a4bff 75%)',
+      border: '1px solid #555',
+    },
+    [ThemeId.SAKURA]: {
+      backgroundColor: '#ffa0d2',
+      border: '1px solid #888',
+    },
+    [ThemeId.BITBORING]: {
+      backgroundColor: '#ffffff',
+      border: '1px solid #888',
+    },
+  };
+
   const BASE = isDrawer
     ? 'ui-crt-surface flex min-w-0 flex-col gap-3 p-4'
     : 'ui-crt-surface order-first space-y-3 p-3';
@@ -259,7 +278,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
         </button>
 
         {showRelayDetails && (
-          <div className="mt-2 space-y-1 border-t border-terminal-dim/25 pt-2 max-h-32 overflow-y-auto">
+          <div className="hide-scrollbar mt-2 max-h-32 space-y-1 overflow-y-auto border-t border-terminal-dim/25 pt-2">
             {relayStatuses.map((r) => {
               const host = r.url.replace('wss://', '').replace('ws://', '').split('/')[0];
               return (
@@ -325,7 +344,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
           TOPIC_NET ({publicTopicBoards.length})
         </SectionButton>
         {openSections.TOPIC_NET && (
-          <div className="mt-2 space-y-0.5 max-h-48 overflow-y-auto">
+          <div className="hide-scrollbar mt-2 max-h-48 space-y-0.5 overflow-y-auto">
             <button
               type="button"
               onClick={() =>
@@ -378,7 +397,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
           >
             COMMUNITIES ({externalCommunities.length})
           </SectionButton>
-          <div className="mt-2 space-y-0.5 max-h-40 overflow-y-auto">
+          <div className="hide-scrollbar mt-2 max-h-40 space-y-0.5 overflow-y-auto">
             {externalCommunities.slice(0, 8).map((board) => (
               <button
                 key={board.id}
@@ -414,7 +433,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
           >
             SECURE_NET ({encryptedBoards.length})
           </SectionButton>
-          <div className="mt-2 space-y-0.5 max-h-40 overflow-y-auto">
+          <div className="hide-scrollbar mt-2 max-h-40 space-y-0.5 overflow-y-auto">
             {encryptedBoards.map((board) => {
               const failed = decryptionFailedBoardIds.has(board.id);
               return (
@@ -454,7 +473,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
           <SectionButton isOpen={openSections.GEO_NET} onClick={() => toggleSection('GEO_NET')}>
             GEO_NET ({totalNearbyPosts > 0 ? `${totalNearbyPosts} sig` : geohashBoards.length})
           </SectionButton>
-          <div className="mt-2 space-y-0.5 max-h-40 overflow-y-auto">
+          <div className="hide-scrollbar mt-2 max-h-40 space-y-0.5 overflow-y-auto">
             {nearbyActivity.slice(0, 6).map((ch) => {
               const board = geonetDiscoveryService.channelToBoard(ch);
               return (
@@ -506,32 +525,25 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
         <SectionButton isOpen={openSections.THEME} onClick={() => toggleSection('THEME')}>
           THEME
         </SectionButton>
-        <div className="mt-2 grid grid-cols-4 gap-1">
+        <div className="mt-2 grid grid-cols-2 gap-2">
           {Object.values(ThemeId).map((t) => {
             const active = theme === t;
-            const swatchStyle: React.CSSProperties = {
-              backgroundColor: t === ThemeId.PATRIOT ? undefined : getThemeColor(t),
-              background:
-                t === ThemeId.PATRIOT
-                  ? 'linear-gradient(135deg, #ff1428 25%, #fff 25% 75%, #0a4bff 75%)'
-                  : undefined,
-              border: ['bitboring', 'patriot', 'sakura'].includes(t) ? '1px solid #555' : 'none',
-            };
+            const swatchStyle = THEME_SWATCHES[t];
             return (
               <button
                 key={t}
                 type="button"
                 onClick={() => nav(() => setTheme(t))}
                 title={`${THEME_LABELS[t]} theme`}
-                className={`flex flex-col items-center gap-1 border p-1.5 transition-all ${
+                className={`flex min-h-[54px] items-center gap-2 border px-2.5 py-2 text-left transition-all ${
                   active
                     ? 'border-terminal-text bg-terminal-dim/10 shadow-[0_0_8px_rgba(var(--color-terminal-text),0.25)]'
-                    : 'border-transparent hover:border-terminal-dim/40'
+                    : 'border-terminal-dim/20 hover:border-terminal-dim/40'
                 }`}
               >
-                <span className="block h-5 w-5 shrink-0 rounded-full" style={swatchStyle} />
+                <span className="block h-6 w-6 shrink-0 rounded-full" style={swatchStyle} />
                 <span
-                  className={`text-[7px] font-mono uppercase ${active ? 'text-terminal-text' : 'text-terminal-dim'}`}
+                  className={`min-w-0 truncate text-[10px] font-mono uppercase tracking-[0.12em] ${active ? 'text-terminal-text' : 'text-terminal-dim'}`}
                 >
                   {THEME_LABELS[t]}
                 </span>

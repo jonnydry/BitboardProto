@@ -3,7 +3,6 @@ import { MapPin, Share2, Lock, ChevronUp, Calendar, Radio, Plus } from 'lucide-r
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import type { Post, SortMode } from '../../types';
 import { BoardType, ViewMode } from '../../types';
-import { SearchBar } from '../../components/SearchBar';
 import { SortSelector } from '../../components/SortSelector';
 import { PostSkeleton } from '../../components/PostSkeleton';
 import { LoadingPhaseIndicator } from '../../components/LoadingSkeletons';
@@ -79,7 +78,6 @@ export function FeedView(props: {
   const feedFilter = useFeedFilter();
   const hasMorePosts = useHasMorePosts();
   const setSortModeStore = useUIStore((state) => state.setSortMode);
-  const setSearchQueryStore = useUIStore((state) => state.setSearchQuery);
   const setViewMode = useUIStore((state) => state.setViewMode);
 
   // Navigation handlers from Zustand-based hook
@@ -114,13 +112,6 @@ export function FeedView(props: {
       setSortModeStore(m);
     },
     [setSortModeStore],
-  );
-
-  const handleSearch = useCallback(
-    (q: string) => {
-      setSearchQueryStore(q);
-    },
-    [setSearchQueryStore],
   );
 
   const [showShareModal, setShowShareModal] = useState(false);
@@ -381,13 +372,9 @@ export function FeedView(props: {
 
   return (
     <div className="min-w-0 space-y-2">
-      <div className="mb-6 border-b border-terminal-dim/40">
-        <div className="px-0 py-4">
-          <SearchBar onSearch={handleSearch} placeholder="scan_network..." />
-        </div>
-
-        <div className="flex flex-col gap-4 pb-4">
-          <div className="border border-terminal-dim p-4 md:p-5 bg-terminal-bg/40">
+      <div className="mb-4 border-b border-terminal-dim/30 pb-3">
+        <div className="flex flex-col gap-3">
+          <div className="border border-terminal-dim/25 bg-terminal-bg/40 p-4 md:p-5">
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
               <div>
                 <div className="flex items-center gap-3">
@@ -410,7 +397,7 @@ export function FeedView(props: {
                   {canShareBoard && (
                     <button
                       onClick={() => setShowShareModal(true)}
-                      className="flex items-center gap-1 text-xs border border-terminal-dim px-2 py-1 text-terminal-dim hover:border-terminal-text hover:text-terminal-text transition-colors uppercase"
+                      className="flex items-center gap-1 border border-terminal-dim px-2 py-1 text-xs uppercase text-terminal-dim transition-colors hover:border-terminal-text hover:text-terminal-text"
                       title="Share this encrypted board"
                     >
                       <Share2 size={12} />
@@ -418,7 +405,7 @@ export function FeedView(props: {
                     </button>
                   )}
                 </div>
-                <p className="text-xs text-terminal-dim mt-1 uppercase tracking-wide">
+                <p className="mt-1 text-xs uppercase tracking-wide text-terminal-dim">
                   {searchQuery
                     ? `${sortedPosts.length} results found`
                     : activeBoard
@@ -437,7 +424,7 @@ export function FeedView(props: {
 
           {/* Time Chunk Navigation */}
           {sortedPosts.length > 10 && availableChunks.length > 1 && (
-            <div className="flex items-center gap-1 overflow-x-auto pb-1">
+            <div className="flex items-center gap-1 overflow-x-auto">
               <Calendar size={12} className="text-terminal-dim flex-shrink-0" />
               {availableChunks.map((chunk) => (
                 <button

@@ -5,7 +5,7 @@ export function LogoCLI() {
     <div className="relative inline-block py-6 px-10 group text-center">
       {/* Background glitch layers */}
       <div className="absolute inset-0 bg-terminal-text opacity-5 group-hover:opacity-10 transition-opacity"></div>
-      
+
       {/* Decorative corners */}
       <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-terminal-text"></div>
       <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-terminal-text"></div>
@@ -15,51 +15,51 @@ export function LogoCLI() {
       {/* Eagle Logo Integration */}
       <div className="relative mb-6 mx-auto w-24 h-24 md:w-32 md:h-32">
         {/* Main Eagle Layer */}
-        <div 
+        <div
           className="absolute inset-0 z-10"
           style={{
-            backgroundColor: "rgb(var(--color-terminal-text))",
+            backgroundColor: 'rgb(var(--color-terminal-text))',
             maskImage: "url('/assets/bitboard-logo.png')",
             WebkitMaskImage: "url('/assets/bitboard-logo.png')",
-            maskSize: "contain",
-            WebkitMaskSize: "contain",
-            maskRepeat: "no-repeat",
-            WebkitMaskRepeat: "no-repeat",
-            maskPosition: "center",
-            WebkitMaskPosition: "center",
-            filter: "drop-shadow(0 0 8px rgba(var(--color-terminal-text), 0.5))"
+            maskSize: 'contain',
+            WebkitMaskSize: 'contain',
+            maskRepeat: 'no-repeat',
+            WebkitMaskRepeat: 'no-repeat',
+            maskPosition: 'center',
+            WebkitMaskPosition: 'center',
+            filter: 'drop-shadow(0 0 8px rgba(var(--color-terminal-text), 0.5))',
           }}
         />
 
         {/* Eagle Glitch Layer 1 */}
-        <div 
+        <div
           className="absolute inset-0 opacity-40 animate-glitch-1 translate-x-[2px]"
           style={{
-            backgroundColor: "#00f0ff",
+            backgroundColor: '#00f0ff',
             maskImage: "url('/assets/bitboard-logo.png')",
             WebkitMaskImage: "url('/assets/bitboard-logo.png')",
-            maskSize: "contain",
-            WebkitMaskSize: "contain",
-            maskRepeat: "no-repeat",
-            WebkitMaskRepeat: "no-repeat",
-            maskPosition: "center",
-            WebkitMaskPosition: "center"
+            maskSize: 'contain',
+            WebkitMaskSize: 'contain',
+            maskRepeat: 'no-repeat',
+            WebkitMaskRepeat: 'no-repeat',
+            maskPosition: 'center',
+            WebkitMaskPosition: 'center',
           }}
         />
 
         {/* Eagle Glitch Layer 2 */}
-        <div 
+        <div
           className="absolute inset-0 opacity-40 animate-glitch-2 -translate-x-[2px]"
           style={{
-            backgroundColor: "#ff4646",
+            backgroundColor: '#ff4646',
             maskImage: "url('/assets/bitboard-logo.png')",
             WebkitMaskImage: "url('/assets/bitboard-logo.png')",
-            maskSize: "contain",
-            WebkitMaskSize: "contain",
-            maskRepeat: "no-repeat",
-            WebkitMaskRepeat: "no-repeat",
-            maskPosition: "center",
-            WebkitMaskPosition: "center"
+            maskSize: 'contain',
+            WebkitMaskSize: 'contain',
+            maskRepeat: 'no-repeat',
+            WebkitMaskRepeat: 'no-repeat',
+            maskPosition: 'center',
+            WebkitMaskPosition: 'center',
           }}
         />
       </div>
@@ -82,7 +82,7 @@ export function LogoCLI() {
 
         {/* Scanning line effect inside the logo */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="w-full h-[2px] bg-terminal-text/30 animate-scanline"></div>
+          <div className="h-[2px] w-full bg-terminal-text/18 animate-scanline"></div>
         </div>
       </div>
 

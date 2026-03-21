@@ -2,45 +2,109 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes modal-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes modal-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @layer components {
   .ui-surface-editor {
     @apply w-full max-w-2xl mx-auto border border-terminal-dim/30 bg-terminal-bg animate-fade-in font-mono;
     background-image:
-      linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.14) 50%),
-      linear-gradient(90deg, var(--scanline-color), rgba(0, 0, 0, 0.025), var(--scanline-color));
+      linear-gradient(
+        rgb(var(--color-terminal-text) / 0.015),
+        rgb(var(--color-terminal-text) / 0.015)
+      ),
+      linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, var(--crt-surface-line-alpha)) 50%),
+      linear-gradient(
+        90deg,
+        rgb(var(--color-terminal-text) / var(--crt-surface-chroma-alpha)),
+        transparent,
+        rgb(var(--color-terminal-text) / var(--crt-surface-chroma-alpha))
+      );
     background-size:
-      100% 3px,
-      3px 100%;
+      100% 100%,
+      100% var(--crt-line-height),
+      var(--crt-column-width) 100%;
   }
 
   .ui-surface-panel {
     @apply border border-terminal-dim/30 bg-terminal-bg font-mono;
     background-image:
-      linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.12) 50%),
-      linear-gradient(90deg, var(--scanline-color), rgba(0, 0, 0, 0.02), var(--scanline-color));
+      linear-gradient(
+        rgb(var(--color-terminal-text) / 0.012),
+        rgb(var(--color-terminal-text) / 0.012)
+      ),
+      linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, var(--crt-surface-line-alpha)) 50%),
+      linear-gradient(
+        90deg,
+        rgb(var(--color-terminal-text) / var(--crt-surface-chroma-alpha)),
+        transparent,
+        rgb(var(--color-terminal-text) / var(--crt-surface-chroma-alpha))
+      );
     background-size:
-      100% 3px,
-      3px 100%;
+      100% 100%,
+      100% var(--crt-line-height),
+      var(--crt-column-width) 100%;
   }
 
   .ui-surface-modal {
     @apply relative w-full overflow-hidden border border-terminal-dim/35 bg-terminal-bg/95 shadow-hard-lg font-mono;
     background-image:
-      linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.16) 50%),
-      linear-gradient(90deg, var(--scanline-color), rgba(0, 0, 0, 0.03), var(--scanline-color));
+      linear-gradient(
+        rgb(var(--color-terminal-text) / 0.016),
+        rgb(var(--color-terminal-text) / 0.016)
+      ),
+      linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, var(--crt-surface-line-alpha)) 50%),
+      linear-gradient(
+        90deg,
+        rgb(var(--color-terminal-text) / var(--crt-surface-chroma-alpha)),
+        transparent,
+        rgb(var(--color-terminal-text) / var(--crt-surface-chroma-alpha))
+      );
     background-size:
-      100% 3px,
-      3px 100%;
+      100% 100%,
+      100% var(--crt-line-height),
+      var(--crt-column-width) 100%;
   }
 
   .ui-crt-surface {
     @apply relative overflow-hidden bg-terminal-bg font-mono;
     background-image:
-      linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.16) 50%),
-      linear-gradient(90deg, var(--scanline-color), rgba(0, 0, 0, 0.03), var(--scanline-color));
+      linear-gradient(
+        rgb(var(--color-terminal-text) / 0.012),
+        rgb(var(--color-terminal-text) / 0.012)
+      ),
+      linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, var(--crt-surface-line-alpha)) 50%),
+      linear-gradient(
+        90deg,
+        rgb(var(--color-terminal-text) / var(--crt-surface-chroma-alpha)),
+        transparent,
+        rgb(var(--color-terminal-text) / var(--crt-surface-chroma-alpha))
+      );
     background-size:
-      100% 3px,
-      3px 100%;
+      100% 100%,
+      100% var(--crt-line-height),
+      var(--crt-column-width) 100%;
     background-position: 0 0;
   }
 
@@ -54,6 +118,41 @@
 
   .ui-overlay {
     @apply fixed inset-0 z-50 bg-black/60 backdrop-blur-sm;
+  }
+
+  .crt-overlay-soft {
+    @apply pointer-events-none absolute inset-0;
+    background:
+      linear-gradient(
+        rgba(18, 16, 16, 0) 50%,
+        rgba(0, 0, 0, calc(var(--crt-overlay-line-alpha) * 0.7)) 50%
+      ),
+      linear-gradient(
+        90deg,
+        rgb(var(--color-terminal-text) / calc(var(--crt-overlay-chroma-alpha) * 0.75)),
+        transparent,
+        rgb(var(--color-terminal-text) / calc(var(--crt-overlay-chroma-alpha) * 0.75))
+      );
+    background-size:
+      100% var(--crt-line-height),
+      var(--crt-column-width) 100%;
+  }
+
+  .crt-overlay-subtle {
+    @apply crt-overlay-soft;
+    opacity: 0.5;
+  }
+
+  .ui-modal-frame {
+    @apply rounded-sm border border-terminal-dim/20 bg-terminal-bg/50 p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-sm;
+  }
+
+  .ui-modal-pop {
+    animation: modal-pop-in 160ms ease-out;
+  }
+
+  .ui-modal-sheet {
+    animation: modal-sheet-in 180ms ease-out;
   }
 
   .ui-section-title {
@@ -90,6 +189,12 @@
   --color-terminal-alert: 224 91 18; /* #e05b12 */
   --color-terminal-highlight: 18 12 0; /* #0c0800 */
   --scanline-color: rgba(255, 176, 0, 0.03);
+  --crt-line-height: 4px;
+  --crt-column-width: 3px;
+  --crt-surface-line-alpha: 0.07;
+  --crt-surface-chroma-alpha: 0.012;
+  --crt-overlay-line-alpha: 0.1;
+  --crt-overlay-chroma-alpha: 0.018;
   --text-shadow-val: 0 0 1px rgb(var(--color-terminal-text) / 0.4);
   --shadow-glow: 0 0 15px rgb(var(--color-terminal-text) / 0.2);
   --scanline-display: block;
@@ -170,6 +275,10 @@
   --color-terminal-alert: 255 0 0; /* #ff0000 */
   --color-terminal-highlight: 255 255 255; /* Pure White */
   --scanline-color: transparent;
+  --crt-surface-line-alpha: 0;
+  --crt-surface-chroma-alpha: 0;
+  --crt-overlay-line-alpha: 0;
+  --crt-overlay-chroma-alpha: 0;
   --text-shadow-val: none;
   --shadow-glow: none;
   --scanline-display: none;
@@ -205,12 +314,17 @@ body {
   bottom: 0;
   right: 0;
   background:
-    linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
-    linear-gradient(90deg, var(--scanline-color), rgba(0, 0, 0, 0.05), var(--scanline-color));
+    linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, var(--crt-overlay-line-alpha)) 50%),
+    linear-gradient(
+      90deg,
+      rgb(var(--color-terminal-text) / var(--crt-overlay-chroma-alpha)),
+      transparent,
+      rgb(var(--color-terminal-text) / var(--crt-overlay-chroma-alpha))
+    );
   z-index: 2;
   background-size:
-    100% 3px,
-    3px 100%;
+    100% var(--crt-line-height),
+    var(--crt-column-width) 100%;
   pointer-events: none;
 }
 
@@ -245,6 +359,15 @@ body {
 /* Utility class for top safe area padding */
 .safe-area-top {
   padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* Mobile-optimized touch targets */

@@ -94,14 +94,6 @@ describe('AppHeader', () => {
     expect(onOpenDrawer).toHaveBeenCalled();
   });
 
-  it('opens the desktop nav drawer from the browse button', () => {
-    const onOpenDesktopNav = vi.fn();
-    render(<AppHeader onOpenDesktopNav={onOpenDesktopNav} />);
-
-    fireEvent.click(screen.getByLabelText('Open navigation drawer'));
-    expect(onOpenDesktopNav).toHaveBeenCalled();
-  });
-
   it('shows notification count and opens/closes the notification center', () => {
     render(<AppHeader />);
 

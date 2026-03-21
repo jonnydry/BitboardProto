@@ -7,7 +7,11 @@ interface ImagePreviewProps {
   className?: string;
 }
 
-export const ImagePreview: React.FC<ImagePreviewProps> = ({ src, alt = 'Image', className = '' }) => {
+export const ImagePreview: React.FC<ImagePreviewProps> = ({
+  src,
+  alt = 'Image',
+  className = '',
+}) => {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -23,7 +27,9 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ src, alt = 'Image', 
 
   if (hasError) {
     return (
-      <div className={`border border-terminal-alert/50 p-4 text-center bg-terminal-dim/5 text-terminal-alert flex flex-col items-center gap-2 ${className}`}>
+      <div
+        className={`border border-terminal-alert/50 p-4 text-center bg-terminal-dim/5 text-terminal-alert flex flex-col items-center gap-2 ${className}`}
+      >
         <XCircle size={24} />
         <span className="text-xs font-mono uppercase">IMAGE_LOAD_FAILED</span>
         <span className="text-2xs break-all text-terminal-dim">{src}</span>
@@ -44,7 +50,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ src, alt = 'Image', 
       )}
 
       {/* Image Container */}
-      <div 
+      <div
         className={`
           border border-terminal-dim/50 bg-black overflow-hidden relative cursor-pointer
           ${isExpanded ? 'fixed inset-4 z-50 border-terminal-text shadow-hard bg-terminal-bg/95 flex items-center justify-center' : 'hover:border-terminal-text transition-colors'}
@@ -57,13 +63,13 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ src, alt = 'Image', 
             <span className="text-xs text-terminal-dim">[ CLICK TO CLOSE ]</span>
           </div>
         )}
-        
+
         <div className={isExpanded ? 'max-w-full max-h-full p-4' : 'relative'}>
           {/* Scanline overlay for expanded view */}
-          {isExpanded && <div className="absolute inset-0 pointer-events-none bg-scanline opacity-10"></div>}
-          
-          <img 
-            src={src} 
+          {isExpanded && <div className="crt-overlay-soft"></div>}
+
+          <img
+            src={src}
             alt={alt}
             onLoad={handleLoad}
             onError={handleError}
@@ -87,10 +93,10 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ src, alt = 'Image', 
           </>
         )}
       </div>
-      
+
       {/* Backdrop for expanded view */}
       {isExpanded && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40"
           onClick={() => setIsExpanded(false)}
         ></div>
@@ -98,9 +104,3 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ src, alt = 'Image', 
     </div>
   );
 };
-
-
-
-
-
-

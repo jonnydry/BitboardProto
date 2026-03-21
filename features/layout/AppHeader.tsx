@@ -18,14 +18,9 @@ import { useAppNavigationHandlers } from './useAppNavigationHandlers';
 
 interface AppHeaderProps {
   onOpenDrawer?: () => void;
-  /** md+: opens the desktop nav drawer. */
-  onOpenDesktopNav?: () => void;
 }
 
-export const AppHeader = React.memo(function AppHeader({
-  onOpenDrawer,
-  onOpenDesktopNav,
-}: AppHeaderProps) {
+export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHeaderProps) {
   const theme = useUIStore((s) => s.theme);
   const isNostrConnected = useUIStore((s) => s.isNostrConnected);
   const viewMode = useUIStore((s) => s.viewMode);
@@ -294,18 +289,6 @@ export const AppHeader = React.memo(function AppHeader({
 
       {/* Desktop Navigation (hidden on mobile) */}
       <nav className="hidden md:flex flex-wrap items-center gap-x-2 gap-y-2 border border-terminal-dim/20 bg-terminal-bg/45 px-3 py-2 text-xs backdrop-blur-sm lg:gap-x-3 lg:text-sm">
-        {onOpenDesktopNav && (
-          <button
-            type="button"
-            onClick={onOpenDesktopNav}
-            className={desktopActionClass(false, true)}
-            aria-label="Open navigation drawer"
-            title="Browse navigation"
-          >
-            <Menu size={18} strokeWidth={2} />
-            <span>Browse</span>
-          </button>
-        )}
         <button
           onClick={() => navigateToBoard(null)}
           className={desktopActionClass(isGlobalFeedActive)}
@@ -363,7 +346,7 @@ export const AppHeader = React.memo(function AppHeader({
         <button
           type="button"
           onClick={() => setViewMode(ViewMode.IDENTITY)}
-          className={`flex items-center gap-2 border px-3 py-1.5 font-mono transition-colors ${
+          className={`ml-auto flex items-center gap-2 border px-3 py-1.5 font-mono transition-colors ${
             viewMode === ViewMode.IDENTITY
               ? 'border-terminal-text bg-terminal-dim/10 text-terminal-text'
               : 'border-terminal-dim/40 text-terminal-text hover:border-terminal-text hover:bg-terminal-dim/10'
@@ -390,13 +373,13 @@ export const AppHeader = React.memo(function AppHeader({
       {bitsBarPinned && (
         <div
           className="w-full shrink-0"
-          style={{ height: Math.max(bitsBarHeight, 40) }}
+          style={{ height: Math.max(bitsBarHeight, 36) }}
           aria-hidden
         />
       )}
       <div
         ref={bitsBarMeasureRef}
-        className={`border-t-2 border-terminal-dim bg-terminal-bg/95 backdrop-blur-sm border-b border-terminal-dim/40 ${
+        className={`border-t border-b border-terminal-dim/40 bg-terminal-bg/95 backdrop-blur-sm ${
           bitsBarPinned ? 'fixed top-0 left-0 right-0 z-[35]' : 'relative'
         }`}
       >
@@ -404,7 +387,7 @@ export const AppHeader = React.memo(function AppHeader({
           <button
             type="button"
             onClick={() => setShowBitsPanel((p) => !p)}
-            className="w-full flex items-center gap-3 md:gap-4 py-2 px-1 text-terminal-text hover:bg-terminal-dim/5 transition-colors"
+            className="w-full flex items-center gap-2.5 md:gap-3 py-1.5 px-1 text-terminal-text hover:bg-terminal-dim/5 transition-colors"
             title="Bits — click to learn more"
           >
             <div className="flex items-center gap-2 shrink-0">
