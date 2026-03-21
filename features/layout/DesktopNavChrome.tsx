@@ -116,7 +116,7 @@ export const DesktopNavChrome = React.memo(function DesktopNavChrome({
         aria-modal="false"
         aria-label="Boards, relays, and appearance"
         tabIndex={-1}
-        className={`max-md:hidden fixed bottom-0 top-0 z-[43] flex max-w-full flex-col border-l border-terminal-dim/30 bg-terminal-bg/98 shadow-[-10px_0_32px_rgba(0,0,0,0.35)] transition-transform duration-200 ease-out ${TRAY_W_CLASS} ${
+        className={`ui-crt-surface max-md:hidden fixed bottom-0 top-0 z-[43] flex max-w-full flex-col border-l border-terminal-dim/30 bg-terminal-bg/98 shadow-[-10px_0_32px_rgba(0,0,0,0.35)] transition-transform duration-200 ease-out ${TRAY_W_CLASS} ${
           drawerOpen ? 'translate-x-0' : 'translate-x-full pointer-events-none'
         } right-0`}
       >

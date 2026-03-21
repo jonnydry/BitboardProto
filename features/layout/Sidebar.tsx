@@ -1,21 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  HelpCircle,
   Hash,
   Globe,
-  Eye,
-  Key,
   MapPin,
-  Radio,
   User,
   ChevronDown,
   ChevronRight,
   Shield,
-  AlertTriangle,
   Trash2,
-  Wifi,
-  WifiOff,
-  RefreshCw,
   ExternalLink,
   Compass,
 } from 'lucide-react';
@@ -114,7 +106,6 @@ function NavRow({
 export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
   const {
     userState,
-    setUserState,
     theme,
     setTheme,
     getThemeColor = () => '#ffffff',
@@ -223,12 +214,14 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
     [ThemeId.BITBORING]: 'Boring',
   };
 
-  const BASE = isDrawer ? 'flex min-w-0 flex-col gap-3 p-4' : 'order-first space-y-3';
+  const BASE = isDrawer
+    ? 'ui-crt-surface flex min-w-0 flex-col gap-3 p-4'
+    : 'ui-crt-surface order-first space-y-3 p-3';
 
   return (
     <aside className={BASE}>
       {/* ── Relay status ── */}
-      <div className="border border-terminal-dim bg-terminal-bg p-3">
+      <div className="ui-surface-panel p-3">
         <button
           type="button"
           onClick={() => setShowRelayDetails(!showRelayDetails)}
@@ -295,46 +288,40 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
 
       {/* ── Feed filter (global feed only) ── */}
       {!activeBoardId && viewMode === ViewMode.FEED && (
-        <div className="border border-terminal-dim bg-terminal-bg p-3">
-          <SectionButton
-            isOpen={openSections.FILTER}
-            onClick={() => toggleSection('FILTER')}
-          >
+        <div className="ui-surface-panel p-3">
+          <SectionButton isOpen={openSections.FILTER} onClick={() => toggleSection('FILTER')}>
             FILTER
           </SectionButton>
           {openSections.FILTER && (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {[
-              { id: 'all', label: 'ALL', Icon: Globe },
-              { id: 'topic', label: 'TOPIC', Icon: Hash },
-              { id: 'location', label: 'GEO', Icon: MapPin },
-              { id: 'following', label: 'FOLLOW', Icon: User },
-            ].map(({ id, label, Icon }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => nav(() => setFeedFilter(id))}
-                className={`flex items-center gap-1.5 border px-2 py-1 font-mono text-[10px] uppercase tracking-wider transition-all ${
-                  feedFilter === id
-                    ? 'border-terminal-text bg-terminal-dim/10 text-terminal-text'
-                    : 'border-terminal-dim/30 text-terminal-dim hover:border-terminal-dim/60 hover:text-terminal-text'
-                }`}
-              >
-                <Icon size={10} />
-                {label}
-              </button>
-            ))}
-          </div>
+            <div className="mt-2 flex flex-wrap gap-1">
+              {[
+                { id: 'all', label: 'ALL', Icon: Globe },
+                { id: 'topic', label: 'TOPIC', Icon: Hash },
+                { id: 'location', label: 'GEO', Icon: MapPin },
+                { id: 'following', label: 'FOLLOW', Icon: User },
+              ].map(({ id, label, Icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => nav(() => setFeedFilter(id))}
+                  className={`flex items-center gap-1.5 border px-2 py-1 font-mono text-[10px] uppercase tracking-wider transition-all ${
+                    feedFilter === id
+                      ? 'border-terminal-text bg-terminal-dim/10 text-terminal-text'
+                      : 'border-terminal-dim/30 text-terminal-dim hover:border-terminal-dim/60 hover:text-terminal-text'
+                  }`}
+                >
+                  <Icon size={10} />
+                  {label}
+                </button>
+              ))}
+            </div>
           )}
         </div>
       )}
 
       {/* ── Topic boards + global ── */}
-      <div className="border border-terminal-dim bg-terminal-bg p-3">
-        <SectionButton
-          isOpen={openSections.TOPIC_NET}
-          onClick={() => toggleSection('TOPIC_NET')}
-        >
+      <div className="ui-surface-panel p-3">
+        <SectionButton isOpen={openSections.TOPIC_NET} onClick={() => toggleSection('TOPIC_NET')}>
           TOPIC_NET ({publicTopicBoards.length})
         </SectionButton>
         {openSections.TOPIC_NET && (
@@ -384,7 +371,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
 
       {/* ── External communities ── */}
       {externalCommunities.length > 0 && (
-        <div className="border border-terminal-dim bg-terminal-bg p-3">
+        <div className="ui-surface-panel p-3">
           <SectionButton
             isOpen={openSections.COMMUNITIES}
             onClick={() => toggleSection('COMMUNITIES')}
@@ -420,7 +407,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
 
       {/* ── Secure boards ── */}
       {encryptedBoards.length > 0 && (
-        <div className="border border-terminal-dim bg-terminal-bg p-3">
+        <div className="ui-surface-panel p-3">
           <SectionButton
             isOpen={openSections.SECURE_NET}
             onClick={() => toggleSection('SECURE_NET')}
@@ -463,7 +450,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
 
       {/* ── Location / geo boards ── */}
       {geohashBoards.length > 0 && (
-        <div className="border border-terminal-dim bg-terminal-bg p-3">
+        <div className="ui-surface-panel p-3">
           <SectionButton isOpen={openSections.GEO_NET} onClick={() => toggleSection('GEO_NET')}>
             GEO_NET ({totalNearbyPosts > 0 ? `${totalNearbyPosts} sig` : geohashBoards.length})
           </SectionButton>
@@ -496,7 +483,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
       )}
 
       {/* ── Discover ── */}
-      <div className="border border-terminal-dim bg-terminal-bg p-3">
+      <div className="ui-surface-panel p-3">
         <SectionButton isOpen={openSections.DISCOVER} onClick={() => toggleSection('DISCOVER')}>
           DISCOVER
         </SectionButton>
@@ -515,7 +502,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
       </div>
 
       {/* ── Theme selector ── */}
-      <div className="border border-terminal-dim bg-terminal-bg p-3">
+      <div className="ui-surface-panel p-3">
         <SectionButton isOpen={openSections.THEME} onClick={() => toggleSection('THEME')}>
           THEME
         </SectionButton>
@@ -542,7 +529,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
                     : 'border-transparent hover:border-terminal-dim/40'
                 }`}
               >
-                <span className="h-5 w-5 rounded-full" style={swatchStyle} />
+                <span className="block h-5 w-5 shrink-0 rounded-full" style={swatchStyle} />
                 <span
                   className={`text-[7px] font-mono uppercase ${active ? 'text-terminal-text' : 'text-terminal-dim'}`}
                 >
@@ -555,7 +542,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
       </div>
 
       {/* ── Identity / settings ── */}
-      <div className="border border-terminal-dim bg-terminal-bg p-3">
+      <div className="ui-surface-panel p-3">
         <SectionButton isOpen={openSections.IDENTITY} onClick={() => toggleSection('IDENTITY')}>
           IDENTITY
         </SectionButton>

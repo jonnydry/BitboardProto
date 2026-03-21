@@ -4,15 +4,44 @@
 
 @layer components {
   .ui-surface-editor {
-    @apply w-full max-w-2xl mx-auto border border-terminal-dim/30 bg-terminal-bg animate-fade-in;
+    @apply w-full max-w-2xl mx-auto border border-terminal-dim/30 bg-terminal-bg animate-fade-in font-mono;
+    background-image:
+      linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.14) 50%),
+      linear-gradient(90deg, var(--scanline-color), rgba(0, 0, 0, 0.025), var(--scanline-color));
+    background-size:
+      100% 3px,
+      3px 100%;
   }
 
   .ui-surface-panel {
-    @apply border border-terminal-dim/30 bg-terminal-bg;
+    @apply border border-terminal-dim/30 bg-terminal-bg font-mono;
+    background-image:
+      linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.12) 50%),
+      linear-gradient(90deg, var(--scanline-color), rgba(0, 0, 0, 0.02), var(--scanline-color));
+    background-size:
+      100% 3px,
+      3px 100%;
   }
 
   .ui-surface-modal {
-    @apply w-full border border-terminal-dim/35 bg-terminal-bg/95 shadow-hard-lg;
+    @apply relative w-full overflow-hidden border border-terminal-dim/35 bg-terminal-bg/95 shadow-hard-lg font-mono;
+    background-image:
+      linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.16) 50%),
+      linear-gradient(90deg, var(--scanline-color), rgba(0, 0, 0, 0.03), var(--scanline-color));
+    background-size:
+      100% 3px,
+      3px 100%;
+  }
+
+  .ui-crt-surface {
+    @apply relative overflow-hidden bg-terminal-bg font-mono;
+    background-image:
+      linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.16) 50%),
+      linear-gradient(90deg, var(--scanline-color), rgba(0, 0, 0, 0.03), var(--scanline-color));
+    background-size:
+      100% 3px,
+      3px 100%;
+    background-position: 0 0;
   }
 
   .ui-page-hero {
