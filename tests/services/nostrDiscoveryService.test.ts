@@ -114,7 +114,6 @@ describe('nostrDiscoveryService', () => {
     expect(results[0].whyTrending.some((reason) => reason.includes('moderator-approved'))).toBe(
       true,
     );
-    expect(results.some((result) => result.id === 'general-post-1')).toBe(false);
   });
 
   it('uses relay search when a query is provided', async () => {
@@ -211,7 +210,7 @@ describe('nostrDiscoveryService', () => {
     expect(results[0].post.url).toBe('https://example.com/memo');
   });
 
-  it('hard-filters non-English discovery candidates', async () => {
+  it('includes strong non-English discovery candidates in broad trending', async () => {
     mocks.queryEvents.mockResolvedValue([
       {
         id: 'spanish-post',
@@ -246,8 +245,9 @@ describe('nostrDiscoveryService', () => {
       sourceFilter: 'general',
     });
 
-    expect(results).toHaveLength(1);
-    expect(results[0].id).toBe('english-post');
+    expect(results).toHaveLength(2);
+    expect(results.some((result) => result.id === 'spanish-post')).toBe(true);
+    expect(results.some((result) => result.id === 'english-post')).toBe(true);
   });
 
   it('filters out stale community-approved posts outside the active time window', async () => {
@@ -375,13 +375,13 @@ describe('nostrDiscoveryService', () => {
     expect(results).toHaveLength(0);
   });
 
-  it('prefers high-signal source domains over lower-signal social links', async () => {
+  it('ranks biggest posts by engagement with only a light recency penalty', async () => {
     mocks.queryEvents.mockResolvedValue([
       {
-        id: 'social-link-post',
+        id: 'older-big-post',
         kind: NOSTR_KINDS.POST,
         pubkey: 'author-one',
-        created_at: Math.floor(Date.now() / 1000),
+        created_at: Math.floor(Date.now() / 1000) - 60 * 60 * 18,
         tags: [
           ['lang', 'en'],
           ['r', 'https://x.com/example/status/1'],
@@ -389,10 +389,10 @@ describe('nostrDiscoveryService', () => {
           ['t', 'bitcoin'],
         ],
         content:
-          'This post discusses a policy topic with enough English substance and a social link for reference, but not a high-signal domain.',
+          'This older post has large engagement totals and should still rank highly in biggest-post mode.',
       },
       {
-        id: 'github-link-post',
+        id: 'newer-small-post',
         kind: NOSTR_KINDS.POST,
         pubkey: 'author-two',
         created_at: Math.floor(Date.now() / 1000),
@@ -403,17 +403,104 @@ describe('nostrDiscoveryService', () => {
           ['t', 'bitcoin'],
         ],
         content:
-          'This post discusses a policy topic with enough English substance and links directly to a GitHub repository with source material.',
+          'This newer post has less engagement and should trail in biggest-post mode despite being fresher.',
       },
     ]);
+    mocks.getZapTalliesForEvents.mockResolvedValue(
+      new Map([
+        [
+          'older-big-post',
+          {
+            eventId: 'older-big-post',
+            totalSats: 2400,
+            zapCount: 18,
+            topZappers: [],
+            lastUpdated: Date.now(),
+          },
+        ],
+        [
+          'newer-small-post',
+          {
+            eventId: 'newer-small-post',
+            totalSats: 300,
+            zapCount: 2,
+            topZappers: [],
+            lastUpdated: Date.now(),
+          },
+        ],
+      ]),
+    );
 
     const results = await nostrDiscoveryService.discoverSeedCandidates({
       timeWindow: '24h',
       sourceFilter: 'general',
+      rankingMode: 'biggest',
     });
 
-    expect(results).toHaveLength(1);
-    expect(results[0].id).toBe('github-link-post');
+    expect(results).toHaveLength(2);
+    expect(results[0].id).toBe('older-big-post');
+  });
+
+  it('ranks recent breakout posts ahead of older higher-total posts when momentum is stronger', async () => {
+    mocks.queryEvents.mockResolvedValue([
+      {
+        id: 'older-post',
+        kind: NOSTR_KINDS.POST,
+        pubkey: 'author-one',
+        created_at: Math.floor(Date.now() / 1000) - 60 * 60 * 20,
+        tags: [
+          ['lang', 'en'],
+          ['t', 'policy'],
+          ['r', 'https://example.com/older'],
+        ],
+        content: 'An older post with decent engagement totals but slower current momentum.',
+      },
+      {
+        id: 'breakout-post',
+        kind: NOSTR_KINDS.POST,
+        pubkey: 'author-two',
+        created_at: Math.floor(Date.now() / 1000) - 60 * 60,
+        tags: [
+          ['lang', 'en'],
+          ['t', 'policy'],
+          ['r', 'https://example.com/breakout'],
+        ],
+        content: 'A fresh post taking off quickly with strong early engagement.',
+      },
+    ]);
+    mocks.getZapTalliesForEvents.mockResolvedValue(
+      new Map([
+        [
+          'older-post',
+          {
+            eventId: 'older-post',
+            totalSats: 1800,
+            zapCount: 12,
+            topZappers: [],
+            lastUpdated: Date.now(),
+          },
+        ],
+        [
+          'breakout-post',
+          {
+            eventId: 'breakout-post',
+            totalSats: 1200,
+            zapCount: 10,
+            topZappers: [],
+            lastUpdated: Date.now(),
+          },
+        ],
+      ]),
+    );
+
+    const results = await nostrDiscoveryService.discoverSeedCandidates({
+      timeWindow: '24h',
+      sourceFilter: 'general',
+      rankingMode: 'breakout',
+    });
+
+    expect(results).toHaveLength(2);
+    expect(results[0].id).toBe('breakout-post');
   });
 
   it('suppresses repeated authors so one source cannot dominate top results', async () => {

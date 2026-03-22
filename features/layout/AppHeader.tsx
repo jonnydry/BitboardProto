@@ -6,7 +6,6 @@ const AdvancedSearch = lazy(() =>
   import('../../components/AdvancedSearch').then((m) => ({ default: m.AdvancedSearch })),
 );
 import { ThemeId, ViewMode } from '../../types';
-import { notificationService } from '../../services/notificationService';
 import { profileService } from '../../services/profileService';
 import { NotificationCenterV2 } from '../../components/NotificationCenterV2';
 import { InlineNetworkStatus, NetworkIndicator } from '../../components/NetworkIndicator';
@@ -15,6 +14,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { useUserStore } from '../../stores/userStore';
 import { useBoardStore } from '../../stores/boardStore';
 import { useAppNavigationHandlers } from './useAppNavigationHandlers';
+import { useNotificationUnreadCount } from '../../hooks/useNotificationUnreadCount';
 
 interface AppHeaderProps {
   onOpenDrawer?: () => void;
@@ -34,7 +34,7 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
   const setProfileUser = useUIStore((s) => s.setProfileUser);
   const { navigateToBoard } = useAppNavigationHandlers();
 
-  const [unreadCount, setUnreadCount] = useState(0);
+  const unreadCount = useNotificationUnreadCount();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showBitsPanel, setShowBitsPanel] = useState(false);
   const bitsSentinelRef = useRef<HTMLDivElement>(null);
@@ -85,16 +85,6 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
           ? 'border-terminal-dim/40 text-terminal-text hover:border-terminal-text/45 hover:bg-terminal-dim/10'
           : 'border-transparent text-terminal-dim hover:border-terminal-dim/40 hover:text-terminal-text'
     }`;
-
-  useEffect(() => {
-    const unsubscribe = notificationService.subscribe(() => {
-      setUnreadCount(notificationService.getUnreadCount());
-    });
-
-    setUnreadCount(notificationService.getUnreadCount());
-
-    return unsubscribe;
-  }, []);
 
   // Close notifications on Escape
   useEffect(() => {
@@ -329,16 +319,6 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
         >
           <span>ALERTS{unreadCount > 0 ? ` (${unreadCount})` : ''}</span>
         </button>
-        {identity && (
-          <button
-            type="button"
-            onClick={() => setViewMode(ViewMode.DIRECT_MESSAGES)}
-            className={desktopActionClass(viewMode === ViewMode.DIRECT_MESSAGES)}
-            title="Direct Messages"
-          >
-            <span>DMs</span>
-          </button>
-        )}
         <NetworkIndicator compact />
         <div className="hidden xl:flex">
           <InlineNetworkStatus />

@@ -70,7 +70,7 @@ describe('MobileDrawer', () => {
     expect(onSetViewMode).toHaveBeenCalledWith(ViewMode.BOOKMARKS);
     expect(onClose).toHaveBeenCalled();
 
-    fireEvent.click(screen.getByText('GLOBAL_FEED'));
+    fireEvent.click(screen.getByText('Global Feed'));
     expect(onNavigateGlobal).toHaveBeenCalled();
   });
 
@@ -109,6 +109,7 @@ describe('MobileDrawer', () => {
       />,
     );
 
-    expect(screen.getByText('GLOBAL_FEED').closest('button')).not.toHaveClass('bg-terminal-text');
+    const globalBtn = screen.getByText('Global Feed').closest('button');
+    expect(globalBtn).not.toHaveClass('bg-terminal-dim/10');
   });
 });

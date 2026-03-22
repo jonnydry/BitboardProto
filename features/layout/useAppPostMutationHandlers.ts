@@ -10,6 +10,12 @@ import { UIConfig } from '../../config';
 import { encryptedBoardService } from '../../services/encryptedBoardService';
 import { bookmarkService } from '../../services/bookmarkService';
 import { seedRateLimiter } from '../../services/seedRateLimiter';
+import {
+  postOutboxStorageRemoveMatching,
+  postOutboxStorageUpsert,
+  ownPostsCacheUpsert,
+  ownPostsCacheRemove,
+} from '../../services/postOutboxStorage';
 
 interface UseAppPostMutationHandlersArgs {
   boardsById: Map<string, Board>;
@@ -98,6 +104,7 @@ export function useAppPostMutationHandlers({
       setViewMode(ViewMode.FEED);
 
       if (userState.identity) {
+        postOutboxStorageUpsert(newPost);
         void (async () => {
           try {
             const geohash =
@@ -127,23 +134,25 @@ export function useAppPostMutationHandlers({
             const signed = await identityService.signEvent(unsigned);
             const event = await nostrService.publishSignedEvent(signed);
 
-            setPosts((prev) =>
-              prev.map((post) =>
-                post.id === localId
-                  ? {
-                      ...post,
-                      nostrEventId: event.id,
-                      id: event.id,
-                      syncStatus: 'synced',
-                      syncError: undefined,
-                    }
-                  : post,
-              ),
-            );
+            postOutboxStorageRemoveMatching(localId, event.id);
+            const syncedPost: Post = {
+              ...newPost,
+              nostrEventId: event.id,
+              id: event.id,
+              syncStatus: 'synced',
+              syncError: undefined,
+            };
+            ownPostsCacheUpsert(syncedPost);
+            setPosts((prev) => prev.map((post) => (post.id === localId ? syncedPost : post)));
           } catch (error) {
             logger.error('App', 'Failed to publish post to Nostr', error);
             const errMsg = error instanceof Error ? error.message : String(error);
 
+            postOutboxStorageUpsert({
+              ...newPost,
+              syncStatus: 'failed',
+              syncError: errMsg,
+            });
             setPosts((prev) =>
               prev.map((post) =>
                 post.id === localId ? { ...post, syncStatus: 'failed', syncError: errMsg } : post,
@@ -293,6 +302,8 @@ export function useAppPostMutationHandlers({
 
       setPosts((currentPosts) => currentPosts.filter((candidate) => candidate.id !== postId));
       bookmarkService.removeBookmark(postId);
+      postOutboxStorageRemoveMatching(postId, post.nostrEventId);
+      ownPostsCacheRemove(postId, post.nostrEventId ?? '');
       setEditingPostId(null);
       setViewMode(ViewMode.FEED);
 
@@ -361,6 +372,9 @@ export function useAppPostMutationHandlers({
         ),
       );
 
+      const pendingRetry = { ...post, syncStatus: 'pending' as const, syncError: undefined };
+      postOutboxStorageUpsert(pendingRetry);
+
       try {
         const targetBoard = boardsById.get(post.boardId);
         const geohash = targetBoard?.type === BoardType.GEOHASH ? targetBoard.geohash : undefined;
@@ -397,18 +411,17 @@ export function useAppPostMutationHandlers({
         const signed = await identityService.signEvent(unsigned);
         const event = await nostrService.publishSignedEvent(signed);
 
+        postOutboxStorageRemoveMatching(postId, event.id);
+        const retrySynced: Post = {
+          ...post,
+          nostrEventId: event.id,
+          id: event.id,
+          syncStatus: 'synced',
+          syncError: undefined,
+        };
+        ownPostsCacheUpsert(retrySynced);
         setPosts((prev) =>
-          prev.map((candidate) =>
-            candidate.id === postId
-              ? {
-                  ...candidate,
-                  nostrEventId: event.id,
-                  id: event.id,
-                  syncStatus: 'synced',
-                  syncError: undefined,
-                }
-              : candidate,
-          ),
+          prev.map((candidate) => (candidate.id === postId ? retrySynced : candidate)),
         );
 
         toastService.push({
@@ -421,6 +434,7 @@ export function useAppPostMutationHandlers({
         logger.error('App', 'Retry failed', error);
         const errMsg = error instanceof Error ? error.message : String(error);
 
+        postOutboxStorageUpsert({ ...post, syncStatus: 'failed', syncError: errMsg });
         setPosts((prev) =>
           prev.map((candidate) =>
             candidate.id === postId
@@ -494,6 +508,7 @@ export function useAppPostMutationHandlers({
 
       setPosts((prev) => [newPost, ...prev]);
       setViewMode(ViewMode.FEED);
+      postOutboxStorageUpsert(newPost);
 
       try {
         const geohash = targetBoard.type === BoardType.GEOHASH ? targetBoard.geohash : undefined;
@@ -537,6 +552,14 @@ export function useAppPostMutationHandlers({
           destinationBoardId,
         );
 
+        postOutboxStorageRemoveMatching(localId, event.id);
+        ownPostsCacheUpsert({
+          ...newPost,
+          nostrEventId: event.id,
+          id: event.id,
+          syncStatus: 'synced',
+          syncError: undefined,
+        });
         setPosts((prev) =>
           prev.map((post) =>
             post.id === localId
@@ -553,6 +576,7 @@ export function useAppPostMutationHandlers({
       } catch (error) {
         logger.error('App', 'Failed to seed post to BitBoard', error);
         const errMsg = error instanceof Error ? error.message : String(error);
+        postOutboxStorageUpsert({ ...newPost, syncStatus: 'failed', syncError: errMsg });
         setPosts((prev) =>
           prev.map((post) =>
             post.id === localId ? { ...post, syncStatus: 'failed', syncError: errMsg } : post,

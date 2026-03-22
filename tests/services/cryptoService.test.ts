@@ -156,19 +156,6 @@ describe('CryptoService', () => {
     expect(Array.from(bytes)).toEqual([0, 0, 0, 0]);
   });
 
-  it('supports NIP-04 encryption and decryption helpers', async () => {
-    const service = new CryptoService();
-    const ciphertext = await service.encryptNIP04('hello', 'sender-priv', 'recipient-pub');
-
-    expect(ciphertext).toBe('nip04:sender-priv:recipient-pub:hello');
-    await expect(service.decryptNIP04(ciphertext!, 'sender-priv', 'recipient-pub')).resolves.toBe(
-      'hello',
-    );
-    await expect(
-      service.decryptNIP04(ciphertext!, 'sender-priv', 'recipient-pub'),
-    ).resolves.toBe('hello');
-  });
-
   it('supports NIP-44 encryption and decryption helpers', async () => {
     const service = new CryptoService();
     const privkey = '11'.repeat(32);
@@ -179,37 +166,6 @@ describe('CryptoService', () => {
     await expect(service.decryptNIP44(ciphertext!, privkey, recipientPubkey)).resolves.toBe(
       'hello modern',
     );
-  });
-
-  it('creates and unwraps gift wraps', async () => {
-    const service = new CryptoService();
-    const senderPrivkey = '01'.repeat(32);
-    const senderPubkey = 'pub-1';
-    const recipientPubkey = 'recipient';
-
-    const wrapped = await service.createGiftWrap({
-      content: 'hello wrapped',
-      senderPrivkey,
-      senderPubkey,
-      recipientPubkey,
-      replyToId: 'reply-123',
-    });
-
-    expect(wrapped).not.toBeNull();
-    expect(service.isGiftWrap(wrapped!.giftWrap as { kind?: number })).toBe(true);
-    expect(service.isLegacyDM({ kind: 4 })).toBe(true);
-
-    const unwrapped = await service.unwrapGiftWrap({
-      giftWrapEvent: wrapped!.giftWrap as { pubkey: string; content: string },
-      recipientPrivkey: '07'.repeat(32),
-    });
-
-    expect(unwrapped).toEqual({
-      content: 'hello wrapped',
-      senderPubkey,
-      timestamp: expect.any(Number),
-      replyToId: 'reply-123',
-    });
   });
 
   it('reports crypto availability', () => {

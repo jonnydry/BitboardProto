@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Home, PlusSquare, Bookmark, Bell, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import { ViewMode } from '../../types';
-import { notificationService } from '../../services/notificationService';
 import { useUIStore } from '../../stores/uiStore';
 import { useUserStore } from '../../stores/userStore';
 import { useAppNavigationHandlers } from './useAppNavigationHandlers';
+import { useNotificationUnreadCount } from '../../hooks/useNotificationUnreadCount';
 
 export const MobileNav = React.memo(function MobileNav() {
   const viewMode = useUIStore((s) => s.viewMode);
@@ -13,17 +13,9 @@ export const MobileNav = React.memo(function MobileNav() {
   const identity = useUserStore((s) => s.userState.identity);
   const { navigateToBoard } = useAppNavigationHandlers();
 
-  const [unreadCount, setUnreadCount] = useState(0);
+  const unreadCount = useNotificationUnreadCount();
   const [lastHomeTap, setLastHomeTap] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  useEffect(() => {
-    const unsubscribe = notificationService.subscribe(() => {
-      setUnreadCount(notificationService.getUnreadCount());
-    });
-    setUnreadCount(notificationService.getUnreadCount());
-    return unsubscribe;
-  }, []);
 
   // Double-tap on HOME to scroll to top
   const handleHomeTap = useCallback(() => {

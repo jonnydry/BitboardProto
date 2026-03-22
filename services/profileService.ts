@@ -110,22 +110,30 @@ class ProfileService {
   }
 
   /**
-   * Get display name from profile metadata, with fallback logic
+   * Get display name from profile metadata, with fallback logic.
+   * For a 64-char hex pubkey, resolves via the Nostr profile cache; otherwise treats `pubkey` as an
+   * already-resolved label (e.g. post.author) and does not slice it like a pubkey prefix.
    */
   getDisplayName(pubkey: string, profile?: ProfileMetadata): string {
-    // Use nostrService's cached display name first
+    const isHexPubkey = /^[0-9a-f]{64}$/i.test(pubkey);
+    if (!isHexPubkey) {
+      if (profile?.display_name || profile?.name) {
+        return profile.display_name || profile.name || pubkey;
+      }
+      return pubkey;
+    }
+
     const cachedName = nostrService.getDisplayName(pubkey);
-    if (cachedName && cachedName !== pubkey.slice(0, 16) + '...') {
+    const pubkeyPrefixFallback = `${pubkey.slice(0, 8)}...`;
+    if (cachedName && cachedName !== pubkeyPrefixFallback) {
       return cachedName;
     }
 
-    // Fallback to profile metadata
     if (profile) {
-      return profile.display_name || profile.name || pubkey.slice(0, 16) + '...';
+      return profile.display_name || profile.name || pubkeyPrefixFallback;
     }
 
-    // Ultimate fallback
-    return pubkey.slice(0, 16) + '...';
+    return pubkeyPrefixFallback;
   }
 
   /**

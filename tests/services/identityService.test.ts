@@ -223,20 +223,6 @@ describe('identityService', () => {
     expect(signed.sig).toBe('2'.repeat(128));
   });
 
-  it('encrypts and decrypts DMs for local identities only', async () => {
-    const { identityService } = await loadIdentityModule();
-    const secret = generateSecretKey();
-    const counterparty = getPublicKey(secret);
-
-    await identityService.generateIdentity('Alice', 'correct horse battery staple');
-
-    const encrypted = await identityService.encryptDM('hello dm', counterparty);
-    const decrypted = await identityService.decryptDM(encrypted!, counterparty);
-
-    expect(encrypted).toBeTruthy();
-    expect(decrypted).toBe('hello dm');
-  });
-
   it('does not persist session identities across reloads', async () => {
     const { identityService } = await loadIdentityModule();
     const pubkey = '4'.repeat(64);

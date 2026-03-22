@@ -22,6 +22,7 @@ import {
   type NotificationPreferences,
   NotificationType,
 } from '../services/notificationService';
+import { useNotificationUnreadCount } from '../hooks/useNotificationUnreadCount';
 
 // ============================================
 // TYPES
@@ -44,13 +45,12 @@ export const NotificationCenterV2: React.FC<NotificationCenterProps> = ({
   const [filter, setFilter] = useState<NotificationType | 'all'>('all');
   const [showSettings, setShowSettings] = useState(false);
   const [isConfirmingClearAll, setIsConfirmingClearAll] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const unreadCount = useNotificationUnreadCount();
 
   const loadNotifications = useCallback(() => {
     const opts = filter === 'all' ? {} : { type: filter };
     setNotifications(notificationService.getAll({ ...opts, limit: 100 }));
-    setUnreadCount(notificationService.getUnreadCount());
   }, [filter]);
 
   // Load notifications
@@ -356,11 +356,6 @@ export const NotificationSettings: React.FC<{ onClose: () => void }> = ({ onClos
           onToggle={() => handleToggle('enableFollows')}
         />
         <SettingToggle
-          label="Direct messages"
-          enabled={prefs.enableDMs}
-          onToggle={() => handleToggle('enableDMs')}
-        />
-        <SettingToggle
           label="Votes (can be noisy)"
           enabled={prefs.enableVotes}
           onToggle={() => handleToggle('enableVotes')}
@@ -420,18 +415,7 @@ const SettingToggle: React.FC<{
 export const NotificationBadge: React.FC<{
   onClick: () => void;
 }> = ({ onClick }) => {
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  useEffect(() => {
-    const updateCount = () => {
-      setUnreadCount(notificationService.getUnreadCount());
-    };
-
-    updateCount();
-    const unsubscribe = notificationService.subscribe(updateCount);
-
-    return unsubscribe;
-  }, []);
+  const unreadCount = useNotificationUnreadCount();
 
   return (
     <button
@@ -461,8 +445,6 @@ function getTypeIcon(type: NotificationType) {
       return MessageCircle;
     case NotificationType.FOLLOW:
       return UserPlus;
-    case NotificationType.DIRECT_MESSAGE:
-      return MessageCircle;
     case NotificationType.VOTE:
       return Heart;
     case NotificationType.REPOST:
@@ -484,8 +466,6 @@ function getTypeLabel(type: NotificationType): string {
       return 'Replies';
     case NotificationType.FOLLOW:
       return 'Follows';
-    case NotificationType.DIRECT_MESSAGE:
-      return 'DMs';
     case NotificationType.VOTE:
       return 'Votes';
     case NotificationType.REPOST:
@@ -510,8 +490,6 @@ function getNotificationTitle(notification: Notification): string {
       return `${fromName} replied to your post`;
     case NotificationType.FOLLOW:
       return `${fromName} started following you`;
-    case NotificationType.DIRECT_MESSAGE:
-      return `New message from ${fromName}`;
     case NotificationType.VOTE:
       return `${fromName} voted on your post`;
     case NotificationType.REPOST:

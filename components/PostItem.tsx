@@ -30,7 +30,13 @@ import { BadgeDisplay } from './BadgeDisplay';
 import { TrustIndicator } from './TrustIndicator';
 import { usePostAuthorProfile } from './usePostAuthorProfile';
 import { useUIStore } from '../stores/uiStore';
-import { formatPostTime, isPostEncryptedWithoutKey } from './postItemUtils';
+import {
+  canVoteOnPost,
+  formatPostTime,
+  getPostVoteTitle,
+  isOwnPost,
+  isPostEncryptedWithoutKey,
+} from './postItemUtils';
 
 // Simple renderer for plain text content (no markdown)
 const PlainTextRenderer: React.FC<{ content: string }> = ({ content }) => (
@@ -93,6 +99,13 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   const { postRef, authorProfile, profileLoadState } = usePostAuthorProfile(post.authorPubkey);
   const moreActionsRef = React.useRef<HTMLDivElement | null>(null);
 
+  const authorDisplayName = useMemo(() => {
+    if (post.authorPubkey && profileLoadState === 'loading') {
+      return `${post.authorPubkey.slice(0, 8)}...`;
+    }
+    return profileService.getDisplayName(post.authorPubkey || post.author, authorProfile);
+  }, [post.author, post.authorPubkey, profileLoadState, authorProfile]);
+
   const handleReportClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -104,10 +117,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   );
 
   // Check if this is the user's own post
-  const isOwnPost = useMemo(() => {
-    if (!userState.identity) return false;
-    return post.authorPubkey === userState.identity.pubkey || post.author === userState.username;
-  }, [post.authorPubkey, post.author, userState.identity, userState.username]);
+  const ownPost = useMemo(() => isOwnPost(post, userState), [post, userState]);
 
   const handleBookmarkClick = useCallback(
     (e: React.MouseEvent) => {
@@ -344,20 +354,15 @@ const PostItemComponent: React.FC<PostItemProps> = ({
           <button
             onClick={handleVoteUp}
             className={`p-2 md:p-1 hover:bg-terminal-dim/10 transition-colors min-w-[40px] min-h-[40px] md:min-w-0 md:min-h-0 flex items-center justify-center ${isUpvoted ? 'text-terminal-text' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={!userState.identity}
+            disabled={!canVoteOnPost(userState, hasInvested)}
             aria-label="Upvote"
             aria-pressed={isUpvoted}
-            title={
-              !userState.identity
-                ? 'Connect identity to vote with bits'
-                : userState.bits <= 0 && !hasInvested
-                  ? 'No bits remaining today'
-                  : isUpvoted
-                    ? 'Retract upvote and refund 1 bit'
-                    : hasInvested
-                      ? 'Switch vote direction at no extra bit cost'
-                      : 'Spend 1 bit to upvote this post'
-            }
+            title={getPostVoteTitle({
+              direction: 'up',
+              userState,
+              isActive: isUpvoted,
+              hasInvested,
+            })}
           >
             <svg width="16" height="10" viewBox="0 0 12 8" className="md:w-4 md:h-3">
               <path
@@ -379,20 +384,15 @@ const PostItemComponent: React.FC<PostItemProps> = ({
           <button
             onClick={handleVoteDown}
             className={`p-2 md:p-1 hover:bg-terminal-dim/10 transition-colors min-w-[40px] min-h-[40px] md:min-w-0 md:min-h-0 flex items-center justify-center ${isDownvoted ? 'text-terminal-alert' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={!userState.identity}
+            disabled={!canVoteOnPost(userState, hasInvested)}
             aria-label="Downvote"
             aria-pressed={isDownvoted}
-            title={
-              !userState.identity
-                ? 'Connect identity to vote with bits'
-                : userState.bits <= 0 && !hasInvested
-                  ? 'No bits remaining today'
-                  : isDownvoted
-                    ? 'Retract downvote and refund 1 bit'
-                    : hasInvested
-                      ? 'Switch vote direction at no extra bit cost'
-                      : 'Spend 1 bit to downvote this post'
-            }
+            title={getPostVoteTitle({
+              direction: 'down',
+              userState,
+              isActive: isDownvoted,
+              hasInvested,
+            })}
           >
             <svg width="16" height="10" viewBox="0 0 12 8" className="md:w-4 md:h-3">
               <path
@@ -449,12 +449,13 @@ const PostItemComponent: React.FC<PostItemProps> = ({
         {/* Content Column */}
         <div className="flex min-w-0 flex-1 flex-col">
           {/* Split meta: left cluster wraps freely; time/actions stay readable (ml-auto in one row squishes badges) */}
-          <div className="mb-1 flex min-w-0 flex-col gap-2 text-sm text-terminal-dim sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-x-3 sm:gap-y-1">
-            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <div className="mb-1 flex min-w-0 flex-col gap-2 text-sm text-terminal-dim sm:flex-row sm:items-start sm:gap-x-4 sm:gap-y-1">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
               <button
+                type="button"
                 onClick={handleAuthorClick}
-                className="flex w-full min-w-0 items-center gap-1.5 font-bold text-terminal-dim transition-colors hover:text-terminal-text hover:underline sm:inline-flex sm:w-auto sm:shrink-0 cursor-pointer"
-                title={`View ${profileService.getDisplayName(post.author, authorProfile)}'s profile`}
+                className="flex w-full min-w-0 max-w-full cursor-pointer items-center gap-1.5 whitespace-normal text-left font-bold text-terminal-dim transition-colors hover:text-terminal-text hover:underline sm:inline-flex sm:min-w-0 sm:flex-1"
+                title={`View ${authorDisplayName}'s profile`}
               >
                 {/* Avatar with placeholder and fade-in */}
                 <div className="relative h-7 w-7 shrink-0">
@@ -484,13 +485,9 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 </div>
                 {/* Name with loading state */}
                 <span
-                  className={`min-w-0 flex-1 break-words text-left transition-opacity duration-200 sm:flex-none ${profileLoadState === 'loading' ? 'opacity-70' : 'opacity-100'}`}
+                  className={`min-w-0 flex-1 break-words text-left transition-opacity duration-200 sm:min-w-0 ${profileLoadState === 'loading' ? 'opacity-70' : 'opacity-100'}`}
                 >
-                  {profileLoadState === 'loaded'
-                    ? profileService.getDisplayName(post.author, authorProfile)
-                    : post.authorPubkey
-                      ? `${post.authorPubkey.slice(0, 8)}...`
-                      : post.author}
+                  {authorDisplayName}
                 </span>
               </button>
               <span className="inline-flex shrink-0 items-center">
@@ -526,7 +523,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                   <Lock size={10} /> Encrypted
                 </span>
               )}
-              {isOwnPost && onEditPost && (
+              {ownPost && onEditPost && (
                 <button
                   onClick={handleEditClick}
                   className="flex shrink-0 items-center gap-1 text-terminal-dim transition-colors hover:text-terminal-text"
@@ -536,7 +533,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                   <span className="text-sm">EDIT</span>
                 </button>
               )}
-              {isOwnPost && onDeletePost && (
+              {ownPost && onDeletePost && (
                 <button
                   onClick={handleDeleteClick}
                   className="flex shrink-0 items-center gap-1 text-terminal-dim transition-colors hover:text-terminal-alert"
@@ -553,14 +550,16 @@ const PostItemComponent: React.FC<PostItemProps> = ({
             {isEncryptedWithoutKey ? (
               <div className="mb-2 flex w-full min-w-0 items-center gap-2 text-terminal-dim">
                 <Lock size={18} />
-                <h3 className="text-2xl font-bold">[Encrypted - Access Required]</h3>
+                <h3 className="font-display text-lg font-normal leading-none tracking-[-0.02em] md:text-xl lg:text-3xl">
+                  [Encrypted - Access Required]
+                </h3>
               </div>
             ) : post.url ? (
               <a
                 href={post.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mb-1 block w-full min-w-0 cursor-pointer text-xl font-semibold font-display leading-snug text-terminal-text underline-offset-4 decoration-2 transition-colors [overflow-wrap:anywhere] break-words hover:underline sm:flex-1"
+                className="mb-1 block w-full min-w-0 cursor-pointer text-lg font-normal font-display leading-none tracking-[-0.02em] text-terminal-text underline-offset-4 decoration-2 transition-colors [overflow-wrap:anywhere] break-words hover:underline md:text-xl lg:text-3xl sm:flex-1"
               >
                 {post.title}
                 {post.isEncrypted && (
@@ -577,7 +576,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 onKeyDown={handleInteractionKeyDown}
                 tabIndex={0}
                 role="button"
-                className="mb-1 block w-full min-w-0 cursor-pointer select-none text-xl font-semibold font-display leading-snug text-terminal-text underline-offset-4 decoration-2 [overflow-wrap:anywhere] break-words hover:underline sm:flex-1"
+                className="mb-1 block w-full min-w-0 cursor-pointer select-none text-lg font-normal font-display leading-none tracking-[-0.02em] text-terminal-text underline-offset-4 decoration-2 [overflow-wrap:anywhere] break-words hover:underline md:text-xl lg:text-3xl sm:flex-1"
               >
                 {post.title}
                 {post.isEncrypted && (
@@ -702,7 +701,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                   className="absolute right-0 top-full z-20 mt-2 min-w-[190px] border border-terminal-dim bg-terminal-bg p-2 shadow-hard"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  {!isOwnPost && (
+                  {!ownPost && (
                     <button
                       onClick={(e) => {
                         handleReportClick(e);
@@ -716,7 +715,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                     </button>
                   )}
 
-                  {!isOwnPost && post.authorPubkey && onToggleMute && (
+                  {!ownPost && post.authorPubkey && onToggleMute && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

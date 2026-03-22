@@ -14,7 +14,6 @@ export function useAppNavigationHandlers() {
   const setSearchQuery = useUIStore((s) => s.setSearchQuery);
   const setProfileUser = useUIStore((s) => s.setProfileUser);
   const setEditingPostId = useUIStore((s) => s.setEditingPostId);
-  const openDesktopThreadModal = useUIStore((s) => s.openDesktopThreadModal);
   const setSelectedBitId = usePostStore((s) => s.setSelectedPostId);
   const setActiveBoardId = useBoardStore((s) => s.setActiveBoardId);
   const setLocationBoards = useBoardStore((s) => s.setLocationBoards);
@@ -22,14 +21,12 @@ export function useAppNavigationHandlers() {
   const handleViewBit = useCallback(
     (postId: string) => {
       setSelectedBitId(postId);
-      if (typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches) {
-        openDesktopThreadModal(postId);
-      } else {
-        setViewMode(ViewMode.SINGLE_BIT);
+      setViewMode(ViewMode.SINGLE_BIT);
+      if (typeof window !== 'undefined') {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     },
-    [openDesktopThreadModal, setSelectedBitId, setViewMode],
+    [setSelectedBitId, setViewMode],
   );
 
   const navigateToBoard = useCallback(

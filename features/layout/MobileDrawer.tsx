@@ -8,7 +8,6 @@ import {
   User,
   Settings,
   MapPin,
-  MessageSquare,
   Search,
   Key,
 } from 'lucide-react';
@@ -115,17 +114,6 @@ export const MobileDrawer = React.memo(function MobileDrawer({
       isActive: viewMode === ViewMode.DISCOVER_NOSTR,
       onClick: () => handleNavClick(() => onSetViewMode(ViewMode.DISCOVER_NOSTR)),
     },
-    ...(identity
-      ? [
-          {
-            id: 'messages',
-            icon: MessageSquare,
-            label: 'Direct Messages',
-            isActive: viewMode === ViewMode.DIRECT_MESSAGES,
-            onClick: () => handleNavClick(() => onSetViewMode(ViewMode.DIRECT_MESSAGES)),
-          },
-        ]
-      : []),
     {
       id: 'location',
       icon: MapPin,

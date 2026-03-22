@@ -9,6 +9,7 @@ import { zapService } from './zapService';
 
 export type DiscoveryTimeWindow = '24h' | '7d' | '30d';
 export type DiscoverySourceFilter = 'all' | 'community-approved' | 'general';
+export type DiscoveryRankingMode = 'breakout' | 'biggest';
 
 export interface SeedCandidate {
   id: string;
@@ -32,6 +33,7 @@ interface DiscoverSeedCandidatesOptions {
   timeWindow: DiscoveryTimeWindow;
   query?: string;
   sourceFilter?: DiscoverySourceFilter;
+  rankingMode?: DiscoveryRankingMode;
   limit?: number;
 }
 
@@ -62,72 +64,6 @@ class NostrDiscoveryService {
     /(^|\.)tenor\.com$/i,
     /(^|\.)giphy\.com$/i,
   ];
-  private readonly ENGLISH_STOPWORDS = new Set([
-    'the',
-    'and',
-    'a',
-    'an',
-    'to',
-    'of',
-    'in',
-    'on',
-    'is',
-    'be',
-    'as',
-    'at',
-    'for',
-    'with',
-    'this',
-    'that',
-    'from',
-    'are',
-    'was',
-    'were',
-    'have',
-    'has',
-    'had',
-    'you',
-    'your',
-    'about',
-    'into',
-    'their',
-    'there',
-    'would',
-    'could',
-    'should',
-    'what',
-    'when',
-    'where',
-    'why',
-    'how',
-    'which',
-    'because',
-    'while',
-    'after',
-    'before',
-    'more',
-    'most',
-    'some',
-    'many',
-    'over',
-    'under',
-    'between',
-    'than',
-    'then',
-    'also',
-    'only',
-    'just',
-    'still',
-    'like',
-    'new',
-    'will',
-    'can',
-    'not',
-    'but',
-    'out',
-    'who',
-    'all',
-  ]);
   private readonly SPAM_PATTERNS = [
     /signals?ia/i,
     /trade signals?/i,
@@ -236,53 +172,6 @@ class NostrDiscoveryService {
     return false;
   }
 
-  private isLikelyEnglishEvent(event: NostrEvent): boolean {
-    const langTag = event.tags.find((tag) => tag[0] === 'lang')?.[1]?.toLowerCase();
-    if (langTag && !langTag.startsWith('en')) {
-      return false;
-    }
-    const title = event.tags.find((tag) => tag[0] === 'title')?.[1] ?? '';
-    const tags = event.tags
-      .filter((tag) => tag[0] === 't')
-      .map((tag) => tag[1])
-      .join(' ');
-    return this.isLikelyEnglishText(`${title} ${event.content ?? ''} ${tags}`);
-  }
-
-  private isLikelyEnglishPost(post: Post): boolean {
-    return this.isLikelyEnglishText(`${post.title} ${post.content} ${post.tags.join(' ')}`);
-  }
-
-  private isLikelyEnglishText(input: string): boolean {
-    const text = input
-      .replace(/https?:\/\/\S+/g, ' ')
-      .replace(/nostr:[^\s]+/gi, ' ')
-      .replace(
-        /\b(?:npub|nprofile|note|naddr|nevent|nsec)1[023456789acdefghjklmnpqrstuvwxyz]+\b/gi,
-        ' ',
-      )
-      .trim();
-    if (!text) return false;
-
-    const nonAsciiChars = Array.from(text).filter((char) => char.charCodeAt(0) > 127).length;
-    if (nonAsciiChars / Math.max(text.length, 1) > 0.18) {
-      return false;
-    }
-
-    const words: string[] = text.toLowerCase().match(/[a-z']+/g) ?? [];
-    if (words.length < 5) {
-      return false;
-    }
-
-    const stopwordCount = words.filter((word) => this.ENGLISH_STOPWORDS.has(word)).length;
-    const stopwordRatio = stopwordCount / words.length;
-    if (stopwordCount >= 3 && stopwordRatio >= 0.08) {
-      return true;
-    }
-
-    return false;
-  }
-
   private mapGeneralEventToPost(event: NostrEvent): Post | null {
     if (event.kind !== NOSTR_KINDS.POST && event.kind !== NOSTR_KINDS.COMMUNITY_POST) return null;
     if (event.tags.some((tag) => tag[0] === 'client' && tag[1] === 'bitboard')) return null;
@@ -338,13 +227,13 @@ class NostrDiscoveryService {
     score += Math.min(titleLength / 20, 4);
     score += Math.min(tagCount, 4);
     score += Math.min(sentenceCount * 2, 8);
-    score += hasLink ? 8 : 0;
-    score += hasCommunityContext ? 6 : 0;
-    score += Math.min(zapCount * 1.5 + zapSats / 400, 12);
-    score += domainTrust === 'high' ? 8 : domainTrust === 'low' ? -4 : 0;
+    score += hasLink ? 6 : 0;
+    score += hasCommunityContext ? 5 : 0;
+    score += Math.min(zapCount * 2 + zapSats / 300, 18);
+    score += domainTrust === 'high' ? 5 : domainTrust === 'low' ? -2 : 0;
 
-    if (textLength < 45 && !hasLink) score -= 10;
-    if (textLength < 80 && tagCount === 0 && !hasCommunityContext) score -= 6;
+    if (textLength < 18 && !hasLink && tagCount === 0 && zapCount === 0) score -= 12;
+    if (textLength < 40 && tagCount === 0 && !hasCommunityContext && zapCount === 0) score -= 6;
     if (/^(thanks|nice|lol|yes|no|true|same|gm|gn|ok)[.! ]*$/i.test(post.content.trim()))
       score -= 12;
     if (this.looksLikeDirectoryOrDump(`${post.title}\n${post.content}`)) score -= 20;
@@ -362,64 +251,91 @@ class NostrDiscoveryService {
     if (!this.isWithinTimeWindow(post.timestamp, window)) return false;
     if (this.isJunkCandidate(post)) return false;
 
-    const domainTrust = this.getDomainTrust(this.getDomain(post.url));
     const qualityScore = this.scoreGeneralQuality(post, zapCount, zapSats);
-    const hasStrongEngagement = zapCount >= 3 || zapSats >= 500;
-    const hasStrongLink = !!post.url && post.content.trim().length >= 80;
-    const hasHighTrustLink = !!post.url && domainTrust === 'high';
-    const hasCommunityContext = !!post.communityAddress && post.content.trim().length >= 90;
-    const hasSubstantiveAnalysis = post.content.trim().length >= 180 && post.tags.length >= 2;
+    const hasAnySignal =
+      !!post.url ||
+      !!post.communityAddress ||
+      post.tags.length > 0 ||
+      post.title.trim().length >= 18 ||
+      post.content.trim().length >= 32 ||
+      zapCount > 0 ||
+      zapSats > 0;
 
-    return (
-      qualityScore >= this.GENERAL_QUALITY_THRESHOLD &&
-      (hasHighTrustLink ||
-        hasStrongLink ||
-        hasStrongEngagement ||
-        hasCommunityContext ||
-        hasSubstantiveAnalysis)
-    );
+    return qualityScore >= this.GENERAL_QUALITY_THRESHOLD - 8 && hasAnySignal;
   }
 
   private isEligibleCommunityApprovedPost(post: Post, window: DiscoveryTimeWindow): boolean {
     if (!this.isWithinTimeWindow(post.timestamp, window)) return false;
     if (this.isJunkCandidate(post)) return false;
 
-    const hasStrongLink = !!post.url && post.content.trim().length >= 70;
-    const hasStrongContext = post.content.trim().length >= 110 || post.tags.length >= 3;
-    const hasEditorialShape = post.title.trim().length >= 20 && post.content.trim().length >= 80;
+    const visibleContent = `${post.title} ${post.content}`.trim();
+    const hasSomeSignal =
+      !!post.url || post.tags.length > 0 || visibleContent.length >= 32 || post.score > 0;
 
-    return hasEditorialShape && (hasStrongLink || hasStrongContext);
+    return hasSomeSignal;
   }
 
-  private scoreCandidate(candidate: Omit<SeedCandidate, 'discoveryScore'>): number {
+  private getAgeHours(timestamp: number): number {
+    return Math.max(1, (Date.now() - timestamp) / (1000 * 60 * 60));
+  }
+
+  private getEngagementScore(candidate: Omit<SeedCandidate, 'discoveryScore'>): number {
+    return (
+      (candidate.zapCount ?? 0) * 5 +
+      (candidate.zapSats ?? 0) / 80 +
+      (candidate.approvalCount ?? 0) * 1.4 +
+      (candidate.recentApprovalCount ?? 0) * 3 +
+      candidate.post.commentCount * 2 +
+      Math.max(candidate.post.score, 0) * 1.5
+    );
+  }
+
+  private scoreCandidate(
+    candidate: Omit<SeedCandidate, 'discoveryScore'>,
+    rankingMode: DiscoveryRankingMode,
+  ): number {
     const now = Date.now();
-    const freshness =
+    const freshnessBase =
       trendingScore(
         candidate.post.score,
         candidate.post.commentCount,
         candidate.post.timestamp,
         now,
       ) * 100;
+    const ageHours = this.getAgeHours(candidate.post.timestamp);
+    const engagementScore = this.getEngagementScore(candidate);
     const contentBoost = Math.min(
       (candidate.post.title.length + candidate.post.content.length / 4) / 40,
-      8,
+      10,
     );
     const tagBoost = Math.min(candidate.post.tags.length, 4);
-    const communityContextBoost = candidate.post.communityAddress ? 8 : 0;
-    const sourceKindBoost = candidate.post.sourceEventKind === NOSTR_KINDS.COMMUNITY_POST ? 10 : 0;
+    const communityContextBoost = candidate.post.communityAddress ? 6 : 0;
+    const sourceKindBoost = candidate.post.sourceEventKind === NOSTR_KINDS.COMMUNITY_POST ? 6 : 0;
     const confidenceBoost =
-      candidate.confidence === 'high' ? 18 : candidate.confidence === 'medium' ? 9 : 0;
-    const zapBoost = Math.min((candidate.zapCount ?? 0) * 2 + (candidate.zapSats ?? 0) / 250, 24);
-    const linkBoost = candidate.post.url ? 14 : 0;
+      candidate.confidence === 'high' ? 10 : candidate.confidence === 'medium' ? 5 : 0;
+    const zapBoost = Math.min((candidate.zapCount ?? 0) * 2 + (candidate.zapSats ?? 0) / 250, 28);
+    const linkBoost = candidate.post.url ? 8 : 0;
     const domainTrust = this.getDomainTrust(this.getDomain(candidate.post.url));
-    const domainTrustBoost = domainTrust === 'high' ? 10 : domainTrust === 'low' ? -6 : 0;
+    const domainTrustBoost = domainTrust === 'high' ? 5 : domainTrust === 'low' ? -3 : 0;
     const approvalBoost =
       candidate.sourceType === 'community-approved'
-        ? 30 + (candidate.approvalCount ?? 0) * 1.5 + (candidate.recentApprovalCount ?? 0) * 3
+        ? 10 + (candidate.approvalCount ?? 0) * 1.2 + (candidate.recentApprovalCount ?? 0) * 2
         : 0;
 
+    const breakoutFreshness = Math.max(0, 72 - ageHours) * 2.2;
+    const breakoutMomentum = Math.min(engagementScore * 1.8, 90);
+    const breakoutDensity = Math.min((engagementScore / (ageHours + 2)) * 18, 110);
+
+    const biggestEngagement = Math.min(engagementScore * 3, 170);
+    const biggestRecency = Math.max(0, 48 - ageHours) * 0.8;
+
+    const rankingBoost =
+      rankingMode === 'breakout'
+        ? breakoutFreshness + breakoutMomentum + breakoutDensity + freshnessBase * 0.35
+        : biggestEngagement + biggestRecency + freshnessBase * 0.18;
+
     return (
-      freshness +
+      rankingBoost +
       contentBoost +
       tagBoost +
       communityContextBoost +
@@ -547,10 +463,7 @@ class NostrDiscoveryService {
         });
 
     const posts = events
-      .filter(
-        (event) =>
-          (!query || this.eventMatchesQuery(event, query)) && this.isLikelyEnglishEvent(event),
-      )
+      .filter((event) => !query || this.eventMatchesQuery(event, query))
       .map((event) => this.mapGeneralEventToPost(event))
       .filter((post): post is Post => post !== null);
 
@@ -604,7 +517,10 @@ class NostrDiscoveryService {
         whyTrending: [],
       };
       const hydrated = { ...normalized, whyTrending: this.buildWhyTrending(normalized) };
-      return { ...hydrated, discoveryScore: this.scoreCandidate(hydrated) };
+      return {
+        ...hydrated,
+        discoveryScore: this.scoreCandidate(hydrated, opts.rankingMode ?? 'breakout'),
+      };
     });
   }
 
@@ -629,7 +545,6 @@ class NostrDiscoveryService {
     return previewGroups.flatMap(({ community, posts }) =>
       posts
         .filter((post) => {
-          if (!this.isLikelyEnglishPost(post)) return false;
           if (!this.isEligibleCommunityApprovedPost(post, opts.timeWindow)) return false;
           if (!query) return true;
           const haystack =
@@ -654,7 +569,10 @@ class NostrDiscoveryService {
             whyTrending: [],
           };
           const hydrated = { ...normalized, whyTrending: this.buildWhyTrending(normalized) };
-          return { ...hydrated, discoveryScore: this.scoreCandidate(hydrated) };
+          return {
+            ...hydrated,
+            discoveryScore: this.scoreCandidate(hydrated, opts.rankingMode ?? 'breakout'),
+          };
         }),
     );
   }

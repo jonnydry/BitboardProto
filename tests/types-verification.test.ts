@@ -15,30 +15,30 @@ import {
   SortMode,
   ThemeId,
   ReportType,
-  
+
   // NOSTR_KINDS constant
   NOSTR_KINDS,
-  
+
   // Zap types (NIP-57)
   type ZapReceipt,
   type ZapTally,
   type LNURLPayResponse,
-  
+
   // Badge types (NIP-58)
   type BadgeDefinition,
   type BadgeAward,
   type ProfileBadge,
-  
+
   // List types (NIP-51)
   type NostrList,
-  
+
   // Community types (NIP-72)
   type Community,
   type CommunityApproval,
-  
+
   // Live Event types (NIP-53)
   type LiveEvent,
-  
+
   // WoT types
   type WoTScore,
 } from '../types';
@@ -63,7 +63,7 @@ describe('Types.ts Exports', () => {
       expect(mockPost.id).toBeDefined();
       expect(mockPost.boardId).toBeDefined();
       expect(mockPost.title).toBeDefined();
-      
+
       // Optional NIP-57 zap fields
       const postWithZaps: Post = {
         ...mockPost,
@@ -81,7 +81,7 @@ describe('Types.ts Exports', () => {
         timestamp: Date.now(),
       };
       expect(mockComment.id).toBeDefined();
-      
+
       // Optional voting fields
       const commentWithVotes: Comment = {
         ...mockComment,
@@ -112,7 +112,6 @@ describe('Types.ts Exports', () => {
       expect(NOSTR_KINDS.METADATA).toBe(0);
       expect(NOSTR_KINDS.POST).toBe(1);
       expect(NOSTR_KINDS.CONTACT_LIST).toBe(3);
-      expect(NOSTR_KINDS.ENCRYPTED_DM).toBe(4);
       expect(NOSTR_KINDS.DELETE).toBe(5);
       expect(NOSTR_KINDS.REACTION).toBe(7);
       expect(NOSTR_KINDS.REPORT).toBe(1984);
@@ -149,12 +148,6 @@ describe('Types.ts Exports', () => {
     it('has NIP-53 live event kinds', () => {
       expect(NOSTR_KINDS.LIVE_EVENT).toBe(30311);
       expect(NOSTR_KINDS.LIVE_CHAT).toBe(1311);
-    });
-
-    it('has NIP-17 private DM kinds', () => {
-      expect(NOSTR_KINDS.SEAL).toBe(13);
-      expect(NOSTR_KINDS.PRIVATE_DM).toBe(14);
-      expect(NOSTR_KINDS.GIFT_WRAP).toBe(1059);
     });
   });
 
@@ -310,7 +303,6 @@ describe('Types.ts Exports', () => {
     it('ViewMode has expected values', () => {
       expect(ViewMode.FEED).toBe('FEED');
       expect(ViewMode.CREATE).toBe('CREATE');
-      expect(ViewMode.DIRECT_MESSAGES).toBe('DIRECT_MESSAGES');
     });
 
     it('SortMode has expected values', () => {

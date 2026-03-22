@@ -99,8 +99,29 @@ describe('NostrDiscoveryBrowser', () => {
     );
 
     await waitFor(() => expect(mocks.discoverSeedCandidates).toHaveBeenCalled());
-    fireEvent.click(screen.getByText('Communities (Secondary)'));
+    fireEvent.click(screen.getByText('Communities'));
     expect(await screen.findByText('Embedded Communities Browser')).toBeInTheDocument();
+  });
+
+  it('switches to biggest posts mode and reloads discovery', async () => {
+    render(
+      <NostrDiscoveryBrowser
+        externalCommunities={[]}
+        onNavigateToBoard={vi.fn()}
+        onJoinNostrCommunity={vi.fn(async () => 'joined-id')}
+        onClose={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(mocks.discoverSeedCandidates).toHaveBeenCalled());
+    fireEvent.click(screen.getByText('Biggest Posts'));
+
+    await waitFor(() =>
+      expect(mocks.discoverSeedCandidates).toHaveBeenLastCalledWith(
+        expect.objectContaining({ rankingMode: 'biggest' }),
+      ),
+    );
+    expect(screen.getByText(/highest-performing posts across nostr/i)).toBeInTheDocument();
   });
 
   it('shows diagnostics when expanded', async () => {

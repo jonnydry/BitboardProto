@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useCallback, useMemo, useEffect, useState } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useCallback,
+  useMemo,
+  useEffect,
+  useState,
+  useRef,
+} from 'react';
 import {
   Post,
   UserState,
@@ -37,6 +45,7 @@ import { communityService } from '../../services/communityService';
 import { votingService } from '../../services/votingService';
 import { useUserStoreEffects, useUserStore } from '../../stores/userStore';
 import { seedRateLimiter } from '../../services/seedRateLimiter';
+import { ownPostsCacheReadAll, postOutboxStorageReadAll } from '../../services/postOutboxStorage';
 
 interface AppContextType {
   // State
@@ -201,6 +210,31 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     setReportedPostIds(reportService.getReportsByType('post').map((r) => r.targetId));
   }, [setBookmarkedIds, setReportedPostIds]);
 
+  // Hydrate own published posts + pending/failed outbox so they survive page reloads.
+  // Nostr fetch remains the authoritative source once connected; this is just an instant
+  // local fallback so the user always sees their own content immediately on load.
+  const localHydratedRef = useRef(false);
+  useEffect(() => {
+    if (localHydratedRef.current) return;
+    localHydratedRef.current = true;
+
+    const outbox = postOutboxStorageReadAll(); // pending / failed
+    const ownPosts = ownPostsCacheReadAll(); // synced own posts
+
+    const combined = [...outbox, ...ownPosts];
+    if (combined.length === 0) return;
+
+    setPosts((prev) => {
+      const existing = new Set(
+        prev.flatMap((p) => [p.id, p.nostrEventId].filter(Boolean) as string[]),
+      );
+      const toAdd = combined.filter(
+        (p) => !existing.has(p.id) && !(p.nostrEventId && existing.has(p.nostrEventId)),
+      );
+      return toAdd.length > 0 ? [...toAdd, ...prev] : prev;
+    });
+  }, [setPosts]);
+
   const postsById = useMemo(() => {
     const map = new Map<string, Post>();
     posts.forEach((post) => map.set(post.id, post));
@@ -229,43 +263,74 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     return boards.filter((board) => board.source === 'nostr-community');
   }, [boards]);
 
-  const postsCtx = {
-    posts,
-    postsById,
-    setPosts,
-    markPostAccessed,
-  };
+  const postsCtx = useMemo(
+    () => ({
+      posts,
+      postsById,
+      setPosts,
+      markPostAccessed,
+    }),
+    [posts, postsById, setPosts, markPostAccessed],
+  );
 
-  const boardsCtx = {
-    boards,
-    locationBoards,
-    activeBoardId,
-    boardsById,
-    topicBoards,
-    activeBoard,
-    setBoards,
-    setLocationBoards,
-    setActiveBoardId,
-  };
+  const boardsCtx = useMemo(
+    () => ({
+      boards,
+      locationBoards,
+      activeBoardId,
+      boardsById,
+      topicBoards,
+      activeBoard,
+      setBoards,
+      setLocationBoards,
+      setActiveBoardId,
+    }),
+    [
+      boards,
+      locationBoards,
+      activeBoardId,
+      boardsById,
+      topicBoards,
+      activeBoard,
+      setBoards,
+      setLocationBoards,
+      setActiveBoardId,
+    ],
+  );
 
-  const uiCtx = {
-    viewMode,
-    theme,
-    searchQuery,
-    sortMode,
-    profileUser,
-    editingPostId,
-    setViewMode,
-    setEditingPostId,
-  };
+  const uiCtx = useMemo(
+    () => ({
+      viewMode,
+      theme,
+      searchQuery,
+      sortMode,
+      profileUser,
+      editingPostId,
+      setViewMode,
+      setEditingPostId,
+    }),
+    [
+      viewMode,
+      theme,
+      searchQuery,
+      sortMode,
+      profileUser,
+      editingPostId,
+      setViewMode,
+      setEditingPostId,
+    ],
+  );
 
-  const userCtx = {
-    userState,
-    setUserState,
-    toggleMute,
-    isMuted,
-    handleIdentityChange,
-  };
+  const userCtx = useMemo(
+    () => ({
+      userState,
+      setUserState,
+      toggleMute,
+      isMuted,
+      handleIdentityChange,
+    }),
+    [userState, setUserState, toggleMute, isMuted, handleIdentityChange],
+  );
 
   const seedableBoards = useMemo(
     () => [...boards.filter((board) => board.isPublic && !board.isReadOnly), ...locationBoards],
@@ -276,7 +341,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     const pubkey = userCtx.userState.identity?.pubkey;
     if (!pubkey) return seedRateLimiter.getLimit();
     return seedRateLimiter.canSeed(pubkey).remaining;
-  }, [userCtx.userState.identity?.pubkey, posts]);
+  }, [userCtx.userState.identity?.pubkey]);
 
   const handleToggleBookmark = useCallback(
     async (postId: string) => {
@@ -378,8 +443,8 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
 
     setSeedIdentityPromptPost(null);
     setSeedSourcePost(seedIdentityPromptPost);
-    uiCtx.setViewMode(ViewMode.FEED);
-  }, [seedIdentityPromptPost, uiCtx.setViewMode, userCtx.userState.identity]);
+    setViewMode(ViewMode.FEED);
+  }, [seedIdentityPromptPost, setViewMode, userCtx.userState.identity]);
 
   // Get relay hint helper
   const getRelayHint = useCallback(() => {
@@ -588,6 +653,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Nostr feed hook with focused context setters
   const { isInitialLoading } = useNostrFeed({
+    activeBoard: boardsCtx.activeBoard,
     setPosts: postsCtx.setPosts,
     setBoards: boardsCtx.setBoards,
     setIsNostrConnected,
@@ -613,6 +679,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
   const eventHandlers = useAppEventHandlers({
     setPosts: postsCtx.setPosts,
     boards: boardsCtx.boards,
+    activeBoard: boardsCtx.activeBoard,
     setBoards: boardsCtx.setBoards,
     boardsById: boardsCtx.boardsById,
     postsById: postsCtx.postsById,
@@ -766,27 +833,21 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
       loaderRef,
       isLoadingMore,
       isInitialLoading,
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }),
     [
       postsCtx.posts,
       postsCtx.postsById,
-      postsCtx.setPosts,
-      postsCtx.markPostAccessed,
       boardsCtx.boards,
       boardsCtx.locationBoards,
       boardsCtx.activeBoardId,
       boardsCtx.topicBoards,
       boardsCtx.activeBoard,
-      boardsCtx.setBoards,
       boardsCtx.setLocationBoards,
-      boardsCtx.setActiveBoardId,
       uiCtx.viewMode,
       theme,
       uiCtx.profileUser,
       uiCtx.editingPostId,
       uiCtx.setViewMode,
-      uiCtx.setEditingPostId,
       userCtx.userState,
       userCtx.toggleMute,
       userCtx.isMuted,

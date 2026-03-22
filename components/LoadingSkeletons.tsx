@@ -8,14 +8,11 @@ import React, { memo } from 'react';
 /**
  * Base skeleton component with animation
  */
-const SkeletonBase = memo<{ 
-  className?: string; 
+const SkeletonBase = memo<{
+  className?: string;
   style?: React.CSSProperties;
 }>(({ className = '', style }) => (
-  <div 
-    className={`animate-pulse bg-terminal-dim/20 ${className}`}
-    style={style}
-  />
+  <div className={`animate-pulse bg-terminal-dim/20 ${className}`} style={style} />
 ));
 SkeletonBase.displayName = 'SkeletonBase';
 
@@ -31,7 +28,7 @@ export const PostSkeleton = memo(() => (
         <SkeletonBase className="w-8 h-4" />
         <SkeletonBase className="w-6 h-6 rounded" />
       </div>
-      
+
       {/* Content */}
       <div className="flex-1 space-y-3">
         {/* Meta */}
@@ -40,14 +37,14 @@ export const PostSkeleton = memo(() => (
           <SkeletonBase className="w-24 h-3" />
           <SkeletonBase className="w-12 h-3" />
         </div>
-        
+
         {/* Title */}
         <SkeletonBase className="w-3/4 h-6" />
-        
+
         {/* Content */}
         <SkeletonBase className="w-full h-4" />
         <SkeletonBase className="w-5/6 h-4" />
-        
+
         {/* Tags & actions */}
         <div className="flex justify-between items-center pt-2 border-t border-terminal-dim/20">
           <div className="flex gap-2">
@@ -78,10 +75,7 @@ FeedSkeleton.displayName = 'FeedSkeleton';
  * Comment skeleton
  */
 export const CommentSkeleton = memo<{ depth?: number }>(({ depth = 0 }) => (
-  <div 
-    className="border-l-2 border-terminal-dim/30 pl-3 py-2"
-    style={{ marginLeft: depth * 16 }}
-  >
+  <div className="border-l-2 border-terminal-dim/30 pl-3 py-2" style={{ marginLeft: depth * 16 }}>
     <div className="flex gap-2 items-center mb-2">
       <SkeletonBase className="w-4 h-4 rounded-full" />
       <SkeletonBase className="w-20 h-3" />
@@ -131,40 +125,6 @@ export const NotificationListSkeleton = memo<{ count?: number }>(({ count = 5 })
   </div>
 ));
 NotificationListSkeleton.displayName = 'NotificationListSkeleton';
-
-/**
- * DM conversation skeleton
- */
-export const DMConversationSkeleton = memo(() => (
-  <div className="p-4 space-y-4">
-    {/* Incoming message */}
-    <div className="flex gap-2">
-      <SkeletonBase className="w-8 h-8 rounded-full" />
-      <div className="space-y-1">
-        <SkeletonBase className="w-48 h-12 rounded-lg" />
-        <SkeletonBase className="w-12 h-2" />
-      </div>
-    </div>
-    
-    {/* Outgoing message */}
-    <div className="flex gap-2 justify-end">
-      <div className="space-y-1 items-end">
-        <SkeletonBase className="w-40 h-8 rounded-lg" />
-        <SkeletonBase className="w-12 h-2 ml-auto" />
-      </div>
-    </div>
-    
-    {/* Another incoming */}
-    <div className="flex gap-2">
-      <SkeletonBase className="w-8 h-8 rounded-full" />
-      <div className="space-y-1">
-        <SkeletonBase className="w-56 h-16 rounded-lg" />
-        <SkeletonBase className="w-12 h-2" />
-      </div>
-    </div>
-  </div>
-));
-DMConversationSkeleton.displayName = 'DMConversationSkeleton';
 
 /**
  * Board card skeleton
@@ -252,15 +212,14 @@ PageSkeleton.displayName = 'PageSkeleton';
 /**
  * Inline loading spinner
  */
-export const InlineSpinner = memo<{ size?: number; className?: string }>(({ 
-  size = 16, 
-  className = '' 
-}) => (
-  <div 
-    className={`inline-block border border-terminal-dim rounded-full animate-spin border-t-transparent ${className}`}
-    style={{ width: size, height: size }}
-  />
-));
+export const InlineSpinner = memo<{ size?: number; className?: string }>(
+  ({ size = 16, className = '' }) => (
+    <div
+      className={`inline-block border border-terminal-dim rounded-full animate-spin border-t-transparent ${className}`}
+      style={{ width: size, height: size }}
+    />
+  ),
+);
 InlineSpinner.displayName = 'InlineSpinner';
 
 /**
@@ -322,21 +281,17 @@ export const LoadingPhaseIndicator = memo<{
             <div
               key={phase}
               className={`flex items-center gap-2 transition-colors ${
-                isComplete ? 'text-terminal-text' :
-                isActive ? 'text-terminal-text' :
-                'text-terminal-dim/70'
+                isComplete
+                  ? 'text-terminal-text'
+                  : isActive
+                    ? 'text-terminal-text'
+                    : 'text-terminal-dim/70'
               }`}
             >
-              <span className="w-4 text-center">
-                {isComplete ? '✓' : isActive ? '>' : ' '}
-              </span>
-              <span className={isActive ? 'animate-pulse' : ''}>
-                {PHASE_LABELS[phase].label}
-              </span>
+              <span className="w-4 text-center">{isComplete ? '✓' : isActive ? '>' : ' '}</span>
+              <span className={isActive ? 'animate-pulse' : ''}>{PHASE_LABELS[phase].label}</span>
               {isActive && (
-                <span className="text-terminal-dim ml-auto">
-                  {PHASE_LABELS[phase].description}
-                </span>
+                <span className="text-terminal-dim ml-auto">{PHASE_LABELS[phase].description}</span>
               )}
             </div>
           );
@@ -374,7 +329,6 @@ export default {
   CommentThreadSkeleton,
   NotificationSkeleton,
   NotificationListSkeleton,
-  DMConversationSkeleton,
   BoardCardSkeleton,
   BoardListSkeleton,
   SearchResultSkeleton,

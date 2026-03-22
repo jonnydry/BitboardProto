@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { ToastHost } from './components/ToastHost';
 import { SEOHead } from './components/SEOHead';
 import { KeyboardShortcutsHelp } from './components/KeyboardShortcutsHelp';
@@ -16,6 +16,8 @@ import {
 import { MobileNav } from './features/layout/MobileNav';
 import { MobileDrawer } from './features/layout/MobileDrawer';
 import { MemoizedFeedView as FeedView } from './features/feed/FeedView';
+import { FeedEndMarker } from './features/feed/feedParts';
+import { FeedNewBitFab } from './features/feed/FeedNewBitFab';
 import { NotificationCenterV2 } from './components/NotificationCenterV2';
 import { PostDetailPage } from './components/PostDetailPage';
 import { SeedToBitBoardModal } from './components/SeedToBitBoardModal';
@@ -33,9 +35,11 @@ import {
   readSessionPassphrase,
   writeSessionPassphrase,
 } from './services/sessionPassphrase';
-import { useUIStore, useDesktopThreadPostId } from './stores/uiStore';
+import { useUIStore } from './stores/uiStore';
 import { useUserStore } from './stores/userStore';
 import { usePostStore } from './stores/postStore';
+import { useBoardStore } from './stores/boardStore';
+import { navigateFromNotificationDeepLink } from './features/layout/appDeepLinks';
 
 // Lazy load components that are only used in specific views
 const IdentityManager = lazy(() =>
@@ -81,9 +85,6 @@ const PrivacyPolicy = lazy(() =>
 const TermsOfService = lazy(() =>
   import('./components/TermsOfService').then((module) => ({ default: module.TermsOfService })),
 );
-const DirectMessages = lazy(() =>
-  import('./components/DirectMessages').then((module) => ({ default: module.DirectMessages })),
-);
 const About = lazy(() =>
   import('./components/About').then((module) => ({ default: module.About })),
 );
@@ -96,7 +97,6 @@ import {
   UserProfileSkeleton as _UserProfileSkeleton,
   BoardListSkeleton as _BoardListSkeleton,
   NotificationListSkeleton as _NotificationListSkeleton,
-  DMConversationSkeleton as _DMConversationSkeleton,
   PageSkeleton as _PageSkeleton,
 } from './components/LoadingSkeletons';
 
@@ -238,23 +238,31 @@ const AppContent: React.FC = () => {
   const [unlockError, setUnlockError] = useState<string | null>(null);
   const [isUnlockingIdentity, setIsUnlockingIdentity] = useState(false);
   const [rememberSessionUnlock, setRememberSessionUnlock] = useState(false);
-  const [notificationDmTargetPubkey, setNotificationDmTargetPubkey] = useState<
-    string | undefined
-  >();
   const [identityEntryIntent, setIdentityEntryIntent] = useState<'generate' | 'import' | null>(
     null,
   );
   const [lastNonComposeViewMode, setLastNonComposeViewMode] = useState<ViewMode>(ViewMode.FEED);
   const keyboardModalStateRef = React.useRef({ showKeyboardHelp: false, showOnboarding: false });
   const navigateToBoard = app.navigateToBoard;
-  const setViewMode = app.setViewMode;
+  const setSelectedBitId = usePostStore((s) => s.setSelectedPostId);
+  const setActiveBoardId = useBoardStore((s) => s.setActiveBoardId);
+  const setProfileUser = useUIStore((s) => s.setProfileUser);
   const bookmarkedIds = useUIStore((s) => s.bookmarkedIds);
   const reportedPostIds = useUIStore((s) => s.reportedPostIds);
-  const desktopThreadPostId = useDesktopThreadPostId();
-  const closeDesktopThreadModal = useUIStore((s) => s.closeDesktopThreadModal);
-  const setSelectedBitId = usePostStore((s) => s.setSelectedPostId);
+  const hasMorePosts = useUIStore((s) => s.hasMorePosts);
   const showCreatePostModal = isDesktop && app.viewMode === ViewMode.CREATE;
   const mainViewMode = showCreatePostModal ? lastNonComposeViewMode : app.viewMode;
+
+  const showFeedEndIntegrated = useMemo(() => {
+    const canPaginate = !app.activeBoard || app.activeBoard.source !== 'nostr-community';
+    const showHasMore = hasMorePosts && canPaginate;
+    return (
+      mainViewMode === ViewMode.FEED &&
+      !app.isInitialLoading &&
+      app.sortedPosts.length > 0 &&
+      !showHasMore
+    );
+  }, [mainViewMode, app.isInitialLoading, app.sortedPosts.length, app.activeBoard, hasMorePosts]);
 
   useEffect(() => {
     keyboardModalStateRef.current = { showKeyboardHelp, showOnboarding };
@@ -286,50 +294,6 @@ const AppContent: React.FC = () => {
 
     return () => mediaQuery.removeEventListener('change', syncDesktopNavState);
   }, []);
-
-  useEffect(() => {
-    if (isDesktop || !desktopThreadPostId) return;
-
-    closeDesktopThreadModal();
-    setViewMode(ViewMode.SINGLE_BIT);
-  }, [closeDesktopThreadModal, desktopThreadPostId, isDesktop, setViewMode]);
-
-  const handleCloseDesktopThreadModal = React.useCallback(() => {
-    closeDesktopThreadModal();
-    setSelectedBitId(null);
-  }, [closeDesktopThreadModal, setSelectedBitId]);
-
-  const handleDesktopThreadViewProfile = React.useCallback(
-    (username: string, pubkey?: string) => {
-      handleCloseDesktopThreadModal();
-      app.handleViewProfile(username, pubkey);
-    },
-    [app, handleCloseDesktopThreadModal],
-  );
-
-  const handleDesktopThreadEditPost = React.useCallback(
-    (postId: string) => {
-      handleCloseDesktopThreadModal();
-      app.handleEditPost(postId);
-    },
-    [app, handleCloseDesktopThreadModal],
-  );
-
-  const handleDesktopThreadTagClick = React.useCallback(
-    (tag: string) => {
-      handleCloseDesktopThreadModal();
-      app.handleTagClick(tag);
-    },
-    [app, handleCloseDesktopThreadModal],
-  );
-
-  const handleDesktopThreadDeletePost = React.useCallback(
-    (postId: string) => {
-      handleCloseDesktopThreadModal();
-      app.handleDeletePost(postId);
-    },
-    [app, handleCloseDesktopThreadModal],
-  );
 
   useEffect(() => {
     let cancelled = false;
@@ -561,45 +525,18 @@ const AppContent: React.FC = () => {
   };
 
   useEffect(() => {
-    if (app.viewMode !== ViewMode.DIRECT_MESSAGES) {
-      setNotificationDmTargetPubkey(undefined);
-    }
-  }, [app.viewMode]);
-
-  useEffect(() => {
     if (app.viewMode !== ViewMode.IDENTITY) {
       setIdentityEntryIntent(null);
     }
   }, [app.viewMode]);
 
   const handleNotificationNavigate = (deepLink: Notification['deepLink']) => {
-    if (!deepLink?.viewMode) return;
-
-    if (deepLink.viewMode === ViewMode.SINGLE_BIT && deepLink.postId) {
-      if (deepLink.boardId) {
-        app.setActiveBoardId(deepLink.boardId);
-      }
-      app.setSelectedBitId(deepLink.postId);
-      app.setViewMode(ViewMode.SINGLE_BIT);
-      return;
-    }
-
-    if (deepLink.viewMode === ViewMode.USER_PROFILE && deepLink.pubkey) {
-      const fallbackUsername = `${deepLink.pubkey.slice(0, 8)}...`;
-      app.setProfileUser({ username: fallbackUsername, pubkey: deepLink.pubkey });
-      app.setViewMode(ViewMode.USER_PROFILE);
-      return;
-    }
-
-    if (deepLink.viewMode === ViewMode.DIRECT_MESSAGES) {
-      setNotificationDmTargetPubkey(deepLink.pubkey);
-      app.setViewMode(ViewMode.DIRECT_MESSAGES);
-      return;
-    }
-
-    if (Object.values(ViewMode).includes(deepLink.viewMode as ViewMode)) {
-      app.setViewMode(deepLink.viewMode as ViewMode);
-    }
+    navigateFromNotificationDeepLink(deepLink, {
+      setActiveBoardId,
+      setSelectedBitId,
+      setProfileUser,
+      setViewMode: app.setViewMode,
+    });
   };
 
   return (
@@ -641,7 +578,7 @@ const AppContent: React.FC = () => {
         {/* Privacy Consent Banner */}
         <ConsentBanner />
         {/* Scanline Overlay */}
-        <div className="scanlines fixed inset-0 pointer-events-none z-40"></div>
+        <div className="scanlines fixed inset-0 pointer-events-none z-[130]"></div>
 
         {/* Mobile Drawer */}
         <MobileDrawer
@@ -709,7 +646,7 @@ const AppContent: React.FC = () => {
           />
         </DesktopNavChrome>
 
-        <div className="relative z-10 mx-auto max-w-[1174px] px-4 py-3 pb-20 md:px-6 md:py-6 md:pb-6">
+        <div className="relative z-10 mx-auto max-w-[1174px] px-4 py-3 pb-28 md:px-6 md:py-6 md:pb-2">
           <AppHeader onOpenDrawer={() => setIsDrawerOpen(true)} />
 
           <div className="grid grid-cols-1 gap-4 py-[5px]">
@@ -738,7 +675,7 @@ const AppContent: React.FC = () => {
               )}
 
               {/* Single Post View */}
-              {mainViewMode === ViewMode.SINGLE_BIT && !isDesktop && (
+              {mainViewMode === ViewMode.SINGLE_BIT && (
                 <div className="animate-fade-in">
                   {app.selectedPost ? (
                     <PostDetailPage
@@ -757,6 +694,7 @@ const AppContent: React.FC = () => {
                       onTagClick={app.handleTagClick}
                       onToggleBookmark={app.handleToggleBookmark}
                       onSeedPost={app.requestSeedPost}
+                      onRetryPost={app.handleRetryPost}
                       onBack={app.returnToFeed}
                       isBookmarked={bookmarkedIds.includes(app.selectedPost.id)}
                       hasReported={reportedPostIds.includes(app.selectedPost.id)}
@@ -930,19 +868,65 @@ const AppContent: React.FC = () => {
                   <Settings />
                 </Suspense>
               )}
-              {/* Direct Messages View */}
-              {mainViewMode === ViewMode.DIRECT_MESSAGES && app.userState.identity?.pubkey && (
-                <Suspense fallback={<LoadingFallback />}>
-                  <DirectMessages
-                    userPubkey={app.userState.identity.pubkey}
-                    initialConversationPubkey={notificationDmTargetPubkey}
-                    onClose={() => app.setViewMode(ViewMode.FEED)}
-                  />
-                </Suspense>
-              )}
             </main>
           </div>
+
+          <footer
+            className={`hidden border-t border-terminal-text/45 text-center text-terminal-dim text-xs pt-8 pb-10 md:block ${
+              mainViewMode === ViewMode.FEED ? 'md:mt-44' : 'md:mt-10'
+            }`}
+          >
+            {showFeedEndIntegrated && (
+              <div className="mb-6 flex justify-center">
+                <FeedEndMarker />
+              </div>
+            )}
+            <div className="mb-2">
+              BitBoard NOSTR PROTOCOL V3.0 // RELAYS: {nostrService.getRelays().length} // NODES
+              ACTIVE: {(app.boards?.length ?? 0) + (app.locationBoards?.length ?? 0)}
+            </div>
+            <div className="flex items-center justify-center gap-4">
+              <button
+                onClick={() => app.setViewMode(ViewMode.ABOUT)}
+                className="group flex items-center gap-1.5 hover:text-terminal-text transition-colors underline"
+              >
+                <span
+                  className="inline-block w-[26px] h-[26px] shrink-0 bg-terminal-dim group-hover:bg-terminal-text transition-colors"
+                  style={{
+                    maskImage: "url('/assets/bitboard-logo.png')",
+                    WebkitMaskImage: "url('/assets/bitboard-logo.png')",
+                    maskSize: 'contain',
+                    WebkitMaskSize: 'contain',
+                    maskRepeat: 'no-repeat',
+                    WebkitMaskRepeat: 'no-repeat',
+                    maskPosition: 'center',
+                    WebkitMaskPosition: 'center',
+                  }}
+                />
+                About
+              </button>
+              <span>•</span>
+              <button
+                onClick={() => app.setViewMode(ViewMode.PRIVACY_POLICY)}
+                className="hover:text-terminal-text transition-colors underline"
+              >
+                Privacy Policy
+              </button>
+              <span>•</span>
+              <button
+                onClick={() => app.setViewMode(ViewMode.TERMS_OF_SERVICE)}
+                className="hover:text-terminal-text transition-colors underline"
+              >
+                Terms of Service
+              </button>
+            </div>
+          </footer>
         </div>
+
+        <FeedNewBitFab
+          visible={mainViewMode === ViewMode.FEED && !showCreatePostModal}
+          onNewBit={() => app.setViewMode(ViewMode.CREATE)}
+        />
 
         {app.seedIdentityPromptPost && (
           <SeedIdentityRequiredModal
@@ -974,8 +958,8 @@ const AppContent: React.FC = () => {
         <AppModal
           isOpen={showCreatePostModal}
           onClose={() => app.setViewMode(lastNonComposeViewMode)}
-          className="items-start justify-center px-4 py-5 sm:py-8"
-          frameClassName="ui-modal-frame w-full max-w-3xl"
+          className="items-center justify-center px-4 py-5 sm:py-8"
+          frameClassName="w-full max-w-3xl"
           contentClassName="ui-modal-pop w-full max-h-[calc(100dvh-2rem)] overflow-auto hide-scrollbar"
         >
           <Suspense fallback={<LoadingFallback />}>
@@ -992,84 +976,6 @@ const AppContent: React.FC = () => {
             />
           </Suspense>
         </AppModal>
-
-        <AppModal
-          isOpen={isDesktop && !!desktopThreadPostId}
-          onClose={handleCloseDesktopThreadModal}
-          className="items-start justify-center px-4 py-3 sm:px-6 sm:py-4"
-          frameClassName="ui-modal-frame w-full max-w-[min(78rem,calc(100vw-3rem))]"
-          contentClassName="ui-modal-sheet w-full max-h-[calc(100dvh-1.5rem)] overflow-auto hide-scrollbar"
-        >
-          <div className="animate-fade-in">
-            {app.selectedPost ? (
-              <PostDetailPage
-                post={app.selectedPost}
-                boardName={app.getBoardName(app.selectedPost.id)}
-                userState={app.userState}
-                knownUsers={app.knownUsers}
-                onVote={app.handleVote}
-                onComment={app.handleComment}
-                onEditComment={app.handleEditComment}
-                onDeleteComment={app.handleDeleteComment}
-                onCommentVote={app.handleCommentVote}
-                onViewProfile={handleDesktopThreadViewProfile}
-                onEditPost={handleDesktopThreadEditPost}
-                onDeletePost={handleDesktopThreadDeletePost}
-                onTagClick={handleDesktopThreadTagClick}
-                onToggleBookmark={app.handleToggleBookmark}
-                onSeedPost={app.requestSeedPost}
-                onBack={handleCloseDesktopThreadModal}
-                isBookmarked={bookmarkedIds.includes(app.selectedPost.id)}
-                hasReported={reportedPostIds.includes(app.selectedPost.id)}
-                presentation="modal"
-              />
-            ) : (
-              <PostSkeleton />
-            )}
-          </div>
-        </AppModal>
-
-        <footer className="hidden md:block text-center text-terminal-dim text-xs py-8">
-          <div className="mb-2">
-            BitBoard NOSTR PROTOCOL V3.0 // RELAYS: {nostrService.getRelays().length} // NODES
-            ACTIVE: {(app.boards?.length ?? 0) + (app.locationBoards?.length ?? 0)}
-          </div>
-          <div className="flex items-center justify-center gap-4">
-            <button
-              onClick={() => app.setViewMode(ViewMode.ABOUT)}
-              className="group flex items-center gap-1.5 hover:text-terminal-text transition-colors underline"
-            >
-              <span
-                className="inline-block w-[26px] h-[26px] shrink-0 bg-terminal-dim group-hover:bg-terminal-text transition-colors"
-                style={{
-                  maskImage: "url('/assets/bitboard-logo.png')",
-                  WebkitMaskImage: "url('/assets/bitboard-logo.png')",
-                  maskSize: 'contain',
-                  WebkitMaskSize: 'contain',
-                  maskRepeat: 'no-repeat',
-                  WebkitMaskRepeat: 'no-repeat',
-                  maskPosition: 'center',
-                  WebkitMaskPosition: 'center',
-                }}
-              />
-              About
-            </button>
-            <span>•</span>
-            <button
-              onClick={() => app.setViewMode(ViewMode.PRIVACY_POLICY)}
-              className="hover:text-terminal-text transition-colors underline"
-            >
-              Privacy Policy
-            </button>
-            <span>•</span>
-            <button
-              onClick={() => app.setViewMode(ViewMode.TERMS_OF_SERVICE)}
-              className="hover:text-terminal-text transition-colors underline"
-            >
-              Terms of Service
-            </button>
-          </div>
-        </footer>
 
         {/* Mobile Bottom Navigation */}
         <MobileNav />

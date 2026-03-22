@@ -1,15 +1,20 @@
 import { useCallback } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import type { Event as NostrEvent } from 'nostr-tools';
 import type { Board, Post } from '../../types';
 import { BoardType } from '../../types';
 import { nostrService } from '../../services/nostr/NostrService';
-import { votingService } from '../../services/votingService';
 import { toastService } from '../../services/toastService';
 import { logger } from '../../services/loggingService';
 import { UIConfig } from '../../config';
+import { buildFetchPostsArgs, resolveNostrFeedScope } from '../../services/nostr/nostrFeedScope';
+import {
+  appendUniqueNostrPosts,
+  getOldestPostTimestamp,
+  processFetchedPostEvents,
+} from '../../services/nostr/nostrFeedPosts';
 
 interface UseAppFeedHandlersArgs {
+  activeBoard: Board | null;
   oldestTimestamp: number | null;
   hasMorePosts: boolean;
   postsById: Map<string, Post>;
@@ -20,6 +25,7 @@ interface UseAppFeedHandlersArgs {
 }
 
 export function useAppFeedHandlers({
+  activeBoard,
   oldestTimestamp,
   hasMorePosts,
   postsById,
@@ -33,72 +39,30 @@ export function useAppFeedHandlers({
 
     try {
       const loadMoreLimit = UIConfig.POSTS_LOAD_MORE_COUNT;
-      const olderPosts = await nostrService.fetchPosts({
+      const scope = resolveNostrFeedScope(activeBoard);
+      if (scope.mode === 'community') {
+        setHasMorePosts(false);
+        return;
+      }
+      const fetchArgs = buildFetchPostsArgs(scope, {
         limit: loadMoreLimit,
         until: Math.floor(oldestTimestamp / 1000) - 1,
       });
+      const olderPosts = await nostrService.fetchPosts(fetchArgs);
 
       if (olderPosts.length === 0) {
         setHasMorePosts(false);
         return;
       }
 
-      const convertedPosts = olderPosts.map((event) => nostrService.eventToPost(event));
-      const postsWithNostrIds = convertedPosts.filter((post) => post.nostrEventId);
-      const postIds = postsWithNostrIds.map((post) => post.nostrEventId!);
-      const voteTallies = await votingService.fetchVotesForPosts(postIds);
+      const { processedPosts, oldestMs } = await processFetchedPostEvents(olderPosts);
 
-      const postsWithVotes = convertedPosts.map((post) => {
-        if (!post.nostrEventId) return post;
-        const tally = voteTallies.get(post.nostrEventId);
-        if (!tally) return post;
-        return {
-          ...post,
-          upvotes: tally.upvotes,
-          downvotes: tally.downvotes,
-          score: tally.score,
-          uniqueVoters: tally.uniqueVoters,
-          votesVerified: true,
-        };
-      });
+      setPosts((prev) => appendUniqueNostrPosts(prev, processedPosts));
 
-      try {
-        const editEvents = await nostrService.fetchPostEdits(postIds, { limit: 300 });
-        if (editEvents.length > 0) {
-          const latestByRoot = new Map<string, { created_at: number; event: NostrEvent }>();
-          for (const event of editEvents) {
-            const parsed = nostrService.eventToPostEditUpdate(event);
-            if (!parsed) continue;
-            const existing = latestByRoot.get(parsed.rootPostEventId);
-            if (!existing || event.created_at > existing.created_at) {
-              latestByRoot.set(parsed.rootPostEventId, { created_at: event.created_at, event });
-            }
-          }
-
-          for (let i = 0; i < postsWithVotes.length; i++) {
-            const post = postsWithVotes[i];
-            const rootId = post.nostrEventId;
-            if (!rootId) continue;
-            const latest = latestByRoot.get(rootId);
-            if (!latest) continue;
-            const parsed = nostrService.eventToPostEditUpdate(latest.event);
-            if (!parsed) continue;
-            postsWithVotes[i] = { ...post, ...parsed.updates };
-          }
-        }
-      } catch (error) {
-        logger.warn('App', 'Failed to fetch post edits for pagination', error);
-      }
-
-      setPosts((prev) => {
-        const existingIds = new Set(prev.map((post) => post.nostrEventId).filter(Boolean));
-        const newPosts = postsWithVotes.filter((post) => !existingIds.has(post.nostrEventId));
-        return [...prev, ...newPosts];
-      });
-
-      const timestamps = postsWithVotes.map((post) => post.timestamp);
-      if (timestamps.length > 0) {
-        setOldestTimestamp(Math.min(...timestamps));
+      if (oldestMs !== null) {
+        setOldestTimestamp(oldestMs);
+      } else {
+        setOldestTimestamp(getOldestPostTimestamp(processedPosts));
       }
 
       setHasMorePosts(olderPosts.length >= loadMoreLimit);
@@ -112,7 +76,7 @@ export function useAppFeedHandlers({
         dedupeKey: 'load-more-failed',
       });
     }
-  }, [oldestTimestamp, hasMorePosts, setPosts, setOldestTimestamp, setHasMorePosts]);
+  }, [activeBoard, oldestTimestamp, hasMorePosts, setPosts, setOldestTimestamp, setHasMorePosts]);
 
   const getBoardName = useCallback(
     (postId: string) => {

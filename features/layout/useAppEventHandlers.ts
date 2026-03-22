@@ -16,6 +16,7 @@ import { useAppPostMutationHandlers } from './useAppPostMutationHandlers';
 interface UseAppEventHandlersProps {
   setPosts: React.Dispatch<React.SetStateAction<Post[]>>;
   boards: Board[];
+  activeBoard: Board | null;
   setBoards: React.Dispatch<React.SetStateAction<Board[]>>;
   boardsById: Map<string, Board>;
   postsById: Map<string, Post>;
@@ -35,6 +36,7 @@ interface UseAppEventHandlersProps {
 export const useAppEventHandlers = ({
   setPosts,
   boards,
+  activeBoard,
   setBoards,
   boardsById,
   postsById,
@@ -54,6 +56,7 @@ export const useAppEventHandlers = ({
   const navigationHandlers = useAppNavigationHandlers();
 
   const feedHandlers = useAppFeedHandlers({
+    activeBoard,
     oldestTimestamp,
     hasMorePosts,
     postsById,

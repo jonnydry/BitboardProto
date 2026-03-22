@@ -1355,7 +1355,7 @@ class NostrService {
       const relaysToQuery = connectedRelays.length > 0 ? connectedRelays : readRelays;
 
       // Use Promise.race with timeout for faster response
-      const QUERY_TIMEOUT_MS = 5000; // 5 second timeout
+      const QUERY_TIMEOUT_MS = 10000; // 10 second timeout (relay connections need time on cold start)
       let timeoutId: ReturnType<typeof setTimeout>;
       const timeoutPromise = new Promise<never>((_, reject) => {
         timeoutId = setTimeout(() => reject(new Error('Query timeout')), QUERY_TIMEOUT_MS);

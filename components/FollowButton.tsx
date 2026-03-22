@@ -222,7 +222,7 @@ export const UserList: React.FC<UserListProps> = ({
 }) => {
   return (
     <div className="ui-overlay flex items-center justify-center p-4">
-      <div className="ui-surface-modal flex max-h-[70vh] w-full max-w-md flex-col overflow-hidden">
+      <div className="ui-surface-modal flex max-h-[70vh] w-full max-w-lg flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-terminal-dim/15 p-4">
           <h2 className="flex items-center gap-2 font-display text-2xl font-semibold text-terminal-text">
@@ -289,7 +289,7 @@ const UserListItem: React.FC<{
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <div className="font-bold text-terminal-text truncate">{displayName}</div>
+        <div className="break-words font-bold text-terminal-text">{displayName}</div>
         {user.petname && user.displayName && (
           <div className="text-xs text-terminal-dim">aka {user.petname}</div>
         )}

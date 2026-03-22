@@ -1,4 +1,4 @@
-import type { Comment, Post } from '../types';
+import type { Comment, Post, UserState } from '../types';
 
 export function formatPostTime(timestamp: number): string {
   const diff = Date.now() - timestamp;
@@ -17,6 +17,48 @@ export function isPostEncryptedWithoutKey(post: Post): boolean {
     return true;
   }
   return false;
+}
+
+export function isOwnPost(
+  post: Pick<Post, 'author' | 'authorPubkey'>,
+  userState: UserState,
+): boolean {
+  if (!userState.identity) return false;
+  return post.authorPubkey === userState.identity.pubkey || post.author === userState.username;
+}
+
+export function canVoteOnPost(userState: UserState, hasInvested: boolean): boolean {
+  return Boolean(userState.identity) && (userState.bits > 0 || hasInvested);
+}
+
+export function getPostVoteTitle(args: {
+  direction: 'up' | 'down';
+  userState: UserState;
+  isActive: boolean;
+  hasInvested: boolean;
+}): string {
+  const { direction, userState, isActive, hasInvested } = args;
+  if (!userState.identity) {
+    return 'Connect identity to vote with bits';
+  }
+
+  if (userState.bits <= 0 && !hasInvested) {
+    return 'No bits remaining today';
+  }
+
+  if (isActive) {
+    return direction === 'up'
+      ? 'Retract upvote and refund 1 bit'
+      : 'Retract downvote and refund 1 bit';
+  }
+
+  if (hasInvested) {
+    return 'Switch vote direction at no extra bit cost';
+  }
+
+  return direction === 'up'
+    ? 'Spend 1 bit to upvote this post'
+    : 'Spend 1 bit to downvote this post';
 }
 
 export function buildPreviewCommentTree(args: {

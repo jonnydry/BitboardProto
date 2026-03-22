@@ -9,6 +9,7 @@ import {
 import { bytesToHex, hexToBytes } from 'nostr-tools/utils';
 import type { NostrIdentity, PublicNostrIdentity, UnsignedNostrEvent } from '../types';
 import { cryptoService } from './cryptoService';
+import { inputValidator } from './inputValidator';
 import { logger } from './loggingService';
 import { clearSessionPassphrase } from './sessionPassphrase';
 
@@ -96,7 +97,10 @@ class IdentityService {
 
     // No encrypted blob found (or decryption failed) — fall through to the
     // standard load path which handles plain-text legacy identities.
-    logger.warn('Identity', 'Legacy key found but no encrypted blob — falling through to loadIdentity');
+    logger.warn(
+      'Identity',
+      'Legacy key found but no encrypted blob — falling through to loadIdentity',
+    );
     await this.loadIdentity();
   }
 
@@ -362,42 +366,6 @@ class IdentityService {
     return this.identity;
   }
 
-  // ----------------------------------------
-  // DM ENCRYPTION (keeps privkey inside this service)
-  // ----------------------------------------
-
-  /**
-   * Encrypt a plaintext message for a recipient using NIP-04.
-   * The private key never leaves this service.
-   */
-  async encryptDM(plaintext: string, recipientPubkey: string): Promise<string | null> {
-    if (!this.identity || this.identity.kind !== 'local') return null;
-    return cryptoService.encryptNIP04(plaintext, this.identity.privkey, recipientPubkey);
-  }
-
-  /**
-   * Decrypt a NIP-04 ciphertext from a counterparty.
-   * The private key never leaves this service.
-   */
-  async decryptDM(ciphertext: string, counterpartyPubkey: string): Promise<string | null> {
-    if (!this.identity || this.identity.kind !== 'local') return null;
-    return cryptoService.decryptNIP04(ciphertext, this.identity.privkey, counterpartyPubkey);
-  }
-
-  /**
-   * Unwrap a NIP-17 gift-wrap event addressed to the current user.
-   * The private key never leaves this service.
-   */
-  async unwrapDMGiftWrap(
-    giftWrapEvent: NostrEvent,
-  ): Promise<{ content: string; senderPubkey: string } | null> {
-    if (!this.identity || this.identity.kind !== 'local') return null;
-    return cryptoService.unwrapGiftWrap({
-      giftWrapEvent,
-      recipientPrivkey: this.identity.privkey,
-    });
-  }
-
   /**
    * Export nsec for backup
    */
@@ -415,9 +383,6 @@ class IdentityService {
     return this.identity !== null;
   }
 
-  /**
-   * Check if the current identity is a local keypair (can perform DM crypto)
-   */
   hasLocalIdentity(): boolean {
     return this.identity?.kind === 'local';
   }
@@ -430,7 +395,6 @@ class IdentityService {
 
     if (this.identity) {
       // Validate and sanitize before persisting
-      const { inputValidator } = await import('./inputValidator');
       const sanitized = inputValidator.validateUsername(name);
       if (!sanitized) {
         throw new Error('Invalid display name');

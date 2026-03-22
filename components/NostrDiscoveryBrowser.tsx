@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ChevronDown,
@@ -13,6 +13,7 @@ import {
 import type { Board, Post } from '../types';
 import {
   nostrDiscoveryService,
+  type DiscoveryRankingMode,
   type DiscoverySourceFilter,
   type DiscoveryTimeWindow,
   type SeedCandidate,
@@ -32,7 +33,7 @@ interface NostrDiscoveryBrowserProps {
   onSeedPost?: (post: Post) => void;
 }
 
-type DiscoverTab = 'trending' | 'communities';
+type DiscoveryView = 'breakouts' | 'biggest' | 'communities';
 
 const timeWindowOptions: DiscoveryTimeWindow[] = ['24h', '7d', '30d'];
 const sourceOptions: Array<{ value: DiscoverySourceFilter; label: string }> = [
@@ -48,7 +49,7 @@ export function NostrDiscoveryBrowser({
   onClose,
   onSeedPost,
 }: NostrDiscoveryBrowserProps) {
-  const [activeTab, setActiveTab] = useState<DiscoverTab>('trending');
+  const [activeTab, setActiveTab] = useState<DiscoveryView>('breakouts');
   const [query, setQuery] = useState('');
   const [timeWindow, setTimeWindow] = useState<DiscoveryTimeWindow>('24h');
   const [sourceFilter, setSourceFilter] = useState<DiscoverySourceFilter>('all');
@@ -58,6 +59,8 @@ export function NostrDiscoveryBrowser({
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [linkPreviews, setLinkPreviews] = useState<Record<string, LinkPreviewData>>({});
   const requestIdRef = useRef(0);
+
+  const rankingMode: DiscoveryRankingMode = activeTab === 'biggest' ? 'biggest' : 'breakout';
 
   const formatAge = (timestamp: number) => {
     const diffHours = Math.max(1, Math.floor((Date.now() - timestamp) / (1000 * 60 * 60)));
@@ -76,46 +79,54 @@ export function NostrDiscoveryBrowser({
     }
   };
 
-  const loadCandidates = async (params?: {
-    query?: string;
-    timeWindow?: DiscoveryTimeWindow;
-    sourceFilter?: DiscoverySourceFilter;
-  }) => {
-    const requestId = ++requestIdRef.current;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const nextCandidates = await nostrDiscoveryService.discoverSeedCandidates({
-        query: params?.query ?? query,
-        timeWindow: params?.timeWindow ?? timeWindow,
-        sourceFilter: params?.sourceFilter ?? sourceFilter,
-        limit: 60,
-      });
-      if (requestId !== requestIdRef.current) return;
-      setCandidates(nextCandidates);
-    } catch (loadError) {
-      if (requestId !== requestIdRef.current) return;
-      setError(loadError instanceof Error ? loadError.message : 'Failed to discover Nostr posts.');
-    } finally {
-      if (requestId !== requestIdRef.current) return;
-      setIsLoading(false);
-    }
-  };
+  const loadCandidates = useCallback(
+    async (params?: {
+      query?: string;
+      timeWindow?: DiscoveryTimeWindow;
+      sourceFilter?: DiscoverySourceFilter;
+      rankingMode?: DiscoveryRankingMode;
+    }) => {
+      const requestId = ++requestIdRef.current;
+      setIsLoading(true);
+      setError(null);
+      try {
+        const nextCandidates = await nostrDiscoveryService.discoverSeedCandidates({
+          query: params?.query ?? query,
+          timeWindow: params?.timeWindow ?? timeWindow,
+          sourceFilter: params?.sourceFilter ?? sourceFilter,
+          rankingMode: params?.rankingMode ?? rankingMode,
+          limit: 60,
+        });
+        if (requestId !== requestIdRef.current) return;
+        setCandidates(nextCandidates);
+      } catch (loadError) {
+        if (requestId !== requestIdRef.current) return;
+        setError(
+          loadError instanceof Error ? loadError.message : 'Failed to discover Nostr posts.',
+        );
+      } finally {
+        if (requestId === requestIdRef.current) {
+          setIsLoading(false);
+        }
+      }
+    },
+    [query, timeWindow, sourceFilter, rankingMode],
+  );
 
   useEffect(() => {
-    if (activeTab !== 'trending') return;
+    if (activeTab === 'communities') return;
     const nextQuery = query.trim();
     const timeout = window.setTimeout(
       () => {
-        void loadCandidates({ query: nextQuery, timeWindow, sourceFilter });
+        void loadCandidates({ query: nextQuery, timeWindow, sourceFilter, rankingMode });
       },
       nextQuery ? 250 : 0,
     );
     return () => window.clearTimeout(timeout);
-  }, [activeTab, query, timeWindow, sourceFilter]);
+  }, [activeTab, query, timeWindow, sourceFilter, rankingMode, loadCandidates]);
 
   useEffect(() => {
-    if (activeTab !== 'trending') return;
+    if (activeTab === 'communities') return;
     if (!candidates.some((candidate) => candidate.post.url)) return;
     let cancelled = false;
 
@@ -207,6 +218,12 @@ export function NostrDiscoveryBrowser({
     };
   }, [candidates]);
 
+  const tabTitle = activeTab === 'biggest' ? 'BIGGEST POSTS' : 'RECENT BREAKOUTS';
+  const tabDescription =
+    activeTab === 'biggest'
+      ? 'See the highest-performing posts across Nostr for the selected window, weighted by engagement with a light recency boost.'
+      : 'See posts gaining traction across Nostr right now, with ranking tilted toward breakout momentum and fresh engagement.';
+
   return (
     <div className="animate-fade-in space-y-6">
       <button
@@ -221,16 +238,18 @@ export function NostrDiscoveryBrowser({
         <div className="grid gap-6 px-5 py-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(18rem,1fr)] lg:px-6">
           <div>
             <div className="inline-flex items-center gap-2 border border-terminal-dim/40 bg-terminal-bg/60 px-3 py-1 text-[11px] uppercase tracking-[0.24em] text-terminal-dim">
-              <Sparkles size={12} /> Seedable Signal
+              <Sparkles size={12} /> Network Signal
             </div>
             <h2 className="mt-4 flex items-center gap-3 text-3xl font-terminal uppercase tracking-[0.18em] text-terminal-text">
               <Compass size={26} />
               DISCOVER NOSTR
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-relaxed text-terminal-dim">
-              Find high-integrity Nostr posts worth importing into BitBoard. Broad trending is the
-              entry point, but the feed now heavily favors stronger context, moderator approval,
-              links, and visible engagement.
+              Browse top-performing posts across Nostr, then decide for yourself what deserves a
+              seed into BitBoard.
+            </p>
+            <p className="mt-2 max-w-2xl text-xs uppercase tracking-[0.18em] text-terminal-dim/80">
+              {tabTitle} - {tabDescription}
             </p>
             <div className="mt-4 flex flex-wrap gap-2 text-[11px] uppercase tracking-wide text-terminal-dim">
               <span className="border border-terminal-dim/30 bg-terminal-bg/60 px-2 py-1">
@@ -300,14 +319,25 @@ export function NostrDiscoveryBrowser({
       <div className="flex flex-wrap gap-2 border-b border-terminal-dim/20 pb-3">
         <button
           type="button"
-          onClick={() => setActiveTab('trending')}
+          onClick={() => setActiveTab('breakouts')}
           className={`border px-3 py-2 text-xs uppercase tracking-wide ${
-            activeTab === 'trending'
+            activeTab === 'breakouts'
               ? 'border-terminal-text bg-terminal-text/10 text-terminal-text'
               : 'border-terminal-dim text-terminal-dim hover:border-terminal-text hover:text-terminal-text'
           }`}
         >
-          Trending
+          Recent Breakouts
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('biggest')}
+          className={`border px-3 py-2 text-xs uppercase tracking-wide ${
+            activeTab === 'biggest'
+              ? 'border-terminal-text bg-terminal-text/10 text-terminal-text'
+              : 'border-terminal-dim text-terminal-dim hover:border-terminal-text hover:text-terminal-text'
+          }`}
+        >
+          Biggest Posts
         </button>
         <button
           type="button"
@@ -318,7 +348,7 @@ export function NostrDiscoveryBrowser({
               : 'border-terminal-dim/60 text-terminal-dim/80 hover:border-terminal-dim hover:text-terminal-dim'
           }`}
         >
-          Communities (Secondary)
+          Communities
         </button>
       </div>
 
@@ -348,7 +378,7 @@ export function NostrDiscoveryBrowser({
                   type="text"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search broad trending Nostr posts..."
+                  placeholder={`Search ${activeTab === 'biggest' ? 'biggest' : 'breakout'} Nostr posts...`}
                   className="w-full border border-terminal-dim bg-terminal-bg py-3 pl-9 pr-4 text-sm text-terminal-text focus:border-terminal-text focus:outline-none"
                 />
               </label>
@@ -382,8 +412,9 @@ export function NostrDiscoveryBrowser({
           <div className="flex flex-wrap items-center justify-between gap-3 border border-terminal-dim/30 bg-terminal-bg/30 px-4 py-3 text-xs uppercase tracking-wide text-terminal-dim">
             <div className="flex items-center gap-2">
               <Sparkles size={12} />
-              Broad trending is the default, but the feed now filters for stronger seed candidates
-              instead of raw chatter.
+              {activeTab === 'biggest'
+                ? 'Biggest Posts ranks engagement first, then applies a light recency boost.'
+                : 'Recent Breakouts favors momentum and freshness to surface posts taking off now.'}
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -401,7 +432,7 @@ export function NostrDiscoveryBrowser({
               </button>
               <button
                 type="button"
-                onClick={() => void loadCandidates()}
+                onClick={() => void loadCandidates({ rankingMode })}
                 disabled={isLoading}
                 className="inline-flex items-center gap-2 border border-terminal-dim px-3 py-1.5 text-terminal-dim transition-colors hover:border-terminal-text hover:text-terminal-text disabled:opacity-60"
               >
@@ -432,6 +463,7 @@ export function NostrDiscoveryBrowser({
               <div>
                 <div className="text-terminal-text">Feed Quality</div>
                 <div className="mt-2 space-y-1">
+                  <div>Mode {activeTab === 'biggest' ? 'biggest' : 'breakouts'}</div>
                   <div>Window {timeWindow}</div>
                   <div>Filter {sourceFilter}</div>
                   <div>Avg rank {summary.averageRank.toFixed(1)}</div>
@@ -483,9 +515,9 @@ export function NostrDiscoveryBrowser({
           {!isLoading && !error && candidates.length === 0 && (
             <div className="border border-terminal-dim bg-terminal-bg/40 p-8 text-center text-terminal-dim">
               <Radio size={28} className="mx-auto mb-3 opacity-40" />
-              <div className="font-bold uppercase text-terminal-text">No seedable posts found</div>
+              <div className="font-bold uppercase text-terminal-text">No posts found</div>
               <p className="mt-2 text-xs uppercase tracking-wide text-terminal-dim">
-                Try a broader time window or remove some search terms.
+                Try a broader time window, switch ranking modes, or remove some search terms.
               </p>
             </div>
           )}

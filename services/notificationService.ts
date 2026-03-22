@@ -16,7 +16,6 @@ export enum NotificationType {
   MENTION = 'mention', // Someone mentioned you in a post/comment
   REPLY = 'reply', // Someone replied to your post/comment
   FOLLOW = 'follow', // Someone followed you
-  DIRECT_MESSAGE = 'dm', // New direct message
   VOTE = 'vote', // Someone voted on your post/comment
   REPOST = 'repost', // Someone reposted your content
   BOARD_ACTIVITY = 'board', // Activity in boards you follow
@@ -56,7 +55,6 @@ export interface NotificationPreferences {
   enableMentions: boolean;
   enableReplies: boolean;
   enableFollows: boolean;
-  enableDMs: boolean;
   enableVotes: boolean;
   enableReposts: boolean;
   enableBoardActivity: boolean;
@@ -91,7 +89,6 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
   enableMentions: true,
   enableReplies: true,
   enableFollows: true,
-  enableDMs: true,
   enableVotes: false, // Off by default (can be noisy)
   enableReposts: true,
   enableBoardActivity: false, // Off by default
@@ -281,28 +278,6 @@ class NotificationService {
   }
 
   /**
-   * Create a DM notification
-   */
-  createDM(args: {
-    fromPubkey: string;
-    fromDisplayName?: string;
-    messageId: string;
-    preview: string;
-  }): Notification | null {
-    return this.createNotification({
-      type: NotificationType.DIRECT_MESSAGE,
-      fromPubkey: args.fromPubkey,
-      fromDisplayName: args.fromDisplayName,
-      sourceEventId: args.messageId,
-      preview: args.preview,
-      deepLink: {
-        viewMode: 'DIRECT_MESSAGES',
-        pubkey: args.fromPubkey,
-      },
-    });
-  }
-
-  /**
    * Create a system notification
    */
   createSystem(args: {
@@ -417,7 +392,6 @@ class NotificationService {
       [NotificationType.MENTION]: 0,
       [NotificationType.REPLY]: 0,
       [NotificationType.FOLLOW]: 0,
-      [NotificationType.DIRECT_MESSAGE]: 0,
       [NotificationType.VOTE]: 0,
       [NotificationType.REPOST]: 0,
       [NotificationType.BOARD_ACTIVITY]: 0,
@@ -654,8 +628,6 @@ class NotificationService {
         return this.preferences.enableReplies;
       case NotificationType.FOLLOW:
         return this.preferences.enableFollows;
-      case NotificationType.DIRECT_MESSAGE:
-        return this.preferences.enableDMs;
       case NotificationType.VOTE:
         return this.preferences.enableVotes;
       case NotificationType.REPOST:
@@ -704,8 +676,6 @@ class NotificationService {
         return `${fromName} replied to your post`;
       case NotificationType.FOLLOW:
         return `${fromName} followed you`;
-      case NotificationType.DIRECT_MESSAGE:
-        return `New message from ${fromName}`;
       case NotificationType.VOTE:
         return `${fromName} voted on your post`;
       case NotificationType.REPOST:
@@ -748,6 +718,8 @@ class NotificationService {
 
   private loadFromStorage(): void {
     try {
+      const supportedTypes = new Set<string>(Object.values(NotificationType));
+
       // Load notifications
       const notifStored = localStorage.getItem(this.STORAGE_KEY_NOTIFICATIONS);
       if (notifStored) {
@@ -755,6 +727,7 @@ class NotificationService {
         if (data.userPubkey === this.currentUserPubkey) {
           this.notifications.clear();
           for (const n of data.notifications || []) {
+            if (!supportedTypes.has(n.type)) continue;
             this.notifications.set(n.id, n);
           }
           this._unreadCount = Array.from(this.notifications.values()).filter(

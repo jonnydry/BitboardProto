@@ -29,7 +29,6 @@ const mocks = vi.hoisted(() => {
       enableMentions: true,
       enableReplies: true,
       enableFollows: true,
-      enableDMs: true,
       enableVotes: true,
       pushEnabled: false,
       pushSound: true,
@@ -52,7 +51,6 @@ vi.mock('../../services/notificationService', () => ({
     MENTION: 'mention',
     REPLY: 'reply',
     FOLLOW: 'follow',
-    DIRECT_MESSAGE: 'direct_message',
     VOTE: 'vote',
     REPOST: 'repost',
     BOARD_ACTIVITY: 'board_activity',
@@ -86,7 +84,7 @@ describe('NotificationCenterV2', () => {
     const onNavigate = vi.fn();
     render(<NotificationCenterV2 onClose={onClose} onNavigate={onNavigate} />);
 
-    expect(screen.getByText('NOTIFICATIONS')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /notifications/i })).toBeInTheDocument();
     expect(screen.getByText('Alice mentioned you')).toBeInTheDocument();
 
     fireEvent.click(screen.getByTitle('Mark as read'));

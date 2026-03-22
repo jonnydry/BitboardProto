@@ -96,6 +96,13 @@ export const FeedPostCard: React.FC<{ post: Post } & FeedPostActions> = (props) 
   );
 };
 
+/** Shared copy + frame for the feed terminator (desktop footer + mobile end-of-feed). */
+export const FeedEndMarker: React.FC = () => (
+  <div className="inline-block border border-terminal-dim/30 px-4 py-2 text-xs uppercase tracking-wider text-terminal-dim">
+    END_OF_FEED // All signals loaded
+  </div>
+);
+
 export const FeedLoaderRow: React.FC<{
   loaderRef: React.RefObject<HTMLDivElement>;
   isLoadingMore: boolean;
@@ -104,13 +111,21 @@ export const FeedLoaderRow: React.FC<{
   style?: React.CSSProperties;
 }> = (props) => {
   const { loaderRef, isLoadingMore, hasMorePosts, postCount, style } = props;
+  const endOfFeed = !hasMorePosts && postCount > 0;
+  const rowPad =
+    endOfFeed && !isLoadingMore
+      ? 'pt-6 pb-0 md:py-2 md:pb-0 md:mb-0 mb-4'
+      : 'py-4';
+
   return (
-    <div ref={loaderRef} style={style} className="py-4">
+    <div ref={loaderRef} style={style} className={rowPad}>
       {isLoadingMore && <InlineLoadingSkeleton />}
-      {!hasMorePosts && postCount > 0 && (
-        <div className="text-center py-4">
-          <div className="text-xs text-terminal-dim uppercase tracking-wider border border-terminal-dim/30 inline-block px-4 py-2">
-            END_OF_FEED // All signals loaded
+      {/* Desktop: marker lives in App footer with protocol links; mobile: footer hidden so show here */}
+      {endOfFeed && (
+        <div className="mt-20 w-full md:hidden">
+          <hr className="m-0 h-0 w-full border-0 border-t border-terminal-text/45" />
+          <div className="flex justify-center pt-6">
+            <FeedEndMarker />
           </div>
         </div>
       )}

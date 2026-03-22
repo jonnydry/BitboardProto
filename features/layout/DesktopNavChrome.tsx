@@ -85,10 +85,9 @@ export const DesktopNavChrome = React.memo(function DesktopNavChrome({
         aria-expanded={drawerOpen}
         className="max-md:hidden fixed top-8 z-[44] flex h-12 w-12 items-center justify-center rounded-sm bg-terminal-text text-black shadow-hard transition-[right,transform,filter] duration-200 ease-out hover:scale-110 hover:brightness-110"
         style={{
-          right: drawerOpen ? `calc(${TRAY_W_REM}rem + 1rem)` : '1rem',
-          backgroundImage:
-            'linear-gradient(rgba(255,255,255,0.18) 50%, rgba(0,0,0,0.08) 50%), linear-gradient(90deg, rgba(255,255,255,0.12), rgba(255,255,255,0.02), rgba(255,255,255,0.12))',
-          backgroundSize: '100% 3px, 3px 100%',
+          right: drawerOpen
+            ? `calc(${TRAY_W_REM}rem + 1rem)`
+            : 'max(0px, calc((100vw - 1174px) / 2 - 3rem))',
         }}
       >
         <ChevronLeft

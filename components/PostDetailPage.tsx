@@ -1,11 +1,31 @@
 import React, { useMemo, useCallback } from 'react';
 import { Post, UserState } from '../types';
-import { ArrowLeft, Lock, Edit3, Bookmark, Shield, Trash2, Loader2, Radio } from 'lucide-react';
+import {
+  ArrowLeft,
+  Lock,
+  Edit3,
+  Bookmark,
+  Shield,
+  Trash2,
+  Loader2,
+  Radio,
+  AlertTriangle,
+  RefreshCw,
+  CheckCircle2,
+  Plus,
+} from 'lucide-react';
 import { CommentThread, buildCommentTree } from './CommentThread';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { MentionInput } from './MentionInput';
 import { ReportModal } from './ReportModal';
 import { profileService } from '../services/profileService';
+import {
+  canVoteOnPost,
+  formatPostTime,
+  getPostVoteTitle,
+  isOwnPost,
+  isPostEncryptedWithoutKey,
+} from './postItemUtils';
 
 interface PostDetailPageProps {
   post: Post;
@@ -25,8 +45,8 @@ interface PostDetailPageProps {
   isBookmarked?: boolean;
   onToggleBookmark?: (postId: string) => void;
   onSeedPost?: (post: Post) => void;
+  onRetryPost?: (postId: string) => void;
   hasReported?: boolean;
-  presentation?: 'page' | 'modal';
 }
 
 export const PostDetailPage: React.FC<PostDetailPageProps> = ({
@@ -47,8 +67,8 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
   isBookmarked = false,
   onToggleBookmark,
   onSeedPost,
+  onRetryPost,
   hasReported: _hasReported = false,
-  presentation = 'page',
 }) => {
   const [newComment, setNewComment] = React.useState('');
   const [isTransmitting, setIsTransmitting] = React.useState(false);
@@ -72,10 +92,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
     setShowDeleteConfirm(false);
   }, []);
 
-  const isOwnPost = useMemo(() => {
-    if (!userState.identity) return false;
-    return post.authorPubkey === userState.identity.pubkey || post.author === userState.username;
-  }, [post.authorPubkey, post.author, userState.identity, userState.username]);
+  const ownPost = useMemo(() => isOwnPost(post, userState), [post, userState]);
 
   const handleBookmarkClick = useCallback(
     (e: React.MouseEvent) => {
@@ -136,24 +153,9 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
   const isDownvoted = useMemo(() => voteDirection === 'down', [voteDirection]);
   const hasInvested = useMemo(() => isUpvoted || isDownvoted, [isUpvoted, isDownvoted]);
 
-  const formatTime = useCallback((timestamp: number) => {
-    const diff = Date.now() - timestamp;
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    if (hours < 1) return '< 1h';
-    if (hours > 24) return `${Math.floor(hours / 24)}d`;
-    return `${hours}h`;
-  }, []);
+  const formatTime = useCallback((timestamp: number) => formatPostTime(timestamp), []);
 
-  const isEncryptedWithoutKey = useMemo(() => {
-    if (!post.isEncrypted) return false;
-    if (post.content === '[Encrypted - Access Required]' || post.title === '[Encrypted]') {
-      return true;
-    }
-    if (post.encryptedContent && post.content === post.encryptedContent) {
-      return true;
-    }
-    return false;
-  }, [post]);
+  const isEncryptedWithoutKey = useMemo(() => isPostEncryptedWithoutKey(post), [post]);
 
   const authorProfile = useMemo(
     () => (post.authorPubkey ? profileService.getCachedProfileSync(post.authorPubkey) : null),
@@ -161,8 +163,9 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
   );
 
   const authorDisplayName = useMemo(
-    () => profileService.getDisplayName(post.author, authorProfile ?? undefined),
-    [post.author, authorProfile],
+    () =>
+      profileService.getDisplayName(post.authorPubkey || post.author, authorProfile ?? undefined),
+    [post.author, post.authorPubkey, authorProfile],
   );
 
   const handleCommentSubmit = useCallback(
@@ -258,17 +261,9 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
   }, [commentTree]);
 
   return (
-    <div
-      className={`ui-surface-editor overflow-hidden font-mono ${
-        presentation === 'modal' ? 'max-w-none' : 'max-w-3xl'
-      }`}
-    >
+    <div className="mx-auto w-full max-w-5xl animate-fade-in font-mono">
       {/* Nav Bar */}
-      <div
-        className={`mb-0 flex items-center justify-between border-b border-terminal-dim/15 px-4 py-4 ${
-          presentation === 'modal' ? 'sticky top-0 z-10 bg-terminal-bg/95 backdrop-blur-sm' : ''
-        }`}
-      >
+      <div className="mb-0 flex items-center justify-between border-b border-terminal-dim/15 px-5 py-5 md:px-7">
         <button
           onClick={onBack}
           className="flex items-center gap-1.5 text-terminal-dim/60 hover:text-terminal-dim transition-colors group"
@@ -280,25 +275,22 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
       </div>
 
       {/* Post Section */}
-      <div className="border-b border-terminal-dim/15 px-4 pb-5 pt-7">
-        <div className="flex gap-4">
+      <div className="border-b border-terminal-dim/15 px-5 pb-6 pt-8 md:px-7">
+        <div className="flex w-full gap-4">
           {/* Vote Column */}
           <div className="flex flex-col items-center w-10 shrink-0 pt-1 gap-1.5">
             <button
               onClick={handleVoteUp}
               className={`p-2 md:p-1 min-w-[40px] min-h-[40px] md:min-w-0 md:min-h-0 flex items-center justify-center transition-colors ${isUpvoted ? 'text-terminal-text' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
-              disabled={!userState.identity || (userState.bits <= 0 && !hasInvested)}
+              disabled={!canVoteOnPost(userState, hasInvested)}
               aria-label="Upvote"
               aria-pressed={isUpvoted}
-              title={
-                !userState.identity
-                  ? 'Connect identity to vote with bits'
-                  : isUpvoted
-                    ? 'Retract upvote and refund 1 bit'
-                    : hasInvested
-                      ? 'Switch vote direction at no extra bit cost'
-                      : 'Spend 1 bit to upvote this post'
-              }
+              title={getPostVoteTitle({
+                direction: 'up',
+                userState,
+                isActive: isUpvoted,
+                hasInvested,
+              })}
             >
               <svg width="16" height="10" viewBox="0 0 12 8">
                 <path
@@ -320,18 +312,15 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
             <button
               onClick={handleVoteDown}
               className={`p-2 md:p-1 min-w-[40px] min-h-[40px] md:min-w-0 md:min-h-0 flex items-center justify-center transition-colors ${isDownvoted ? 'text-terminal-alert' : 'text-terminal-dim'} ${!userState.identity ? 'opacity-50 cursor-not-allowed' : ''}`}
-              disabled={!userState.identity || (userState.bits <= 0 && !hasInvested)}
+              disabled={!canVoteOnPost(userState, hasInvested)}
               aria-label="Downvote"
               aria-pressed={isDownvoted}
-              title={
-                !userState.identity
-                  ? 'Connect identity to vote with bits'
-                  : isDownvoted
-                    ? 'Retract downvote and refund 1 bit'
-                    : hasInvested
-                      ? 'Switch vote direction at no extra bit cost'
-                      : 'Spend 1 bit to downvote this post'
-              }
+              title={getPostVoteTitle({
+                direction: 'down',
+                userState,
+                isActive: isDownvoted,
+                hasInvested,
+              })}
             >
               <svg width="16" height="10" viewBox="0 0 12 8">
                 <path
@@ -345,51 +334,64 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
           </div>
 
           {/* Content Column */}
-          <div className="flex flex-col flex-1 min-w-0 gap-2.5">
-            {/* Author Row */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleAuthorClick}
-                className="flex items-center gap-2 hover:underline transition-colors cursor-pointer"
-                title={`View ${authorDisplayName}'s profile`}
-              >
-                {authorProfile?.picture ? (
-                  <img
-                    src={authorProfile.picture}
-                    alt={`${authorDisplayName}'s avatar`}
-                    className="w-6 h-6 rounded-full object-cover border border-terminal-dim/40 shrink-0"
-                  />
-                ) : (
-                  <div className="w-6 h-6 rounded-full bg-terminal-dim/15 border border-terminal-dim/30 flex items-center justify-center text-sm text-terminal-text shrink-0">
-                    {authorDisplayName.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <span className="text-sm text-terminal-text/80">{authorDisplayName}</span>
-              </button>
-              <span className="text-terminal-dim/50 text-sm">·</span>
-              <span className="text-sm text-terminal-dim/70">{formatTime(post.timestamp)}</span>
-              {post.seededFrom === 'nostr' && (
-                <span className="flex items-center gap-1 border border-terminal-dim/30 px-2 py-0.5 text-xs uppercase tracking-wider text-terminal-dim/80">
-                  <Radio size={10} /> Seeded From Nostr
+          <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+            {/* Author Row — primary meta flexes; edit/delete stay shrink-wrapped */}
+            <div className="flex flex-wrap items-start gap-x-2 gap-y-2">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+                <button
+                  type="button"
+                  onClick={handleAuthorClick}
+                  className="flex min-w-0 max-w-full items-center gap-2 whitespace-normal text-left transition-colors hover:underline cursor-pointer"
+                  title={`View ${authorDisplayName}'s profile`}
+                >
+                  {authorProfile?.picture ? (
+                    <img
+                      src={authorProfile.picture}
+                      alt={`${authorDisplayName}'s avatar`}
+                      className="w-6 h-6 rounded-full object-cover border border-terminal-dim/40 shrink-0"
+                    />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-terminal-dim/15 border border-terminal-dim/30 flex items-center justify-center text-sm text-terminal-text shrink-0">
+                      {authorDisplayName.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <span className="min-w-0 break-words text-sm text-terminal-text/80">
+                    {authorDisplayName}
+                  </span>
+                </button>
+                <span className="text-terminal-dim/50 text-sm shrink-0">·</span>
+                <span className="shrink-0 text-sm text-terminal-dim/70">
+                  {formatTime(post.timestamp)}
                 </span>
-              )}
-              {isOwnPost && onEditPost && (
-                <button
-                  onClick={handleEditClick}
-                  className="ml-auto flex items-center gap-1 text-terminal-dim/70 hover:text-terminal-text transition-colors text-sm"
-                  title="Edit this post"
-                >
-                  <Edit3 size={10} /> EDIT
-                </button>
-              )}
-              {isOwnPost && onDeletePost && (
-                <button
-                  onClick={handleDeleteClick}
-                  className="flex items-center gap-1 text-terminal-dim/70 hover:text-terminal-alert transition-colors text-sm"
-                  title="Delete this post"
-                >
-                  <Trash2 size={10} /> DELETE
-                </button>
+                {post.seededFrom === 'nostr' && (
+                  <span className="flex shrink-0 items-center gap-1 border border-terminal-dim/30 px-2 py-0.5 text-xs uppercase tracking-wider text-terminal-dim/80">
+                    <Radio size={10} /> Seeded From Nostr
+                  </span>
+                )}
+              </div>
+              {ownPost && (onEditPost || onDeletePost) && (
+                <div className="flex shrink-0 items-center gap-2">
+                  {onEditPost && (
+                    <button
+                      type="button"
+                      onClick={handleEditClick}
+                      className="flex items-center gap-1 text-terminal-dim/70 hover:text-terminal-text transition-colors text-sm"
+                      title="Edit this post"
+                    >
+                      <Edit3 size={10} /> EDIT
+                    </button>
+                  )}
+                  {onDeletePost && (
+                    <button
+                      type="button"
+                      onClick={handleDeleteClick}
+                      className="flex items-center gap-1 text-terminal-dim/70 hover:text-terminal-alert transition-colors text-sm"
+                      title="Delete this post"
+                    >
+                      <Trash2 size={10} /> DELETE
+                    </button>
+                  )}
+                </div>
               )}
             </div>
 
@@ -397,7 +399,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
             {isEncryptedWithoutKey ? (
               <div className="flex items-center gap-2 text-terminal-dim">
                 <Lock size={18} />
-                <h2 className="text-3xl font-semibold font-display leading-snug">
+                <h2 className="font-display text-lg font-normal leading-none tracking-[-0.02em] md:text-xl lg:text-3xl">
                   [Encrypted - Access Required]
                 </h2>
               </div>
@@ -406,12 +408,12 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
                 href={post.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-3xl font-semibold font-display text-terminal-text leading-snug hover:underline decoration-2 underline-offset-4 transition-colors break-words"
+                className="font-display text-lg font-normal leading-none tracking-[-0.02em] text-terminal-text transition-colors break-words hover:underline decoration-2 underline-offset-4 md:text-xl lg:text-3xl"
               >
                 {post.title}
               </a>
             ) : (
-              <h2 className="text-3xl font-semibold font-display text-terminal-text leading-snug break-words">
+              <h2 className="font-display text-lg font-normal leading-none tracking-[-0.02em] text-terminal-text break-words md:text-xl lg:text-3xl">
                 {post.title}
               </h2>
             )}
@@ -447,7 +449,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
                 </p>
               </div>
             ) : (
-              <div className="text-base text-terminal-dim/70 font-mono leading-[1.7] break-words">
+              <div className="max-w-3xl text-[15px] leading-[1.75] text-terminal-dim/75 break-words md:text-base">
                 <MarkdownRenderer content={post.content} />
               </div>
             )}
@@ -472,7 +474,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
       </div>
 
       {/* Action Bar */}
-      <div className="flex items-center gap-5 border-b border-terminal-dim/15 px-4 py-3">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-terminal-dim/15 px-5 py-3 md:px-7">
         <button
           onClick={() => {
             const el = document.getElementById('comment-thread');
@@ -536,30 +538,93 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
         )}
       </div>
 
+      {ownPost && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-terminal-dim/10 px-5 py-2 md:px-7">
+          {post.syncStatus === 'pending' && (
+            <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.08em] text-terminal-dim/60">
+              <Loader2 size={11} className="animate-spin" />
+              Publishing to Nostr
+            </span>
+          )}
+          {post.syncStatus === 'failed' && (
+            <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.08em] text-terminal-alert/80">
+              <AlertTriangle size={11} />
+              Publish failed{post.syncError ? `: ${post.syncError.slice(0, 50)}` : ''}
+            </span>
+          )}
+          {post.syncStatus === 'synced' && post.nostrEventId && (
+            <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.08em] text-terminal-dim/60">
+              <CheckCircle2 size={11} className="text-terminal-text/60" />
+              Published on Nostr ·
+              <a
+                href={`https://njump.me/${post.nostrEventId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline transition-colors hover:text-terminal-text"
+                title={post.nostrEventId}
+              >
+                {post.nostrEventId.slice(0, 12)}…
+              </a>
+            </span>
+          )}
+          {!post.syncStatus && !post.nostrEventId && (
+            <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.08em] text-terminal-dim/40">
+              <Shield size={11} />
+              Local only - connect an identity to publish
+            </span>
+          )}
+          {post.syncStatus === 'failed' && onRetryPost && (
+            <button
+              onClick={() => onRetryPost(post.id)}
+              className="flex items-center gap-1 border border-terminal-alert/35 px-2 py-1 text-[11px] uppercase tracking-[0.08em] text-terminal-alert/80 transition-colors hover:border-terminal-alert/60 hover:text-terminal-alert"
+            >
+              <RefreshCw size={10} />
+              Retry publish
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Comment Composer */}
-      <form onSubmit={handleCommentSubmit} className="border-b border-terminal-dim/15 px-4 py-5">
-        <div className="flex flex-col gap-2.5">
+      <form
+        onSubmit={handleCommentSubmit}
+        className="border-b border-terminal-dim/15 px-5 py-4 md:px-7"
+      >
+        <div className="flex w-full flex-col gap-2.5">
           <span className="text-sm text-terminal-dim/70 uppercase tracking-widest">
             Join the thread
           </span>
-          <MentionInput
-            value={newComment}
-            onChange={setNewComment}
-            knownUsers={knownUsers}
-            placeholder="Add your reply… Markdown and @mentions supported."
-            minHeight="60px"
-            disabled={isTransmitting}
-            className="!border-terminal-dim/30 focus:!border-terminal-dim/40"
-          />
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-terminal-dim/70">cmd+return to transmit</span>
-            <button
-              type="submit"
-              disabled={!newComment.trim() || isTransmitting}
-              className="ui-button-primary px-4.5 py-1.75 text-sm"
-            >
-              {isTransmitting ? <Loader2 size={14} className="animate-spin" /> : 'Transmit'}
-            </button>
+          <div className="border-b border-terminal-dim/10 pb-3">
+            <div className="flex items-end gap-3">
+              <div className="relative min-w-0 flex-1 cursor-text pl-4">
+                <div className="pointer-events-none absolute left-0 top-1 h-7 w-px bg-terminal-text motion-safe:animate-pulse" />
+                <MentionInput
+                  value={newComment}
+                  onChange={setNewComment}
+                  knownUsers={knownUsers}
+                  placeholder="Add your reply… Markdown and @mentions supported."
+                  minHeight="44px"
+                  disabled={isTransmitting}
+                  className="!min-h-[44px] !resize-none !border-0 !bg-transparent !px-0 !py-0 !text-[15px] !leading-[1.6] !caret-terminal-text focus:!border-0 focus:!outline-none"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={!newComment.trim() || isTransmitting}
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-sm bg-terminal-text text-black shadow-hard transition-all hover:scale-110 hover:brightness-110 disabled:cursor-not-allowed disabled:bg-terminal-text disabled:text-black/45"
+                aria-label="Transmit reply"
+                title="Transmit reply"
+              >
+                {isTransmitting ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Plus size={22} strokeWidth={2.5} />
+                )}
+              </button>
+            </div>
+            <div className="mt-2 pl-4 text-xs uppercase tracking-[0.08em] text-terminal-dim/40">
+              ⌘⏎ transmit
+            </div>
           </div>
         </div>
       </form>
@@ -567,7 +632,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
       {/* Thread Header */}
       <div
         id="comment-thread"
-        className="flex items-center justify-between border-b border-dashed border-terminal-dim/20 px-4 pb-2 pt-4"
+        className="flex items-center justify-between border-b border-dashed border-terminal-dim/20 px-5 pb-2 pt-5 md:px-7"
       >
         <span className="text-sm text-terminal-dim/70 uppercase tracking-[0.12em]">
           {post.commentCount} {post.commentCount === 1 ? 'reply' : 'replies'}
@@ -592,7 +657,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
       </div>
 
       {/* Comment Thread */}
-      <div className="pt-2 pb-7 px-4" key={collapseKey}>
+      <div className="px-5 pb-7 pt-2 md:px-7" key={collapseKey}>
         {commentTree.length > 0 ? (
           <div className="space-y-0">
             {commentTree.map((comment) => (
@@ -612,7 +677,7 @@ export const PostDetailPage: React.FC<PostDetailPageProps> = ({
             ))}
           </div>
         ) : (
-          <p className="text-terminal-dim/70 italic text-sm py-4">No replies yet.</p>
+          <p className="py-6 text-sm italic text-terminal-dim/55">No replies yet.</p>
         )}
       </div>
 

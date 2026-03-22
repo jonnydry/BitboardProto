@@ -164,7 +164,7 @@ export const ZapModal: React.FC<ZapModalProps> = ({
               <p className="mb-2 text-xs uppercase tracking-[0.12em] text-terminal-dim">
                 Recipient
               </p>
-              <p className="text-lg font-bold text-terminal-text truncate">
+              <p className="min-w-0 break-words text-lg font-bold text-terminal-text">
                 {recipientName || recipientPubkey.slice(0, 16) + '...'}
               </p>
             </div>

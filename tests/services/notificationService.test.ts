@@ -18,16 +18,12 @@ describe('notificationService', () => {
     vi.unstubAllGlobals();
   });
 
-  it('notifies subscribers when DM notifications are created and read', async () => {
+  it('notifies subscribers when system notifications are created and read', async () => {
     const listener = vi.fn();
     notificationService.subscribe(listener);
 
     await notificationService.initialize('user-pubkey');
-    const notification = notificationService.createDM({
-      fromPubkey: 'sender-pubkey',
-      messageId: 'dm-1',
-      preview: 'hello',
-    });
+    const notification = notificationService.createSystem({ title: 'System', preview: 'hello' });
 
     expect(notification).not.toBeNull();
     expect(notificationService.getUnreadCount()).toBe(1);
@@ -42,11 +38,7 @@ describe('notificationService', () => {
     await notificationService.initialize('user-pubkey');
     notificationService.mutePubkey('muted-pubkey');
 
-    const notification = notificationService.createDM({
-      fromPubkey: 'muted-pubkey',
-      messageId: 'dm-2',
-      preview: 'should not appear',
-    });
+    const notification = notificationService.createFollow({ fromPubkey: 'muted-pubkey' });
 
     expect(notification).toBeNull();
     expect(notificationService.getUnreadCount()).toBe(0);
@@ -54,14 +46,14 @@ describe('notificationService', () => {
 
   it('persists notifications and preferences for the active user across reinitialize', async () => {
     await notificationService.initialize('user-pubkey');
-    await notificationService.updatePreferences({ enableDMs: false });
+    await notificationService.updatePreferences({ enableVotes: true });
     notificationService.createSystem({ title: 'System', preview: 'saved notification' });
     notificationService.cleanup();
 
     await notificationService.initialize('user-pubkey');
 
     expect(notificationService.getAll()).toHaveLength(1);
-    expect(notificationService.getPreferences().enableDMs).toBe(false);
+    expect(notificationService.getPreferences().enableVotes).toBe(true);
   });
 
   it('deduplicates event notifications and cleanup removes stale listeners', async () => {
@@ -91,14 +83,15 @@ describe('notificationService', () => {
 
   it('respects disabled notification types and quiet hours', async () => {
     await notificationService.initialize('user-pubkey');
-    await notificationService.updatePreferences({
-      enableMentions: false,
-      quietHoursEnabled: true,
-      quietHoursStart: 22,
-      quietHoursEnd: 8,
-    });
+    await notificationService.updatePreferences({ enableMentions: false });
 
     vi.setSystemTime(new Date('2026-03-17T23:00:00.000Z'));
+    const mockedHour = new Date().getHours();
+    await notificationService.updatePreferences({
+      quietHoursEnabled: true,
+      quietHoursStart: mockedHour,
+      quietHoursEnd: (mockedHour + 1) % 24,
+    });
 
     const mention = notificationService.createFromEvent(
       {
@@ -113,14 +106,10 @@ describe('notificationService', () => {
       NotificationType.MENTION,
     );
 
-    const dm = notificationService.createDM({
-      fromPubkey: 'sender-pubkey',
-      messageId: 'dm-quiet',
-      preview: 'quiet hour message',
-    });
+    const follow = notificationService.createFollow({ fromPubkey: 'sender-pubkey' });
 
     expect(mention).toBeNull();
-    expect(dm).toBeNull();
+    expect(follow).toBeNull();
     expect(notificationService.getUnreadCount()).toBe(0);
     vi.useRealTimers();
   });
@@ -155,16 +144,15 @@ describe('notificationService', () => {
 
     await notificationService.updatePreferences({
       pushEnabled: false,
-      enableDMs: true,
+      enableFollows: true,
       quietHoursEnabled: false,
       mutedPubkeys: [],
     });
     await notificationService.updatePreferences({ pushEnabled: true });
-    const notification = notificationService.createDM({
+    const notification = notificationService.createFollow({
       fromPubkey: 'sender-pubkey',
       fromDisplayName: 'Sender',
-      messageId: 'dm-push',
-      preview: 'hello push',
+      fromAvatar: '/avatar.png',
     });
 
     expect(grantedPermission).toHaveBeenCalled();

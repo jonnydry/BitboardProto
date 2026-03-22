@@ -39,12 +39,6 @@ vi.mock('../../features/layout/useAppNavigationHandlers', () => ({
   useAppNavigationHandlers: () => mocks.navigation,
 }));
 
-vi.mock('../../components/SearchBar', () => ({
-  SearchBar: ({ onSearch }: { onSearch: (q: string) => void }) => (
-    <button onClick={() => onSearch('query-from-search')}>Trigger Search</button>
-  ),
-}));
-
 vi.mock('../../components/SortSelector', () => ({
   SortSelector: ({ onSortChange }: { onSortChange: (s: string) => void }) => (
     <button onClick={() => onSortChange('newest')}>Sort Newest</button>
@@ -75,6 +69,7 @@ vi.mock('../../services/encryptedBoardService', () => ({
 }));
 
 vi.mock('../../features/feed/feedParts', () => ({
+  FeedEndMarker: () => <span>FeedEndMarker</span>,
   TIME_CHUNK_LABELS: {
     today: 'Today',
     yesterday: 'Yesterday',
@@ -124,12 +119,12 @@ describe('FeedView', () => {
     mocks.uiState.feedFilter = 'topic';
     const { rerender } = render(<FeedView {...baseProps} />);
 
-    fireEvent.click(screen.getByText('[ BROWSE_BOARDS ]'));
+    fireEvent.click(screen.getByText('Browse Boards'));
     expect(mocks.uiState.setViewMode).toHaveBeenCalledWith(ViewMode.BROWSE_BOARDS);
 
     mocks.uiState.feedFilter = 'all';
     rerender(<FeedView {...baseProps} />);
-    fireEvent.click(screen.getByText('[ INIT_BIT ]'));
+    fireEvent.click(screen.getByText('Init Bit'));
     expect(mocks.uiState.setViewMode).toHaveBeenCalledWith(ViewMode.CREATE);
   });
 
@@ -155,10 +150,8 @@ describe('FeedView', () => {
     expect(screen.getByText('ShareBoardLink')).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Sort Newest'));
-    fireEvent.click(screen.getByText('Trigger Search'));
 
     expect(mocks.uiState.setSortMode).toHaveBeenCalledWith('newest');
-    expect(mocks.uiState.setSearchQuery).toHaveBeenCalledWith('query-from-search');
   });
 
   it('forwards post interactions to handlers', () => {

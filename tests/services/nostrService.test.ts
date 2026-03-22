@@ -341,7 +341,7 @@ describe('NostrService', () => {
 
     it('should handle query timeouts gracefully', async () => {
       mockPool.querySync.mockImplementation(
-        () => new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000)),
+        () => new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 20)),
       );
 
       const posts = await service.fetchPosts();

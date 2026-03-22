@@ -556,7 +556,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({
 
         {/* Footer actions */}
         <div className="flex items-center justify-between py-3.5 px-5">
-          <span className="text-sm text-terminal-dim/60 font-mono">⌘⏎ transmit</span>
+          <span className="text-base text-terminal-dim/60 font-mono tracking-wider">⌘⏎ transmit</span>
           <div className="flex items-center gap-2">
             <button
               type="button"

@@ -1,143 +1,103 @@
 import React, { useEffect, useState } from 'react';
-import type { Event as NostrEvent } from 'nostr-tools';
 import type { Board, Post } from '../types';
 import { UIConfig } from '../config';
 import { nostrService } from '../services/nostr/NostrService';
 import { votingService } from '../services/votingService';
 import { toastService } from '../services/toastService';
 import { logger } from '../services/loggingService';
+import { buildFetchPostsArgs, resolveNostrFeedScope } from '../services/nostr/nostrFeedScope';
+import {
+  mergeAuthoritativeNostrPosts,
+  processFetchedPostEvents,
+} from '../services/nostr/nostrFeedPosts';
 
 export function useNostrFeed(args: {
+  activeBoard: Board | null;
   setPosts: React.Dispatch<React.SetStateAction<Post[]>>;
   setBoards: React.Dispatch<React.SetStateAction<Board[]>>;
   setIsNostrConnected: (connected: boolean) => void;
   setOldestTimestamp: (timestamp: number | null) => void;
   setHasMorePosts: (hasMore: boolean) => void;
 }): { isInitialLoading: boolean } {
-  const { setPosts, setBoards, setIsNostrConnected, setOldestTimestamp, setHasMorePosts } = args;
+  const {
+    activeBoard,
+    setPosts,
+    setBoards,
+    setIsNostrConnected,
+    setOldestTimestamp,
+    setHasMorePosts,
+  } = args;
   const [isInitialLoading, setIsInitialLoading] = useState(true);
 
-  // Initialize Nostr connection and fetch posts
+  // Board definitions from Nostr (once on mount)
   useEffect(() => {
-    const initNostr = async () => {
+    let cancelled = false;
+    (async () => {
       try {
-        logger.mark('nostr-init-start');
-        const initialLimit = UIConfig.INITIAL_POSTS_COUNT;
-
-        // PHASE 1: Parallel fetch posts and boards
-        logger.mark('nostr-fetch-start');
-        const [nostrPosts, nostrBoards] = await Promise.all([
-          nostrService.fetchPosts({ limit: initialLimit }),
-          nostrService.fetchBoards(),
-        ]);
-        logger.mark('nostr-fetch-end');
-        logger.measure('nostr-initial-fetch', 'nostr-fetch-start', 'nostr-fetch-end');
-
-        // Process posts
-        let processedPosts: Post[] = [];
-        if (nostrPosts.length > 0) {
-          const convertedPosts = nostrPosts
-            .filter((event) => nostrService.isBitboardPostEvent(event))
-            .map((event) => nostrService.eventToPost(event));
-
-          // Batch fetch cryptographically verified votes for all posts
-          const postsWithNostrIds = convertedPosts.filter((p) => p.nostrEventId);
-          const postIds = postsWithNostrIds.map((p) => p.nostrEventId!);
-
-          // PHASE 2: Parallel fetch votes and edits
-          const [voteTallies, editEventsResult] = await Promise.all([
-            votingService.fetchVotesForPosts(postIds),
-            nostrService.fetchPostEdits(postIds, { limit: 300 }).catch((err) => {
-              logger.warn('NostrFeed', 'Failed to fetch post edits', err);
-              return [];
-            }),
-          ]);
-
-          const postsWithVotes = convertedPosts.map((post) => {
-            if (post.nostrEventId) {
-              const tally = voteTallies.get(post.nostrEventId);
-              if (tally) {
-                return {
-                  ...post,
-                  upvotes: tally.upvotes,
-                  downvotes: tally.downvotes,
-                  score: tally.score,
-                  uniqueVoters: tally.uniqueVoters,
-                  votesVerified: true,
-                };
-              }
-            }
-            return post;
-          });
-
-          // Apply latest post edits (BitBoard edit companion events)
-          let postsWithEdits = postsWithVotes;
-          if (editEventsResult.length > 0) {
-            const latestByRoot = new Map<string, { created_at: number; event: NostrEvent }>();
-            for (const ev of editEventsResult) {
-              const parsed = nostrService.eventToPostEditUpdate(ev);
-              if (!parsed) continue;
-              const existing = latestByRoot.get(parsed.rootPostEventId);
-              if (!existing || ev.created_at > existing.created_at) {
-                latestByRoot.set(parsed.rootPostEventId, { created_at: ev.created_at, event: ev });
-              }
-            }
-
-            postsWithEdits = postsWithVotes.map((p) => {
-              const rootId = p.nostrEventId;
-              if (!rootId) return p;
-              const latest = latestByRoot.get(rootId);
-              if (!latest) return p;
-              const parsed = nostrService.eventToPostEditUpdate(latest.event);
-              if (!parsed) return p;
-              return {
-                ...p,
-                ...parsed.updates,
-              };
-            });
-          }
-
-          processedPosts = postsWithEdits;
-
-          const timestamps = postsWithVotes.map((p) => p.timestamp);
-          if (timestamps.length > 0) {
-            // Avoid spread-into-Math.min which throws RangeError for very large arrays
-            setOldestTimestamp(timestamps.reduce((min, t) => (t < min ? t : min), Infinity));
-          }
-
-          setHasMorePosts(nostrPosts.length >= initialLimit);
-        } else {
-          setHasMorePosts(false);
-        }
-
-        // Process boards
-        let processedBoards: Board[] = [];
-        if (nostrBoards.length > 0) {
-          processedBoards = nostrBoards.map((event) => nostrService.eventToBoard(event));
-        }
-
-        // Single state update with all data
-        setPosts((prev) => {
-          const existingIds = new Set(prev.map((p) => p.nostrEventId).filter(Boolean));
-          const newPosts = processedPosts.filter((p) => !existingIds.has(p.nostrEventId));
-          return [...prev, ...newPosts];
-        });
-
+        const nostrBoards = await nostrService.fetchBoards();
+        if (cancelled || nostrBoards.length === 0) return;
+        const processedBoards = nostrBoards.map((event) => nostrService.eventToBoard(event));
         setBoards((prev) => {
           const existingIds = new Set(prev.map((b) => b.id));
           const newBoards = processedBoards.filter((b) => !existingIds.has(b.id));
           return [...prev, ...newBoards];
         });
+      } catch (error) {
+        logger.warn('NostrFeed', 'fetchBoards failed', error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [setBoards]);
+
+  // Scoped post fetch + live subscription (re-runs when active board changes)
+  useEffect(() => {
+    let cancelled = false;
+    let profileLoadHandle: number | null = null;
+    const scope = resolveNostrFeedScope(activeBoard);
+    const initialLimit = UIConfig.INITIAL_POSTS_COUNT;
+
+    const initNostr = async () => {
+      try {
+        logger.mark('nostr-init-start');
+
+        if (scope.mode === 'community') {
+          if (cancelled) return;
+          setOldestTimestamp(null);
+          setHasMorePosts(false);
+          setIsNostrConnected(true);
+          setIsInitialLoading(false);
+          logger.mark('nostr-init-end');
+          return;
+        }
+
+        logger.mark('nostr-fetch-start');
+        const fetchArgs = buildFetchPostsArgs(scope, { limit: initialLimit });
+        const nostrPosts = await nostrService.fetchPosts(fetchArgs);
+        logger.mark('nostr-fetch-end');
+        logger.measure('nostr-initial-fetch', 'nostr-fetch-start', 'nostr-fetch-end');
+
+        if (cancelled) return;
+
+        const { processedPosts, oldestMs } = await processFetchedPostEvents(nostrPosts);
+
+        if (oldestMs !== null && Number.isFinite(oldestMs)) {
+          setOldestTimestamp(oldestMs);
+        } else {
+          setOldestTimestamp(null);
+        }
+
+        setHasMorePosts(nostrPosts.length >= initialLimit);
+
+        setPosts((prev) => mergeAuthoritativeNostrPosts(prev, processedPosts));
 
         setIsNostrConnected(true);
         setIsInitialLoading(false);
         logger.mark('nostr-init-end');
         logger.measure('nostr-initialization', 'nostr-init-start', 'nostr-init-end');
 
-        // PHASE 3: Defer profile fetching to after initial render
         if (processedPosts.length > 0) {
-          // fetchProfiles must be declared before scheduleProfiles to avoid the
-          // temporal dead zone — const is block-scoped, not hoisted like var.
           const fetchProfiles = () => {
             const pubkeys = Array.from(
               new Set(processedPosts.map((p) => p.authorPubkey).filter(Boolean) as string[]),
@@ -146,6 +106,7 @@ export function useNostrFeed(args: {
               nostrService
                 .fetchProfiles(pubkeys)
                 .then(() => {
+                  if (cancelled) return;
                   setPosts((prev) =>
                     prev.map((p) =>
                       p.authorPubkey
@@ -160,33 +121,39 @@ export function useNostrFeed(args: {
             }
           };
 
-          // Use requestIdleCallback if available, otherwise setTimeout
           const scheduleProfiles =
             typeof requestIdleCallback !== 'undefined'
-              ? () => requestIdleCallback(fetchProfiles)
-              : () => setTimeout(fetchProfiles, 100);
+              ? () => {
+                  profileLoadHandle = requestIdleCallback(fetchProfiles);
+                }
+              : () => {
+                  profileLoadHandle = window.setTimeout(fetchProfiles, 100);
+                };
 
           scheduleProfiles();
         }
       } catch (error) {
         logger.error('NostrFeed', 'Failed to initialize Nostr', error);
-        setIsInitialLoading(false);
-        setIsNostrConnected(false);
-        const connected = nostrService.getConnectedCount();
-        const total = nostrService.getRelays().length;
-        toastService.push({
-          type: 'error',
-          message: 'Nostr connection failed (offline mode)',
-          detail: `${error instanceof Error ? error.message : String(error)} — Relays: ${connected}/${total}. Check RELAYS settings.`,
-          durationMs: UIConfig.TOAST_DURATION_MS,
-          dedupeKey: 'nostr-init-failed',
-        });
+        if (!cancelled) {
+          setIsInitialLoading(false);
+          setIsNostrConnected(false);
+          const connected = nostrService.getConnectedCount();
+          const total = nostrService.getRelays().length;
+          toastService.push({
+            type: 'error',
+            message: 'Nostr connection failed (offline mode)',
+            detail: `${error instanceof Error ? error.message : String(error)} — Relays: ${connected}/${total}. Check RELAYS settings.`,
+            durationMs: UIConfig.TOAST_DURATION_MS,
+            dedupeKey: 'nostr-init-failed',
+          });
+        }
       }
     };
 
-    initNostr();
+    void initNostr();
 
-    // Subscribe to real-time updates
+    const subscribeFilters = scope.mode === 'scoped' ? scope.subscribe : {};
+
     const subId = nostrService.subscribeToFeed((event) => {
       if (!nostrService.isBitboardPostEvent(event)) return;
       const post = nostrService.eventToPost(event);
@@ -206,9 +173,8 @@ export function useNostrFeed(args: {
           );
         });
       }
-    });
+    }, subscribeFilters);
 
-    // Subscribe to post edit events and merge into local state
     const subIdEdits = nostrService.subscribeToPostEdits((event) => {
       const parsed = nostrService.eventToPostEditUpdate(event);
       if (!parsed) return;
@@ -222,14 +188,19 @@ export function useNostrFeed(args: {
     });
 
     return () => {
+      cancelled = true;
+      if (profileLoadHandle !== null) {
+        if (typeof cancelIdleCallback !== 'undefined') {
+          cancelIdleCallback(profileLoadHandle);
+        } else {
+          window.clearTimeout(profileLoadHandle);
+        }
+      }
       nostrService.unsubscribe(subId);
       nostrService.unsubscribe(subIdEdits);
     };
-  }, [setBoards, setHasMorePosts, setIsNostrConnected, setOldestTimestamp, setPosts]);
+  }, [activeBoard, setHasMorePosts, setIsNostrConnected, setOldestTimestamp, setPosts]);
 
-  // Full cleanup only on page unload — the useEffect teardown only removes the listener.
-  // Calling nostrService.cleanup() on React unmount (e.g. StrictMode double-invoke or
-  // hot-reload) destroys the pool and prevents reconnection on remount.
   useEffect(() => {
     const handleBeforeUnload = () => {
       nostrService.cleanup();
@@ -240,7 +211,6 @@ export function useNostrFeed(args: {
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      // Do NOT call nostrService.cleanup() here — it destroys the pool permanently.
     };
   }, []);
 

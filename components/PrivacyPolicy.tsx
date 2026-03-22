@@ -64,14 +64,6 @@ export const PrivacyPolicy: React.FC = () => {
           </li>
         </ul>
 
-        <h3 className="text-xl font-semibold mt-4">Direct Messages</h3>
-        <p>
-          Decrypted DM content is <strong>never written to localStorage</strong>. Only the
-          encrypted ciphertext received from the Nostr network is persisted. Each session
-          re-decrypts messages in memory using your unlocked key. If your key is not unlocked, DMs
-          are displayed as <em>[Encrypted Message]</em> until you enter your passphrase.
-        </p>
-
         <h3 className="text-xl font-semibold mt-4">Preferences &amp; Cache</h3>
         <ul className="list-disc list-inside space-y-2 ml-4">
           <li>Theme selection, relay list, and UI preferences</li>
@@ -88,8 +80,8 @@ export const PrivacyPolicy: React.FC = () => {
         <h3 className="text-xl font-semibold mt-4">Nostr Network</h3>
         <p>
           When you create posts, comments, votes, or follow lists, this content is signed with your
-          private key and published to the Nostr relay servers you have configured. This is
-          inherent to how the Nostr protocol works:
+          private key and published to the Nostr relay servers you have configured. This is inherent
+          to how the Nostr protocol works:
         </p>
         <ul className="list-disc list-inside space-y-2 ml-4">
           <li>Public posts are visible to anyone on the Nostr network</li>
@@ -103,18 +95,10 @@ export const PrivacyPolicy: React.FC = () => {
           </li>
         </ul>
 
-        <h3 className="text-xl font-semibold mt-4">Direct Messages</h3>
-        <p>
-          DMs are encrypted before leaving your device using NIP-04 (legacy, for relay
-          compatibility) or NIP-17 gift-wrap (for stronger privacy, with randomized timestamps to
-          resist traffic analysis). Neither BitBoard nor relay operators can read DM content without
-          your private key.
-        </p>
-
         <h3 className="text-xl font-semibold mt-4">Encrypted Boards</h3>
         <p>
-          Encrypted board content is AES-256 encrypted client-side. The encryption key is shared
-          via URL fragment (never sent to servers). Relay operators cannot read the content.
+          Encrypted board content is AES-256 encrypted client-side. The encryption key is shared via
+          URL fragment (never sent to servers). Relay operators cannot read the content.
         </p>
       </section>
 
@@ -124,9 +108,9 @@ export const PrivacyPolicy: React.FC = () => {
         <h3 className="text-xl font-semibold mt-4">Sentry (Error Monitoring)</h3>
         <p>
           BitBoard uses Sentry for crash and error reporting. Before any identity data is sent to
-          Sentry, your Nostr public key is <strong>SHA-256 hashed</strong> — the raw pubkey is
-          never transmitted. This prevents Sentry from linking error reports to your pseudonymous
-          Nostr identity. No private key material is ever sent.
+          Sentry, your Nostr public key is <strong>SHA-256 hashed</strong> — the raw pubkey is never
+          transmitted. This prevents Sentry from linking error reports to your pseudonymous Nostr
+          identity. No private key material is ever sent.
         </p>
 
         <h3 className="text-xl font-semibold mt-4">PostHog (Analytics)</h3>
@@ -135,7 +119,9 @@ export const PrivacyPolicy: React.FC = () => {
           data is collected. If you opt in:
         </p>
         <ul className="list-disc list-inside space-y-2 ml-4">
-          <li>Anonymous feature usage, interaction patterns, and performance metrics are tracked</li>
+          <li>
+            Anonymous feature usage, interaction patterns, and performance metrics are tracked
+          </li>
           <li>No personally identifiable information (PII) is collected</li>
           <li>Your Nostr pubkey is pseudonymized before being passed to PostHog</li>
           <li>You can opt out at any time in app settings</li>
@@ -146,8 +132,8 @@ export const PrivacyPolicy: React.FC = () => {
 
         <h3 className="text-xl font-semibold mt-4">Nostr Relay Servers</h3>
         <p>
-          You connect to relay servers of your own choice. BitBoard ships with a default list of
-          six public relays. Relay operators can see your IP address and all events you publish or
+          You connect to relay servers of your own choice. BitBoard ships with a default list of six
+          public relays. Relay operators can see your IP address and all events you publish or
           subscribe to. Review each relay's own privacy policy for their data handling practices.
         </p>
       </section>
@@ -161,10 +147,11 @@ export const PrivacyPolicy: React.FC = () => {
         <ul className="list-disc list-inside space-y-2 ml-4">
           <li>Private key encrypted at rest with AES-256-GCM (never stored as plaintext)</li>
           <li>PBKDF2 key derivation with 310,000 iterations and a 32-byte random salt</li>
-          <li>Decrypted DM content held only in memory, never written to localStorage</li>
           <li>Sentry receives only a SHA-256 hash of your pubkey</li>
           <li>Vote signatures verified in a background Web Worker using the Nostr protocol</li>
-          <li>NIP-07 browser extension support (Alby, nos2x) — private key never touches the app</li>
+          <li>
+            NIP-07 browser extension support (Alby, nos2x) — private key never touches the app
+          </li>
         </ul>
         <p className="text-sm text-terminal-dim mt-2">
           You are responsible for keeping your passphrase and device secure. BitBoard cannot recover
@@ -190,8 +177,8 @@ export const PrivacyPolicy: React.FC = () => {
           </li>
         </ul>
         <p className="text-sm text-terminal-dim mt-2">
-          Content already published to Nostr relays cannot be deleted by BitBoard, as the app has
-          no authority over relay operators.
+          Content already published to Nostr relays cannot be deleted by BitBoard, as the app has no
+          authority over relay operators.
         </p>
       </section>
 

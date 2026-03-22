@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback, useState, useEffect } from 'react';
-import { MapPin, Share2, Lock, ChevronUp, Calendar, Radio, Plus } from 'lucide-react';
+import { MapPin, Share2, Lock, ChevronUp, Calendar, Radio } from 'lucide-react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import type { Post, SortMode } from '../../types';
 import { BoardType, ViewMode } from '../../types';
@@ -576,17 +576,6 @@ export function FeedView(props: {
       {showShareModal && activeBoard && (
         <ShareBoardLink board={activeBoard} onClose={() => setShowShareModal(false)} />
       )}
-
-      {/* New Bit FAB — persistent (feed only); mirrors jump-to-top on the right */}
-      <button
-        type="button"
-        onClick={() => setViewMode(ViewMode.CREATE)}
-        className="fixed bottom-24 md:bottom-8 left-4 md:left-8 z-30 w-12 h-12 bg-terminal-text text-black rounded-sm shadow-hard flex items-center justify-center hover:brightness-110 hover:scale-110 transition-all"
-        aria-label="New bit"
-        title="New bit"
-      >
-        <Plus size={24} strokeWidth={2.5} />
-      </button>
 
       {/* Jump to top FAB */}
       {showJumpToTop && (
