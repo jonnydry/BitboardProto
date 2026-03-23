@@ -12,6 +12,7 @@ import {
   getOldestPostTimestamp,
   processFetchedPostEvents,
 } from '../../services/nostr/nostrFeedPosts';
+import { mergePostsWithIndexer } from '../../services/indexerFeedClient';
 
 interface UseAppFeedHandlersArgs {
   activeBoard: Board | null;
@@ -48,7 +49,14 @@ export function useAppFeedHandlers({
         limit: loadMoreLimit,
         until: Math.floor(oldestTimestamp / 1000) - 1,
       });
-      const olderPosts = await nostrService.fetchPosts(fetchArgs);
+      let olderPosts = await nostrService.fetchPosts(fetchArgs);
+      olderPosts = await mergePostsWithIndexer(olderPosts, {
+        boardId: fetchArgs.boardId,
+        boardAddress: fetchArgs.boardAddress,
+        geohash: fetchArgs.geohash,
+        limit: loadMoreLimit,
+        until: fetchArgs.until,
+      });
 
       if (olderPosts.length === 0) {
         setHasMorePosts(false);

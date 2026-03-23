@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useState, useEffect } from 'react';
+import React, { useMemo, useCallback, useState, useEffect, useRef } from 'react';
 import { MapPin, Share2, Lock, ChevronUp, Calendar, Radio } from 'lucide-react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import type { Post, SortMode } from '../../types';
@@ -68,6 +68,8 @@ export function FeedView(props: {
   onToggleMute?: (pubkey: string) => void;
   isMuted?: (pubkey: string) => boolean;
   isInitialLoading?: boolean;
+  /** When false after load, show relay/offline-specific empty state */
+  isNostrConnected?: boolean;
   onRetryPost?: (postId: string) => void;
 }) {
   // Get data from Zustand stores instead of props
@@ -81,7 +83,7 @@ export function FeedView(props: {
   const setViewMode = useUIStore((state) => state.setViewMode);
 
   // Navigation handlers from Zustand-based hook
-  const { handleViewBit, handleViewProfile, handleEditPost, handleTagClick } =
+  const { handleViewBit, handleViewProfile, handleEditPost, handleTagClick, navigateToBoard } =
     useAppNavigationHandlers();
 
   const {
@@ -91,6 +93,7 @@ export function FeedView(props: {
     loaderRef,
     isLoadingMore,
     isInitialLoading = false,
+    isNostrConnected = true,
     onVote,
     onComment,
     onEditComment,
@@ -121,6 +124,10 @@ export function FeedView(props: {
   const canShareBoard =
     activeBoard?.isEncrypted && encryptedBoardService.hasBoardKey(activeBoard.id);
 
+  // Ref so the scroll handler can check whether the time-chunk nav is visible.
+  // Populated after availableChunks is computed below.
+  const showTimeNavRef = useRef(false);
+
   // Track scroll position for "Jump to top" button (throttled)
   useEffect(() => {
     let lastExecTime = 0;
@@ -131,7 +138,12 @@ export function FeedView(props: {
       const scrollY = window.scrollY;
       setShowJumpToTop(scrollY > 800);
 
-      // Determine which time chunk is currently in view (throttled DOM queries)
+      // Only query the DOM for time-chunk headers when the nav is actually visible.
+      // Skips needless layout work when there are ≤10 posts or only one time bucket.
+      // Also skipped when virtualized — virtualized headers outside the viewport are
+      // not in the DOM, making DOM-based tracking unreliable there.
+      if (!showTimeNavRef.current) return;
+
       const timeHeaders = document.querySelectorAll('[data-time-chunk]');
       let lastVisibleChunk: TimeChunk | null = null;
       timeHeaders.forEach((header) => {
@@ -173,11 +185,12 @@ export function FeedView(props: {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
+  // Stable ref updated each render — lets handleJumpToChunk stay stable ([] deps)
+  // while always seeing the latest shouldVirtualizeFeed / postsByTimeChunk / virtualizer.
+  const jumpToChunkImplRef = useRef<(chunk: TimeChunk) => void>(null!);
+
   const handleJumpToChunk = useCallback((chunk: TimeChunk) => {
-    const header = document.querySelector(`[data-time-chunk="${chunk}"]`);
-    if (header) {
-      header.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    jumpToChunkImplRef.current(chunk);
   }, []);
 
   // Group posts by time chunks for navigation
@@ -208,6 +221,11 @@ export function FeedView(props: {
     );
   }, [postsByTimeChunk]);
 
+  // Sync showTimeNavRef after availableChunks is computed.
+  useEffect(() => {
+    showTimeNavRef.current = sortedPosts.length > 10 && availableChunks.length > 1;
+  }, [sortedPosts.length, availableChunks.length]);
+
   // Check if we should show a time header before this post
   const shouldShowTimeHeader = useCallback(
     (post: Post, index: number): TimeChunk | null => {
@@ -228,6 +246,29 @@ export function FeedView(props: {
     estimateSize: () => 520,
     overscan: 6,
   });
+
+  // Keep a stable ref so scroll/click handlers can access the current virtualizer
+  // without needing it in their dependency arrays (avoids recreating them every render).
+  const feedVirtualizerRef = useRef(feedVirtualizer);
+  feedVirtualizerRef.current = feedVirtualizer;
+
+  // Now that all dependencies are available, sync jumpToChunkImplRef with the
+  // current values of shouldVirtualizeFeed, postsByTimeChunk, and feedVirtualizerRef.
+  jumpToChunkImplRef.current = (chunk: TimeChunk) => {
+    if (shouldVirtualizeFeed) {
+      // Under virtualization the target header may not be in the DOM — use the
+      // virtualizer's scrollToIndex instead, which works regardless of render state.
+      const firstIndex = postsByTimeChunk[chunk].firstIndex;
+      if (firstIndex >= 0) {
+        feedVirtualizerRef.current.scrollToIndex(firstIndex, { align: 'start', behavior: 'smooth' });
+      }
+      return;
+    }
+    const header = document.querySelector(`[data-time-chunk="${chunk}"]`);
+    if (header) {
+      header.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   // Stabilize callbacks to prevent PostItem re-renders
   const handleVote = useCallback(
@@ -314,6 +355,39 @@ export function FeedView(props: {
       );
     }
 
+    if (searchQuery.trim()) {
+      return (
+        <div className="border border-terminal-dim p-12 text-center text-terminal-dim flex flex-col items-center gap-4">
+          <div className="text-4xl opacity-20">¯\\_(ツ)_/¯</div>
+          <div>
+            <p className="font-bold">&gt; NO SEARCH RESULTS</p>
+            <p className="text-xs mt-2">Try another keyword or clear the search filter.</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (!isNostrConnected) {
+      return (
+        <div className="border border-terminal-dim p-12 text-center text-terminal-dim flex flex-col items-center gap-4">
+          <div className="text-4xl opacity-20">::</div>
+          <div>
+            <p className="font-bold">&gt; NOSTR RELAYS UNREACHABLE</p>
+            <p className="text-xs mt-2 max-w-md">
+              The feed could not load from relays. Posts are not stored inside this app — they are
+              fetched from the network. Check your connection or relay list.
+            </p>
+          </div>
+          <button
+            onClick={() => setViewMode(ViewMode.RELAYS)}
+            className="ui-button-secondary mt-4 px-4 py-2 text-sm"
+          >
+            Relay settings
+          </button>
+        </div>
+      );
+    }
+
     // Location-specific empty state
     if (feedFilter === 'location') {
       return (
@@ -352,23 +426,69 @@ export function FeedView(props: {
       );
     }
 
-    // Default empty state
+    if (!activeBoard) {
+      return (
+        <div className="border border-terminal-dim p-12 text-center text-terminal-dim flex flex-col items-center gap-4">
+          <div className="text-4xl opacity-20">::</div>
+          <div>
+            <p className="font-bold">&gt; GLOBAL FEED IS QUIET</p>
+            <p className="text-xs mt-2 max-w-md">
+              You are on the global BitBoard feed (all boards mixed). If this looks empty, open a
+              specific board — most posts are scoped to a board on Nostr.
+            </p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-2">
+            <button
+              onClick={() => navigateToBoard('b-tech')}
+              className="ui-button-secondary px-4 py-2 text-sm"
+            >
+              Open //TECH
+            </button>
+            <button
+              onClick={() => setViewMode(ViewMode.BROWSE_BOARDS)}
+              className="ui-button-secondary px-4 py-2 text-sm"
+            >
+              Browse boards
+            </button>
+            <button
+              onClick={() => setViewMode(ViewMode.CREATE)}
+              className="ui-button-secondary px-4 py-2 text-sm"
+            >
+              Init Bit
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="border border-terminal-dim p-12 text-center text-terminal-dim flex flex-col items-center gap-4">
         <div className="text-4xl opacity-20">¯\\_(ツ)_/¯</div>
         <div>
-          <p className="font-bold">&gt; NO DATA PACKETS FOUND</p>
-          <p className="text-xs mt-2">Be the first to transmit on this frequency.</p>
+          <p className="font-bold">&gt; NO POSTS ON THIS BOARD YET</p>
+          <p className="text-xs mt-2 max-w-md">
+            Public posts load from Nostr relays — not from this device. If you expected notes here,
+            they may still be propagating, or your relay list may not overlap the posters&apos;
+            relays. Try Relay settings, or ask for a direct note link.
+          </p>
         </div>
-        <button
-          onClick={() => setViewMode(ViewMode.CREATE)}
-          className="ui-button-secondary mt-4 px-4 py-2 text-sm"
-        >
-          Init Bit
-        </button>
+        <div className="flex flex-wrap justify-center gap-2">
+          <button
+            onClick={() => setViewMode(ViewMode.CREATE)}
+            className="ui-button-secondary px-4 py-2 text-sm"
+          >
+            Init Bit
+          </button>
+          <button
+            onClick={() => setViewMode(ViewMode.RELAYS)}
+            className="ui-button-secondary px-4 py-2 text-sm"
+          >
+            Relay settings
+          </button>
+        </div>
       </div>
     );
-  }, [activeBoard?.source, feedFilter, setViewMode]);
+  }, [activeBoard, feedFilter, isNostrConnected, navigateToBoard, searchQuery, setViewMode]);
 
   return (
     <div className="min-w-0 space-y-2">

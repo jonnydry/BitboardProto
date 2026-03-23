@@ -936,6 +936,13 @@ class NostrService {
   // PUBLISHING EVENTS
   // ----------------------------------------
 
+  /**
+   * Send an already-signed event to publish relays again (e.g. after relay outages).
+   */
+  async rebroadcastSignedEvent(signedEvent: NostrEvent): Promise<NostrEvent> {
+    return this.publishSignedEvent(signedEvent);
+  }
+
   async publishSignedEvent(signedEvent: NostrEvent): Promise<NostrEvent> {
     this._activePublishes++;
     try {
@@ -944,12 +951,10 @@ class NostrService {
         throw new Error('No relays configured');
       }
 
-      // Prefer relays known to be connected; otherwise, still attempt all relays.
-      // (Important: statuses start as false until we successfully query/publish.)
-      const knownConnected = publishRelays.filter(
-        (url) => this.relayStatuses.get(url)?.isConnected,
-      );
-      const relaysToPublish = knownConnected.length > 0 ? knownConnected : publishRelays;
+      // Always publish to ALL relays regardless of known connection status.
+      // Skipping "not-yet-connected" relays on publish was causing posts to land
+      // on only a subset of relays, making them invisible to users on other relay sets.
+      const relaysToPublish = publishRelays;
 
       const results = await Promise.allSettled(
         relaysToPublish.map(async (url) => {

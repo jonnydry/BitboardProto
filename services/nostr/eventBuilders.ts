@@ -41,6 +41,7 @@ export function buildPostEvent(
 ): UnsignedNostrEvent {
   const isEncrypted = !!(opts?.encryptedTitle || opts?.encryptedContent);
 
+  // Tags must stay aligned with `NostrService.fetchPosts` filters: `#client`, `#board` / `#a`, `#g`.
   const tags: string[][] = [
     ['client', 'bitboard'],
     [BITBOARD_TYPE_TAG, BITBOARD_TYPE_POST],

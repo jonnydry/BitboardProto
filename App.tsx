@@ -660,6 +660,7 @@ const AppContent: React.FC = () => {
                   loaderRef={app.loaderRef}
                   isLoadingMore={app.isLoadingMore}
                   isInitialLoading={app.isInitialLoading}
+                  isNostrConnected={app.isNostrConnected}
                   onVote={app.handleVote}
                   onComment={app.handleComment}
                   onEditComment={app.handleEditComment}

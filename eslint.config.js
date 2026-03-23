@@ -8,6 +8,7 @@ export default [
     ignores: [
       'dist/**',
       'node_modules/**',
+      'indexer/**',
       // Tooling configs (CommonJS)
       '*.cjs',
       // If you add prettier config as cjs

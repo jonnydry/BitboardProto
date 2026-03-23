@@ -46,6 +46,22 @@ export const ToastHost: React.FC = () => {
               {t.detail && (
                 <div className="text-[11px] text-terminal-dim mt-1 break-words">{t.detail}</div>
               )}
+              {t.actions && t.actions.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {t.actions.map((a) => (
+                    <button
+                      key={a.label}
+                      type="button"
+                      onClick={() => {
+                        a.onClick();
+                      }}
+                      className="border border-terminal-dim px-2 py-1 text-[11px] uppercase tracking-wide text-terminal-dim hover:border-terminal-text hover:text-terminal-text transition-colors"
+                    >
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <button

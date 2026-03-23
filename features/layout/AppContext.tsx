@@ -28,6 +28,7 @@ import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
 import { FeatureFlags, UIConfig } from '../../config';
 import { useTheme } from '../../hooks/useTheme';
 import { useUrlPostRouting } from '../../hooks/useUrlPostRouting';
+import { useBoardUrlRouting } from '../../hooks/useBoardUrlRouting';
 import { useNostrFeed } from '../../hooks/useNostrFeed';
 import { useCommentsLoader } from '../../hooks/useCommentsLoader';
 import { useVoting } from '../../hooks/useVoting';
@@ -644,6 +645,11 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Hooks
   useTheme(uiCtx.theme);
+  useBoardUrlRouting({
+    viewMode: uiCtx.viewMode,
+    activeBoardId: boardsCtx.activeBoardId,
+    setActiveBoardId: boardsCtx.setActiveBoardId,
+  });
   useUrlPostRouting({
     viewMode: uiCtx.viewMode,
     selectedBitId,

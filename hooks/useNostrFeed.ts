@@ -10,6 +10,7 @@ import {
   mergeAuthoritativeNostrPosts,
   processFetchedPostEvents,
 } from '../services/nostr/nostrFeedPosts';
+import { mergePostsWithIndexer } from '../services/indexerFeedClient';
 
 export function useNostrFeed(args: {
   activeBoard: Board | null;
@@ -74,7 +75,14 @@ export function useNostrFeed(args: {
 
         logger.mark('nostr-fetch-start');
         const fetchArgs = buildFetchPostsArgs(scope, { limit: initialLimit });
-        const nostrPosts = await nostrService.fetchPosts(fetchArgs);
+        let nostrPosts = await nostrService.fetchPosts(fetchArgs);
+        nostrPosts = await mergePostsWithIndexer(nostrPosts, {
+          boardId: fetchArgs.boardId,
+          boardAddress: fetchArgs.boardAddress,
+          geohash: fetchArgs.geohash,
+          limit: initialLimit,
+          until: fetchArgs.until,
+        });
         logger.mark('nostr-fetch-end');
         logger.measure('nostr-initial-fetch', 'nostr-fetch-start', 'nostr-fetch-end');
 

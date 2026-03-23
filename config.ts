@@ -50,13 +50,18 @@ export const UserConfig = {
 export const NostrConfig = {
   /** Default relay URLs */
   DEFAULT_RELAYS: [
-    'wss://relay.damus.io',
-    'wss://relay.nostr.band',
-    'wss://nos.lol',
-    'wss://relay.snort.social',
-    'wss://nostr.wine',
-    'wss://relay.nostr.info',
-    'wss://relay.primal.net',
+    // Tier 1: Major, highly reliable relays
+    'wss://relay.damus.io',       // Damus — one of the largest and most stable
+    'wss://relay.primal.net',     // Primal — high availability, well-indexed
+    'wss://relay.nostr.band',     // nostr.band — search-indexed, very stable
+    'wss://nos.lol',              // nos.lol — reliable public relay
+    // Tier 2: Well-established open relays
+    'wss://relay.snort.social',   // Snort — active relay
+    'wss://offchain.pub',         // offchain.pub — reliable, run by known dev
+    'wss://nostr.mom',            // nostr.mom — high uptime open relay
+    'wss://relay.nostr.bg',       // nostr.bg — stable European relay
+    'wss://nostr21.com',          // nostr21 — reliable community relay
+    'wss://relay.noswhere.com',   // noswhere — reliable public relay
   ] as const,
 
   /** Maximum number of posts to fetch at once */
@@ -197,6 +202,12 @@ export const UIConfig = {
   /** Number of posts to show initially */
   INITIAL_POSTS_COUNT: 50,
 
+  /**
+   * When there is no `/board/...` URL and no saved last board, land new sessions on this board
+   * so the feed is scoped (not empty global) by default.
+   */
+  DEFAULT_LANDING_BOARD_ID: 'b-tech',
+
   /** Number of posts to load on scroll */
   POSTS_LOAD_MORE_COUNT: 25,
 
@@ -306,6 +317,8 @@ export const StorageKeys = {
   // Cache
   BOARDS_CACHE: 'bitboard_boards_cache',
   POSTS_CACHE: 'bitboard_posts_cache',
+  /** Last board selected in the UI (for reload / new tab; public path is source of truth when present) */
+  LAST_ACTIVE_BOARD_ID: 'bitboard_last_active_board_v1',
 
   // Bookmarks
   FAVORITE_BOARDS: 'bitboard_favorite_boards',
@@ -358,6 +371,18 @@ export const ZapConfig = {
 
   /** Maximum number of top zappers to display */
   MAX_TOP_ZAPPERS: 10,
+} as const;
+
+// ============================================
+// OPTIONAL INDEXER (Phase 2 — consistent public feeds)
+// ============================================
+
+export const IndexerConfig = {
+  /**
+   * Base URL of the BitBoard indexer HTTP API (no trailing slash required).
+   * Example: https://indexer.example.com
+   */
+  BASE_URL: (import.meta.env.VITE_BITBOARD_INDEXER_URL as string | undefined)?.trim() || '',
 } as const;
 
 // ============================================

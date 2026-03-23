@@ -6,6 +6,11 @@ import { diagnosticsService } from './diagnosticsService';
 
 export type ToastType = 'info' | 'success' | 'error' | 'warning';
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface Toast {
   id: string;
   type: ToastType;
@@ -14,6 +19,7 @@ export interface Toast {
   createdAt: number;
   durationMs: number;
   dedupeKey?: string;
+  actions?: ToastAction[];
 }
 
 class ToastService {

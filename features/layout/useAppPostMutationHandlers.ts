@@ -16,6 +16,7 @@ import {
   ownPostsCacheUpsert,
   ownPostsCacheRemove,
 } from '../../services/postOutboxStorage';
+import { buildBoardPathname } from '../../services/boardUrlService';
 
 interface UseAppPostMutationHandlersArgs {
   boardsById: Map<string, Board>;
@@ -133,6 +134,60 @@ export function useAppPostMutationHandlers({
             );
             const signed = await identityService.signEvent(unsigned);
             const event = await nostrService.publishSignedEvent(signed);
+
+            const shareUrl = (): string => {
+              const u = new URL(buildBoardPathname(newPostData.boardId), window.location.origin);
+              u.searchParams.set('post', event.id);
+              return u.toString();
+            };
+
+            toastService.push({
+              type: 'success',
+              message: 'Published to Nostr',
+              detail: `Note id: ${event.id.slice(0, 16)}…\nPublic posts load from relays — share this board link so others see the same feed.`,
+              durationMs: 14000,
+              actions: [
+                {
+                  label: 'Copy link',
+                  onClick: () => {
+                    void navigator.clipboard?.writeText(shareUrl()).then(
+                      () =>
+                        toastService.push({
+                          type: 'info',
+                          message: 'Link copied',
+                          durationMs: 2200,
+                        }),
+                      () =>
+                        toastService.push({
+                          type: 'warning',
+                          message: 'Could not copy link',
+                          durationMs: 2800,
+                        }),
+                    );
+                  },
+                },
+                {
+                  label: 'Re-broadcast',
+                  onClick: () => {
+                    void nostrService.rebroadcastSignedEvent(event).then(
+                      () =>
+                        toastService.push({
+                          type: 'success',
+                          message: 'Re-broadcast sent',
+                          durationMs: 3200,
+                        }),
+                      (err) =>
+                        toastService.push({
+                          type: 'error',
+                          message: 'Re-broadcast failed',
+                          detail: err instanceof Error ? err.message : String(err),
+                          durationMs: 5200,
+                        }),
+                    );
+                  },
+                },
+              ],
+            });
 
             postOutboxStorageRemoveMatching(localId, event.id);
             const syncedPost: Post = {
