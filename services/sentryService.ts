@@ -5,8 +5,12 @@
  * Replaces the basic errorTracking.ts with full Sentry features.
  */
 
-import * as Sentry from '@sentry/react';
 import { logger } from './loggingService';
+
+type SentryModule = typeof import('@sentry/react');
+type SentryUser = { id?: string; username?: string; pubkey?: string };
+type BreadcrumbLevel = 'fatal' | 'error' | 'warning' | 'log' | 'info' | 'debug';
+type InactiveSpan = { end?: () => void } | null;
 
 export interface SentryConfig {
   /** Enable/disable Sentry */
@@ -27,21 +31,34 @@ export interface SentryConfig {
 
 class SentryService {
   private initialized = false;
+  private sdk: SentryModule | null = null;
+  private loadPromise: Promise<SentryModule | null> | null = null;
   private config: SentryConfig = {
     enabled: false,
   };
 
-  /**
-   * Initialize Sentry with configuration
-   * Should be called early in application startup (index.tsx)
-   */
-  async initialize(config?: Partial<SentryConfig>): Promise<void> {
-    if (this.initialized) {
-      logger.warn('Sentry', 'Already initialized, skipping');
-      return;
-    }
+  private async loadSdk(): Promise<SentryModule | null> {
+    if (this.sdk) return this.sdk;
+    if (this.loadPromise) return this.loadPromise;
 
-    // Auto-detect from environment variables
+    this.loadPromise = import('@sentry/react')
+      .then((module) => {
+        this.sdk = module;
+        return module;
+      })
+      .catch((error) => {
+        logger.error('Sentry', 'Failed to load SDK', error);
+        this.config.enabled = false;
+        return null;
+      });
+
+    return this.loadPromise;
+  }
+
+  /**
+   * Preconfigure lightweight runtime flags before the Sentry SDK loads.
+   */
+  configure(config?: Partial<SentryConfig>): void {
     const dsn = config?.dsn || import.meta.env.VITE_SENTRY_DSN;
     const environment = config?.environment || import.meta.env.VITE_ENVIRONMENT || 'production';
     const enabled = config?.enabled !== false && !!dsn;
@@ -55,6 +72,22 @@ class SentryService {
       replaysSessionSampleRate: config?.replaysSessionSampleRate ?? 0.1,
       replaysOnErrorSampleRate: config?.replaysOnErrorSampleRate ?? 1.0,
     };
+  }
+
+  /**
+   * Initialize Sentry with configuration
+   * Should be called early in application startup (index.tsx)
+   */
+  async initialize(config?: Partial<SentryConfig>): Promise<void> {
+    if (this.initialized) {
+      logger.warn('Sentry', 'Already initialized, skipping');
+      return;
+    }
+
+    this.configure(config);
+
+    const environment = this.config.environment;
+    const enabled = this.config.enabled;
 
     if (!enabled) {
       logger.debug('Sentry', 'Sentry disabled (no DSN provided or explicitly disabled)');
@@ -63,6 +96,9 @@ class SentryService {
     }
 
     try {
+      const Sentry = await this.loadSdk();
+      if (!Sentry) return;
+
       Sentry.init({
         dsn: this.config.dsn,
         environment: this.config.environment,
@@ -133,12 +169,12 @@ class SentryService {
    * Capture an exception with context
    */
   captureException(error: Error, context?: Record<string, unknown>): void {
-    if (!this.config.enabled) {
+    if (!this.config.enabled || !this.sdk) {
       logger.error('Sentry', `Exception (Sentry disabled): ${error.message}`, context);
       return;
     }
 
-    Sentry.captureException(error, {
+    this.sdk.captureException(error, {
       contexts: {
         custom: context,
       },
@@ -148,25 +184,29 @@ class SentryService {
   /**
    * Capture a message
    */
-  captureMessage(message: string, level: Sentry.SeverityLevel = 'info'): void {
-    if (!this.config.enabled) {
+  captureMessage(message: string, level: BreadcrumbLevel = 'info'): void {
+    if (!this.config.enabled || !this.sdk) {
       logger.info('Sentry', `Message (Sentry disabled): ${message}`);
       return;
     }
 
-    Sentry.captureMessage(message, level);
+    this.sdk.captureMessage(message, level);
   }
 
   /**
    * Set user context
    */
-  setUser(user: { id?: string; username?: string; pubkey?: string } | null): void {
-    if (!this.config.enabled) return;
+  setUser(user: SentryUser | null): void {
+    if (!this.config.enabled || !this.sdk) return;
 
-    Sentry.setUser(user ? {
-      id: user.id || user.pubkey,
-      username: user.username,
-    } : null);
+    this.sdk.setUser(
+      user
+        ? {
+            id: user.id || user.pubkey,
+            username: user.username,
+          }
+        : null,
+    );
   }
 
   /**
@@ -175,12 +215,12 @@ class SentryService {
   addBreadcrumb(breadcrumb: {
     message: string;
     category?: string;
-    level?: Sentry.SeverityLevel;
+    level?: BreadcrumbLevel;
     data?: Record<string, unknown>;
   }): void {
-    if (!this.config.enabled) return;
+    if (!this.config.enabled || !this.sdk) return;
 
-    Sentry.addBreadcrumb({
+    this.sdk.addBreadcrumb({
       message: breadcrumb.message,
       category: breadcrumb.category || 'app',
       level: breadcrumb.level || 'info',
@@ -193,16 +233,16 @@ class SentryService {
    * Set custom context
    */
   setContext(name: string, context: Record<string, unknown>): void {
-    if (!this.config.enabled) return;
-    Sentry.setContext(name, context);
+    if (!this.config.enabled || !this.sdk) return;
+    this.sdk.setContext(name, context);
   }
 
   /**
    * Set a tag
    */
   setTag(key: string, value: string): void {
-    if (!this.config.enabled) return;
-    Sentry.setTag(key, value);
+    if (!this.config.enabled || !this.sdk) return;
+    this.sdk.setTag(key, value);
   }
 
   /**
@@ -210,17 +250,17 @@ class SentryService {
    * Returns a function to end the span
    */
   startSpan<T>(name: string, op: string, callback: () => T): T {
-    if (!this.config.enabled) return callback();
-    return Sentry.startSpan({ name, op }, callback);
+    if (!this.config.enabled || !this.sdk) return callback();
+    return this.sdk.startSpan({ name, op }, callback);
   }
 
   /**
    * Start an inactive span for performance monitoring (Sentry v8+)
    * Returns the span object that must be manually finished
    */
-  startInactiveSpan(name: string, op: string): Sentry.Span | null {
-    if (!this.config.enabled) return null;
-    return Sentry.startInactiveSpan({ name, op });
+  startInactiveSpan(name: string, op: string): InactiveSpan {
+    if (!this.config.enabled || !this.sdk) return null;
+    return this.sdk.startInactiveSpan({ name, op });
   }
 
   /**
@@ -234,21 +274,17 @@ class SentryService {
    * Get the Sentry ErrorBoundary component
    */
   getErrorBoundary() {
-    return Sentry.ErrorBoundary;
+    return this.sdk?.ErrorBoundary ?? null;
   }
 
   /**
    * Show the user feedback dialog
    */
   showReportDialog(): void {
-    if (!this.config.enabled) return;
-    Sentry.showReportDialog();
+    if (!this.config.enabled || !this.sdk) return;
+    this.sdk.showReportDialog();
   }
 }
 
 // Export singleton instance
 export const sentryService = new SentryService();
-
-// Re-export Sentry types for convenience
-export type { SeverityLevel } from '@sentry/react';
-export { Sentry };

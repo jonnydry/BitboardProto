@@ -6,43 +6,60 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { nostrService } from './services/nostr/NostrService';
 import { sentryService } from './services/sentryService';
 import { analyticsService } from './services/analyticsService';
-import { webVitalsService } from './services/webVitalsService';
 import './index.css';
 
-// ============================================
-// INITIALIZE MONITORING (BEFORE REACT)
-// ============================================
+async function initializeMonitoring() {
+  const [{ webVitalsService }] = await Promise.all([import('./services/webVitalsService')]);
 
-// 1. Initialize Sentry (error tracking)
-sentryService.initialize({
-  enabled: !!import.meta.env.VITE_SENTRY_DSN,
-  dsn: import.meta.env.VITE_SENTRY_DSN,
-  environment: import.meta.env.VITE_ENVIRONMENT || 'production',
-  release: import.meta.env.VITE_APP_VERSION || '1.0.0',
-  tracesSampleRate: 0.1, // 10% of transactions
-  replaysSessionSampleRate: 0.1, // 10% of sessions
-  replaysOnErrorSampleRate: 1.0, // 100% of errors
-});
+  await sentryService.initialize({
+    enabled: !!import.meta.env.VITE_SENTRY_DSN,
+    dsn: import.meta.env.VITE_SENTRY_DSN,
+    environment: import.meta.env.VITE_ENVIRONMENT || 'production',
+    release: import.meta.env.VITE_APP_VERSION || '1.0.0',
+    tracesSampleRate: 0.1,
+    replaysSessionSampleRate: 0.1,
+    replaysOnErrorSampleRate: 1.0,
+  });
 
-// 2. Initialize Analytics
-analyticsService.initialize({
-  enabled: !!import.meta.env.VITE_POSTHOG_API_KEY,
-  apiKey: import.meta.env.VITE_POSTHOG_API_KEY,
-  host: import.meta.env.VITE_POSTHOG_HOST || 'https://app.posthog.com',
-  capturePageviews: true,
-  captureClicks: false, // Manual tracking preferred
-});
+  analyticsService.initialize({
+    enabled: !!import.meta.env.VITE_POSTHOG_API_KEY,
+    apiKey: import.meta.env.VITE_POSTHOG_API_KEY,
+    host: import.meta.env.VITE_POSTHOG_HOST || 'https://app.posthog.com',
+    capturePageviews: true,
+    captureClicks: false,
+  });
 
-// 3. Initialize Web Vitals
-webVitalsService.initialize({
-  enabled: true, // Always collect, even in dev
-  sendToAnalytics: analyticsService.isEnabled(),
-  sendToSentry: sentryService.isEnabled(),
-  logToConsole: import.meta.env.DEV, // Only log in dev
-});
+  webVitalsService.initialize({
+    enabled: true,
+    sendToAnalytics: analyticsService.isEnabled(),
+    sendToSentry: sentryService.isEnabled(),
+    logToConsole: import.meta.env.DEV,
+  });
 
-// 4. Track initial page load
-webVitalsService.trackPageLoad();
+  webVitalsService.trackPageLoad();
+
+  if (analyticsService.isEnabled()) {
+    analyticsService.track('session_started', {
+      platform: navigator.platform,
+      userAgent: navigator.userAgent,
+      referrer: document.referrer,
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
+
+function scheduleMonitoringInitialization() {
+  const start = () => {
+    void initializeMonitoring();
+  };
+
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(() => start(), { timeout: 2000 });
+    return;
+  }
+
+  globalThis.setTimeout(start, 0);
+}
 
 // ============================================
 // PRE-WARM RELAY CONNECTIONS
@@ -65,41 +82,33 @@ if (!rootElement) {
 }
 
 const root = ReactDOM.createRoot(rootElement);
-const SentryBoundary = sentryService.isEnabled() ? sentryService.getErrorBoundary() : null;
+
+sentryService.configure({
+  enabled: !!import.meta.env.VITE_SENTRY_DSN,
+  dsn: import.meta.env.VITE_SENTRY_DSN,
+  environment: import.meta.env.VITE_ENVIRONMENT || 'production',
+  release: import.meta.env.VITE_APP_VERSION || '1.0.0',
+  tracesSampleRate: 0.1,
+  replaysSessionSampleRate: 0.1,
+  replaysOnErrorSampleRate: 1.0,
+});
+
+analyticsService.configure({
+  enabled: !!import.meta.env.VITE_POSTHOG_API_KEY,
+  apiKey: import.meta.env.VITE_POSTHOG_API_KEY,
+  host: import.meta.env.VITE_POSTHOG_HOST || 'https://app.posthog.com',
+  capturePageviews: true,
+  captureClicks: false,
+});
 
 root.render(
   <React.StrictMode>
     <HelmetProvider>
-      {SentryBoundary ? (
-        <SentryBoundary
-          fallback={
-            <div className="p-4 text-terminal-alert font-mono">
-              An error occurred. Please refresh the page.
-            </div>
-          }
-        >
-          <ErrorBoundary>
-            <App />
-          </ErrorBoundary>
-        </SentryBoundary>
-      ) : (
-        <ErrorBoundary>
-          <App />
-        </ErrorBoundary>
-      )}
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     </HelmetProvider>
   </React.StrictMode>,
 );
 
-// ============================================
-// TRACK SESSION START
-// ============================================
-
-if (analyticsService.isEnabled()) {
-  analyticsService.track('session_started', {
-    platform: navigator.platform,
-    userAgent: navigator.userAgent,
-    referrer: document.referrer,
-    timestamp: new Date().toISOString(),
-  });
-}
+scheduleMonitoringInitialization();

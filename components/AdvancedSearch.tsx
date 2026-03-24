@@ -245,19 +245,26 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
           <div className="text-xs font-bold mb-2 text-terminal-dim">SAVED SEARCHES</div>
           <div className="flex flex-wrap gap-2">
             {savedSearches.map((saved) => (
-              <button
+              <div
                 key={saved.id}
-                onClick={() => handleExecuteSavedSearch(saved)}
-                className="px-2 py-1 border border-terminal-dim hover:border-terminal-text text-xs flex items-center gap-2 group"
+                className="group flex items-center gap-2 border border-terminal-dim px-2 py-1 text-xs hover:border-terminal-text"
               >
-                <span>{saved.name}</span>
                 <button
+                  type="button"
+                  onClick={() => handleExecuteSavedSearch(saved)}
+                  className="text-left"
+                >
+                  <span>{saved.name}</span>
+                </button>
+                <button
+                  type="button"
                   onClick={(e) => handleDeleteSavedSearch(saved.id, e)}
                   className="opacity-0 group-hover:opacity-100 text-terminal-dim hover:text-terminal-alert transition-all"
+                  aria-label={`Delete saved search ${saved.name}`}
                 >
                   <X size={10} />
                 </button>
-              </button>
+              </div>
             ))}
           </div>
         </div>
@@ -409,9 +416,10 @@ const SearchResultItem: React.FC<{
   onClick: () => void;
 }> = ({ result, onClick }) => {
   return (
-    <div
+    <button
+      type="button"
       onClick={onClick}
-      className="p-4 border-b border-terminal-dim/30 hover:bg-terminal-dim/10 cursor-pointer transition-colors"
+      className="w-full p-4 border-b border-terminal-dim/30 hover:bg-terminal-dim/10 cursor-pointer transition-colors text-left"
     >
       {/* Title */}
       {result.title && <h3 className="font-bold text-terminal-text mb-1">{result.title}</h3>}
@@ -459,7 +467,7 @@ const SearchResultItem: React.FC<{
           </span>
         ))}
       </div>
-    </div>
+    </button>
   );
 };
 

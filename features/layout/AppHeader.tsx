@@ -7,12 +7,15 @@ const AdvancedSearch = lazy(() =>
 );
 import { ThemeId, ViewMode } from '../../types';
 import { profileService } from '../../services/profileService';
+import type { SearchResult } from '../../services/advancedSearchService';
+import { navigateFromNotificationDeepLink } from './appDeepLinks';
 import { NotificationCenterV2 } from '../../components/NotificationCenterV2';
 import { InlineNetworkStatus, NetworkIndicator } from '../../components/NetworkIndicator';
 import { BitsExplanation } from '../../components/BitsExplanation';
 import { useUIStore } from '../../stores/uiStore';
 import { useUserStore } from '../../stores/userStore';
 import { useBoardStore } from '../../stores/boardStore';
+import { usePostStore } from '../../stores/postStore';
 import { useAppNavigationHandlers } from './useAppNavigationHandlers';
 import { useNotificationUnreadCount } from '../../hooks/useNotificationUnreadCount';
 
@@ -29,10 +32,12 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
   const setShowSearch = useUIStore((s) => s.setShowSearch);
   const bookmarkedCount = useUIStore((s) => s.bookmarkedIds?.length ?? 0);
   const activeBoardId = useBoardStore((s) => s.activeBoardId);
+  const setActiveBoardId = useBoardStore((s) => s.setActiveBoardId);
   const identity = useUserStore((s) => s.userState.identity);
   const userState = useUserStore((s) => s.userState);
   const setProfileUser = useUIStore((s) => s.setProfileUser);
-  const { navigateToBoard } = useAppNavigationHandlers();
+  const setSelectedBitId = usePostStore((s) => s.setSelectedPostId);
+  const { navigateToBoard, handleViewBit } = useAppNavigationHandlers();
 
   const unreadCount = useNotificationUnreadCount();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -124,21 +129,29 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
     return () => document.removeEventListener('keydown', handleEscape);
   }, [showSearch, setShowSearch]);
 
-  const handleSearchResultClick = (result: {
-    type: string;
-    authorPubkey: string;
-    authorName?: string;
-  }) => {
+  const handleSearchResultClick = (result: SearchResult) => {
     setShowSearch(false);
-    if (result.type === 'post' || result.type === 'comment') {
-      setViewMode(ViewMode.SINGLE_BIT);
-    } else {
-      setProfileUser({
-        username: result.authorName ?? result.authorPubkey.slice(0, 12),
-        pubkey: result.authorPubkey,
-      });
-      setViewMode(ViewMode.USER_PROFILE);
+
+    if (result.boardId) {
+      setActiveBoardId(result.boardId);
     }
+
+    handleViewBit(result.id);
+  };
+
+  const handleNotificationNavigate = (deepLink: {
+    viewMode: string;
+    postId?: string;
+    boardId?: string;
+    pubkey?: string;
+  }) => {
+    navigateFromNotificationDeepLink(deepLink, {
+      setActiveBoardId,
+      setSelectedBitId,
+      setProfileUser,
+      setViewMode,
+    });
+    setShowNotifications(false);
   };
 
   return (
@@ -459,7 +472,12 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
         )}
 
       {/* Notification Center Modal */}
-      {showNotifications && <NotificationCenterV2 onClose={() => setShowNotifications(false)} />}
+      {showNotifications && (
+        <NotificationCenterV2
+          onClose={() => setShowNotifications(false)}
+          onNavigate={handleNotificationNavigate}
+        />
+      )}
     </header>
   );
 });

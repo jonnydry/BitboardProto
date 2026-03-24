@@ -8,8 +8,13 @@ const mocks = vi.hoisted(() => {
     theme: 'amber',
     isNostrConnected: true,
     viewMode: 'FEED',
+    showSearch: false,
     bookmarkedIds: ['a', 'b'],
     setViewMode: vi.fn(),
+    setShowSearch: vi.fn((value: boolean) => {
+      uiState.showSearch = value;
+    }),
+    setProfileUser: vi.fn(),
   };
   const userState = {
     userState: {
@@ -18,13 +23,21 @@ const mocks = vi.hoisted(() => {
       identity: { pubkey: 'p'.repeat(64), npub: 'npub-test', displayName: 'Alice' },
     },
   };
-  const boardState = { activeBoardId: null };
+  const boardState = {
+    activeBoardId: null,
+    setActiveBoardId: vi.fn((value: string | null) => {
+      boardState.activeBoardId = value;
+    }),
+  };
+  const postState = { setSelectedPostId: vi.fn() };
   return {
     notificationState,
     uiState,
     userState,
     boardState,
+    postState,
     navigateToBoard: vi.fn(),
+    handleViewBit: vi.fn(),
     subscribe: vi.fn((listener: () => void) => {
       listener();
       return () => undefined;
@@ -45,11 +58,36 @@ vi.mock('../../services/profileService', () => ({
   },
 }));
 
+vi.mock('../../components/AdvancedSearch', () => ({
+  AdvancedSearch: ({ onResultClick }: { onResultClick?: (result: any) => void }) => (
+    <button
+      onClick={() =>
+        onResultClick?.({ id: 'post-1', type: 'post', authorPubkey: 'author', boardId: 'b-tech' })
+      }
+    >
+      Open Search Result
+    </button>
+  ),
+}));
+
 vi.mock('../../components/NotificationCenterV2', () => ({
-  NotificationCenterV2: ({ onClose }: { onClose: () => void }) => (
+  NotificationCenterV2: ({
+    onClose,
+    onNavigate,
+  }: {
+    onClose: () => void;
+    onNavigate?: (deepLink: any) => void;
+  }) => (
     <div>
       <span>Notification Center</span>
       <button onClick={onClose}>Close Notifications</button>
+      <button
+        onClick={() =>
+          onNavigate?.({ viewMode: 'SINGLE_BIT', postId: 'post-1', boardId: 'b-tech' })
+        }
+      >
+        Open Notification Link
+      </button>
     </div>
   ),
 }));
@@ -72,8 +110,15 @@ vi.mock('../../stores/boardStore', () => ({
     selector(mocks.boardState),
 }));
 
+vi.mock('../../stores/postStore', () => ({
+  usePostStore: (selector: (state: typeof mocks.postState) => unknown) => selector(mocks.postState),
+}));
+
 vi.mock('../../features/layout/useAppNavigationHandlers', () => ({
-  useAppNavigationHandlers: () => ({ navigateToBoard: mocks.navigateToBoard }),
+  useAppNavigationHandlers: () => ({
+    navigateToBoard: mocks.navigateToBoard,
+    handleViewBit: mocks.handleViewBit,
+  }),
 }));
 
 import { AppHeader } from '../../features/layout/AppHeader';
@@ -83,6 +128,7 @@ describe('AppHeader', () => {
     vi.clearAllMocks();
     mocks.notificationState.unreadCount = 3;
     mocks.uiState.viewMode = 'FEED';
+    mocks.uiState.showSearch = false;
     mocks.boardState.activeBoardId = null;
   });
 
@@ -112,5 +158,28 @@ describe('AppHeader', () => {
 
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByText('How bits work')).not.toBeInTheDocument();
+  });
+
+  it('navigates search results to the selected post and board', async () => {
+    mocks.uiState.showSearch = true;
+    render(<AppHeader />);
+
+    expect(await screen.findByText('Open Search Result')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Open Search Result'));
+
+    expect(mocks.boardState.setActiveBoardId).toHaveBeenCalledWith('b-tech');
+    expect(mocks.handleViewBit).toHaveBeenCalledWith('post-1');
+  });
+
+  it('passes deep-link navigation into the notification center', () => {
+    render(<AppHeader />);
+
+    fireEvent.click(screen.getByTitle('Notifications'));
+    fireEvent.click(screen.getByText('Open Notification Link'));
+
+    expect(mocks.boardState.setActiveBoardId).toHaveBeenCalledWith('b-tech');
+    expect(mocks.postState.setSelectedPostId).toHaveBeenCalledWith('post-1');
+    expect(mocks.uiState.setViewMode).toHaveBeenCalledWith('SINGLE_BIT');
   });
 });

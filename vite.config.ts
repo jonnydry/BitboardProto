@@ -166,14 +166,28 @@ export default defineConfig(({ mode }) => {
               return 'icons';
             }
 
-            // Form/validation libraries
+            // Monitoring and analytics
             if (
-              id.includes('zod') ||
-              id.includes('yup') ||
-              id.includes('formik') ||
-              id.includes('react-hook-form')
+              id.includes('node_modules/@sentry/') ||
+              id.includes('node_modules/posthog-js/') ||
+              id.includes('node_modules/web-vitals/')
             ) {
-              return 'forms';
+              return 'monitoring';
+            }
+
+            // App state
+            if (id.includes('node_modules/zustand/')) {
+              return 'state';
+            }
+
+            // App shell utilities
+            if (id.includes('node_modules/react-helmet-async/')) {
+              return 'app-shell';
+            }
+
+            // Location/geospatial helpers
+            if (id.includes('node_modules/ngeohash/')) {
+              return 'location';
             }
 
             // Crypto libraries

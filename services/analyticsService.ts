@@ -10,8 +10,10 @@
  * - Consent preference is stored in localStorage
  */
 
-import posthog from 'posthog-js';
 import { logger } from './loggingService';
+
+type PostHogModule = typeof import('posthog-js');
+type PostHogClient = PostHogModule['default'];
 
 const CONSENT_STORAGE_KEY = 'bitboard_analytics_consent';
 
@@ -91,9 +93,46 @@ export const AnalyticsEvents = {
 
 class AnalyticsService {
   private initialized = false;
+  private client: PostHogClient | null = null;
+  private loadPromise: Promise<PostHogClient | null> | null = null;
   private config: AnalyticsConfig = {
     enabled: false,
   };
+
+  private async loadClient(): Promise<PostHogClient | null> {
+    if (this.client) return this.client;
+    if (this.loadPromise) return this.loadPromise;
+
+    this.loadPromise = import('posthog-js')
+      .then((module) => {
+        this.client = module.default;
+        return this.client;
+      })
+      .catch((error) => {
+        logger.error('Analytics', 'Failed to load PostHog', error);
+        this.config.enabled = false;
+        return null;
+      });
+
+    return this.loadPromise;
+  }
+
+  /**
+   * Preconfigure lightweight runtime flags before the analytics SDK loads.
+   */
+  configure(config?: Partial<AnalyticsConfig>): void {
+    const apiKey = config?.apiKey || import.meta.env.VITE_POSTHOG_API_KEY;
+    const host = config?.host || import.meta.env.VITE_POSTHOG_HOST || 'https://app.posthog.com';
+    const envEnabled = config?.enabled !== false && !!apiKey;
+
+    this.config = {
+      enabled: envEnabled,
+      apiKey,
+      host,
+      capturePageviews: config?.capturePageviews ?? true,
+      captureClicks: config?.captureClicks ?? false,
+    };
+  }
 
   /**
    * Check if user has provided consent for analytics
@@ -117,24 +156,17 @@ class AnalyticsService {
    * IMPORTANT: Analytics are disabled by default unless user explicitly consents.
    * The app must show a consent banner and call optIn() after user agrees.
    */
-  initialize(config?: Partial<AnalyticsConfig>): void {
+  async initialize(config?: Partial<AnalyticsConfig>): Promise<void> {
     if (this.initialized) {
       logger.warn('Analytics', 'Already initialized, skipping');
       return;
     }
 
-    // Auto-detect from environment
-    const apiKey = config?.apiKey || import.meta.env.VITE_POSTHOG_API_KEY;
-    const host = config?.host || import.meta.env.VITE_POSTHOG_HOST || 'https://app.posthog.com';
-    const envEnabled = config?.enabled !== false && !!apiKey;
+    this.configure(config);
 
-    this.config = {
-      enabled: envEnabled,
-      apiKey,
-      host,
-      capturePageviews: config?.capturePageviews ?? true,
-      captureClicks: config?.captureClicks ?? false, // Manual tracking preferred
-    };
+    const apiKey = this.config.apiKey;
+    const host = this.config.host;
+    const envEnabled = this.config.enabled;
 
     // Check if PostHog API key is configured
     if (!envEnabled) {
@@ -148,6 +180,9 @@ class AnalyticsService {
     const userConsent = this.hasUserConsent();
 
     try {
+      const posthog = await this.loadClient();
+      if (!posthog) return;
+
       posthog.init(apiKey, {
         api_host: host,
         loaded: (posthog) => {
@@ -188,19 +223,19 @@ class AnalyticsService {
    * Track an event
    */
   track(event: string, properties?: Record<string, unknown>): void {
-    if (!this.config.enabled) {
+    if (!this.config.enabled || !this.client) {
       logger.debug('Analytics', `Event (analytics disabled): ${event}`, properties);
       return;
     }
 
-    posthog.capture(event, properties);
+    this.client.capture(event, properties);
   }
 
   /**
    * Identify a user
    */
   identify(userId: string, traits?: Record<string, unknown>): void {
-    if (!this.config.enabled) return;
+    if (!this.config.enabled || !this.client) return;
 
     // Never send private keys or sensitive data
     const sanitizedTraits = traits ? { ...traits } : {};
@@ -208,57 +243,63 @@ class AnalyticsService {
     delete sanitizedTraits.privateKey;
     delete sanitizedTraits.encryptionKey;
 
-    posthog.identify(userId, sanitizedTraits);
+    this.client.identify(userId, sanitizedTraits);
   }
 
   /**
    * Set user properties
    */
   setUserProperties(properties: Record<string, unknown>): void {
-    if (!this.config.enabled) return;
+    if (!this.config.enabled || !this.client) return;
 
-    posthog.people.set(properties);
+    this.client.people.set(properties);
   }
 
   /**
    * Reset analytics (on logout)
    */
   reset(): void {
-    if (!this.config.enabled) return;
-    posthog.reset();
+    if (!this.config.enabled || !this.client) return;
+    this.client.reset();
   }
 
   /**
    * Track a page view manually
    */
   pageView(pageName?: string): void {
-    if (!this.config.enabled) return;
-    posthog.capture('$pageview', { page: pageName });
+    if (!this.config.enabled || !this.client) return;
+    this.client.capture('$pageview', { page: pageName });
   }
 
   /**
    * Start a feature flag check
    */
   isFeatureEnabled(flag: string): boolean {
-    if (!this.config.enabled) return false;
-    return posthog.isFeatureEnabled(flag) || false;
+    if (!this.config.enabled || !this.client) return false;
+    return this.client.isFeatureEnabled(flag) || false;
   }
 
   /**
    * Get feature flag variant
    */
   getFeatureFlag(flag: string): string | boolean | undefined {
-    if (!this.config.enabled) return undefined;
-    return posthog.getFeatureFlag(flag);
+    if (!this.config.enabled || !this.client) return undefined;
+    return this.client.getFeatureFlag(flag);
   }
 
   /**
    * Opt user out of tracking
    */
   optOut(): void {
-    if (!this.config.enabled) return;
-    posthog.opt_out_capturing();
     this.setUserConsent(false);
+    if (!this.config.enabled) return;
+
+    if (this.client) {
+      this.client.opt_out_capturing();
+    } else {
+      void this.loadClient().then((client) => client?.opt_out_capturing());
+    }
+
     logger.info('Analytics', 'User opted out of tracking');
   }
 
@@ -266,9 +307,15 @@ class AnalyticsService {
    * Opt user in to tracking
    */
   optIn(): void {
-    if (!this.config.enabled) return;
-    posthog.opt_in_capturing();
     this.setUserConsent(true);
+    if (!this.config.enabled) return;
+
+    if (this.client) {
+      this.client.opt_in_capturing();
+    } else {
+      void this.loadClient().then((client) => client?.opt_in_capturing());
+    }
+
     logger.info('Analytics', 'User opted in to tracking');
   }
 
@@ -283,8 +330,8 @@ class AnalyticsService {
    * Check if user has opted out
    */
   hasOptedOut(): boolean {
-    if (!this.config.enabled) return true;
-    return posthog.has_opted_out_capturing();
+    if (!this.config.enabled || !this.client) return true;
+    return this.client.has_opted_out_capturing();
   }
 
   /**

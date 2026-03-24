@@ -243,9 +243,8 @@ const NotificationItem: React.FC<{
 
   return (
     <div
-      onClick={onClick}
       className={`
-        cursor-pointer border-b border-terminal-dim/15 p-3 transition-colors
+        border-b border-terminal-dim/15 p-3 transition-colors
         hover:bg-terminal-dim/10
         ${!notification.isRead ? 'bg-terminal-dim/[0.07]' : ''}
       `}
@@ -265,7 +264,7 @@ const NotificationItem: React.FC<{
         </div>
 
         {/* Content */}
-        <div className="flex-1 min-w-0">
+        <button type="button" onClick={onClick} className="min-w-0 flex-1 text-left">
           <div className="flex items-start justify-between gap-2">
             <p
               className={`text-sm ${!notification.isRead ? 'font-semibold text-terminal-text' : ''}`}
@@ -278,12 +277,13 @@ const NotificationItem: React.FC<{
           {notification.preview && (
             <p className="text-xs text-terminal-dim mt-1 truncate">{notification.preview}</p>
           )}
-        </div>
+        </button>
 
         {/* Actions */}
         <div className="flex flex-col gap-1">
           {!notification.isRead && (
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onMarkAsRead();
@@ -295,6 +295,7 @@ const NotificationItem: React.FC<{
             </button>
           )}
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               onDelete();

@@ -18,7 +18,11 @@ export function useUrlPostRouting(args: {
       if (postId) {
         setSelectedBitId(postId);
         setViewMode(ViewMode.SINGLE_BIT);
+        return;
       }
+
+      setSelectedBitId(null);
+      setViewMode(ViewMode.FEED);
     };
 
     // Check on initial load
@@ -49,7 +53,7 @@ export function useUrlPostRouting(args: {
       const url = new URL(window.location.href);
       if (url.searchParams.has('post')) {
         url.searchParams.delete('post');
-        window.history.pushState({}, '', url.toString());
+        window.history.replaceState({}, '', url.toString());
       }
     }
   }, [viewMode, selectedBitId]);
