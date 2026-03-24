@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { ChevronLeft } from 'lucide-react';
+import { useBitsBarPinned, useBitsBarHeight } from '../../stores/uiStore';
 
 /** Tray width — keep in sync with `TRAY_W_CLASS` and scrim `right-*`. */
 const TRAY_W_CLASS = 'w-[20rem]';
@@ -27,6 +28,8 @@ export const DesktopNavChrome = React.memo(function DesktopNavChrome({
   const drawerRef = useRef<HTMLDivElement>(null);
   const railRef = useRef<HTMLButtonElement>(null);
   const prevFocusRef = useRef<HTMLElement | null>(null);
+  const bitsBarPinned = useBitsBarPinned();
+  const bitsBarHeight = useBitsBarHeight();
 
   useEffect(() => {
     if (!drawerOpen) {
@@ -83,8 +86,9 @@ export const DesktopNavChrome = React.memo(function DesktopNavChrome({
         onClick={() => (drawerOpen ? onCloseDrawer() : onOpenDrawer())}
         aria-label={drawerOpen ? 'Close navigation panel' : 'Open navigation panel'}
         aria-expanded={drawerOpen}
-        className="max-md:hidden fixed top-8 z-[44] flex h-12 w-12 items-center justify-center rounded-sm bg-terminal-text text-black shadow-hard transition-[right,transform,filter] duration-200 ease-out hover:scale-110 hover:brightness-110"
+        className="max-md:hidden fixed z-[44] flex h-12 w-12 items-center justify-center rounded-sm bg-terminal-text text-black shadow-hard transition-[right,transform,filter] duration-200 ease-out hover:scale-110 hover:brightness-110"
         style={{
+          top: bitsBarPinned ? bitsBarHeight + 32 : 32,
           right: drawerOpen
             ? `calc(${TRAY_W_REM}rem + 1rem)`
             : 'max(0px, calc((100vw - 1174px) / 2 - 3rem))',

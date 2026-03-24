@@ -12,7 +12,7 @@ import { navigateFromNotificationDeepLink } from './appDeepLinks';
 import { NotificationCenterV2 } from '../../components/NotificationCenterV2';
 import { InlineNetworkStatus, NetworkIndicator } from '../../components/NetworkIndicator';
 import { BitsExplanation } from '../../components/BitsExplanation';
-import { useUIStore } from '../../stores/uiStore';
+import { useUIStore, useBitsBarPinned, useBitsBarHeight } from '../../stores/uiStore';
 import { useUserStore } from '../../stores/userStore';
 import { useBoardStore } from '../../stores/boardStore';
 import { usePostStore } from '../../stores/postStore';
@@ -44,8 +44,10 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
   const [showBitsPanel, setShowBitsPanel] = useState(false);
   const bitsSentinelRef = useRef<HTMLDivElement>(null);
   const bitsBarMeasureRef = useRef<HTMLDivElement>(null);
-  const [bitsBarPinned, setBitsBarPinned] = useState(false);
-  const [bitsBarHeight, setBitsBarHeight] = useState(0);
+  const bitsBarPinned = useBitsBarPinned();
+  const bitsBarHeight = useBitsBarHeight();
+  const setBitsBarPinned = useUIStore((s) => s.setBitsBarPinned);
+  const setBitsBarHeight = useUIStore((s) => s.setBitsBarHeight);
 
   useLayoutEffect(() => {
     const el = bitsBarMeasureRef.current;
@@ -59,7 +61,7 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
     }
     window.addEventListener('resize', syncHeight);
     return () => window.removeEventListener('resize', syncHeight);
-  }, []);
+  }, [setBitsBarHeight]);
 
   useEffect(() => {
     const updatePinned = () => {
@@ -74,7 +76,7 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
       window.removeEventListener('scroll', updatePinned);
       window.removeEventListener('resize', updatePinned);
     };
-  }, []);
+  }, [setBitsBarPinned]);
   const ownProfile = identity ? profileService.getCachedProfileSync(identity.pubkey) : null;
   const identityDisplayName =
     ownProfile?.display_name ||

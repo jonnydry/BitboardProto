@@ -20,6 +20,8 @@ interface UIState {
   reportedPostIds: string[];
   showSearch: boolean;
   desktopThreadPostId: string | null;
+  bitsBarPinned: boolean;
+  bitsBarHeight: number;
 
   // Actions
   setViewMode: (mode: ViewMode) => void;
@@ -37,6 +39,8 @@ interface UIState {
   setShowSearch: (v: boolean) => void;
   openDesktopThreadModal: (postId: string) => void;
   closeDesktopThreadModal: () => void;
+  setBitsBarPinned: (pinned: boolean) => void;
+  setBitsBarHeight: (height: number) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -55,6 +59,8 @@ export const useUIStore = create<UIState>()(
     reportedPostIds: [],
     showSearch: false,
     desktopThreadPostId: null,
+    bitsBarPinned: false,
+    bitsBarHeight: 0,
 
     setViewMode: (mode) => set({ viewMode: mode }),
     setTheme: (theme) => set({ theme }),
@@ -79,6 +85,8 @@ export const useUIStore = create<UIState>()(
     setShowSearch: (v) => set({ showSearch: v }),
     openDesktopThreadModal: (postId) => set({ desktopThreadPostId: postId }),
     closeDesktopThreadModal: () => set({ desktopThreadPostId: null }),
+    setBitsBarPinned: (pinned) => set({ bitsBarPinned: pinned }),
+    setBitsBarHeight: (height) => set({ bitsBarHeight: height }),
   })),
 );
 
@@ -97,3 +105,5 @@ export const useBookmarkedIds = () => useUIStore((state) => state.bookmarkedIds)
 export const useReportedPostIds = () => useUIStore((state) => state.reportedPostIds);
 export const useShowSearch = () => useUIStore((state) => state.showSearch);
 export const useDesktopThreadPostId = () => useUIStore((state) => state.desktopThreadPostId);
+export const useBitsBarPinned = () => useUIStore((state) => state.bitsBarPinned);
+export const useBitsBarHeight = () => useUIStore((state) => state.bitsBarHeight);
