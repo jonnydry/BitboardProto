@@ -248,7 +248,7 @@ describe('Types.ts Exports', () => {
     it('CommunityApproval has expected structure', () => {
       const mockApproval: CommunityApproval = {
         id: 'approval-id',
-        communityId: 'community-id',
+        communityAddress: 'community-id',
         postEventId: 'post-id',
         approverPubkey: 'mod-pubkey',
         timestamp: Date.now(),

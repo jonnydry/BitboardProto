@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import type { Post, Comment } from '../types';
 import { votingService, computeOptimisticUpdate, computeRollback } from '../services/votingService';
+import { logger } from '../services/loggingService';
 import { useUserStore } from '../stores/userStore';
 import { usePostStore } from '../stores/postStore';
 
@@ -40,7 +41,7 @@ export function useCommentVoting(args: { postsById: Map<string, Post> }) {
       const currentVote = votedComments[commentId];
 
       if (!userIdentity) {
-        console.warn('[CommentVote] No identity - connect an identity to vote.');
+        logger.warn('CommentVote', 'No identity - connect an identity to vote.');
         return;
       }
 
@@ -129,7 +130,7 @@ export function useCommentVoting(args: { postsById: Map<string, Post> }) {
               comments: updatedCommentsWithTally,
             });
           } else if (result.error) {
-            console.error('[CommentVote] Failed:', result.error);
+            logger.error('CommentVote', 'Vote failed', result.error);
             const rollback = computeRollback(optimisticUpdate, votedComments, commentId);
             setUserState((prev) => ({
               ...prev,
@@ -165,7 +166,7 @@ export function useCommentVoting(args: { postsById: Map<string, Post> }) {
             });
           }
         } catch (error) {
-          console.error('[CommentVote] Error publishing:', error);
+          logger.error('CommentVote', 'Error publishing', error);
           // Best-effort rollback for publish exceptions
           const rollback = computeRollback(optimisticUpdate, votedComments, commentId);
           setUserState((prev) => ({

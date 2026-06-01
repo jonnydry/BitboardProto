@@ -15,6 +15,7 @@ import {
   PRECISION_DESCRIPTIONS,
 } from '../services/geohashService';
 import { geonetDiscoveryService, type GeoChannel } from '../services/geonetDiscoveryService';
+import { logger } from '../services/loggingService';
 import { GeohashPrecision, type Board } from '../types';
 
 interface LocationSelectorProps {
@@ -40,7 +41,7 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
       const result = await geonetDiscoveryService.discoverNearbyChannels(lat, lon);
       setActiveChannels(result.channels);
     } catch (err) {
-      console.error('[LocationSelector] Discovery failed:', err);
+      logger.error('LocationSelector', 'Discovery failed', err);
     } finally {
       setIsDiscovering(false);
     }

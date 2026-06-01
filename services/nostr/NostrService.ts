@@ -770,6 +770,7 @@ class NostrService {
 
     for (let i = this.messageQueue.length - 1; i >= 0; i--) {
       const item = this.messageQueue[i];
+      if (!item) continue;
 
       // Skip if too old
       if (now - item.timestamp > this.MESSAGE_QUEUE_MAX_AGE_MS) {
@@ -966,7 +967,7 @@ class NostrService {
       const succeeded: string[] = [];
       const failed: Array<{ url: string; error: unknown }> = [];
       results.forEach((r, i) => {
-        const url = relaysToPublish[i];
+        const url = relaysToPublish[i] ?? '';
         if (r.status === 'fulfilled') succeeded.push(r.value);
         else failed.push({ url, error: r.reason });
       });

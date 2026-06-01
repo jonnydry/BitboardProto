@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Copy, Check, Key, Link, AlertTriangle } from 'lucide-react';
 import { encryptedBoardService } from '../services/encryptedBoardService';
+import { logger } from '../services/loggingService';
 import type { Board } from '../types';
 
 interface ShareBoardLinkProps {
@@ -61,7 +62,7 @@ export const ShareBoardLink: React.FC<ShareBoardLinkProps> = ({ board, onClose }
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('[ShareBoardLink] Failed to copy:', err);
+      logger.error('ShareBoardLink', 'Failed to copy', err);
     }
   };
 

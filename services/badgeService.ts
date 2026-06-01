@@ -209,7 +209,7 @@ class BadgeService {
     }
 
     const awardedTo = event.tags
-      .filter(t => t[0] === 'p' && t[1])
+      .filter((t): t is [string, string, ...string[]] => t[0] === 'p' && typeof t[1] === 'string')
       .map(t => t[1]);
 
     if (awardedTo.length === 0) {
@@ -219,8 +219,8 @@ class BadgeService {
 
     return {
       id: event.id,
-      badgeId: aTag[1],
-      awardedTo,
+      badgeId: aTag[1] ?? '',
+      awardedTo: awardedTo as string[],
       awardedBy: event.pubkey,
       timestamp: event.created_at * 1000,
     };
@@ -308,9 +308,12 @@ class BadgeService {
 
     // Pair a and e tags (they should alternate or be in order)
     for (let i = 0; i < Math.min(aTags.length, eTags.length); i++) {
+      const aTag = aTags[i];
+      const eTag = eTags[i];
+      if (!aTag || !eTag) continue;
       badges.push({
-        badgeId: aTags[i][1],
-        awardEventId: eTags[i][1],
+        badgeId: aTag[1] ?? '',
+        awardEventId: eTag[1] ?? '',
       });
     }
 
@@ -364,6 +367,7 @@ class BadgeService {
         const parts = award.badgeId.split(':');
         if (parts.length >= 3) {
           const [, creatorPubkey, ...badgeIdParts] = parts;
+          if (!creatorPubkey) return { award, definition: null };
           const badgeId = badgeIdParts.join(':');
           const definition = await this.fetchBadgeDefinition(creatorPubkey, badgeId);
           return { award, definition };
@@ -389,6 +393,7 @@ class BadgeService {
         const parts = profileBadge.badgeId.split(':');
         if (parts.length >= 3) {
           const [, creatorPubkey, ...badgeIdParts] = parts;
+          if (!creatorPubkey) return { profileBadge, definition: null };
           const badgeId = badgeIdParts.join(':');
           const definition = await this.fetchBadgeDefinition(creatorPubkey, badgeId);
           return { profileBadge, definition };

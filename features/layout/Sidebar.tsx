@@ -30,7 +30,7 @@ interface SidebarProps {
   viewMode: ViewMode;
   activeBoardId: string | null;
   feedFilter: string;
-  setFeedFilter: (filter: string) => void;
+  setFeedFilter: (filter: 'all' | 'topic' | 'location' | 'following') => void;
   topicBoards: Board[];
   externalCommunities: Board[];
   geohashBoards: Board[];
@@ -131,7 +131,19 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
     nostrService.getRelayStatuses(),
   );
   const [showRelayDetails, setShowRelayDetails] = useState(false);
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+  // Use a specific string-literal union so `noUncheckedIndexedAccess` doesn't
+  // return `boolean | undefined` for every section access below.
+  type SectionKey =
+    | 'FILTER'
+    | 'TOPIC_NET'
+    | 'COMMUNITIES'
+    | 'SECURE_NET'
+    | 'GEO_NET'
+    | 'DISCOVER'
+    | 'THEME'
+    | 'IDENTITY';
+
+  const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({
     FILTER: true,
     TOPIC_NET: true,
     COMMUNITIES: false,
@@ -141,7 +153,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
     THEME: false,
     IDENTITY: false,
   });
-  const toggleSection = (key: string) =>
+  const toggleSection = (key: SectionKey) =>
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
 
   useEffect(() => {
@@ -313,12 +325,14 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
           </SectionButton>
           {openSections.FILTER && (
             <div className="mt-2 flex flex-wrap gap-1">
-              {[
-                { id: 'all', label: 'ALL', Icon: Globe },
-                { id: 'topic', label: 'TOPIC', Icon: Hash },
-                { id: 'location', label: 'GEO', Icon: MapPin },
-                { id: 'following', label: 'FOLLOW', Icon: User },
-              ].map(({ id, label, Icon }) => (
+              {(
+                [
+                  { id: 'all', label: 'ALL', Icon: Globe },
+                  { id: 'topic', label: 'TOPIC', Icon: Hash },
+                  { id: 'location', label: 'GEO', Icon: MapPin },
+                  { id: 'following', label: 'FOLLOW', Icon: User },
+                ] as const
+              ).map(({ id, label, Icon }) => (
                 <button
                   key={id}
                   type="button"

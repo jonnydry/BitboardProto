@@ -134,7 +134,7 @@ class ArticleService {
 
     const getAllTags = (name: string): string[] => {
       return event.tags
-        .filter(t => t[0] === name && t[1])
+        .filter((t): t is [string, string, ...string[]] => t[0] === name && typeof t[1] === 'string')
         .map(t => t[1]);
     };
 
@@ -332,8 +332,8 @@ class ArticleService {
       return null;
     }
     return {
-      authorPubkey: parts[1],
-      articleId: parts.slice(2).join(':'),
+      authorPubkey: parts[1] ?? '',
+      articleId: parts[2] ?? '',
     };
   }
 

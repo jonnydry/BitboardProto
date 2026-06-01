@@ -92,7 +92,7 @@ const PostItemComponent: React.FC<PostItemProps> = ({
   const isBookmarked = bookmarkedIds.includes(post.id);
   const hasReported = reportedPostIds.includes(post.id);
   const isMutedStore = useIsMuted(post.authorPubkey || '');
-  const isMuted = isMutedProp ?? (post.authorPubkey ? isMutedStore : false);
+  const isMuted: (pubkey: string) => boolean = isMutedProp ?? (() => isMutedStore);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showMoreActions, setShowMoreActions] = useState(false);
@@ -566,8 +566,10 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                   <Lock
                     size={16}
                     className="ml-1 inline text-terminal-dim"
-                    title="Encrypted post"
-                  />
+                    aria-label="Encrypted post"
+                  >
+                    <title>Encrypted post</title>
+                  </Lock>
                 )}
               </a>
             ) : (
@@ -576,15 +578,17 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                 onKeyDown={handleInteractionKeyDown}
                 tabIndex={0}
                 role="button"
-                className="mb-1 block w-full min-w-0 cursor-pointer select-none text-lg font-normal font-display leading-none tracking-[-0.02em] text-terminal-text underline-offset-4 decoration-2 [overflow-wrap:anywhere] break-words hover:underline md:text-xl lg:text-3xl sm:flex-1"
+                className="mb-1 block w-full min-w-0 cursor-pointer select-none text-lg font-normal font-display leading-none tracking-[-0.02em] text-terminal-text underline-offset-4 decoration-2 transition-colors [overflow-wrap:anywhere] break-words hover:underline md:text-xl lg:text-3xl sm:flex-1"
               >
                 {post.title}
                 {post.isEncrypted && (
                   <Lock
                     size={16}
                     className="ml-1 inline text-terminal-dim"
-                    title="Encrypted post"
-                  />
+                    aria-label="Encrypted post"
+                  >
+                    <title>Encrypted post</title>
+                  </Lock>
                 )}
               </h3>
             )}

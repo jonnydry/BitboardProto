@@ -39,10 +39,10 @@ describe('nostrFeedPosts helpers', () => {
     const merged = mergeAuthoritativeNostrPosts(existing, fetched);
 
     expect(merged).toHaveLength(3);
-    expect(merged[0].id).toBe('evt-2');
-    expect(merged[1].score).toBe(99);
-    expect(merged[1].syncStatus).toBe('failed');
-    expect(merged[2].id).toBe('local-1');
+    expect(merged[0]!.id).toBe('evt-2');
+    expect(merged[1]!.score).toBe(99);
+    expect(merged[1]!.syncStatus).toBe('failed');
+    expect(merged[2]!.id).toBe('local-1');
   });
 
   it('appends only new nostr posts during pagination', () => {

@@ -8,6 +8,8 @@
  * making API keys visible to anyone who visits the site.
  */
 
+import { logger } from './loggingService';
+
 export interface LinkScanResult {
   title: string;
   description: string;
@@ -19,6 +21,6 @@ export interface LinkScanResult {
  * Link previews fall back to basic metadata fetching.
  */
 export async function scanLink(_url: string): Promise<LinkScanResult | null> {
-  console.debug('[Gemini] Link scanning disabled - using basic metadata only');
+  logger.debug('Gemini', 'Link scanning disabled - using basic metadata only');
   return null;
 }

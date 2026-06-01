@@ -171,7 +171,7 @@ describe('NostrService', () => {
     });
 
     it('should track connection status', () => {
-      const relayUrl = service.getRelays()[0].url;
+      const relayUrl = service.getRelays()[0]!.url;
       expect(service.isConnected()).toBe(false);
 
       // Simulate connection
@@ -181,7 +181,7 @@ describe('NostrService', () => {
     });
 
     it('should handle relay disconnection with backoff', () => {
-      const relayUrl = service.getRelays()[0].url;
+      const relayUrl = service.getRelays()[0]!.url;
       const error = new Error('Connection failed');
 
       service['handleRelayDisconnection'](relayUrl, error);
@@ -229,7 +229,7 @@ describe('NostrService', () => {
       expect(service.getQueuedMessageCount()).toBe(1);
 
       // Get the first relay URL (should be in the queued message's pendingRelays)
-      const relayUrl = service.getRelays()[0].url;
+      const relayUrl = service.getRelays()[0]!.url;
       // Mock publish to succeed for retry
       mockPool.publish.mockResolvedValue(mockEvent);
 
@@ -562,8 +562,8 @@ describe('NostrService', () => {
       expect(subId1).not.toBe(subId2); // Ensure they're different IDs
 
       // Verify that the correct mocks were returned
-      expect(mockPool.subscribeMany.mock.results[0].value).toBe(mockSub1);
-      expect(mockPool.subscribeMany.mock.results[1].value).toBe(mockSub2);
+      expect(mockPool.subscribeMany.mock.results[0]!.value).toBe(mockSub1);
+      expect(mockPool.subscribeMany.mock.results[1]!.value).toBe(mockSub2);
 
       // Unsubscribe all subscriptions - this should call close() on both mocks
       service.unsubscribeAll();
@@ -898,7 +898,7 @@ describe('NostrService', () => {
     });
 
     it('should reset relay statuses on cleanup', () => {
-      const relayUrl = service.getRelays()[0].url;
+      const relayUrl = service.getRelays()[0]!.url;
       service['updateRelayStatus'](relayUrl, true);
 
       service.cleanup();
@@ -951,7 +951,7 @@ describe('NostrService', () => {
 
   describe('Error Handling', () => {
     it('should handle relay DNS failures', () => {
-      const relayUrl = service.getRelays()[0].url; // Use an existing relay
+      const relayUrl = service.getRelays()[0]!.url; // Use an existing relay
       const error = new Error('ENOTFOUND nonexistent.relay.com');
 
       service['handleRelayDisconnection'](relayUrl, error);

@@ -114,7 +114,7 @@ describe('ExternalCommunitiesBrowser', () => {
 
   it('adds a community manually and refreshes discovery', async () => {
     const discovered = [makeCommunity(0)];
-    const onJoinNostrCommunity = vi.fn(async () => discovered[0].board.id);
+    const onJoinNostrCommunity = vi.fn(async () => discovered[0]!.board.id);
 
     mocks.discoverCommunities.mockResolvedValue(discovered);
     mocks.buildSections.mockImplementation((entries: typeof discovered) => [
@@ -123,7 +123,7 @@ describe('ExternalCommunitiesBrowser', () => {
     mocks.fetchCommunityPreview.mockResolvedValue([
       {
         id: 'post-1',
-        boardId: discovered[0].board.id,
+        boardId: discovered[0]!.board.id,
         source: 'nostr-community' as const,
         title: 'Popular post',
         author: 'alice',
@@ -206,7 +206,7 @@ describe('ExternalCommunitiesBrowser', () => {
     );
     mocks.hydrateApprovedPost.mockResolvedValue({
       id: 'live-post-1',
-      boardId: discovered[0].board.id,
+      boardId: discovered[0]!.board.id,
       source: 'nostr-community',
       title: 'Live approved post',
       author: 'bob',
@@ -240,6 +240,6 @@ describe('ExternalCommunitiesBrowser', () => {
     });
 
     expect(await screen.findByText('Live approved post')).toBeInTheDocument();
-    expect(mocks.hydrateApprovedPost).toHaveBeenCalledWith(discovered[0].board, 'approval-live-1');
+    expect(mocks.hydrateApprovedPost).toHaveBeenCalledWith(discovered[0]!.board, 'approval-live-1');
   });
 });

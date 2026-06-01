@@ -73,7 +73,10 @@ class MessageDeduplicator {
     if (activeCount > DeduplicatorConfig.MAX_COUNT) {
       const removeCount = Math.min(100, activeCount);
       for (let i = this.head; i < this.head + removeCount; i++) {
-        this.lookup.delete(this.entries[i].messageId);
+        const entry = this.entries[i];
+        if (entry) {
+          this.lookup.delete(entry.messageId);
+        }
       }
       this.head += removeCount;
 
@@ -136,8 +139,10 @@ class MessageDeduplicator {
     const cutoff = Date.now() - DeduplicatorConfig.MAX_AGE_MS;
 
     // Remove old entries from the head
-    while (this.head < this.entries.length && this.entries[this.head].timestamp < cutoff) {
-      this.lookup.delete(this.entries[this.head].messageId);
+    while (this.head < this.entries.length) {
+      const headEntry = this.entries[this.head];
+      if (!headEntry || headEntry.timestamp >= cutoff) break;
+      this.lookup.delete(headEntry.messageId);
       this.head++;
     }
 

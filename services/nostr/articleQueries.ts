@@ -19,7 +19,7 @@ export async function fetchArticle(
   try {
     const events = await deps.pool.querySync(deps.getReadRelays(), filter);
     if (events.length === 0) return null;
-    return events.sort((a, b) => b.created_at - a.created_at)[0];
+    return events.sort((a, b) => b.created_at - a.created_at)[0] ?? null;
   } catch (error) {
     logger.error('Nostr', 'Failed to fetch article', error);
     return null;

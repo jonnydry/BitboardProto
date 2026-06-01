@@ -285,13 +285,13 @@ class ZapService {
       let content = '';
 
       try {
-        zapRequest = JSON.parse(descriptionTag[1]) as NostrEvent;
+        zapRequest = JSON.parse(descriptionTag[1] ?? '{}') as NostrEvent;
         zapperPubkey = zapRequest.pubkey;
         content = zapRequest.content || '';
 
         // Extract amount from zap request
         const amountTag = zapRequest.tags.find(t => t[0] === 'amount');
-        if (amountTag) {
+        if (amountTag && amountTag[1]) {
           amount = Math.floor(parseInt(amountTag[1], 10) / 1000); // Convert from millisats
         }
       } catch {
@@ -302,7 +302,7 @@ class ZapService {
       return {
         id: event.id,
         zapperPubkey,
-        recipientPubkey: pTag[1],
+        recipientPubkey: pTag[1] ?? '',
         eventId: eTag?.[1],
         amount,
         content,
@@ -441,9 +441,13 @@ class ZapService {
     for (let i = 0; i < uncached.length; i += BATCH_SIZE) {
       const batch = uncached.slice(i, i + BATCH_SIZE);
       const tallies = await Promise.all(batch.map(id => this.getZapTally(id)));
-      
+
       for (let j = 0; j < batch.length; j++) {
-        results.set(batch[j], tallies[j]);
+        const id = batch[j];
+        const tally = tallies[j];
+        if (id !== undefined && tally !== undefined) {
+          results.set(id, tally);
+        }
       }
     }
 

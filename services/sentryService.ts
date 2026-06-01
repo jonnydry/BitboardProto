@@ -130,7 +130,7 @@ class SentryService {
         // Don't send errors in development
         beforeSend(event, hint) {
           if (import.meta.env.DEV) {
-            console.error('Sentry event (not sent in dev):', event, hint);
+            logger.debug('Sentry', 'Event suppressed in dev', { event, hint });
             return null;
           }
           return event;

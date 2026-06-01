@@ -84,7 +84,7 @@ export function getTargetCommentIdFromEditEvent(event: NostrEvent): string | nul
   const editTag = event.tags.find((entry) => entry[0] === 'e' && entry[3] === 'edit' && !!entry[1]);
   if (editTag?.[1]) return editTag[1];
   const eTags = event.tags.filter((entry) => entry[0] === 'e' && !!entry[1]);
-  return eTags.length >= 2 ? eTags[1][1] : null;
+  return eTags.length >= 2 ? (eTags[1]?.[1] ?? null) : null;
 }
 
 export function getRootPostIdFromCommentScopedEvent(event: NostrEvent): string | null {
@@ -98,5 +98,5 @@ export function getTargetCommentIdFromDeleteEvent(event: NostrEvent): string | n
   );
   if (deleteTag?.[1]) return deleteTag[1];
   const eTags = event.tags.filter((entry) => entry[0] === 'e' && !!entry[1]);
-  return eTags.length >= 2 ? eTags[1][1] : null;
+  return eTags.length >= 2 ? (eTags[1]?.[1] ?? null) : null;
 }

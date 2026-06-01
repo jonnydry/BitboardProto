@@ -646,6 +646,7 @@ export function FeedView(props: {
             }
 
             const post = sortedPosts[virtualRow.index];
+            if (!post) return null;
             const timeHeader = shouldShowTimeHeader(post, virtualRow.index);
 
             return (

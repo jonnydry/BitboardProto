@@ -131,9 +131,9 @@ describe('externalCommunityDiscoveryService', () => {
       forceRefresh: true,
     });
 
-    expect(discovered[0].community.id).toBe('active-lounge');
-    expect(discovered[0].recentApprovalCount).toBe(3);
-    expect(discovered[0].approvalCount).toBe(3);
+    expect(discovered[0]!.community.id).toBe('active-lounge');
+    expect(discovered[0]!.recentApprovalCount).toBe(3);
+    expect(discovered[0]!.approvalCount).toBe(3);
   });
 
   it('builds full uncapped sections for browser pagination', () => {

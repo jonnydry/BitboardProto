@@ -657,7 +657,7 @@ const AppContent: React.FC = () => {
                   sortedPosts={app.sortedPosts}
                   getBoardName={app.getBoardName}
                   knownUsers={app.knownUsers}
-                  loaderRef={app.loaderRef}
+                  loaderRef={app.loaderRef as React.RefObject<HTMLDivElement>}
                   isLoadingMore={app.isLoadingMore}
                   isInitialLoading={app.isInitialLoading}
                   isNostrConnected={app.isNostrConnected}
@@ -831,7 +831,6 @@ const AppContent: React.FC = () => {
                     onEditComment={app.handleEditComment}
                     onDeleteComment={app.handleDeleteComment}
                     onCommentVote={app.handleCommentVote}
-                    onToggleBookmark={app.handleToggleBookmark}
                     onDeletePost={app.handleDeletePost}
                   />
                 </Suspense>

@@ -8,10 +8,16 @@ import { sentryService } from './services/sentryService';
 import { analyticsService } from './services/analyticsService';
 import './index.css';
 
-async function initializeMonitoring() {
-  const [{ webVitalsService }] = await Promise.all([import('./services/webVitalsService')]);
+// ============================================
+// MONITORING CONFIG (lightweight, pre-idle)
+// ============================================
+// We preconfigure runtime flags (DSN, sample rates, environment) synchronously
+// so the config is set even if a render-time error fires before the idle-callback
+// below gets a chance to call .initialize(). initialize() will re-read these env
+// vars and skip a redundant configure() pass.
 
-  await sentryService.initialize({
+const monitoringConfig = {
+  sentry: {
     enabled: !!import.meta.env.VITE_SENTRY_DSN,
     dsn: import.meta.env.VITE_SENTRY_DSN,
     environment: import.meta.env.VITE_ENVIRONMENT || 'production',
@@ -19,15 +25,23 @@ async function initializeMonitoring() {
     tracesSampleRate: 0.1,
     replaysSessionSampleRate: 0.1,
     replaysOnErrorSampleRate: 1.0,
-  });
-
-  analyticsService.initialize({
+  },
+  analytics: {
     enabled: !!import.meta.env.VITE_POSTHOG_API_KEY,
     apiKey: import.meta.env.VITE_POSTHOG_API_KEY,
     host: import.meta.env.VITE_POSTHOG_HOST || 'https://app.posthog.com',
     capturePageviews: true,
     captureClicks: false,
-  });
+  },
+};
+
+async function initializeMonitoring() {
+  const [{ webVitalsService }] = await Promise.all([import('./services/webVitalsService')]);
+
+  // initialize() handles its own configure(); do not pre-call configure() here
+  // (it would be redundant).
+  await sentryService.initialize(monitoringConfig.sentry);
+  await analyticsService.initialize(monitoringConfig.analytics);
 
   webVitalsService.initialize({
     enabled: true,
@@ -82,24 +96,6 @@ if (!rootElement) {
 }
 
 const root = ReactDOM.createRoot(rootElement);
-
-sentryService.configure({
-  enabled: !!import.meta.env.VITE_SENTRY_DSN,
-  dsn: import.meta.env.VITE_SENTRY_DSN,
-  environment: import.meta.env.VITE_ENVIRONMENT || 'production',
-  release: import.meta.env.VITE_APP_VERSION || '1.0.0',
-  tracesSampleRate: 0.1,
-  replaysSessionSampleRate: 0.1,
-  replaysOnErrorSampleRate: 1.0,
-});
-
-analyticsService.configure({
-  enabled: !!import.meta.env.VITE_POSTHOG_API_KEY,
-  apiKey: import.meta.env.VITE_POSTHOG_API_KEY,
-  host: import.meta.env.VITE_POSTHOG_HOST || 'https://app.posthog.com',
-  capturePageviews: true,
-  captureClicks: false,
-});
 
 root.render(
   <React.StrictMode>

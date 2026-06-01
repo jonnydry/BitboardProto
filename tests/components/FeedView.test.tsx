@@ -101,7 +101,7 @@ const baseProps = {
   onDeleteComment: vi.fn(),
   onDeletePost: vi.fn(),
   onToggleBookmark: vi.fn(),
-  loaderRef: { current: null },
+  loaderRef: { current: null } as React.RefObject<HTMLDivElement | null>,
   isLoadingMore: false,
 };
 

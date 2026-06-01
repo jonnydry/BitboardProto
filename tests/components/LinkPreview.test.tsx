@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LinkPreview } from '../../components/LinkPreview';
-import { fetchLinkPreview, getCachedPreview } from '../../services/linkPreviewService';
+import {
+  fetchLinkPreview,
+  getCachedPreview,
+  type LinkPreviewData,
+} from '../../services/linkPreviewService';
 
 // Mock the link preview service
 vi.mock('../../services/linkPreviewService', () => ({
@@ -34,7 +38,7 @@ describe('LinkPreview', () => {
   });
 
   it('renders loading state initially', () => {
-    mockGetCachedPreview.mockReturnValue(null);
+    mockGetCachedPreview.mockReturnValue(null as unknown as LinkPreviewData);
     // Keep the promise pending to see loading state
     mockFetchLinkPreview.mockImplementation(() => new Promise(() => {}));
 
@@ -45,7 +49,7 @@ describe('LinkPreview', () => {
   });
 
   it('renders preview with title and description', async () => {
-    mockGetCachedPreview.mockReturnValue(null);
+    mockGetCachedPreview.mockReturnValue(null as unknown as LinkPreviewData);
     mockFetchLinkPreview.mockResolvedValue({
       url: 'https://example.com',
       title: 'Test Title',
@@ -66,7 +70,7 @@ describe('LinkPreview', () => {
   });
 
   it('renders compact mode correctly', async () => {
-    mockGetCachedPreview.mockReturnValue(null);
+    mockGetCachedPreview.mockReturnValue(null as unknown as LinkPreviewData);
     mockFetchLinkPreview.mockResolvedValue({
       url: 'https://example.com',
       title: 'Test Title',
@@ -102,7 +106,7 @@ describe('LinkPreview', () => {
   });
 
   it('handles fetch errors gracefully', async () => {
-    mockGetCachedPreview.mockReturnValue(null);
+    mockGetCachedPreview.mockReturnValue(null as unknown as LinkPreviewData);
     mockFetchLinkPreview.mockRejectedValue(new Error('Network error'));
 
     render(<LinkPreview url="https://example.com" />);
@@ -117,7 +121,7 @@ describe('LinkPreview', () => {
 
   it('opens link in new tab when clicked', async () => {
     const user = userEvent.setup();
-    mockGetCachedPreview.mockReturnValue(null);
+    mockGetCachedPreview.mockReturnValue(null as unknown as LinkPreviewData);
     mockFetchLinkPreview.mockResolvedValue({
       url: 'https://example.com',
       title: 'Test Title',
@@ -145,7 +149,7 @@ describe('LinkPreview', () => {
   });
 
   it('applies custom className', async () => {
-    mockGetCachedPreview.mockReturnValue(null);
+    mockGetCachedPreview.mockReturnValue(null as unknown as LinkPreviewData);
     mockFetchLinkPreview.mockResolvedValue({
       url: 'https://example.com',
       title: 'Test Title',
@@ -162,7 +166,7 @@ describe('LinkPreview', () => {
   });
 
   it('extracts domain correctly from various URLs', async () => {
-    mockGetCachedPreview.mockReturnValue(null);
+    mockGetCachedPreview.mockReturnValue(null as unknown as LinkPreviewData);
     mockFetchLinkPreview.mockResolvedValue({
       url: 'https://sub.example.com/path',
       title: 'Test Title',
@@ -176,7 +180,7 @@ describe('LinkPreview', () => {
   });
 
   it('handles malformed URLs', async () => {
-    mockGetCachedPreview.mockReturnValue(null);
+    mockGetCachedPreview.mockReturnValue(null as unknown as LinkPreviewData);
     mockFetchLinkPreview.mockResolvedValue({
       url: 'not-a-url',
       error: 'Invalid URL',

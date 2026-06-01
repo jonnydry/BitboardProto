@@ -18,9 +18,6 @@ interface PostState {
   updatePost: (id: string, updates: Partial<Post>) => void;
   setSelectedPostId: (id: string | null) => void;
   markPostAccessed: (id: string) => void;
-
-  // Computed getter for postsById (Map-like interface)
-  getPostsById: () => Map<string, Post>;
 }
 
 /**
@@ -72,7 +69,7 @@ function enforceLRULimit(
 }
 
 export const usePostStore = create<PostState>()(
-  subscribeWithSelector((set, get) => ({
+  subscribeWithSelector((set) => ({
     posts: [],
     selectedPostId: null,
     postAccessTimes: new Map(),
@@ -114,15 +111,6 @@ export const usePostStore = create<PostState>()(
         return { postAccessTimes: newAccessTimes };
       });
     },
-
-    getPostsById: () => {
-      const state = get();
-      const map = new Map<string, Post>();
-      state.posts.forEach((post) => {
-        map.set(post.id, post);
-      });
-      return map;
-    },
   })),
 );
 
@@ -130,18 +118,14 @@ export const usePostStore = create<PostState>()(
 // NOTE: Do NOT call side-effects (like markPostAccessed) inside selectors.
 // Selectors run on every state change; calling set() inside would cause infinite loops.
 // Instead, call markPostAccessed from useEffect in the consuming component.
+//
+// IMPORTANT: A selector that returns a derived object/array (e.g. `posts.filter`
+// or `posts.map`) will produce a new reference on every state change, causing
+// every consumer to re-render. Always derive such values via useMemo in the
+// consuming component, not as a selector.
 export const usePost = (id: string) =>
   usePostStore((state) => state.posts.find((p) => p.id === id) ?? null);
 
 export const usePosts = () => usePostStore((state) => state.posts);
 
 export const useSelectedPostId = () => usePostStore((state) => state.selectedPostId);
-
-export const useSelectedPost = () =>
-  usePostStore((state) => {
-    if (!state.selectedPostId) return null;
-    return state.posts.find((p) => p.id === state.selectedPostId) || null;
-  });
-
-export const usePostsByBoard = (boardId: string) =>
-  usePostStore((state) => state.posts.filter((p) => p.boardId === boardId));

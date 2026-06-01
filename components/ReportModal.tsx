@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { X, Flag, AlertTriangle, Check, Globe } from 'lucide-react';
 import { ReportReason, REPORT_REASON_LABELS, reportService } from '../services/reportService';
+import { logger } from '../services/loggingService';
 import type { NostrIdentity } from '../types';
 
 interface ReportModalProps {
@@ -59,7 +60,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
           onClose();
         }, 2000);
       } catch (error) {
-        console.error('[ReportModal] Failed to submit:', error);
+        logger.error('ReportModal', 'Failed to submit', error);
       } finally {
         setIsSubmitting(false);
       }

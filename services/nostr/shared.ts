@@ -28,7 +28,7 @@ export interface SubscriptionDeps extends QueryDeps {
  */
 export function latestEvent(events: NostrEvent[]): NostrEvent | null {
   if (events.length === 0) return null;
-  return [...events].sort((a, b) => b.created_at - a.created_at)[0];
+  return [...events].sort((a, b) => b.created_at - a.created_at)[0] ?? null;
 }
 
 /**

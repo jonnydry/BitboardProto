@@ -62,6 +62,7 @@ export const DesktopNavChrome = React.memo(function DesktopNavChrome({
 
       const first = els[0];
       const last = els[els.length - 1];
+      if (!first || !last) return;
       const cur = document.activeElement as HTMLElement | null;
 
       if (e.shiftKey && cur === first) {

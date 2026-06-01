@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type { Post, Board, Comment } from '../types';
 import { encryptedBoardService } from '../services/encryptedBoardService';
 import { toastService } from '../services/toastService';
+import { logger } from '../services/loggingService';
 import { UIConfig } from '../config';
 
 interface DecryptionState {
@@ -133,7 +134,7 @@ export function usePostDecryption(
           success: true,
         };
       } catch (error) {
-        console.error('[usePostDecryption] Failed to decrypt post:', error);
+        logger.error('usePostDecryption', 'Failed to decrypt post', error);
         return {
           postId: post.id,
           boardId: post.boardId,
@@ -154,7 +155,7 @@ export function usePostDecryption(
         const decrypted = await encryptedBoardService.decryptContent(comment.encryptedContent!, boardKey);
         return { commentId: comment.id, content: decrypted };
       } catch (error) {
-        console.error('[usePostDecryption] Failed to decrypt comment:', error);
+        logger.error('usePostDecryption', 'Failed to decrypt comment', error);
         return null;
       }
     });
@@ -170,13 +171,16 @@ export function usePostDecryption(
         if ('postId' in result && 'success' in result) {
           // Post decryption result
           if (result.success && 'title' in result && 'content' in result) {
-            newPostCache.set(result.postId, { title: result.title, content: result.content });
+            newPostCache.set(result.postId, {
+              title: result.title ?? '',
+              content: result.content ?? '',
+            });
           } else if (!result.success) {
             newFailedBoards.add(result.boardId);
           }
         } else if ('commentId' in result && 'content' in result) {
           // Comment decryption result
-          newCommentCache.set(result.commentId, result.content);
+          newCommentCache.set(result.commentId, result.content ?? '');
         }
       });
       

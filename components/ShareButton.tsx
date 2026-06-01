@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { Share2, Link } from 'lucide-react';
 import { pushToast } from './ToastHost';
+import { logger } from '../services/loggingService';
 
 interface ShareButtonProps {
   postId: string;
@@ -66,7 +67,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({ postId, postTitle }) =
           // User cancelled or error
           const e2 = error as { name?: string };
           if (e2.name !== 'AbortError') {
-            console.error('[Share] Native share failed:', error);
+            logger.error('Share', 'Native share failed', error);
             // Fall back to copy
             handleCopyLink(e);
           }

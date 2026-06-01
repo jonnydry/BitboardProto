@@ -11,6 +11,16 @@ vi.mock('../../services/loggingService', () => ({
   },
 }));
 
+// Test helper: derive a Map from the current posts list. Replaces the removed
+// `getPostsById()` method on the store (it was unsafe to use as a Zustand
+// selector because it created a fresh Map on every call). Production code
+// should derive this with useMemo at the call site instead.
+const buildPostsById = (posts: Post[]): Map<string, Post> => {
+  const map = new Map<string, Post>();
+  posts.forEach((post) => map.set(post.id, post));
+  return map;
+};
+
 const createMockPost = (id: string, timestamp?: number): Post => ({
   id,
   nostrEventId: `event_${id}`,
@@ -42,7 +52,7 @@ describe('postStore', () => {
     it('initializes with empty posts', () => {
       const state = usePostStore.getState();
       expect(state.posts).toEqual([]);
-      expect(state.getPostsById().size).toBe(0);
+      expect(buildPostsById(state.posts).size).toBe(0);
     });
 
     it('adds posts via setPosts', () => {
@@ -50,20 +60,20 @@ describe('postStore', () => {
 
       const state = usePostStore.getState();
       expect(state.posts).toHaveLength(2);
-      expect(state.getPostsById().size).toBe(2);
+      expect(buildPostsById(state.posts).size).toBe(2);
     });
 
     it('gets posts by id', () => {
       usePostStore.getState().setPosts([createMockPost('test-id')]);
 
-      const retrieved = usePostStore.getState().getPostsById().get('test-id');
+      const retrieved = buildPostsById(usePostStore.getState().posts).get('test-id');
       expect(retrieved?.id).toBe('test-id');
     });
 
     it('checks if a post exists', () => {
       usePostStore.getState().setPosts([createMockPost('exists')]);
 
-      const postsById = usePostStore.getState().getPostsById();
+      const postsById = buildPostsById(usePostStore.getState().posts);
       expect(postsById.has('exists')).toBe(true);
       expect(postsById.has('does-not-exist')).toBe(false);
     });
@@ -94,16 +104,16 @@ describe('postStore', () => {
       store.markPostAccessed('1');
 
       expect(usePostStore.getState().postAccessTimes.has('1')).toBe(true);
-      expect(usePostStore.getState().getPostsById().has('1')).toBe(true);
+      expect(buildPostsById(usePostStore.getState().posts).has('1')).toBe(true);
     });
 
-    it('getPostsById returns posts without side-effects (no direct state mutation)', () => {
+    it('does not auto-mark access times when reading posts (no direct state mutation)', () => {
       usePostStore.getState().setPosts([createMockPost('1')]);
 
-      const post = usePostStore.getState().getPostsById().get('1');
+      const post = buildPostsById(usePostStore.getState().posts).get('1');
 
       expect(post).toBeDefined();
-      // getPostsById should NOT auto-mark access times (that was a mutation bug).
+      // Reading the map should NOT auto-mark access times (that was a mutation bug).
       // Access times are now only updated via explicit markPostAccessed calls.
       expect(usePostStore.getState().postAccessTimes.has('1')).toBe(false);
     });
@@ -130,7 +140,7 @@ describe('postStore', () => {
 
       store.setPosts(manyPosts);
 
-      expect(usePostStore.getState().getPostsById().has('important')).toBe(true);
+      expect(buildPostsById(usePostStore.getState().posts).has('important')).toBe(true);
     });
   });
 
@@ -140,7 +150,7 @@ describe('postStore', () => {
         .getState()
         .setPosts([createMockPost('1'), createMockPost('2'), createMockPost('3')]);
 
-      const keys = Array.from(usePostStore.getState().getPostsById().keys());
+      const keys = Array.from(buildPostsById(usePostStore.getState().posts).keys());
       expect(keys).toHaveLength(3);
       expect(keys).toContain('1');
       expect(keys).toContain('2');
@@ -151,12 +161,9 @@ describe('postStore', () => {
       usePostStore.getState().setPosts([createMockPost('a'), createMockPost('b')]);
 
       const ids: string[] = [];
-      usePostStore
-        .getState()
-        .getPostsById()
-        .forEach((post) => {
-          ids.push(post.id);
-        });
+      buildPostsById(usePostStore.getState().posts).forEach((post) => {
+        ids.push(post.id);
+      });
 
       expect(ids).toHaveLength(2);
       expect(ids).toContain('a');
@@ -166,7 +173,7 @@ describe('postStore', () => {
     it('reports correct size', () => {
       usePostStore.getState().setPosts([createMockPost('1'), createMockPost('2')]);
 
-      expect(usePostStore.getState().getPostsById().size).toBe(2);
+      expect(buildPostsById(usePostStore.getState().posts).size).toBe(2);
     });
   });
 });

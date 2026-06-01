@@ -165,7 +165,8 @@ class AnalyticsService {
     this.configure(config);
 
     const apiKey = this.config.apiKey;
-    const host = this.config.host;
+    if (!apiKey) return;
+    const host = this.config.host ?? 'https://app.posthog.com';
     const envEnabled = this.config.enabled;
 
     // Check if PostHog API key is configured

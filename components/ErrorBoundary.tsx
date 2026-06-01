@@ -2,6 +2,7 @@ import React, { ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { diagnosticsService } from '../services/diagnosticsService';
 import { sentryService } from '../services/sentryService';
+import { logger } from '../services/loggingService';
 
 interface Props {
   children: ReactNode;
@@ -42,8 +43,8 @@ export class ErrorBoundary extends React.Component<Props, State> {
     };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('[ErrorBoundary] Caught error:', error, errorInfo);
+  override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    logger.error('ErrorBoundary', 'Caught error', { error, errorInfo });
     diagnosticsService.error(
       'ErrorBoundary',
       error?.message || 'Unknown error',
@@ -88,7 +89,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
     }
   };
 
-  render() {
+  override render() {
     if (this.state.hasError) {
       if (this.props.fallback) {
         return this.props.fallback;

@@ -99,12 +99,14 @@ export const MentionInput: React.FC<MentionInputProps> = ({
           setSelectedIndex((prev) => (prev > 0 ? prev - 1 : suggestions.length - 1));
           break;
         case 'Tab':
-        case 'Enter':
-          if (suggestions.length > 0 && mentionStart !== null) {
+        case 'Enter': {
+          const picked = suggestions[selectedIndex];
+          if (suggestions.length > 0 && mentionStart !== null && picked) {
             e.preventDefault();
-            insertSuggestion(suggestions[selectedIndex]);
+            insertSuggestion(picked);
           }
           break;
+        }
         case 'Escape':
           e.preventDefault();
           setSuggestions([]);

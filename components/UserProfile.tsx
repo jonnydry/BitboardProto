@@ -7,6 +7,7 @@ import { profileService, type ProfileMetadata } from '../services/profileService
 import { useFollows } from '../hooks/useFollows';
 import { dataExportService } from '../services/dataExportService';
 import { toastService } from '../services/toastService';
+import { logger } from '../services/loggingService';
 import { UIConfig } from '../config';
 import {
   ArrowLeft,
@@ -206,7 +207,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
           setProfileMetadata(metadata);
         })
         .catch((error) => {
-          console.error('[UserProfile] Failed to load profile metadata:', error);
+          logger.error('UserProfile', 'Failed to load profile metadata', error);
         })
         .finally(() => {
           setIsLoadingProfile(false);
@@ -246,7 +247,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
         await follow(authorPubkey);
       }
     } catch (error) {
-      console.error('[UserProfile] Follow/unfollow error:', error);
+      logger.error('UserProfile', 'Follow/unfollow error', error);
     }
   };
 
@@ -260,7 +261,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
         dedupeKey: 'data-exported',
       });
     } catch (error) {
-      console.error('[UserProfile] Export error:', error);
+      logger.error('UserProfile', 'Export error', error);
       toastService.push({
         type: 'error',
         message: 'Failed to export data',
@@ -301,7 +302,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
       // Reload the page to reset the app state
       setTimeout(() => window.location.reload(), 1500);
     } catch (error) {
-      console.error('[UserProfile] Delete error:', error);
+      logger.error('UserProfile', 'Delete error', error);
       toastService.push({
         type: 'error',
         message: 'Failed to delete data',
@@ -320,7 +321,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
       setCopiedField('pubkey');
       window.setTimeout(() => setCopiedField(null), 2000);
     } catch (error) {
-      console.error('[UserProfile] Copy pubkey error:', error);
+      logger.error('UserProfile', 'Copy pubkey error', error);
       toastService.push({
         type: 'error',
         message: 'Failed to copy public key',
@@ -396,7 +397,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
             <div className="flex-1">
               <div className="mb-2 flex items-center gap-3">
                 <h2 className="font-display text-3xl font-semibold text-terminal-text">
-                  {profileService.getDisplayName(username, profileMetadata)}
+                  {profileService.getDisplayName(username, profileMetadata ?? undefined)}
                 </h2>
                 {isOwnProfile && (
                   <span className="border border-terminal-dim/30 px-2 py-0.5 text-xs uppercase tracking-[0.12em] text-terminal-text">
@@ -629,6 +630,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
           >
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
               const post = userPosts[virtualRow.index];
+              if (!post) return null;
               return (
                 <div
                   key={virtualRow.key}
@@ -642,7 +644,6 @@ export const UserProfile: React.FC<UserProfileProps> = ({
                 >
                   <PostItem
                     post={post}
-                    userState={userState}
                     knownUsers={knownUsers}
                     onVote={handleVote}
                     onComment={handleComment}
@@ -669,7 +670,6 @@ export const UserProfile: React.FC<UserProfileProps> = ({
             <PostItem
               key={post.id}
               post={post}
-              userState={userState}
               knownUsers={knownUsers}
               onVote={handleVote}
               onComment={handleComment}

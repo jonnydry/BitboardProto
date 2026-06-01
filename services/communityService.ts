@@ -128,15 +128,24 @@ class CommunityService {
 
     // Get moderators (p tags with 'moderator' marker)
     const moderators = event.tags
-      .filter((t) => t[0] === 'p' && t[3] === 'moderator')
+      .filter((t): t is [string, string, ...string[]] => t[0] === 'p' && t[3] === 'moderator' && typeof t[1] === 'string')
       .map((t) => t[1]);
 
     // Get relays and markers from NIP-72 community definition
-    const relayTags = event.tags.filter((t) => t[0] === 'relay' && t[1]);
+    const relayTags = event.tags.filter(
+      (t): t is [string, string, ...string[]] =>
+        t[0] === 'relay' && typeof t[1] === 'string',
+    );
     const relays = relayTags.map((t) => t[1]);
-    const approvalRelays = relayTags.filter((t) => !t[2] || t[2] === 'approvals').map((t) => t[1]);
-    const authorRelays = relayTags.filter((t) => !t[2] || t[2] === 'author').map((t) => t[1]);
-    const requestRelays = relayTags.filter((t) => !t[2] || t[2] === 'requests').map((t) => t[1]);
+    const approvalRelays = relayTags
+      .filter((t) => !t[2] || t[2] === 'approvals')
+      .map((t) => t[1]);
+    const authorRelays = relayTags
+      .filter((t) => !t[2] || t[2] === 'author')
+      .map((t) => t[1]);
+    const requestRelays = relayTags
+      .filter((t) => !t[2] || t[2] === 'requests')
+      .map((t) => t[1]);
 
     return {
       id,
@@ -398,7 +407,7 @@ class CommunityService {
     const [, creatorPubkey, ...idParts] = parts;
     const communityId = idParts.join(':');
 
-    const community = await this.fetchCommunity(creatorPubkey, communityId);
+    const community = await this.fetchCommunity(creatorPubkey ?? '', communityId);
     if (!community) return false;
 
     // Creator is always a moderator
@@ -609,7 +618,9 @@ class CommunityService {
     const fallbackTitle = firstLine ? firstLine.slice(0, 80) : 'Imported from Nostr';
     const title = inputValidator.validateTitle(titleTag || fallbackTitle) ?? 'Imported from Nostr';
     const tags = inputValidator.validateTags(
-      event.tags.filter((tag) => tag[0] === 't' && tag[1]).map((tag) => tag[1]),
+      event.tags
+        .filter((tag): tag is [string, string, ...string[]] => tag[0] === 't' && typeof tag[1] === 'string')
+        .map((tag) => tag[1]),
     );
 
     return {

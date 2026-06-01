@@ -28,8 +28,15 @@ jobs:
       - name: Run linter
         run: npm run lint
 
+      - name: Type check (base)
+        run: npm run typecheck
+
       - name: Run tests
         run: npm test
+
+      - name: Type check (strict — fails on real bugs)
+        run: npm run typecheck:strict
+        continue-on-error: true
 
       - name: Security audit
         run: npm audit --audit-level=high

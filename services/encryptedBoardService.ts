@@ -245,7 +245,7 @@ class EncryptedBoardService {
 
     // Extract key from fragment
     const keyMatch = hash.match(/key=([A-Za-z0-9_-]+)/);
-    if (!keyMatch) return null;
+    if (!keyMatch || !keyMatch[1]) return null;
 
     // Convert URL-safe base64 back to standard base64
     let key = keyMatch[1].replace(/-/g, '+').replace(/_/g, '/');
@@ -308,7 +308,7 @@ class EncryptedBoardService {
       }
 
       const keyMatch = hash.match(/key=([A-Za-z0-9_-]+)/);
-      if (!keyMatch) {
+      if (!keyMatch || !keyMatch[1]) {
         throw new Error('Invalid share link: malformed encryption key');
       }
 
@@ -340,7 +340,10 @@ class EncryptedBoardService {
     const bytes = new Uint8Array(buffer);
     let binary = '';
     for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
+      const byte = bytes[i];
+      if (byte !== undefined) {
+        binary += String.fromCharCode(byte);
+      }
     }
     return btoa(binary);
   }

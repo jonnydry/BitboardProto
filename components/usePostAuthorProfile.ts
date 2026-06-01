@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { profileService } from '../services/profileService';
+import { logger } from '../services/loggingService';
 
 type ProfileLoadState = 'idle' | 'loading' | 'loaded' | 'failed';
 
@@ -65,7 +66,7 @@ export function usePostAuthorProfile(authorPubkey?: string) {
       .catch((error) => {
         isLoading = false;
         if (!cancelled) {
-          console.error('[PostItem] Failed to load author profile:', error);
+          logger.error('PostItem', 'Failed to load author profile', error);
           setProfileLoadState('failed');
         }
       });

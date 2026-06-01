@@ -154,9 +154,11 @@ export class NostrProfileCache {
 
     // Evict oldest cachedAt entries
     const entries = Array.from(this.profileCache.entries());
-    entries.sort((a, b) => a[1].cachedAt - b[1].cachedAt);
+    entries.sort((a, b) => (a[1]?.cachedAt ?? 0) - (b[1]?.cachedAt ?? 0));
     for (let i = 0; i < over; i++) {
-      const [pubkey] = entries[i];
+      const entry = entries[i];
+      if (!entry) continue;
+      const [pubkey] = entry;
       this.profileCache.delete(pubkey);
     }
     
@@ -269,6 +271,9 @@ export class NostrProfileCache {
 
         // Choose latest by created_at
         let latest = events[0];
+        if (!latest) {
+          return;
+        }
         for (const ev of events) {
           if (ev.created_at > latest.created_at) latest = ev;
         }
@@ -278,17 +283,17 @@ export class NostrProfileCache {
 
         this.profileCache.set(pubkey, parsed);
         this.enforceProfileCacheLimit();
-        
+
         // Schedule save to localStorage
         this.scheduleSave();
-        
+
         return parsed;
       } catch {
         return null;
       } finally {
         this.inFlightProfiles.delete(pubkey);
       }
-    })();
+    })() as Promise<NostrProfileMetadata | null>;
 
     this.inFlightProfiles.set(pubkey, p);
     return p;

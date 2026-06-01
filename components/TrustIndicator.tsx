@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Users, ShieldCheck, ShieldAlert, Shield } from 'lucide-react';
 import { wotService } from '../services/wotService';
+import { logger } from '../services/loggingService';
 import { FeatureFlags } from '../config';
 
 interface TrustIndicatorProps {
@@ -57,7 +58,7 @@ export const TrustIndicator: React.FC<TrustIndicatorProps> = ({
       })
       .catch((error) => {
         if (!cancelled) {
-          console.error('[TrustIndicator] Failed to fetch WoT score:', error);
+          logger.error('TrustIndicator', 'Failed to fetch WoT score', error);
           setWotInfo(null);
           setIsLoading(false);
         }

@@ -59,6 +59,7 @@ interface AppContextType {
   profileUser: { username: string; pubkey?: string } | null;
   editingPostId: string | null;
   userState: UserState;
+  bookmarkedIds: string[];
 
   // Computed values
   postsById: Map<string, Post>;
@@ -68,6 +69,8 @@ interface AppContextType {
   activeBoard: Board | null;
   topicBoards: Board[];
   externalCommunities: Board[];
+  geohashBoards: Board[];
+  boardsById: Map<string, Board>;
   decryptionFailedBoardIds: Set<string>;
 
   // Encryption actions
@@ -130,7 +133,7 @@ interface AppContextType {
   isMuted: (pubkey: string) => boolean;
 
   // Hooks
-  loaderRef: React.RefObject<HTMLDivElement>;
+  loaderRef: React.RefObject<HTMLDivElement | null>;
   isLoadingMore: boolean;
   isInitialLoading: boolean;
 }
@@ -260,6 +263,12 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     );
   }, [boards]);
 
+  const geohashBoards = useMemo(() => {
+    return boards.filter(
+      (board) => board.type === BoardType.GEOHASH && board.source !== 'nostr-community',
+    );
+  }, [boards]);
+
   const externalCommunities = useMemo(() => {
     return boards.filter((board) => board.source === 'nostr-community');
   }, [boards]);
@@ -281,6 +290,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
       activeBoardId,
       boardsById,
       topicBoards,
+      geohashBoards,
       activeBoard,
       setBoards,
       setLocationBoards,
@@ -292,6 +302,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
       activeBoardId,
       boardsById,
       topicBoards,
+      geohashBoards,
       activeBoard,
       setBoards,
       setLocationBoards,
@@ -781,6 +792,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
       profileUser: uiCtx.profileUser,
       editingPostId: uiCtx.editingPostId,
       userState: userCtx.userState,
+      bookmarkedIds,
 
       // Computed values (aggregated from focused contexts)
       postsById: postsCtx.postsById,
@@ -789,6 +801,8 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
       selectedPost,
       activeBoard: boardsCtx.activeBoard,
       topicBoards: boardsCtx.topicBoards,
+      geohashBoards: boardsCtx.geohashBoards,
+      boardsById: boardsCtx.boardsById,
       externalCommunities,
       decryptionFailedBoardIds,
       removeFailedDecryptionKey: removeFailedKey,
@@ -847,6 +861,8 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
       boardsCtx.locationBoards,
       boardsCtx.activeBoardId,
       boardsCtx.topicBoards,
+      boardsCtx.geohashBoards,
+      boardsCtx.boardsById,
       boardsCtx.activeBoard,
       boardsCtx.setLocationBoards,
       uiCtx.viewMode,
@@ -869,6 +885,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
       isNostrConnected,
       setTheme,
       userCtx.setUserState,
+      bookmarkedIds,
       joinNostrCommunity,
       seedSourcePost,
       seedIdentityPromptPost,

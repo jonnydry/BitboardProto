@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
+import { logger } from '../services/loggingService';
 
 interface UseInfiniteScrollOptions {
   threshold?: number; // How many pixels before bottom to trigger (default: 200)
@@ -6,7 +7,7 @@ interface UseInfiniteScrollOptions {
 }
 
 interface UseInfiniteScrollResult {
-  loaderRef: React.RefObject<HTMLDivElement>;
+  loaderRef: React.RefObject<HTMLDivElement | null>;
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
 }
@@ -24,7 +25,7 @@ export function useInfiniteScroll(
 ): UseInfiniteScrollResult {
   const { threshold = 200, debounceMs = 200 } = options;
 
-  const loaderRef = useRef<HTMLDivElement>(null);
+  const loaderRef = useRef<HTMLDivElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const loadMoreRef = useRef(loadMore);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -50,8 +51,8 @@ export function useInfiniteScroll(
 
     const observer = new IntersectionObserver(
       (entries) => {
-        const [entry] = entries;
-        if (entry.isIntersecting && hasMoreRef.current && !isLoadingRef.current) {
+        const entry = entries[0];
+        if (entry && entry.isIntersecting && hasMoreRef.current && !isLoadingRef.current) {
           // Clear any existing debounce timer
           if (debounceTimerRef.current) {
             clearTimeout(debounceTimerRef.current);
@@ -64,7 +65,7 @@ export function useInfiniteScroll(
             try {
               await loadMoreRef.current();
             } catch (error) {
-              console.error('[InfiniteScroll] Failed to load more:', error);
+              logger.error('InfiniteScroll', 'Failed to load more', error);
             } finally {
               setIsLoading(false);
             }

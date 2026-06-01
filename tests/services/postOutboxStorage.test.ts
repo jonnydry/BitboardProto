@@ -45,8 +45,8 @@ describe('postOutboxStorage', () => {
     postOutboxStorageUpsert(basePost({ syncStatus: 'failed', syncError: 'relay down' }));
     const all = postOutboxStorageReadAll();
     expect(all).toHaveLength(1);
-    expect(all[0].syncStatus).toBe('failed');
-    expect(all[0].syncError).toBe('relay down');
+    expect(all[0]!.syncStatus).toBe('failed');
+    expect(all[0]!.syncError).toBe('relay down');
   });
 
   it('persists synced own posts by nostr id and removes them by either id', () => {
@@ -57,7 +57,7 @@ describe('postOutboxStorage', () => {
 
     const cached = ownPostsCacheReadAll();
     expect(cached).toHaveLength(1);
-    expect(cached[0].nostrEventId).toBe('event-1');
+    expect(cached[0]!.nostrEventId).toBe('event-1');
 
     ownPostsCacheRemove('local-shadow', 'event-1');
     expect(ownPostsCacheReadAll()).toHaveLength(0);

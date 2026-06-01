@@ -205,6 +205,8 @@ export default defineConfig(({ mode }) => {
                 return 'vendor';
               }
             }
+
+            return undefined;
           },
         },
       },

@@ -1,5 +1,4 @@
 import { test, expect } from '@playwright/test';
-// @ts-expect-error - @axe-core/playwright types may not be installed
 import AxeBuilder from '@axe-core/playwright';
 
 test.describe('Accessibility Tests', () => {

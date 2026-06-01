@@ -177,7 +177,7 @@ class LiveEventService {
 
     const getAllTags = (name: string): string[] => {
       return event.tags
-        .filter(t => t[0] === name && t[1])
+        .filter((t): t is [string, string, ...string[]] => t[0] === name && typeof t[1] === 'string')
         .map(t => t[1]);
     };
 
@@ -192,7 +192,7 @@ class LiveEventService {
 
     // Parse participants
     const participants: LiveEvent['participants'] = event.tags
-      .filter(t => t[0] === 'p' && t[1])
+      .filter((t): t is [string, string, ...string[]] => t[0] === 'p' && typeof t[1] === 'string')
       .map(t => ({
         pubkey: t[1],
         role: (t[3] as 'host' | 'speaker' | 'participant') || 'participant',
@@ -421,7 +421,7 @@ class LiveEventService {
       return null;
     }
     return {
-      hostPubkey: parts[1],
+      hostPubkey: parts[1] ?? '',
       eventId: parts.slice(2).join(':'),
     };
   }

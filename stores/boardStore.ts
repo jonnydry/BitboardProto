@@ -4,6 +4,7 @@ import { type Board } from '../types';
 import { INITIAL_BOARDS } from '../constants';
 import { StorageKeys } from '../config';
 import { persistLastActiveBoardId } from '../services/boardUrlService';
+import { logger } from '../services/loggingService';
 
 interface BoardStoreState {
   // State
@@ -59,7 +60,7 @@ function loadInitialBoards(): Board[] {
     // Merge cached boards with INITIAL_BOARDS to ensure new defaults appear
     return mergeWithInitialBoards(cachedBoards);
   } catch (error) {
-    console.error('[boardStore] Failed to load cached boards:', error);
+    logger.error('boardStore', 'Failed to load cached boards', error);
     return INITIAL_BOARDS;
   }
 }

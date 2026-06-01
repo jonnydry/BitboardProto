@@ -20,8 +20,13 @@ vi.mock('nostr-tools', async () => {
   return {
     generateSecretKey: () => Uint8Array.from({ length: 32 }, (_, i) => i + 1),
     getPublicKey: (bytes: Uint8Array) => bytesToHex(bytes).slice(0, 64).padEnd(64, '0'),
-    finalizeEvent: (event: Record<string, unknown>, privateKeyBytes: Uint8Array) => ({
-      ...event,
+    getEventHash: (_event: Record<string, unknown>) => {
+      // Deterministic id for tests so the verify step in signEventWithExtension
+      // accepts the mock signed event. Real getEventHash uses SHA-256 of the
+      // serialized event; here we just use a fixed string.
+      return '1'.repeat(64);
+    },
+    finalizeEvent: (_event: Record<string, unknown>, privateKeyBytes: Uint8Array) => ({
       pubkey: bytesToHex(privateKeyBytes).slice(0, 64).padEnd(64, '0'),
       id: '1'.repeat(64),
       sig: '2'.repeat(128),
@@ -221,6 +226,69 @@ describe('identityService', () => {
 
     expect(signEvent).toHaveBeenCalled();
     expect(signed.sig).toBe('2'.repeat(128));
+  });
+
+  it('rejects NIP-07 events whose pubkey does not match the active identity', async () => {
+    const { identityService } = await loadIdentityModule();
+    // Mock returns a pubkey that differs from the identity's pubkey
+    const signEvent = vi.fn(async (event: Record<string, unknown>) => ({
+      ...event,
+      id: '1'.repeat(64),
+      sig: '2'.repeat(128),
+      pubkey: 'a'.repeat(64),
+    }));
+    vi.stubGlobal('nostr', { signEvent });
+
+    const identityPubkey = 'b'.repeat(64);
+    identityService.setSessionIdentity({
+      kind: 'nip07',
+      pubkey: identityPubkey,
+      npub: nip19.npubEncode(identityPubkey),
+      displayName: 'Extension',
+    });
+
+    await expect(
+      identityService.signEvent({
+        pubkey: identityPubkey,
+        kind: 1,
+        created_at: 0,
+        tags: [],
+        content: 'x',
+      }),
+    ).rejects.toThrow(/Failed to sign with NIP-07 extension/);
+    expect(signEvent).toHaveBeenCalled();
+  });
+
+  it('rejects NIP-07 events whose id does not match getEventHash', async () => {
+    const { identityService } = await loadIdentityModule();
+    const identityPubkey = 'c'.repeat(64);
+    // Pubkey matches but id is bogus (does not match the getEventHash mock which
+    // returns '1'.repeat(64)).
+    const signEvent = vi.fn(async (event: Record<string, unknown>) => ({
+      ...event,
+      id: '9'.repeat(64),
+      sig: '2'.repeat(128),
+      pubkey: identityPubkey,
+    }));
+    vi.stubGlobal('nostr', { signEvent });
+
+    identityService.setSessionIdentity({
+      kind: 'nip07',
+      pubkey: identityPubkey,
+      npub: nip19.npubEncode(identityPubkey),
+      displayName: 'Extension',
+    });
+
+    await expect(
+      identityService.signEvent({
+        pubkey: identityPubkey,
+        kind: 1,
+        created_at: 0,
+        tags: [],
+        content: 'x',
+      }),
+    ).rejects.toThrow(/Failed to sign with NIP-07 extension/);
+    expect(signEvent).toHaveBeenCalled();
   });
 
   it('does not persist session identities across reloads', async () => {

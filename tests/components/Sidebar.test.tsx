@@ -67,19 +67,67 @@ describe('Sidebar', () => {
     feedFilter: 'all',
     setFeedFilter: vi.fn(),
     topicBoards: [
-      { id: 'pub-1', name: 'Public One', type: BoardType.TOPIC, isPublic: true },
-      { id: 'pub-2', name: 'Public Two', type: BoardType.TOPIC, isPublic: true },
-      { id: 'priv-1', name: 'Private One', type: BoardType.TOPIC, isPublic: false },
+      {
+        id: 'pub-1',
+        name: 'Public One',
+        description: 'Public board',
+        memberCount: 0,
+        type: BoardType.TOPIC,
+        isPublic: true,
+      },
+      {
+        id: 'pub-2',
+        name: 'Public Two',
+        description: 'Public board',
+        memberCount: 0,
+        type: BoardType.TOPIC,
+        isPublic: true,
+      },
+      {
+        id: 'priv-1',
+        name: 'Private One',
+        description: 'Private board',
+        memberCount: 0,
+        type: BoardType.TOPIC,
+        isPublic: false,
+      },
     ],
-    geohashBoards: [{ id: 'geo-1', geohash: 'abcd1234', type: BoardType.GEOHASH }],
+    geohashBoards: [
+      {
+        id: 'geo-1',
+        name: 'Geo One',
+        description: 'Geo board',
+        memberCount: 0,
+        isPublic: true,
+        geohash: 'abcd1234',
+        type: BoardType.GEOHASH,
+      },
+    ],
+    externalCommunities: [],
     boardsById: new Map([
       [
         'secure-1',
-        { id: 'secure-1', name: 'Secure One', isEncrypted: true, type: BoardType.TOPIC },
+        {
+          id: 'secure-1',
+          name: 'Secure One',
+          description: 'Encrypted board',
+          memberCount: 0,
+          isPublic: false,
+          isEncrypted: true,
+          type: BoardType.TOPIC,
+        },
       ],
       [
         'broken-1',
-        { id: 'broken-1', name: 'Broken One', isEncrypted: true, type: BoardType.TOPIC },
+        {
+          id: 'broken-1',
+          name: 'Broken One',
+          description: 'Broken encrypted board',
+          memberCount: 0,
+          isPublic: false,
+          isEncrypted: true,
+          type: BoardType.TOPIC,
+        },
       ],
     ]),
     decryptionFailedBoardIds: new Set(['broken-1']),
@@ -92,7 +140,9 @@ describe('Sidebar', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getCachedPosition.mockReturnValue(null);
+    mocks.getCachedPosition.mockReturnValue(
+      null as unknown as { coords: { latitude: number; longitude: number } },
+    );
     mocks.getCachedResult.mockReturnValue({ channels: [] });
   });
 

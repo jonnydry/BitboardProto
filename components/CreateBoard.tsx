@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Board, BoardType, NostrIdentity } from '../types';
+import { Board, BoardType, PublicNostrIdentity } from '../types';
 import { Globe, Lock, Hash, AlertTriangle, Shield, Copy, Check, Key } from 'lucide-react';
 import { inputValidator } from '../services/inputValidator';
 import { InputLimits } from '../config';
 import { boardRateLimiter } from '../services/boardRateLimiter';
 import { encryptedBoardService } from '../services/encryptedBoardService';
+import { logger } from '../services/loggingService';
 import { makeBoardId } from '../services/boardIdService';
 
 interface CreateBoardProps {
@@ -13,7 +14,7 @@ interface CreateBoardProps {
     encryptionKey?: string,
   ) => void;
   onCancel: () => void;
-  identity?: NostrIdentity;
+  identity?: PublicNostrIdentity;
   onConnectIdentity?: () => void;
 }
 
@@ -148,7 +149,7 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({
         encryptionKey,
       );
     } catch (error) {
-      console.error('[CreateBoard] Failed to create board:', error);
+      logger.error('CreateBoard', 'Failed to create board', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -162,7 +163,7 @@ export const CreateBoard: React.FC<CreateBoardProps> = ({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
-      console.error('[CreateBoard] Failed to copy:', error);
+      logger.error('CreateBoard', 'Failed to copy', error);
     }
   };
 

@@ -90,7 +90,7 @@ describe('NotificationCenterV2', () => {
     fireEvent.click(screen.getByTitle('Mark as read'));
     expect(mocks.markAsRead).toHaveBeenCalledWith('n1');
 
-    fireEvent.click(screen.getAllByTitle('Delete')[0]);
+    fireEvent.click(screen.getAllByTitle('Delete')[0]!);
     expect(mocks.delete).toHaveBeenCalledWith('n1');
 
     fireEvent.click(screen.getByText('Alice mentioned you'));

@@ -19,6 +19,7 @@ import { ReportModal } from './ReportModal';
 import { reportService } from '../services/reportService';
 import { toastService } from '../services/toastService';
 import { profileService } from '../services/profileService';
+import { logger } from '../services/loggingService';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ReactionBar } from './ReactionPicker';
 
@@ -109,7 +110,7 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
             }
           })
           .catch((error) => {
-            console.error('[CommentThread] Failed to load author profile:', error);
+            logger.error('CommentThread', 'Failed to load author profile', error);
           });
       }
     }
@@ -942,6 +943,7 @@ const CommentListComponent: React.FC<CommentListProps> = ({
           >
             {virtualizer.getVirtualItems().map((virtualItem) => {
               const comment = comments[virtualItem.index];
+              if (!comment) return null;
               return (
                 <div
                   key={virtualItem.key}
@@ -983,7 +985,9 @@ const CommentListComponent: React.FC<CommentListProps> = ({
             })}
           </div>
         ) : (
-          visibleComments.map((comment) => (
+          visibleComments.map((comment) => {
+            if (!comment) return null;
+            return (
             <CommentThread
               key={comment.id}
               comment={comment}
@@ -1000,7 +1004,8 @@ const CommentListComponent: React.FC<CommentListProps> = ({
               onToggleMute={onToggleMute}
               isMuted={isMuted}
             />
-          ))
+            );
+          })
         )}
       </div>
 

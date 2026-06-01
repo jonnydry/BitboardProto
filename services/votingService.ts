@@ -277,10 +277,10 @@ class VotingService {
 
       // Send batch to worker
       this.worker!.postMessage({ id, events });
-    }).then((results: Array<{ id: string; pubkey: string; valid: boolean }>) => {
+    }).then((results) => {
       // Convert results array to Map
       const resultMap = new Map<string, boolean>();
-      for (const result of results) {
+      for (const result of results as Array<{ id: string; pubkey: string; valid: boolean }>) {
         resultMap.set(result.id, result.valid);
       }
       return resultMap;
@@ -328,7 +328,7 @@ class VotingService {
 
     // Sort by lastUpdated and remove oldest entries until at the limit
     const entries = Array.from(this.voteTallies.entries());
-    entries.sort((a, b) => a[1].lastUpdated - b[1].lastUpdated);
+    entries.sort((a, b) => (a[1]?.lastUpdated ?? 0) - (b[1]?.lastUpdated ?? 0));
 
     const removeCount = this.voteTallies.size - this.MAX_CACHE_SIZE;
     for (let i = 0; i < removeCount; i++) {
@@ -382,7 +382,7 @@ class VotingService {
 
     return {
       eventId: event.id,
-      postId: postTag[1],
+      postId: postTag[1] ?? '',
       voterPubkey: event.pubkey,
       direction: event.content === '+' ? 'up' : 'down',
       timestamp: event.created_at * 1000,
@@ -630,6 +630,7 @@ class VotingService {
     for (let i = 0; i < uncachedPostIds.length; i++) {
       const postId = uncachedPostIds[i];
       const events = voteEventArrays[i];
+      if (postId === undefined || events === undefined) continue;
       for (const event of events) {
         allEvents.push(event);
         eventToPostMap.set(event.id, postId);
@@ -643,6 +644,7 @@ class VotingService {
     for (let i = 0; i < uncachedPostIds.length; i++) {
       const postId = uncachedPostIds[i];
       const voteEvents = voteEventArrays[i];
+      if (postId === undefined || voteEvents === undefined) continue;
 
       const tally: VoteTally = {
         postId,
@@ -658,6 +660,7 @@ class VotingService {
       const sortedEvents = [...voteEvents].sort((a, b) => a.created_at - b.created_at);
 
       for (const event of sortedEvents) {
+        if (!event) continue;
         // Check verification result from batch
         const isSignatureValid = verificationResults.get(event.id) ?? false;
 

@@ -121,9 +121,11 @@ export function useAppPostMutationHandlers({
               downvotes: 0,
             };
 
+            const pubkey = userState.identity.pubkey;
+            if (!pubkey) return;
             const unsigned = nostrService.buildPostEvent(
               eventPayload,
-              userState.identity.pubkey,
+              pubkey,
               geohash,
               {
                 boardAddress,
@@ -281,15 +283,17 @@ export function useAppPostMutationHandlers({
               }
             }
 
+            const editPubkey = userState.identity.pubkey;
+            if (!editPubkey) return;
             const unsigned = nostrService.buildPostEditEvent({
-              rootPostEventId: existing.nostrEventId,
+              rootPostEventId: existing.nostrEventId ?? '',
               boardId: existing.boardId,
               title: merged.title,
               content: merged.content,
               tags: merged.tags,
               url: merged.url,
               imageUrl: merged.imageUrl,
-              pubkey: userState.identity.pubkey,
+              pubkey: editPubkey,
               encryptedTitle,
               encryptedContent,
             });
@@ -359,6 +363,7 @@ export function useAppPostMutationHandlers({
       bookmarkService.removeBookmark(postId);
       postOutboxStorageRemoveMatching(postId, post.nostrEventId);
       ownPostsCacheRemove(postId, post.nostrEventId ?? '');
+      if (!post.nostrEventId) return;
       setEditingPostId(null);
       setViewMode(ViewMode.FEED);
 

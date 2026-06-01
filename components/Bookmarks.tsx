@@ -205,7 +205,7 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
         });
       }
     } catch (error) {
-      console.error('[Bookmarks] Sync error:', error);
+      logger.error('Bookmarks', 'Sync error', error);
       toastService.push({
         type: 'error',
         message: 'Failed to sync bookmarks',
@@ -398,6 +398,7 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
           >
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
               const post = bookmarkedPosts[virtualRow.index];
+              if (!post) return null;
               return (
                 <div
                   key={virtualRow.key}
@@ -411,7 +412,6 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
                 >
                   <PostItem
                     post={post}
-                    userState={userState}
                     knownUsers={knownUsers}
                     onVote={handleVote}
                     onComment={handleComment}
@@ -438,7 +438,6 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
             <PostItem
               key={post.id}
               post={post}
-              userState={userState}
               knownUsers={knownUsers}
               onVote={handleVote}
               onComment={handleComment}

@@ -108,10 +108,10 @@ describe('nostrDiscoveryService', () => {
       sourceFilter: 'all',
     });
 
-    expect(results[0].sourceType).toBe('community-approved');
-    expect(results[0].provenanceLabel).toContain('/n/dev');
-    expect(results[0].confidence).toBe('high');
-    expect(results[0].whyTrending.some((reason) => reason.includes('moderator-approved'))).toBe(
+    expect(results[0]!.sourceType).toBe('community-approved');
+    expect(results[0]!.provenanceLabel).toContain('/n/dev');
+    expect(results[0]!.confidence).toBe('high');
+    expect(results[0]!.whyTrending.some((reason) => reason.includes('moderator-approved'))).toBe(
       true,
     );
   });
@@ -154,11 +154,11 @@ describe('nostrDiscoveryService', () => {
 
     expect(mocks.relaySearch).toHaveBeenCalled();
     expect(results).toHaveLength(1);
-    expect(results[0].post.source).toBe('nostr');
-    expect(results[0].sourceDetail).toContain('NIP-72');
-    expect(results[0].whyTrending.some((reason) => reason.includes('zaps'))).toBe(true);
-    expect(results[0].post.url).toBe('https://example.com/report');
-    expect(results[0].confidenceLabel).toBe('Link-backed');
+    expect(results[0]!.post.source).toBe('nostr');
+    expect(results[0]!.sourceDetail).toContain('NIP-72');
+    expect(results[0]!.whyTrending.some((reason) => reason.includes('zaps'))).toBe(true);
+    expect(results[0]!.post.url).toBe('https://example.com/report');
+    expect(results[0]!.confidenceLabel).toBe('Link-backed');
   });
 
   it('filters out low-signal general chatter but keeps stronger linked posts', async () => {
@@ -206,8 +206,8 @@ describe('nostrDiscoveryService', () => {
     });
 
     expect(results).toHaveLength(1);
-    expect(results[0].id).toBe('strong-post');
-    expect(results[0].post.url).toBe('https://example.com/memo');
+    expect(results[0]!.id).toBe('strong-post');
+    expect(results[0]!.post.url).toBe('https://example.com/memo');
   });
 
   it('includes strong non-English discovery candidates in broad trending', async () => {
@@ -438,7 +438,7 @@ describe('nostrDiscoveryService', () => {
     });
 
     expect(results).toHaveLength(2);
-    expect(results[0].id).toBe('older-big-post');
+    expect(results[0]!.id).toBe('older-big-post');
   });
 
   it('ranks recent breakout posts ahead of older higher-total posts when momentum is stronger', async () => {
@@ -500,7 +500,7 @@ describe('nostrDiscoveryService', () => {
     });
 
     expect(results).toHaveLength(2);
-    expect(results[0].id).toBe('breakout-post');
+    expect(results[0]!.id).toBe('breakout-post');
   });
 
   it('suppresses repeated authors so one source cannot dominate top results', async () => {
@@ -555,7 +555,7 @@ describe('nostrDiscoveryService', () => {
     });
 
     expect(results).toHaveLength(3);
-    expect(results[0].post.authorPubkey).toBe('same-author');
-    expect(results[1].post.authorPubkey).toBe('different-author');
+    expect(results[0]!.post.authorPubkey).toBe('same-author');
+    expect(results[1]!.post.authorPubkey).toBe('different-author');
   });
 });

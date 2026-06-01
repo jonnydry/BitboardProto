@@ -477,7 +477,7 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
       {showNotifications && (
         <NotificationCenterV2
           onClose={() => setShowNotifications(false)}
-          onNavigate={handleNotificationNavigate}
+          onNavigate={(link) => link && handleNotificationNavigate(link)}
         />
       )}
     </header>

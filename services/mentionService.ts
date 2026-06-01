@@ -28,6 +28,7 @@ class MentionService {
     MENTION_REGEX.lastIndex = 0;
     
     while ((match = MENTION_REGEX.exec(content)) !== null) {
+      if (match[1] === undefined) continue;
       matches.push({
         username: match[1], // The captured group (without @)
         startIndex: match.index,
@@ -160,7 +161,8 @@ class MentionService {
     
     while (startIndex >= 0) {
       const char = text[startIndex];
-      
+      if (char === undefined) break;
+
       // Found the @ symbol
       if (char === '@') {
         const query = text.slice(startIndex + 1, cursorPosition);

@@ -15,7 +15,9 @@ import {
 
 export function eventToPost(event: NostrEvent, getDisplayName: (pubkey: string) => string): Post {
   const getAllTags = (name: string): string[] => {
-    return event.tags.filter((entry) => entry[0] === name).map((entry) => entry[1]);
+    return event.tags
+      .filter((entry): entry is [string, string, ...string[]] => entry[0] === name && typeof entry[1] === 'string')
+      .map((entry) => entry[1]);
   };
 
   const aRef = getARef(event);
@@ -133,7 +135,9 @@ export function eventToPostEditUpdate(
   if (!rootPostEventId) return null;
 
   const getAllTags = (name: string): string[] => {
-    return event.tags.filter((entry) => entry[0] === name).map((entry) => entry[1]);
+    return event.tags
+      .filter((entry): entry is [string, string, ...string[]] => entry[0] === name && typeof entry[1] === 'string')
+      .map((entry) => entry[1]);
   };
 
   const isEncrypted = getTagValue(event, 'encrypted') === 'true';

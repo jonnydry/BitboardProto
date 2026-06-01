@@ -274,8 +274,8 @@ export const CreatePost: React.FC<CreatePostProps> = ({
       const sanitizedContent = content.trim()
         ? inputValidator.validatePostContent(content) || ''
         : '';
-      const sanitizedUrl = url.trim() ? inputValidator.validateUrl(url) : undefined;
-      const sanitizedImageUrl = imageUrl.trim() ? inputValidator.validateUrl(imageUrl) : undefined;
+      const sanitizedUrl = url.trim() ? inputValidator.validateUrl(url) ?? '' : '';
+      const sanitizedImageUrl = imageUrl.trim() ? inputValidator.validateUrl(imageUrl) ?? '' : '';
 
       // Parse and validate tags
       const sanitizedTags = inputValidator.validateTags(tags);

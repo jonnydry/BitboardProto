@@ -1,4 +1,5 @@
 import React, { useCallback, useRef, useEffect, useState } from 'react';
+import { logger } from '../services/loggingService';
 
 // ============================================
 // PERFORMANCE HOOKS
@@ -26,7 +27,7 @@ export function useDebouncedCallback<T extends (...args: unknown[]) => void>(
   callback: T,
   delay: number,
 ): T {
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const callbackRef = useRef(callback);
   callbackRef.current = callback;
 
@@ -97,9 +98,9 @@ export function useThrottledCallback<T extends (...args: unknown[]) => void>(
  */
 export function useIntersectionObserver(
   options: IntersectionObserverInit = {},
-): [React.RefObject<HTMLDivElement>, boolean] {
+): [React.RefObject<HTMLDivElement | null>, boolean] {
   const [isIntersecting, setIsIntersecting] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLDivElement | null>(null);
   const { root, rootMargin, threshold } = options;
 
   useEffect(() => {
@@ -108,8 +109,11 @@ export function useIntersectionObserver(
 
     const observerOptions: IntersectionObserverInit = { root, rootMargin, threshold };
 
-    const observer = new IntersectionObserver(([entry]) => {
-      setIsIntersecting(entry.isIntersecting);
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries[0];
+      if (entry) {
+        setIsIntersecting(entry.isIntersecting);
+      }
     }, observerOptions);
 
     observer.observe(element);
@@ -123,7 +127,7 @@ export function useIntersectionObserver(
  * Previous value hook - useful for comparison
  */
 export function usePrevious<T>(value: T): T | undefined {
-  const ref = useRef<T>();
+  const ref = useRef<T | undefined>(undefined);
   useEffect(() => {
     ref.current = value;
   }, [value]);
@@ -256,7 +260,7 @@ export function useRenderCount(name: string): number {
 
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
-      console.debug(`[RenderCount] ${name}: ${renderCount.current}`);
+      logger.debug('RenderCount', `${name}: ${renderCount.current}`);
     }
   });
 

@@ -19,6 +19,7 @@ import { identityService } from '../services/identityService';
 import { listService, LIST_KINDS } from '../services/listService';
 import { nostrService } from '../services/nostr/NostrService';
 import { toastService } from '../services/toastService';
+import { logger } from '../services/loggingService';
 import { UIConfig } from '../config';
 import { INITIAL_BOARDS } from '../constants';
 import type { NostrIdentity, Board } from '../types';
@@ -171,47 +172,47 @@ export function OnboardingFlow({
   const strengthIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    if (isOpen && currentStep === 'signal') {
-      // Phase 1: Static noise
-      const phase1 = setTimeout(() => setSignalPhase(1), 300);
+    if (!isOpen || currentStep !== 'signal') return;
 
-      // Phase 2: Signal detection
-      const phase2 = setTimeout(() => {
-        setSignalPhase(2);
-        // Animate signal strength
-        let strength = 0;
-        strengthIntervalRef.current = setInterval(() => {
-          strength += 1;
-          setSignalStrength(strength);
-          setNoiseLevel(Math.max(0, 100 - strength * 20));
-          if (strength >= 5) {
-            if (strengthIntervalRef.current) {
-              clearInterval(strengthIntervalRef.current);
-              strengthIntervalRef.current = null;
-            }
+    // Phase 1: Static noise
+    const phase1 = setTimeout(() => setSignalPhase(1), 300);
+
+    // Phase 2: Signal detection
+    const phase2 = setTimeout(() => {
+      setSignalPhase(2);
+      // Animate signal strength
+      let strength = 0;
+      strengthIntervalRef.current = setInterval(() => {
+        strength += 1;
+        setSignalStrength(strength);
+        setNoiseLevel(Math.max(0, 100 - strength * 20));
+        if (strength >= 5) {
+          if (strengthIntervalRef.current) {
+            clearInterval(strengthIntervalRef.current);
+            strengthIntervalRef.current = null;
           }
-        }, 200);
-      }, 700);
-
-      // Phase 3: Lock achieved
-      const phase3 = setTimeout(() => setSignalPhase(3), 1300);
-
-      // Phase 4: Transition to welcome
-      const phase4 = setTimeout(() => {
-        setCurrentStep('welcome');
-      }, 1800);
-
-      return () => {
-        clearTimeout(phase1);
-        clearTimeout(phase2);
-        clearTimeout(phase3);
-        clearTimeout(phase4);
-        if (strengthIntervalRef.current) {
-          clearInterval(strengthIntervalRef.current);
-          strengthIntervalRef.current = null;
         }
-      };
-    }
+      }, 200);
+    }, 700);
+
+    // Phase 3: Lock erreicht
+    const phase3 = setTimeout(() => setSignalPhase(3), 1300);
+
+    // Phase 4: Transition to welcome
+    const phase4 = setTimeout(() => {
+      setCurrentStep('welcome');
+    }, 1800);
+
+    return () => {
+      clearTimeout(phase1);
+      clearTimeout(phase2);
+      clearTimeout(phase3);
+      clearTimeout(phase4);
+      if (strengthIntervalRef.current) {
+        clearInterval(strengthIntervalRef.current);
+        strengthIntervalRef.current = null;
+      }
+    };
   }, [isOpen, currentStep]);
 
   // Identity handlers
@@ -246,7 +247,7 @@ export function OnboardingFlow({
       setError(
         err instanceof Error ? err.message : 'Failed to generate identity. Please try again.',
       );
-      console.error('[Onboarding] Generate failed:', err);
+      logger.error('Onboarding', 'Generate failed', err);
     } finally {
       setIsLoading(false);
     }
@@ -317,7 +318,7 @@ export function OnboardingFlow({
       setError(
         err instanceof Error ? err.message : 'Failed to import key. Check format and try again.',
       );
-      console.error('[Onboarding] Import failed:', err);
+      logger.error('Onboarding', 'Import failed', err);
     } finally {
       setIsLoading(false);
     }
@@ -345,7 +346,7 @@ export function OnboardingFlow({
       }
     } catch (err) {
       setError('Failed to connect to browser extension');
-      console.error('[Onboarding] NIP-07 failed:', err);
+      logger.error('Onboarding', 'NIP-07 failed', err);
     } finally {
       setIsLoading(false);
     }
@@ -358,7 +359,7 @@ export function OnboardingFlow({
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       } catch (err) {
-        console.error('[Onboarding] Copy failed:', err);
+        logger.error('Onboarding', 'Copy failed', err);
       }
     }
   };
@@ -391,10 +392,10 @@ export function OnboardingFlow({
       const signedEvent = await identityService.signEvent(listEvent);
       if (signedEvent) {
         await nostrService.publishSignedEvent(signedEvent);
-        console.log('[Onboarding] Published board follows:', selectedBoards.size);
+        logger.info('Onboarding', `Published board follows: ${selectedBoards.size}`);
       }
     } catch (err) {
-      console.error('[Onboarding] Failed to publish board follows:', err);
+      logger.error('Onboarding', 'Failed to publish board follows', err);
     }
   };
 
@@ -422,8 +423,8 @@ export function OnboardingFlow({
   if (!isOpen) return null;
 
   const steps: OnboardingStep[] = ['signal', 'welcome', 'identity', 'boards', 'complete'];
-  const visibleSteps = steps.filter((s) => s !== 'signal');
-  const visibleStepIndex = visibleSteps.indexOf(currentStep);
+  const visibleSteps = steps.filter((s): s is Exclude<OnboardingStep, 'signal'> => s !== 'signal');
+  const visibleStepIndex = visibleSteps.indexOf(currentStep as Exclude<OnboardingStep, 'signal'>);
 
   const handleNext = async () => {
     if (currentStep === 'boards' && selectedBoards.size === 0) {
@@ -432,9 +433,10 @@ export function OnboardingFlow({
     }
 
     const currentIndex = steps.indexOf(currentStep);
-    if (currentIndex < steps.length - 1) {
+    const next = currentIndex >= 0 ? steps[currentIndex + 1] : undefined;
+    if (next) {
       setError(null);
-      setCurrentStep(steps[currentIndex + 1]);
+      setCurrentStep(next);
     } else {
       await publishBoardFollows();
       onComplete();
@@ -443,9 +445,9 @@ export function OnboardingFlow({
 
   const handleBack = () => {
     const currentIndex = steps.indexOf(currentStep);
-    if (currentIndex > 1) {
-      // Don't go back to signal
-      setCurrentStep(steps[currentIndex - 1]);
+    const prev = currentIndex > 1 ? steps[currentIndex - 1] : undefined;
+    if (prev) {
+      setCurrentStep(prev);
     }
   };
 

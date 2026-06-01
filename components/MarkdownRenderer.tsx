@@ -102,8 +102,11 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
             if (childArray.length === 1) {
               const child = childArray[0];
               // Check if the child is a React element with type 'a' (link)
-              if (React.isValidElement(child) && child.props?.href) {
-                const href = child.props.href as string;
+              if (
+                React.isValidElement(child) &&
+                (child.props as { href?: unknown })?.href
+              ) {
+                const href = (child.props as { href: string }).href;
                 // Check if it's an external URL (not an image)
                 if (href.startsWith('http') && !/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(href)) {
                   return (
@@ -146,17 +149,18 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
           ),
 
           // Code blocks
-          code: ({ inline, className, children, ...props }) => {
+          code: ({ inline, className, children, ...props }: { inline?: boolean; className?: string; children?: React.ReactNode; [key: string]: unknown }) => {
             const match = /language-(\w+)/.exec(className || '');
-            return !inline && match ? (
+            const language = match?.[1];
+            return !inline && language ? (
               <div className="my-4 border border-terminal-dim rounded">
                 <div className="bg-terminal-dim/20 px-3 py-1 text-xs text-terminal-dim flex items-center gap-2 border-b border-terminal-dim">
                   <Code size={12} />
-                  {match[1].toUpperCase()}
+                  {language.toUpperCase()}
                 </div>
                 <SyntaxHighlighter
                   style={oneDark}
-                  language={match[1]}
+                  language={language}
                   PreTag="div"
                   className="!bg-terminal-bg !border-0 !rounded-none"
                   {...props}

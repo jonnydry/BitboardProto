@@ -51,7 +51,34 @@
     
     <!-- Theme Color -->
     <meta name="theme-color" content="#000000" />
-    
+
+    <!-- Content Security Policy -->
+    <!--
+      Notes:
+      - 'unsafe-inline' is required for styles (Tailwind v3 emits inline <style> for theme tokens
+        and the app uses style={} attributes for dynamic theme colors).
+      - 'unsafe-inline' on script-src is required for the inline URL-sync <script> below; it should
+        be removed (and the script moved to an external file) when feasible.
+      - connect-src allows wss: for Nostr relays, https: for Sentry/PostHog/fetch, and blob:
+        for worker URLs.
+      - worker-src allows blob: for inline Web Workers (search.worker, voteVerifier.worker).
+      - 'self' covers our own assets served from the same origin (which may be a sub-path via
+        VITE_BASE_PATH).
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self';
+               script-src 'self' 'unsafe-inline';
+               style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+               font-src 'self' https://fonts.gstatic.com data:;
+               img-src 'self' data: blob: https:;
+               connect-src 'self' https: wss: blob:;
+               worker-src 'self' blob:;
+               frame-ancestors 'none';
+               base-uri 'self';
+               form-action 'self';"
+    />
+
     <!-- Dynamic URL Script - Updates meta tags with current origin -->
     <script>
       (function() {

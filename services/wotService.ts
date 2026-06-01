@@ -121,9 +121,13 @@ class WoTService {
       const batch = uncached.slice(i, i + BATCH_SIZE);
       const promises = batch.map(pk => this.fetchContactList(pk));
       const lists = await Promise.all(promises);
-      
+
       for (let j = 0; j < batch.length; j++) {
-        results.set(batch[j], lists[j]);
+        const pk = batch[j];
+        const list = lists[j];
+        if (pk !== undefined && list !== undefined) {
+          results.set(pk, list);
+        }
       }
     }
 

@@ -3,6 +3,10 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=20.10"
+  },
+  "packageManager": "npm@10.0.0",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -17,6 +21,8 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "typecheck:strict": "tsc --noEmit -p tsconfig.strict.json",
     "format": "prettier . --write",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",

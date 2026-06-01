@@ -3,6 +3,7 @@ import { X, Zap, Loader2, Copy, Check, ExternalLink, AlertTriangle } from 'lucid
 import { zapService } from '../services/zapService';
 import { identityService } from '../services/identityService';
 import { toastService } from '../services/toastService';
+import { logger } from '../services/loggingService';
 import { NostrConfig } from '../config';
 import type { PublicNostrIdentity } from '../types';
 
@@ -90,7 +91,7 @@ export const ZapModal: React.FC<ZapModalProps> = ({
         window.location.href = `lightning:${result.invoice}`;
       }
     } catch (err) {
-      console.error('[ZapModal] Failed to get invoice:', err);
+      logger.error('ZapModal', 'Failed to get invoice', err);
       setError(err instanceof Error ? err.message : 'Failed to generate invoice');
     } finally {
       setIsLoading(false);

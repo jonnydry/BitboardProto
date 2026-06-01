@@ -143,7 +143,7 @@ const fetchWithProxy = async (url: string): Promise<string | null> => {
         }
       }
     } catch (error) {
-      console.debug(`[LinkPreview] Proxy failed for ${url}:`, error);
+      logger.debug('LinkPreview', `Proxy failed for ${url}`, error);
       continue;
     }
   }

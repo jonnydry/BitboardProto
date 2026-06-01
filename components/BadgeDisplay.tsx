@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Award, Star, Zap, Shield, CheckCircle, Info } from 'lucide-react';
 import { badgeService } from '../services/badgeService';
+import { logger } from '../services/loggingService';
 import { FeatureFlags } from '../config';
 
 interface BadgeDisplayProps {
@@ -45,7 +46,7 @@ export const BadgeDisplay: React.FC<BadgeDisplayProps> = ({
       })
       .catch((error) => {
         if (!cancelled) {
-          console.error('[BadgeDisplay] Failed to fetch badges:', error);
+          logger.error('BadgeDisplay', 'Failed to fetch badges', error);
           setBadges([]);
           setIsLoading(false);
         }

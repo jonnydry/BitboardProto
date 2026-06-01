@@ -68,8 +68,8 @@ describe('AdvancedSearchService', () => {
     });
 
     expect(results).toHaveLength(1);
-    expect(results[0].id).toBe('e1');
-    expect(results[0].highlightedContent).toContain('**alpha**');
+    expect(results[0]!.id).toBe('e1');
+    expect(results[0]!.highlightedContent).toContain('**alpha**');
     expect(service.getHistory()[0]).toEqual(
       expect.objectContaining({ query: 'alpha', resultCount: 1 }),
     );

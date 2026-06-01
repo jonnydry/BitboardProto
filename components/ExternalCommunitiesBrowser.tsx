@@ -21,6 +21,7 @@ import {
 } from '../services/externalCommunityDiscoveryService';
 import { communityService } from '../services/communityService';
 import { nostrService } from '../services/nostr/NostrService';
+import { logger } from '../services/loggingService';
 
 interface ExternalCommunitiesBrowserProps {
   externalCommunities: Board[];
@@ -233,8 +234,9 @@ export function ExternalCommunitiesBrowser({
           });
         } catch (error) {
           if (!cancelled) {
-            console.warn(
-              '[ExternalCommunitiesBrowser] Failed to process live approval update',
+            logger.warn(
+              'ExternalCommunitiesBrowser',
+              'Failed to process live approval update',
               error,
             );
           }

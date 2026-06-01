@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { nip19 } from 'nostr-tools';
 import { identityService } from '../services/identityService';
+import { logger } from '../services/loggingService';
 import { toastService } from '../services/toastService';
 import { UIConfig } from '../config';
 import type { NostrIdentity } from '../types';
@@ -96,7 +97,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
       onIdentityChange(newIdentity);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate identity');
-      console.error('[IdentityManager] Generate failed:', err);
+      logger.error('IdentityManager', 'Generate failed', err);
     } finally {
       setIsGenerating(false);
     }
@@ -159,7 +160,7 @@ export const IdentityManager: React.FC<IdentityManagerProps> = ({
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to import key');
-      console.error('[IdentityManager] Import failed:', err);
+      logger.error('IdentityManager', 'Import failed', err);
     } finally {
       setIsImporting(false);
     }

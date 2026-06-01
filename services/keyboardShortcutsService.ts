@@ -134,7 +134,10 @@ class KeyboardShortcutsService {
     };
 
     this.shortcuts.forEach((shortcut) => {
-      grouped[shortcut.category].push(shortcut);
+      const bucket = grouped[shortcut.category];
+      if (bucket) {
+        bucket.push(shortcut);
+      }
     });
 
     return grouped;

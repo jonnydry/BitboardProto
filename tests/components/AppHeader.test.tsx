@@ -10,11 +10,15 @@ const mocks = vi.hoisted(() => {
     viewMode: 'FEED',
     showSearch: false,
     bookmarkedIds: ['a', 'b'],
+    bitsBarPinned: false,
+    bitsBarHeight: 0,
     setViewMode: vi.fn(),
     setShowSearch: vi.fn((value: boolean) => {
       uiState.showSearch = value;
     }),
     setProfileUser: vi.fn(),
+    setBitsBarPinned: vi.fn(),
+    setBitsBarHeight: vi.fn(),
   };
   const userState = {
     userState: {
@@ -99,6 +103,8 @@ vi.mock('../../components/NetworkIndicator', () => ({
 
 vi.mock('../../stores/uiStore', () => ({
   useUIStore: (selector: (state: typeof mocks.uiState) => unknown) => selector(mocks.uiState),
+  useBitsBarPinned: () => mocks.uiState.bitsBarPinned,
+  useBitsBarHeight: () => mocks.uiState.bitsBarHeight,
 }));
 
 vi.mock('../../stores/userStore', () => ({

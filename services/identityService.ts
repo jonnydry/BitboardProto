@@ -1,6 +1,7 @@
 import {
   finalizeEvent,
   generateSecretKey,
+  getEventHash,
   getPublicKey,
   nip19,
   type Event as NostrEvent,
@@ -525,13 +526,49 @@ class IdentityService {
   }
 
   /**
-   * Sign event using NIP-07 extension
+   * Sign event using NIP-07 extension.
+   *
+   * The returned event is verified before being trusted:
+   * 1. `event.id` must equal `getEventHash(event)` (event was not tampered with)
+   * 2. `event.pubkey` must equal the active identity's pubkey (extension signed for
+   *    the key the app requested — prevents a malicious extension from substituting
+   *    an unrelated key)
+   *
+   * If either check fails, the event is rejected and `null` is returned.
    */
-  async signEventWithExtension(event: UnsignedNostrEvent): Promise<NostrEvent | null> {
+  async signEventWithExtension(
+    event: UnsignedNostrEvent,
+    expectedPubkey?: string,
+  ): Promise<NostrEvent | null> {
     if (!this.hasNip07Extension()) return null;
 
+    const targetPubkey = expectedPubkey ?? this.identity?.pubkey;
+    if (!targetPubkey) {
+      logger.warn('Identity', 'NIP-07 signEvent called with no expected pubkey');
+      return null;
+    }
+
     try {
-      return await window.nostr!.signEvent(event);
+      const signed = await window.nostr!.signEvent(event);
+
+      if (signed.pubkey !== targetPubkey) {
+        logger.error('Identity', 'NIP-07 pubkey mismatch', {
+          expected: targetPubkey,
+          got: signed.pubkey,
+        });
+        return null;
+      }
+
+      const expectedId = getEventHash(signed);
+      if (signed.id !== expectedId) {
+        logger.error('Identity', 'NIP-07 event id mismatch — event may have been tampered with', {
+          expected: expectedId,
+          got: signed.id,
+        });
+        return null;
+      }
+
+      return signed;
     } catch (error) {
       logger.error('Identity', 'NIP-07 signEvent failed', error);
       return null;

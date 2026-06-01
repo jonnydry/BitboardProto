@@ -357,7 +357,7 @@ export function NostrDiscoveryBrowser({
           externalCommunities={externalCommunities}
           onNavigateToBoard={onNavigateToBoard}
           onJoinNostrCommunity={onJoinNostrCommunity}
-          onClose={() => setActiveTab('trending')}
+          onClose={() => setActiveTab('breakouts')}
           onSeedPost={onSeedPost}
           embedded
         />
@@ -529,12 +529,15 @@ export function NostrDiscoveryBrowser({
                   key={candidate.id}
                   className="overflow-hidden border border-terminal-dim/40 bg-terminal-bg/60"
                 >
-                  {candidate.post.url && linkPreviews[candidate.post.url] && (
+                  {candidate.post.url && (() => {
+                    const preview = linkPreviews[candidate.post.url];
+                    if (!preview) return null;
+                    return (
                     <div className="border-b border-terminal-dim/20 bg-terminal-bg/80 px-4 py-3">
                       <div className="flex items-start gap-3">
-                        {linkPreviews[candidate.post.url].favicon ? (
+                        {preview.favicon ? (
                           <img
-                            src={linkPreviews[candidate.post.url].favicon}
+                            src={preview.favicon}
                             alt=""
                             className="mt-0.5 h-4 w-4 shrink-0 rounded-sm"
                           />
@@ -546,25 +549,23 @@ export function NostrDiscoveryBrowser({
                             Source Preview
                           </div>
                           <div className="mt-1 text-sm font-semibold text-terminal-text">
-                            {linkPreviews[candidate.post.url].title ||
-                              getDomain(candidate.post.url)}
+                            {preview.title || getDomain(candidate.post.url)}
                           </div>
-                          {(linkPreviews[candidate.post.url].siteName ||
-                            getDomain(candidate.post.url)) && (
+                          {(preview.siteName || getDomain(candidate.post.url)) && (
                             <div className="mt-1 text-[11px] uppercase tracking-wide text-terminal-dim/80">
-                              {linkPreviews[candidate.post.url].siteName ||
-                                getDomain(candidate.post.url)}
+                              {preview.siteName || getDomain(candidate.post.url)}
                             </div>
                           )}
-                          {linkPreviews[candidate.post.url].description && (
+                          {preview.description && (
                             <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-terminal-dim">
-                              {linkPreviews[candidate.post.url].description}
+                              {preview.description}
                             </p>
                           )}
                         </div>
                       </div>
                     </div>
-                  )}
+                    );
+                  })()}
                   <div className="border-b border-terminal-dim/20 bg-terminal-bg/70 px-4 py-3">
                     <div className="flex flex-wrap items-center gap-2 text-xs text-terminal-dim">
                       <span className="border border-terminal-dim/30 px-2 py-0.5 uppercase tracking-wide text-terminal-text">

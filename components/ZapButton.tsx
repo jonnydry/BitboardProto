@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Zap } from 'lucide-react';
 import { zapService } from '../services/zapService';
+import { logger } from '../services/loggingService';
 import { FeatureFlags } from '../config';
 import { ZapModal } from './ZapModal';
 import { createPortal } from 'react-dom';
@@ -58,7 +59,7 @@ export const ZapButton: React.FC<ZapButtonProps> = ({
       })
       .catch((error) => {
         if (!cancelled) {
-          console.error('[ZapButton] Failed to check zap capability:', error);
+          logger.error('ZapButton', 'Failed to check zap capability', error);
           zapCapabilityCache.set(authorPubkey, false);
           setCanZap(false);
           setIsLoading(false);
@@ -87,7 +88,7 @@ export const ZapButton: React.FC<ZapButtonProps> = ({
       })
       .catch((error) => {
         if (!cancelled) {
-          console.error('[ZapButton] Failed to fetch zap tally:', error);
+          logger.error('ZapButton', 'Failed to fetch zap tally', error);
         }
       });
 
