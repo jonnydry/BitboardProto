@@ -521,6 +521,17 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                   </span>
                 </>
               )}
+              {post.blendedInto && (
+                <>
+                  <span className="text-terminal-dim/50">·</span>
+                  <span
+                    className="flex shrink-0 items-center gap-1 border border-terminal-dim/30 px-1.5 py-0.5 text-xs uppercase tracking-wider text-terminal-dim/80 whitespace-nowrap"
+                    title="External Nostr note surfaced for this feed — seed it to make it a BitBoard post"
+                  >
+                    <Radio size={10} className="shrink-0" /> From Nostr
+                  </span>
+                </>
+              )}
             </div>
             <div className="flex w-full shrink-0 flex-wrap items-center gap-x-2 gap-y-1 sm:w-auto sm:justify-end">
               <span className="text-sm text-terminal-dim/70 tabular-nums">
@@ -744,7 +755,8 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                     </button>
                   )}
 
-                  {post.source === 'nostr-community' && onSeedPost && (
+                  {(post.source === 'nostr-community' || post.source === 'nostr') &&
+                    onSeedPost && (
                     <button
                       onClick={handleSeedClick}
                       className="flex w-full items-center gap-2 px-2 py-2 text-left text-xs uppercase tracking-wide text-terminal-dim transition-colors hover:bg-terminal-dim/10 hover:text-terminal-text"

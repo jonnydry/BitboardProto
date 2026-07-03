@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar } from 'lucide-react';
+import { Calendar, Radio } from 'lucide-react';
 import { PostItem } from '../../components/PostItem';
 import { InlineLoadingSkeleton } from '../../components/PostSkeleton';
 import type { Post } from '../../types';
@@ -33,6 +33,21 @@ interface FeedPostActions {
   isMuted?: (pubkey: string) => boolean;
   onRetryPost?: (postId: string) => void;
 }
+
+/**
+ * Divider between native BitBoard posts and blended external Nostr content.
+ * Keeps the native feed visually distinct while the network bootstraps.
+ */
+export const BlendedSectionDivider: React.FC<{ postCount: number }> = ({ postCount }) => (
+  <div className="flex items-center gap-3 py-3 mt-6 mb-2" data-blended-divider>
+    <div className="h-px flex-1 bg-terminal-dim/40" />
+    <span className="flex items-center gap-2 text-xs uppercase tracking-widest text-terminal-dim whitespace-nowrap">
+      <Radio size={12} className="shrink-0" />
+      From the wider Nostr ({postCount})
+    </span>
+    <div className="h-px flex-1 bg-terminal-dim/40" />
+  </div>
+);
 
 export const TimeChunkHeader: React.FC<{ chunk: TimeChunk; postCount: number }> = (props) => {
   const { chunk, postCount } = props;

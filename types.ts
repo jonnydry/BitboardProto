@@ -119,6 +119,12 @@ export interface Post {
   id: string;
   boardId: string;
   source?: 'bitboard' | 'nostr-community' | 'nostr';
+  /**
+   * Set on external Nostr posts blended into a feed scope for cold-start
+   * liveliness: 'global' or a board id. Blended posts render in a separate
+   * feed section and are never written to local post caches.
+   */
+  blendedInto?: string;
   sourceEventKind?: number;
   communityAddress?: string;
   seededFrom?: 'nostr';

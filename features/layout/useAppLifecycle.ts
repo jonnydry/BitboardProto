@@ -151,8 +151,11 @@ export function useAppLifecycle(args: UseAppLifecycleArgs): void {
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => {
+      // Only remove the listener — do NOT run the teardown here. These are
+      // app-lifetime singletons; destroying them on effect cleanup breaks the
+      // app under StrictMode's double-mount (pool closed, cleanup timers
+      // never restarted) while the page keeps running.
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      handleBeforeUnload();
     };
   }, []);
 
@@ -162,9 +165,11 @@ export function useAppLifecycle(args: UseAppLifecycleArgs): void {
 
     const id = window.setTimeout(() => {
       try {
+        // Blended external posts are ephemeral view data — never cache them.
+        const cacheablePosts = posts.filter((post) => !post.blendedInto);
         localStorage.setItem(
           StorageKeys.POSTS_CACHE,
-          JSON.stringify({ savedAt: Date.now(), posts: posts.slice(0, 200) }),
+          JSON.stringify({ savedAt: Date.now(), posts: cacheablePosts.slice(0, 200) }),
         );
         localStorage.setItem(
           StorageKeys.BOARDS_CACHE,

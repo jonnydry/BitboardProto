@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import type { Board, Post } from '../types';
 import { UIConfig } from '../config';
 import { nostrService } from '../services/nostr/NostrService';
-import { votingService } from '../services/votingService';
 import { toastService } from '../services/toastService';
 import { logger } from '../services/loggingService';
 import { buildFetchPostsArgs, resolveNostrFeedScope } from '../services/nostr/nostrFeedScope';
@@ -11,6 +10,7 @@ import {
   processFetchedPostEvents,
 } from '../services/nostr/nostrFeedPosts';
 import { mergePostsWithIndexer } from '../services/indexerFeedClient';
+import { blendedFeedService, GLOBAL_BLEND_SCOPE } from '../services/blendedFeedService';
 
 export function useNostrFeed(args: {
   activeBoard: Board | null;
@@ -63,6 +63,19 @@ export function useNostrFeed(args: {
       try {
         logger.mark('nostr-init-start');
 
+        // Start the cold-start blend fetch in parallel with the native fetch —
+        // on an empty network the native query runs to its full timeout, and
+        // serializing the two would push first content out by that much.
+        // The result is only applied if the scope turns out sparse.
+        const blendScopeKey =
+          scope.mode === 'community' ? null : activeBoard ? activeBoard.id : GLOBAL_BLEND_SCOPE;
+        const blendPromise = blendScopeKey
+          ? blendedFeedService.fetchBlendedPosts(blendScopeKey, activeBoard, []).catch((err) => {
+              logger.warn('NostrFeed', 'Blended feed fetch failed', err);
+              return [] as Post[];
+            })
+          : null;
+
         if (scope.mode === 'community') {
           if (cancelled) return;
           setOldestTimestamp(null);
@@ -104,6 +117,30 @@ export function useNostrFeed(args: {
         setIsInitialLoading(false);
         logger.mark('nostr-init-end');
         logger.measure('nostr-initialization', 'nostr-init-start', 'nostr-init-end');
+
+        // Cold-start blending: sparse scopes get ranked external Nostr content
+        // so the feed is never empty. The fetch has been running in parallel
+        // since effect start; apply it only if the native scope is sparse.
+        if (blendPromise && blendedFeedService.isSparse(processedPosts.length)) {
+          blendPromise.then((blendedPosts) => {
+            if (cancelled || blendedPosts.length === 0) return;
+            setPosts((prev) => {
+              const existing = new Set(
+                prev.flatMap((p) => [p.id, p.nostrEventId].filter(Boolean) as string[]),
+              );
+              const seededSourceIds = new Set(
+                prev.map((p) => p.seedSourceEventId).filter(Boolean) as string[],
+              );
+              const toAdd = blendedPosts.filter(
+                (p) =>
+                  !existing.has(p.id) &&
+                  !(p.nostrEventId && existing.has(p.nostrEventId)) &&
+                  !(p.nostrEventId && seededSourceIds.has(p.nostrEventId)),
+              );
+              return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+            });
+          });
+        }
 
         if (processedPosts.length > 0) {
           const fetchProfiles = () => {
@@ -209,18 +246,8 @@ export function useNostrFeed(args: {
     };
   }, [activeBoard, setHasMorePosts, setIsNostrConnected, setOldestTimestamp, setPosts]);
 
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      nostrService.cleanup();
-      votingService.cleanup();
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, []);
+  // Note: shutdown cleanup (nostrService/votingService) is registered once in
+  // useAppLifecycle's beforeunload handler — not duplicated here.
 
   return { isInitialLoading };
 }

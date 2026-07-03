@@ -19,6 +19,7 @@ import {
 import { useActiveBoard } from '../../stores/boardStore';
 import { useAppNavigationHandlers } from '../layout/useAppNavigationHandlers';
 import {
+  BlendedSectionDivider,
   FeedLoaderRow,
   FeedPostCard,
   TIME_CHUNK_LABELS,
@@ -193,7 +194,23 @@ export function FeedView(props: {
     jumpToChunkImplRef.current(chunk);
   }, []);
 
-  // Group posts by time chunks for navigation
+  // Blended external Nostr posts render in their own section after all
+  // native posts, behind a divider — the native feed stays visually distinct.
+  const { displayPosts, firstBlendedIndex, blendedCount } = useMemo(() => {
+    const native: Post[] = [];
+    const blended: Post[] = [];
+    for (const post of sortedPosts) {
+      (post.blendedInto ? blended : native).push(post);
+    }
+    return {
+      displayPosts: blended.length > 0 ? [...native, ...blended] : sortedPosts,
+      firstBlendedIndex: blended.length > 0 ? native.length : -1,
+      blendedCount: blended.length,
+    };
+  }, [sortedPosts]);
+
+  // Group posts by time chunks for navigation (native posts only — blended
+  // posts live in their own section and would all bucket to "today").
   const postsByTimeChunk = useMemo(() => {
     const chunks: Record<TimeChunk, { posts: Post[]; firstIndex: number }> = {
       today: { posts: [], firstIndex: -1 },
@@ -203,7 +220,8 @@ export function FeedView(props: {
       earlier: { posts: [], firstIndex: -1 },
     };
 
-    sortedPosts.forEach((post, index) => {
+    displayPosts.forEach((post, index) => {
+      if (post.blendedInto) return;
       const chunk = getTimeChunk(post.timestamp);
       if (chunks[chunk].firstIndex === -1) {
         chunks[chunk].firstIndex = index;
@@ -212,7 +230,7 @@ export function FeedView(props: {
     });
 
     return chunks;
-  }, [sortedPosts]);
+  }, [displayPosts]);
 
   // Available time chunks (non-empty ones)
   const availableChunks = useMemo(() => {
@@ -229,6 +247,7 @@ export function FeedView(props: {
   // Check if we should show a time header before this post
   const shouldShowTimeHeader = useCallback(
     (post: Post, index: number): TimeChunk | null => {
+      if (post.blendedInto) return null;
       const chunk = getTimeChunk(post.timestamp);
       if (postsByTimeChunk[chunk].firstIndex === index) {
         return chunk;
@@ -239,10 +258,10 @@ export function FeedView(props: {
   );
 
   const shouldVirtualizeFeed =
-    viewMode === ViewMode.FEED && sortedPosts.length > FEED_VIRTUALIZE_THRESHOLD;
+    viewMode === ViewMode.FEED && displayPosts.length > FEED_VIRTUALIZE_THRESHOLD;
 
   const feedVirtualizer = useWindowVirtualizer({
-    count: shouldVirtualizeFeed ? sortedPosts.length + 1 : 0,
+    count: shouldVirtualizeFeed ? displayPosts.length + 1 : 0,
     estimateSize: () => 520,
     overscan: 6,
   });
@@ -436,8 +455,8 @@ export function FeedView(props: {
           <div>
             <p className="font-bold">&gt; GLOBAL FEED IS QUIET</p>
             <p className="text-xs mt-2 max-w-md">
-              You are on the global BitBoard feed (all boards mixed). If this looks empty, open a
-              specific board — most posts are scoped to a board on Nostr.
+              Nothing loaded from the network yet — trending Nostr content usually appears here
+              within a few seconds. If this persists, relays may be slow or unreachable.
             </p>
           </div>
           <div className="flex flex-wrap justify-center gap-2">
@@ -580,10 +599,12 @@ export function FeedView(props: {
 
       {!shouldVirtualizeFeed && !isInitialLoading && (
         <>
-          {sortedPosts.map((post, index) => {
+          {displayPosts.map((post, index) => {
             const timeHeader = shouldShowTimeHeader(post, index);
             return (
               <React.Fragment key={post.id}>
+                {/* Divider before the blended external-Nostr section */}
+                {index === firstBlendedIndex && <BlendedSectionDivider postCount={blendedCount} />}
                 {/* Time chunk header */}
                 {timeHeader && (
                   <TimeChunkHeader
@@ -619,7 +640,7 @@ export function FeedView(props: {
             loaderRef={loaderRef}
             isLoadingMore={isLoadingMore}
             hasMorePosts={showHasMorePosts}
-            postCount={sortedPosts.length}
+            postCount={displayPosts.length}
           />
         </>
       )}
@@ -627,7 +648,7 @@ export function FeedView(props: {
       {shouldVirtualizeFeed && (
         <div style={{ height: feedVirtualizer.getTotalSize(), position: 'relative' }}>
           {feedVirtualizer.getVirtualItems().map((virtualRow) => {
-            const isLoaderRow = virtualRow.index === sortedPosts.length;
+            const isLoaderRow = virtualRow.index === displayPosts.length;
 
             if (isLoaderRow) {
               return (
@@ -636,7 +657,7 @@ export function FeedView(props: {
                   loaderRef={loaderRef}
                   isLoadingMore={isLoadingMore}
                   hasMorePosts={showHasMorePosts}
-                  postCount={sortedPosts.length}
+                  postCount={displayPosts.length}
                   style={{
                     position: 'absolute',
                     top: 0,
@@ -648,7 +669,7 @@ export function FeedView(props: {
               );
             }
 
-            const post = sortedPosts[virtualRow.index];
+            const post = displayPosts[virtualRow.index];
             if (!post) return null;
             const timeHeader = shouldShowTimeHeader(post, virtualRow.index);
 
@@ -664,6 +685,9 @@ export function FeedView(props: {
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
               >
+                {virtualRow.index === firstBlendedIndex && (
+                  <BlendedSectionDivider postCount={blendedCount} />
+                )}
                 {timeHeader && (
                   <TimeChunkHeader
                     chunk={timeHeader}

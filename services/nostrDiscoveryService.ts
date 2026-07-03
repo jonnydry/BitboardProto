@@ -35,6 +35,18 @@ interface DiscoverSeedCandidatesOptions {
   sourceFilter?: DiscoverySourceFilter;
   rankingMode?: DiscoveryRankingMode;
   limit?: number;
+  /**
+   * Skip zap-receipt enrichment. Zap tallies are by far the slowest stage
+   * (~50s for a full candidate batch across relays) and only refine ranking;
+   * latency-sensitive callers (feed blending) trade them away.
+   */
+  skipZapSignals?: boolean;
+  /**
+   * Scope general candidates to a hashtag via a standard '#t' relay filter.
+   * Unlike `query` (NIP-50 search, unsupported by most relays), this works
+   * everywhere — used for topic-board feed blending.
+   */
+  hashtag?: string;
 }
 
 class NostrDiscoveryService {
@@ -453,26 +465,36 @@ class NostrDiscoveryService {
     opts: DiscoverSeedCandidatesOptions,
   ): Promise<SeedCandidate[]> {
     const query = opts.query?.trim();
-    const events = query
-      ? await searchService.relaySearch(query, {
-          kinds: [NOSTR_KINDS.POST, NOSTR_KINDS.COMMUNITY_POST],
-          limit: opts.limit ?? 60,
-          since: this.getSinceTimestamp(opts.timeWindow),
-        })
-      : await nostrService.queryEvents({
+    const hashtag = opts.hashtag?.trim().toLowerCase();
+    const events = hashtag
+      ? await nostrService.queryEvents({
           kinds: [NOSTR_KINDS.POST, NOSTR_KINDS.COMMUNITY_POST],
           limit: opts.limit ?? 120,
           since: this.getSinceTimestamp(opts.timeWindow),
-        });
+          '#t': [hashtag],
+        } as Parameters<typeof nostrService.queryEvents>[0])
+      : query
+        ? await searchService.relaySearch(query, {
+            kinds: [NOSTR_KINDS.POST, NOSTR_KINDS.COMMUNITY_POST],
+            limit: opts.limit ?? 60,
+            since: this.getSinceTimestamp(opts.timeWindow),
+          })
+        : await nostrService.queryEvents({
+            kinds: [NOSTR_KINDS.POST, NOSTR_KINDS.COMMUNITY_POST],
+            limit: opts.limit ?? 120,
+            since: this.getSinceTimestamp(opts.timeWindow),
+          });
 
     const posts = events
       .filter((event) => !query || this.eventMatchesQuery(event, query))
       .map((event) => this.mapGeneralEventToPost(event))
       .filter((post): post is Post => post !== null);
 
-    const zapTallies = await zapService.getZapTalliesForEvents(
-      posts.map((post) => post.nostrEventId).filter(Boolean) as string[],
-    );
+    const zapTallies = opts.skipZapSignals
+      ? new Map<string, { zapCount: number; totalSats: number }>()
+      : await zapService.getZapTalliesForEvents(
+          posts.map((post) => post.nostrEventId).filter(Boolean) as string[],
+        );
 
     const filteredPosts = posts.filter((post) => {
       const zapCount = post.nostrEventId ? (zapTallies.get(post.nostrEventId)?.zapCount ?? 0) : 0;

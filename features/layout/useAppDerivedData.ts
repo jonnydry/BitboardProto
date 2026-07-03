@@ -78,9 +78,17 @@ export function useAppDerivedData(args: UseAppDerivedDataArgs) {
     let result = posts;
 
     if (activeBoardId) {
-      result = result.filter((post) => post.boardId === activeBoardId);
+      // Blended external posts belong to the scope they were blended into,
+      // not to a known board id.
+      result = result.filter(
+        (post) => post.boardId === activeBoardId || post.blendedInto === activeBoardId,
+      );
     } else {
       result = result.filter((post) => {
+        // Global blended posts have no known board — admit them on the
+        // unfiltered global feed only.
+        if (post.blendedInto === 'global') return feedFilter === 'all';
+
         const board = boardsById.get(post.boardId);
         if (!board?.isPublic) return false;
 
