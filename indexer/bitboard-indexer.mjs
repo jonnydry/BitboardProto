@@ -33,8 +33,30 @@ const RELAYS = process.env.BITBOARD_INDEXER_RELAYS
 
 const PORT = Number(process.env.BITBOARD_INDEXER_PORT || '8090') || 8090;
 const QUERY_TIMEOUT_MS = Number(process.env.BITBOARD_INDEXER_QUERY_MS || '12000') || 12000;
+const CACHE_TTL_MS = Number(process.env.BITBOARD_INDEXER_CACHE_MS || '60000') || 60000;
+const CACHE_MAX_ENTRIES = 500;
 
 const pool = new SimplePool();
+
+// Response cache: without it every page load fans out to all relays.
+// Keyed by the canonical filter params; in-flight dedup prevents a stampede
+// of identical queries while the first one is still resolving.
+const responseCache = new Map(); // key -> { at, events }
+const inFlight = new Map(); // key -> Promise<events>
+
+function cacheKey(searchParams) {
+  const keys = ['limit', 'boardId', 'boardAddress', 'geohash', 'until'];
+  return keys.map((k) => `${k}=${searchParams.get(k) ?? ''}`).join('&');
+}
+
+function pruneCache() {
+  if (responseCache.size <= CACHE_MAX_ENTRIES) return;
+  // Drop oldest entries first
+  const entries = [...responseCache.entries()].sort((a, b) => a[1].at - b[1].at);
+  for (const [key] of entries.slice(0, responseCache.size - CACHE_MAX_ENTRIES)) {
+    responseCache.delete(key);
+  }
+}
 
 function buildFilter(searchParams) {
   const limit = Math.min(200, Math.max(1, Number(searchParams.get('limit') || '50') || 50));
@@ -57,12 +79,33 @@ function buildFilter(searchParams) {
 }
 
 async function handlePosts(searchParams) {
-  const filter = buildFilter(searchParams);
-  const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('query timeout')), QUERY_TIMEOUT_MS),
-  );
-  const events = await Promise.race([pool.querySync(RELAYS, filter), timeout]);
-  return events;
+  const key = cacheKey(searchParams);
+
+  const cached = responseCache.get(key);
+  if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
+    return cached.events;
+  }
+
+  const pending = inFlight.get(key);
+  if (pending) return pending;
+
+  const request = (async () => {
+    const filter = buildFilter(searchParams);
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('query timeout')), QUERY_TIMEOUT_MS),
+    );
+    const events = await Promise.race([pool.querySync(RELAYS, filter), timeout]);
+    responseCache.set(key, { at: Date.now(), events });
+    pruneCache();
+    return events;
+  })();
+
+  inFlight.set(key, request);
+  try {
+    return await request;
+  } finally {
+    inFlight.delete(key);
+  }
 }
 
 const server = createServer(async (req, res) => {

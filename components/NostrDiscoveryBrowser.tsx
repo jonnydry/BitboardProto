@@ -125,50 +125,37 @@ export function NostrDiscoveryBrowser({
     return () => window.clearTimeout(timeout);
   }, [activeTab, query, timeWindow, sourceFilter, rankingMode, loadCandidates]);
 
+  // Previews fetch through third-party CORS proxies, so they are click-to-load
+  // only (same policy as LinkPreview) — no URL from discovered content leaves
+  // the browser without the user asking. Cached previews render for free.
   useEffect(() => {
     if (activeTab === 'communities') return;
-    if (!candidates.some((candidate) => candidate.post.url)) return;
-    let cancelled = false;
-
-    candidates
-      .filter((candidate) => !!candidate.post.url)
-      .slice(0, 6)
-      .forEach((candidate) => {
-        const url = candidate.post.url;
-        if (!url) return;
-
-        const cached = getCachedPreview(url);
-        if (cached) {
-          setLinkPreviews((current) => (current[url] ? current : { ...current, [url]: cached }));
-          return;
-        }
-
-        setLinkPreviews((current) => {
-          if (current[url]?.loading) return current;
-          return {
-            ...current,
-            [url]: current[url] ?? { url, loading: true },
-          };
-        });
-
-        void fetchLinkPreview(url)
-          .then((preview) => {
-            if (cancelled) return;
-            setLinkPreviews((current) => ({ ...current, [url]: preview }));
-          })
-          .catch(() => {
-            if (cancelled) return;
-            setLinkPreviews((current) => ({
-              ...current,
-              [url]: { url, error: 'Failed to load preview' },
-            }));
-          });
-      });
-
-    return () => {
-      cancelled = true;
-    };
+    for (const candidate of candidates) {
+      const url = candidate.post.url;
+      if (!url) continue;
+      const cached = getCachedPreview(url);
+      if (cached) {
+        setLinkPreviews((current) => (current[url] ? current : { ...current, [url]: cached }));
+      }
+    }
   }, [activeTab, candidates]);
+
+  const requestPreview = useCallback((url: string) => {
+    setLinkPreviews((current) => {
+      if (current[url]?.loading) return current;
+      return { ...current, [url]: { url, loading: true } };
+    });
+    void fetchLinkPreview(url)
+      .then((preview) => {
+        setLinkPreviews((current) => ({ ...current, [url]: preview }));
+      })
+      .catch(() => {
+        setLinkPreviews((current) => ({
+          ...current,
+          [url]: { url, error: 'Failed to load preview' },
+        }));
+      });
+  }, []);
 
   const summary = useMemo(() => {
     const approved = candidates.filter(
@@ -531,8 +518,30 @@ export function NostrDiscoveryBrowser({
                 >
                   {candidate.post.url &&
                     (() => {
-                      const preview = linkPreviews[candidate.post.url];
-                      if (!preview) return null;
+                      const candidateUrl = candidate.post.url;
+                      const preview = linkPreviews[candidateUrl];
+                      if (!preview) {
+                        return (
+                          <div className="border-b border-terminal-dim/20 bg-terminal-bg/80 px-4 py-2">
+                            <button
+                              type="button"
+                              onClick={() => requestPreview(candidateUrl)}
+                              className="flex items-center gap-2 border border-terminal-dim/40 px-2 py-1 text-[11px] uppercase tracking-wide text-terminal-dim transition-colors hover:border-terminal-text hover:text-terminal-text"
+                              title="Fetch OpenGraph metadata via a CORS proxy"
+                            >
+                              <ExternalLink size={12} />
+                              Load source preview · {getDomain(candidateUrl)}
+                            </button>
+                          </div>
+                        );
+                      }
+                      if (preview.loading) {
+                        return (
+                          <div className="border-b border-terminal-dim/20 bg-terminal-bg/80 px-4 py-2 text-[11px] uppercase tracking-wide text-terminal-dim animate-pulse">
+                            Loading preview…
+                          </div>
+                        );
+                      }
                       return (
                         <div className="border-b border-terminal-dim/20 bg-terminal-bg/80 px-4 py-3">
                           <div className="flex items-start gap-3">

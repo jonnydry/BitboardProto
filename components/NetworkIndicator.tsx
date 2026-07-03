@@ -154,8 +154,11 @@ export const InlineNetworkStatus: React.FC = () => {
   }, []);
 
   return (
-    <span className="text-terminal-dim text-xs font-mono">
-      [{connected}/{total}]
+    <span
+      className="text-terminal-dim text-xs font-mono"
+      title={`${connected} of ${total} Nostr relays connected`}
+    >
+      RELAYS [{connected}/{total}]
     </span>
   );
 };

@@ -1,5 +1,8 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
+// GFM enables autolinking of bare URLs (users overwhelmingly paste bare links),
+// plus tables/strikethrough/task lists.
+import remarkGfm from 'remark-gfm';
 // Use the LIGHT build of react-syntax-highlighter to reduce bundle size by ~400KB
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -57,6 +60,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
   return (
     <div className={`prose prose-sm max-w-none ${className}`}>
       <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
         components={{
           // Headings
           h1: ({ children }) => (

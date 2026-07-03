@@ -81,7 +81,13 @@ describe('NostrDiscoveryBrowser', () => {
     );
 
     expect(await screen.findByText('Nostr dev post')).toBeInTheDocument();
+
+    // Previews are click-to-load (CORS-proxy privacy) — nothing fetched until asked
+    expect(mocks.fetchLinkPreview).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText(/load source preview/i));
     expect(await screen.findByText('Example Source')).toBeInTheDocument();
+    expect(mocks.fetchLinkPreview).toHaveBeenCalled();
+
     expect(screen.getByText('Moderator-approved')).toBeInTheDocument();
     expect(screen.getByText(/Why: fresh activity/i)).toBeInTheDocument();
     fireEvent.click(screen.getByText('Seed To BitBoard'));
