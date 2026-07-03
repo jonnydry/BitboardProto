@@ -90,12 +90,17 @@ export function useCommentVoting(args: { postsById: Map<string, Post> }) {
 
       if (userIdentity && comment.nostrEventId) {
         try {
-          const result = await votingService.castVote(
-            comment.nostrEventId,
-            direction,
-            userIdentity,
-            comment.authorPubkey,
-          );
+          // Same-direction click retracts the vote — publish a NIP-09
+          // deletion instead of another reaction in the same direction.
+          const result =
+            currentVote === direction
+              ? await votingService.retractVote(comment.nostrEventId, userIdentity)
+              : await votingService.castVote(
+                  comment.nostrEventId,
+                  direction,
+                  userIdentity,
+                  comment.authorPubkey,
+                );
 
           if (result.success && result.newTally) {
             // Get latest post from store to ensure we have current comments

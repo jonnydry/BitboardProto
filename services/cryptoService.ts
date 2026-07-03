@@ -5,20 +5,25 @@
 //
 // Security model:
 //   The AES key is derived from a user-supplied passphrase via PBKDF2
-//   (310 000 iterations, SHA-256) and is NEVER written to storage.
-//   Only a random 16-byte salt (not secret) is persisted.  Without the
-//   passphrase the localStorage blob is unreadable.
+//   (600 000 iterations, SHA-256) and is NEVER written to storage.
+//   Only a random salt (not secret) and the iteration count used for the
+//   current blob are persisted.  Without the passphrase the localStorage
+//   blob is unreadable.
 //
 // Storage layout:
-//   bitboard_salt          – 16-byte random salt (base64), written once
-//   bitboard_identity_v2   – AES-GCM encrypted identity blob (managed by identityService)
-//   bitboard_enc_key       – DELETED on first load (legacy, insecure)
+//   bitboard_salt            – random salt (base64), written once
+//   bitboard_kdf_iterations  – PBKDF2 iteration count the current blob was encrypted with
+//   bitboard_identity_v2     – AES-GCM encrypted identity blob (managed by identityService)
+//   bitboard_enc_key         – DELETED on first load (legacy, insecure)
 
 import { logger } from './loggingService';
 import { hexToBytes as _nostrHexToBytes } from 'nostr-tools/utils';
 
 const STORAGE_KEYS = {
   SALT: 'bitboard_salt',
+  // PBKDF2 iteration count used for the currently stored blob. Lets us bump
+  // the default without locking existing users out of their identity.
+  KDF_ITERATIONS: 'bitboard_kdf_iterations',
   // Legacy key — present on old installs, deleted during migration
   LEGACY_ENC_KEY: 'bitboard_enc_key',
 } as const;
@@ -27,11 +32,17 @@ const STORAGE_KEYS = {
 // PBKDF2-SHA256 (600k minimum). Bumping from the previous 310k
 // strengthens against offline brute-force attacks on a stolen
 // localStorage blob at the cost of ~50-100ms per unlock.
-const PBKDF2_ITERATIONS = 600_000;
+export const PBKDF2_ITERATIONS = 600_000;
+// Iteration count used before the 600k bump. Blobs written by older builds
+// (which stored no iteration count) may still be encrypted at this count, so
+// unlock falls back to it and transparently re-encrypts at the current count.
+export const LEGACY_PBKDF2_ITERATIONS = 310_000;
 
 class CryptoService {
   /** In-memory AES-GCM key derived from the passphrase. Never persisted. */
   private encryptionKey: CryptoKey | null = null;
+  /** Iteration count the in-memory key was derived with (for persistence stamping). */
+  private activeIterations: number | null = null;
 
   // ----------------------------------------
   // PASSPHRASE-BASED KEY DERIVATION
@@ -41,8 +52,14 @@ class CryptoService {
    * Derive an AES-256-GCM key from a passphrase + stored salt using PBKDF2.
    * Stores the result in memory; does NOT write the key to storage.
    * Creates a new random salt if one does not already exist.
+   *
+   * `iterations` defaults to the current count; callers pass an explicit
+   * value only when trying to unlock blobs written under an older count.
    */
-  async deriveKeyFromPassphrase(passphrase: string): Promise<void> {
+  async deriveKeyFromPassphrase(
+    passphrase: string,
+    iterations: number = PBKDF2_ITERATIONS,
+  ): Promise<void> {
     const salt = this.getOrCreateSalt();
 
     const encoder = new TextEncoder();
@@ -58,7 +75,7 @@ class CryptoService {
       {
         name: 'PBKDF2',
         salt,
-        iterations: PBKDF2_ITERATIONS,
+        iterations,
         hash: 'SHA-256',
       },
       keyMaterial,
@@ -66,8 +83,37 @@ class CryptoService {
       false, // non-extractable
       ['encrypt', 'decrypt'],
     );
+    this.activeIterations = iterations;
 
     logger.debug('Crypto', 'Key derived from passphrase');
+  }
+
+  /**
+   * Iteration count recorded for the currently stored blob, or null on
+   * installs that predate iteration versioning.
+   */
+  getStoredIterations(): number | null {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.KDF_ITERATIONS);
+      if (!raw) return null;
+      const parsed = parseInt(raw, 10);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Record the iteration count of the in-memory key as the one the stored
+   * blob is encrypted with. Call after successfully writing the blob.
+   */
+  persistActiveIterations(): void {
+    if (this.activeIterations === null) return;
+    try {
+      localStorage.setItem(STORAGE_KEYS.KDF_ITERATIONS, String(this.activeIterations));
+    } catch {
+      // ignore storage errors — worst case unlock falls back to trying both counts
+    }
   }
 
   /**
@@ -82,6 +128,7 @@ class CryptoService {
    */
   clearKey(): void {
     this.encryptionKey = null;
+    this.activeIterations = null;
   }
 
   // ----------------------------------------
@@ -218,8 +265,10 @@ class CryptoService {
    */
   deleteEncryptionKey(): void {
     localStorage.removeItem(STORAGE_KEYS.SALT);
+    localStorage.removeItem(STORAGE_KEYS.KDF_ITERATIONS);
     localStorage.removeItem(STORAGE_KEYS.LEGACY_ENC_KEY);
     this.encryptionKey = null;
+    this.activeIterations = null;
     logger.info('Crypto', 'Encryption state wiped');
   }
 

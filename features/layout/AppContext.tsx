@@ -349,11 +349,15 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
     [boards, locationBoards],
   );
 
-  const remainingSeeds = useMemo(() => {
-    const pubkey = userCtx.userState.identity?.pubkey;
-    if (!pubkey) return seedRateLimiter.getLimit();
-    return seedRateLimiter.canSeed(pubkey).remaining;
-  }, [userCtx.userState.identity?.pubkey]);
+  // Kept as state (not useMemo on the pubkey) so the count refreshes after
+  // each seed instead of only when the identity changes.
+  const [remainingSeeds, setRemainingSeeds] = useState(() => seedRateLimiter.getLimit());
+  const identityPubkey = userCtx.userState.identity?.pubkey;
+  useEffect(() => {
+    setRemainingSeeds(
+      identityPubkey ? seedRateLimiter.canSeed(identityPubkey).remaining : seedRateLimiter.getLimit(),
+    );
+  }, [identityPubkey]);
 
   const handleToggleBookmark = useCallback(
     async (postId: string) => {
@@ -423,6 +427,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const rateCheck = seedRateLimiter.canSeed(userCtx.userState.identity.pubkey);
+      setRemainingSeeds(rateCheck.remaining);
       if (!rateCheck.allowed) {
         const resetIn = rateCheck.resetAt
           ? seedRateLimiter.formatResetTime(rateCheck.resetAt)
@@ -744,6 +749,7 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       await eventHandlers.handleSeedPost(seedSourcePost, destinationBoardId);
+      setRemainingSeeds(seedRateLimiter.canSeed(userCtx.userState.identity.pubkey).remaining);
       setSeedSourcePost(null);
       boardsCtx.setActiveBoardId(destinationBoardId);
       uiCtx.setViewMode(ViewMode.FEED);

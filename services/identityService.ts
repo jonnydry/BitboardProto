@@ -9,7 +9,7 @@ import {
 } from 'nostr-tools';
 import { bytesToHex, hexToBytes } from 'nostr-tools/utils';
 import type { NostrIdentity, PublicNostrIdentity, UnsignedNostrEvent } from '../types';
-import { cryptoService } from './cryptoService';
+import { cryptoService, PBKDF2_ITERATIONS, LEGACY_PBKDF2_ITERATIONS } from './cryptoService';
 import { inputValidator } from './inputValidator';
 import { logger } from './loggingService';
 import { clearSessionPassphrase } from './sessionPassphrase';
@@ -128,27 +128,63 @@ class IdentityService {
   /**
    * Attempt to unlock with the given passphrase.
    * Returns true on success, false if the passphrase was wrong.
+   *
+   * Tries the iteration count recorded for the stored blob first, then the
+   * current and legacy defaults — blobs written before iteration versioning
+   * existed carry no record and may be on either count. A blob unlocked at a
+   * non-current count is transparently re-encrypted at the current one.
    */
   async unlockWithPassphrase(passphrase: string): Promise<boolean> {
     await this.ensureInitialized();
-    try {
-      await cryptoService.deriveKeyFromPassphrase(passphrase);
-      const encryptedBlob = localStorage.getItem(STORAGE_KEYS.IDENTITY_ENCRYPTED);
-      if (!encryptedBlob) {
-        // Nothing stored — passphrase was accepted, nothing to decrypt
-        this._needsPassphrase = false;
-        return true;
-      }
-      const plaintext = await cryptoService.decrypt(encryptedBlob);
-      const parsed = JSON.parse(plaintext);
-      this.identity = parsed?.kind ? parsed : { ...parsed, kind: 'local' };
+
+    const encryptedBlob = localStorage.getItem(STORAGE_KEYS.IDENTITY_ENCRYPTED);
+    if (!encryptedBlob) {
+      // Nothing stored — there is nothing to verify the passphrase against,
+      // so don't keep a key derived from it (a typo here would otherwise
+      // become the encryption key for the next save).
+      cryptoService.clearKey();
       this._needsPassphrase = false;
       return true;
-    } catch {
-      // Wrong passphrase — AES-GCM auth tag mismatch
-      cryptoService.clearKey();
-      return false;
     }
+
+    const candidates = [
+      ...new Set(
+        [cryptoService.getStoredIterations(), PBKDF2_ITERATIONS, LEGACY_PBKDF2_ITERATIONS].filter(
+          (n): n is number => typeof n === 'number',
+        ),
+      ),
+    ];
+
+    for (const iterations of candidates) {
+      try {
+        await cryptoService.deriveKeyFromPassphrase(passphrase, iterations);
+        const plaintext = await cryptoService.decrypt(encryptedBlob);
+        const parsed = JSON.parse(plaintext);
+        this.identity = parsed?.kind ? parsed : { ...parsed, kind: 'local' };
+        this._needsPassphrase = false;
+
+        if (iterations !== PBKDF2_ITERATIONS) {
+          // Upgrade the blob to the current iteration count.
+          try {
+            await cryptoService.deriveKeyFromPassphrase(passphrase, PBKDF2_ITERATIONS);
+            await this.saveIdentity(); // stamps the new count on success
+          } catch (err) {
+            // The blob is still readable at the old count — restore the
+            // working key and record the count that actually matches it.
+            logger.warn('Identity', 'Failed to upgrade KDF iteration count', err);
+            await cryptoService.deriveKeyFromPassphrase(passphrase, iterations);
+            cryptoService.persistActiveIterations();
+          }
+        } else {
+          cryptoService.persistActiveIterations();
+        }
+        return true;
+      } catch {
+        // Wrong passphrase or wrong iteration count — AES-GCM auth tag mismatch
+        cryptoService.clearKey();
+      }
+    }
+    return false;
   }
 
   /**
@@ -450,6 +486,9 @@ class IdentityService {
       const plaintext = JSON.stringify(this.identity);
       const encrypted = await cryptoService.encrypt(plaintext);
       localStorage.setItem(STORAGE_KEYS.IDENTITY_ENCRYPTED, encrypted);
+      // Record which iteration count this blob was encrypted with so future
+      // default bumps can't lock the user out.
+      cryptoService.persistActiveIterations();
       localStorage.removeItem(STORAGE_KEYS.IDENTITY_LEGACY);
       this._needsPassphrase = false;
     } catch (error) {

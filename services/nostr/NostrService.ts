@@ -23,6 +23,7 @@ import {
   buildPostEditEvent,
   buildPostEvent,
   buildProfileEvent,
+  buildReactionDeleteEvent,
   buildReportEvent,
   buildVoteEvent,
 } from './eventBuilders';
@@ -1235,6 +1236,13 @@ class NostrService {
     return buildVoteEvent(postEventId, direction, pubkey, opts);
   }
 
+  /**
+   * Build a NIP-09 deletion event for a kind-7 reaction (vote retraction).
+   */
+  buildReactionDeleteEvent(reactionEventId: string, pubkey: string): UnsignedNostrEvent {
+    return buildReactionDeleteEvent({ reactionEventId, pubkey });
+  }
+
   buildBoardEvent(
     board: Omit<Board, 'memberCount' | 'nostrEventId'>,
     pubkey: string,
@@ -1376,10 +1384,13 @@ class NostrService {
       // Update relay statuses on success
       relaysToQuery.forEach((url) => this.updateRelayStatus(url, true));
 
-      // Filter out duplicates and non-post events (prevents comment events leaking into feed)
+      // Filter out duplicates and non-post events (prevents comment events leaking into feed).
+      // Use the non-mutating contains() here: fetch is a read path, and marking fetched ids
+      // as "seen" would make any refetch within the dedup window return nothing.
+      // Only subscription/publish paths mark events as processed.
       return events.filter(
         (event) =>
-          !nostrEventDeduplicator.isEventDuplicate(event.id) && this.isBitboardPostEvent(event),
+          !nostrEventDeduplicator.contains(event.id) && this.isBitboardPostEvent(event),
       );
     } catch (error) {
       logger.error('Nostr', 'Failed to fetch posts:', error);
@@ -1479,7 +1490,7 @@ class NostrService {
         filter,
         this.DEFAULT_QUERY_TIMEOUT_MS,
       );
-      return events.filter((event) => !nostrEventDeduplicator.isEventDuplicate(event.id));
+      return events.filter((event) => !nostrEventDeduplicator.contains(event.id));
     } catch (error) {
       logger.error('Nostr', 'Failed to fetch boards:', error);
       return [];
@@ -1558,7 +1569,7 @@ class NostrService {
       );
       return events.filter(
         (event) =>
-          !nostrEventDeduplicator.isEventDuplicate(event.id) &&
+          !nostrEventDeduplicator.contains(event.id) &&
           this.isBitboardCommentEvent(event, postEventId),
       );
     } catch (error) {
@@ -1587,7 +1598,7 @@ class NostrService {
       );
       return events.filter(
         (event) =>
-          !nostrEventDeduplicator.isEventDuplicate(event.id) &&
+          !nostrEventDeduplicator.contains(event.id) &&
           this.isBitboardCommentEditEvent(event),
       );
     } catch (error) {
@@ -1616,7 +1627,7 @@ class NostrService {
       );
       return events.filter(
         (event) =>
-          !nostrEventDeduplicator.isEventDuplicate(event.id) &&
+          !nostrEventDeduplicator.contains(event.id) &&
           this.isBitboardCommentDeleteEvent(event),
       );
     } catch (error) {
@@ -1651,7 +1662,7 @@ class NostrService {
       );
       return events.filter(
         (event) =>
-          !nostrEventDeduplicator.isEventDuplicate(event.id) && this.isBitboardPostEditEvent(event),
+          !nostrEventDeduplicator.contains(event.id) && this.isBitboardPostEditEvent(event),
       );
     } catch (error) {
       logger.error('Nostr', 'Failed to fetch post edits:', error);

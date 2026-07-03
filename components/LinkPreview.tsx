@@ -10,6 +10,14 @@ interface LinkPreviewProps {
   url: string;
   className?: string;
   compact?: boolean;
+  /**
+   * Fetch metadata immediately instead of waiting for a click.
+   * Defaults to false: previews are fetched through third-party CORS proxies,
+   * so auto-loading would leak every URL in every rendered post (and the
+   * viewer's IP) to those proxies — triggered by content the viewer didn't
+   * write. Click-to-load keeps that a deliberate action.
+   */
+  autoLoad?: boolean;
 }
 
 /**
@@ -24,15 +32,18 @@ export const LinkPreview: React.FC<LinkPreviewProps> = ({
   url,
   className = '',
   compact = false,
+  autoLoad = false,
 }) => {
   const [preview, setPreview] = useState<LinkPreviewData | null>(
     () => getCachedPreview(url) || null,
   );
-  const [isLoading, setIsLoading] = useState(!getCachedPreview(url));
+  const [requested, setRequested] = useState(() => autoLoad || !!getCachedPreview(url));
+  const [isLoading, setIsLoading] = useState(() => autoLoad && !getCachedPreview(url));
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
 
   useEffect(() => {
+    if (!requested) return;
     let cancelled = false;
 
     const loadPreview = async () => {
@@ -63,7 +74,7 @@ export const LinkPreview: React.FC<LinkPreviewProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [url]);
+  }, [url, requested]);
 
   const handleImageError = useCallback(() => {
     setImageError(true);
@@ -87,6 +98,42 @@ export const LinkPreview: React.FC<LinkPreviewProps> = ({
         return url;
       }
     })();
+
+  // Consent state — plain link plus an explicit "load preview" action
+  if (!requested) {
+    return (
+      <div
+        className={`
+          border border-terminal-dim/50 bg-terminal-dim/5
+          p-3 flex items-center justify-between gap-3
+          ${className}
+        `}
+      >
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={handleClick}
+          className="min-w-0 flex items-center gap-2 text-sm text-terminal-text hover:underline"
+        >
+          <Globe size={14} className="text-terminal-dim flex-shrink-0" />
+          <span className="truncate">{displayDomain}</span>
+          <ExternalLink size={12} className="flex-shrink-0 opacity-70" />
+        </a>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setRequested(true);
+            setIsLoading(true);
+          }}
+          className="flex-shrink-0 border border-terminal-dim/50 px-2 py-1 text-2xs uppercase tracking-wider text-terminal-dim hover:border-terminal-text hover:text-terminal-text transition-colors"
+        >
+          Load preview
+        </button>
+      </div>
+    );
+  }
 
   // Loading state
   if (isLoading) {

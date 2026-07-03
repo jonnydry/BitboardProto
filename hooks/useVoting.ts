@@ -39,6 +39,9 @@ export function useVoting(args: { postsById: Map<string, Post> }) {
         logger.warn('Vote', 'Insufficient bits');
         return;
       }
+      // Clicking the same direction again retracts the vote — that must
+      // publish a NIP-09 deletion, not another reaction in the same direction.
+      const isRetraction = currentVote === direction;
       const optimisticUpdate = computeOptimisticUpdate(
         currentVote ?? null,
         direction,
@@ -60,12 +63,14 @@ export function useVoting(args: { postsById: Map<string, Post> }) {
 
       if (userIdentity && post?.nostrEventId) {
         try {
-          const result = await votingService.castVote(
-            post.nostrEventId,
-            direction,
-            userIdentity,
-            post.authorPubkey,
-          );
+          const result = isRetraction
+            ? await votingService.retractVote(post.nostrEventId, userIdentity)
+            : await votingService.castVote(
+                post.nostrEventId,
+                direction,
+                userIdentity,
+                post.authorPubkey,
+              );
 
           if (result.success && result.newTally) {
             // Use targeted update instead of array mapping

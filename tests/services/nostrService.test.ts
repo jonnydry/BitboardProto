@@ -60,6 +60,7 @@ describe('NostrService', () => {
 
     // Mock other dependencies
     (nostrEventDeduplicator.isEventDuplicate as Mock).mockReturnValue(false);
+    (nostrEventDeduplicator.contains as Mock).mockReturnValue(false);
     (nostrEventDeduplicator.markProcessed as Mock).mockImplementation(() => {});
     (inputValidator.validateTitle as Mock).mockImplementation((title) => title);
     (inputValidator.validatePostContent as Mock).mockImplementation((content) => content);
@@ -348,16 +349,20 @@ describe('NostrService', () => {
       expect(posts).toEqual([]); // Should return empty array on timeout
     });
 
-    it('should deduplicate events', async () => {
+    it('should deduplicate events without marking fetched ids as seen', async () => {
       mockPool.querySync.mockResolvedValue([mockPostEvent, mockPostEvent]);
-      (nostrEventDeduplicator.isEventDuplicate as Mock)
+      (nostrEventDeduplicator.contains as Mock)
         .mockReturnValueOnce(false)
         .mockReturnValueOnce(true);
 
       const posts = await service.fetchPosts();
 
       expect(posts).toHaveLength(1);
-      expect(nostrEventDeduplicator.isEventDuplicate).toHaveBeenCalledTimes(2);
+      // Fetch is a read path: it must use the non-mutating contains() check.
+      // Marking fetched ids as seen would make refetches within the dedup
+      // window return nothing.
+      expect(nostrEventDeduplicator.contains).toHaveBeenCalledTimes(2);
+      expect(nostrEventDeduplicator.isEventDuplicate).not.toHaveBeenCalled();
     });
 
     it('should filter out non-post events', async () => {

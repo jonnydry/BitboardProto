@@ -395,19 +395,19 @@ const AppContent: React.FC = () => {
       const rawPubkey = app.userState.identity.pubkey;
       const username = app.userState.username || 'Anonymous';
 
-      // Hash the pubkey before sending to Sentry to avoid associating a
-      // pseudonymous Nostr identity with error reports, IP addresses, and
-      // browser fingerprints stored on third-party infrastructure.
+      // Hash the pubkey before sending to Sentry AND PostHog to avoid
+      // associating a pseudonymous Nostr identity with error reports, IP
+      // addresses, and browser fingerprints stored on third-party
+      // infrastructure.
       void crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawPubkey)).then((hashBuf) => {
         const hashHex = Array.from(new Uint8Array(hashBuf))
           .map((b) => b.toString(16).padStart(2, '0'))
           .join('');
         sentryService.setUser({ id: hashHex, username });
-      });
-
-      analyticsService.identify(rawPubkey, {
-        username: username,
-        createdAt: new Date().toISOString(),
+        analyticsService.identify(hashHex, {
+          username: username,
+          createdAt: new Date().toISOString(),
+        });
       });
     }
   }, [app.userState.identity, app.userState.username]);

@@ -42,10 +42,33 @@ describe('LinkPreview', () => {
     // Keep the promise pending to see loading state
     mockFetchLinkPreview.mockImplementation(() => new Promise(() => {}));
 
-    const { container } = render(<LinkPreview url="https://example.com" />);
+    const { container } = render(<LinkPreview url="https://example.com" autoLoad />);
 
     // Loading state shows a pulsing skeleton with animate-pulse class
     expect(container.querySelector('.animate-pulse')).toBeInTheDocument();
+  });
+
+  it('does not fetch until the user asks for a preview (default click-to-load)', async () => {
+    const user = userEvent.setup();
+    mockGetCachedPreview.mockReturnValue(null as unknown as LinkPreviewData);
+    mockFetchLinkPreview.mockResolvedValue({
+      url: 'https://example.com',
+      title: 'Test Title',
+    });
+
+    render(<LinkPreview url="https://example.com" />);
+
+    // Privacy: previews go through third-party CORS proxies, so nothing may
+    // be fetched for content the viewer didn't write until they opt in.
+    expect(mockFetchLinkPreview).not.toHaveBeenCalled();
+    expect(screen.getByText('example.com')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /load preview/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Title')).toBeInTheDocument();
+    });
+    expect(mockFetchLinkPreview).toHaveBeenCalledWith('https://example.com');
   });
 
   it('renders preview with title and description', async () => {
@@ -58,7 +81,7 @@ describe('LinkPreview', () => {
       favicon: 'https://example.com/favicon.ico',
     });
 
-    render(<LinkPreview url="https://example.com" />);
+    render(<LinkPreview url="https://example.com" autoLoad />);
 
     await waitFor(() => {
       expect(screen.getByText('Test Title')).toBeInTheDocument();
@@ -77,7 +100,7 @@ describe('LinkPreview', () => {
       siteName: 'Example Site',
     });
 
-    render(<LinkPreview url="https://example.com" compact />);
+    render(<LinkPreview url="https://example.com" compact autoLoad />);
 
     await waitFor(() => {
       expect(screen.getByText('Test Title')).toBeInTheDocument();
@@ -96,6 +119,8 @@ describe('LinkPreview', () => {
 
     mockGetCachedPreview.mockReturnValue(cachedPreview);
 
+    // No autoLoad: already-cached previews render immediately even under the
+    // click-to-load default (no new network request is involved).
     render(<LinkPreview url="https://example.com" />);
 
     expect(screen.getByText('Cached Title')).toBeInTheDocument();
@@ -109,7 +134,7 @@ describe('LinkPreview', () => {
     mockGetCachedPreview.mockReturnValue(null as unknown as LinkPreviewData);
     mockFetchLinkPreview.mockRejectedValue(new Error('Network error'));
 
-    render(<LinkPreview url="https://example.com" />);
+    render(<LinkPreview url="https://example.com" autoLoad />);
 
     await waitFor(() => {
       expect(screen.getByText('example.com')).toBeInTheDocument();
@@ -134,7 +159,7 @@ describe('LinkPreview', () => {
       value: mockOpen,
     });
 
-    render(<LinkPreview url="https://example.com" />);
+    render(<LinkPreview url="https://example.com" autoLoad />);
 
     await waitFor(() => {
       expect(screen.getByText('Test Title')).toBeInTheDocument();
@@ -155,7 +180,7 @@ describe('LinkPreview', () => {
       title: 'Test Title',
     });
 
-    render(<LinkPreview url="https://example.com" className="custom-class" />);
+    render(<LinkPreview url="https://example.com" className="custom-class" autoLoad />);
 
     await waitFor(() => {
       expect(screen.getByText('Test Title')).toBeInTheDocument();
@@ -172,7 +197,7 @@ describe('LinkPreview', () => {
       title: 'Test Title',
     });
 
-    render(<LinkPreview url="https://sub.example.com/path" />);
+    render(<LinkPreview url="https://sub.example.com/path" autoLoad />);
 
     await waitFor(() => {
       expect(screen.getByText('sub.example.com')).toBeInTheDocument();
@@ -186,7 +211,7 @@ describe('LinkPreview', () => {
       error: 'Invalid URL',
     });
 
-    render(<LinkPreview url="not-a-url" />);
+    render(<LinkPreview url="not-a-url" autoLoad />);
 
     await waitFor(() => {
       // Multiple elements may contain the URL text (domain display + link display)

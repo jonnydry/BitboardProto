@@ -1,13 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Event as NostrEvent } from 'nostr-tools';
 
-const { mockVerifyEvent, mockFetchVoteEvents, mockBuildVoteEvent, mockPublishSignedEvent } =
-  vi.hoisted(() => ({
-    mockVerifyEvent: vi.fn(),
-    mockFetchVoteEvents: vi.fn(),
-    mockBuildVoteEvent: vi.fn(),
-    mockPublishSignedEvent: vi.fn(),
-  }));
+const {
+  mockVerifyEvent,
+  mockFetchVoteEvents,
+  mockBuildVoteEvent,
+  mockBuildReactionDeleteEvent,
+  mockPublishSignedEvent,
+} = vi.hoisted(() => ({
+  mockVerifyEvent: vi.fn(),
+  mockFetchVoteEvents: vi.fn(),
+  mockBuildVoteEvent: vi.fn(),
+  mockBuildReactionDeleteEvent: vi.fn(),
+  mockPublishSignedEvent: vi.fn(),
+}));
 
 const { mockAllowVote, mockIsVoteDuplicate, mockMarkVoteProcessed, mockSignEvent } = vi.hoisted(
   () => ({
@@ -26,6 +32,7 @@ vi.mock('../../services/nostr/NostrService', () => ({
   nostrService: {
     fetchVoteEvents: mockFetchVoteEvents,
     buildVoteEvent: mockBuildVoteEvent,
+    buildReactionDeleteEvent: mockBuildReactionDeleteEvent,
     publishSignedEvent: mockPublishSignedEvent,
   },
 }));
@@ -83,6 +90,7 @@ describe('votingService', () => {
     mockVerifyEvent.mockReset();
     mockFetchVoteEvents.mockReset();
     mockBuildVoteEvent.mockReset();
+    mockBuildReactionDeleteEvent.mockReset();
     mockPublishSignedEvent.mockReset();
     mockAllowVote.mockReset();
     mockIsVoteDuplicate.mockReset();
@@ -267,6 +275,115 @@ describe('votingService', () => {
     expect(votingService.getCachedTally('post-1')).not.toBeNull();
     votingService.clearPostCache('post-1');
     expect(votingService.getCachedTally('post-1')).toBeNull();
+  });
+
+  it('retracts a vote by publishing a NIP-09 deletion of the cached reaction', async () => {
+    const votingService = await loadVotingService();
+    const identity = {
+      pubkey: 'user-1',
+      npub: 'npub',
+      kind: 'local' as const,
+      privkey: '11'.repeat(32),
+    };
+    const unsigned = {
+      kind: 7,
+      created_at: 123,
+      tags: [['e', 'post-1']],
+      content: '+',
+      pubkey: 'user-1',
+    };
+    const signed = { ...unsigned, id: 'signed-1', sig: 'sig' };
+
+    mockBuildVoteEvent.mockReturnValue(unsigned);
+    mockSignEvent.mockResolvedValue(signed);
+    mockPublishSignedEvent.mockResolvedValue(signed);
+
+    await votingService.castVote('post-1', 'up', identity);
+    expect(votingService.getUserVote('user-1', 'post-1')).toBe('up');
+
+    const deleteUnsigned = {
+      kind: 5,
+      created_at: 124,
+      tags: [
+        ['e', 'signed-1'],
+        ['k', '7'],
+      ],
+      content: '',
+      pubkey: 'user-1',
+    };
+    mockBuildReactionDeleteEvent.mockReturnValue(deleteUnsigned);
+    mockSignEvent.mockResolvedValue({ ...deleteUnsigned, id: 'del-1', sig: 'sig' });
+
+    const result = await votingService.retractVote('post-1', identity);
+
+    expect(result.success).toBe(true);
+    // Deletion targets the reaction we cast earlier
+    expect(mockBuildReactionDeleteEvent).toHaveBeenCalledWith('signed-1', 'user-1');
+    expect(votingService.getUserVote('user-1', 'post-1')).toBeNull();
+    expect(result.newTally?.score).toBe(0);
+    expect(result.newTally?.uniqueVoters).toBe(0);
+
+    votingService.cleanup();
+  });
+
+  it('retracts by looking up the reaction on relays when the tally is not cached', async () => {
+    const votingService = await loadVotingService();
+    const identity = {
+      pubkey: 'user-1',
+      npub: 'npub',
+      kind: 'local' as const,
+      privkey: '11'.repeat(32),
+    };
+
+    mockFetchVoteEvents.mockResolvedValue([
+      makeVoteEvent({ id: 'older', pubkey: 'user-1', created_at: 100 }),
+      makeVoteEvent({ id: 'latest', pubkey: 'user-1', created_at: 200 }),
+      makeVoteEvent({ id: 'other-user', pubkey: 'user-2', created_at: 300 }),
+    ]);
+    mockBuildReactionDeleteEvent.mockReturnValue({
+      kind: 5,
+      created_at: 301,
+      tags: [['e', 'latest']],
+      content: '',
+      pubkey: 'user-1',
+    });
+    mockSignEvent.mockResolvedValue({ id: 'del-2', sig: 'sig' });
+    mockPublishSignedEvent.mockResolvedValue({ id: 'del-2' });
+
+    const result = await votingService.retractVote('post-1', identity);
+
+    expect(result.success).toBe(true);
+    // Deletes the user's LATEST reaction, not another user's
+    expect(mockBuildReactionDeleteEvent).toHaveBeenCalledWith('latest', 'user-1');
+
+    votingService.cleanup();
+  });
+
+  it('ignores reactions whose NIP-25 target (last e tag) is a different event', async () => {
+    const votingService = await loadVotingService();
+    mockFetchVoteEvents.mockResolvedValue([
+      // Genuine vote on the post
+      makeVoteEvent({ id: 'direct', pubkey: 'user-1', content: '+', tags: [['e', 'post-1']] }),
+      // Reaction to a comment that also carries the post as root 'e' tag —
+      // relays match it via #e=post-1 but it must not count toward the post
+      makeVoteEvent({
+        id: 'comment-reaction',
+        pubkey: 'user-2',
+        content: '+',
+        tags: [
+          ['e', 'post-1'],
+          ['e', 'comment-9'],
+        ],
+      }),
+    ]);
+
+    const tally = await votingService.fetchVotesForPost('post-1');
+
+    expect(tally.upvotes).toBe(1);
+    expect(tally.uniqueVoters).toBe(1);
+    expect(tally.votes.has('user-2')).toBe(false);
+
+    votingService.cleanup();
   });
 
   it('supports bits economy flow: spend on first vote, free switch, refund on retract (via userStore + voteMath; service tracks uniqueVoters)', async () => {

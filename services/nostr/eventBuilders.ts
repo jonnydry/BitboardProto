@@ -318,6 +318,35 @@ export function buildPostDeleteEvent(args: {
   return event as UnsignedNostrEvent;
 }
 
+/**
+ * Build a NIP-09 delete event for a kind-7 reaction (vote retraction).
+ * Relays and clients that honor deletions will stop counting the vote.
+ */
+export function buildReactionDeleteEvent(args: {
+  /** Event ID of the kind-7 reaction to retract */
+  reactionEventId: string;
+  /** The reaction author's pubkey (must match signer) */
+  pubkey: string;
+}): UnsignedNostrEvent {
+  const tags: string[][] = [
+    ['client', 'bitboard'],
+    // NIP-09: 'e' tag references the event to be deleted
+    ['e', args.reactionEventId],
+    // NIP-09: 'k' tag declares the kind of the deleted event
+    ['k', String(NOSTR_KINDS.REACTION)],
+  ];
+
+  const event: Partial<NostrEvent> = {
+    pubkey: args.pubkey,
+    kind: NOSTR_KINDS.DELETE,
+    created_at: Math.floor(Date.now() / 1000),
+    tags,
+    content: '',
+  };
+
+  return event as UnsignedNostrEvent;
+}
+
 export function buildVoteEvent(
   postEventId: string,
   direction: 'up' | 'down',

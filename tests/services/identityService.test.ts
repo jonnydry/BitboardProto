@@ -177,6 +177,51 @@ describe('identityService', () => {
     }
   });
 
+  it('unlocks blobs encrypted under the legacy iteration count and upgrades them', async () => {
+    const passphrase = 'correct horse battery staple';
+
+    // Simulate an install from before the 600k iteration bump: blob encrypted
+    // at the legacy count, no recorded iteration count in storage.
+    const { CryptoService, LEGACY_PBKDF2_ITERATIONS, PBKDF2_ITERATIONS } =
+      await import('../../services/cryptoService');
+    const legacyWriter = new CryptoService();
+    await legacyWriter.deriveKeyFromPassphrase(passphrase, LEGACY_PBKDF2_ITERATIONS);
+    const blob = await legacyWriter.encrypt(
+      JSON.stringify({
+        kind: 'local',
+        pubkey: 'a'.repeat(64),
+        privkey: 'b'.repeat(64),
+        npub: 'npub_legacy',
+        displayName: 'LegacyUser',
+      }),
+    );
+    localStorage.setItem('bitboard_identity_v2', blob);
+    localStorage.removeItem('bitboard_kdf_iterations');
+
+    const { identityService } = await loadIdentityModule();
+    expect(identityService.needsPassphrase()).toBe(true);
+    await expect(identityService.unlockWithPassphrase(passphrase)).resolves.toBe(true);
+    expect(identityService.getIdentity()?.displayName).toBe('LegacyUser');
+
+    // Blob was re-encrypted at the current count and the count was recorded
+    expect(localStorage.getItem('bitboard_kdf_iterations')).toBe(String(PBKDF2_ITERATIONS));
+
+    // A fresh session unlocks the upgraded blob normally
+    const reloaded = await loadIdentityModule();
+    await expect(reloaded.identityService.unlockWithPassphrase(passphrase)).resolves.toBe(true);
+    expect(reloaded.identityService.getIdentity()?.displayName).toBe('LegacyUser');
+  });
+
+  it('does not keep a derived key when unlocking with nothing stored', async () => {
+    const { identityService } = await loadIdentityModule();
+    const { cryptoService } = await import('../../services/cryptoService');
+
+    await expect(identityService.unlockWithPassphrase('anything at all here')).resolves.toBe(true);
+    // No blob means the passphrase was never verified — an unverified key must
+    // not linger as the encryption key for a future save.
+    expect(cryptoService.hasKey()).toBe(false);
+  });
+
   it('signs events with a local identity', async () => {
     const { identityService } = await loadIdentityModule();
     const identity = await identityService.generateIdentity(

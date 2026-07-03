@@ -90,6 +90,19 @@ export {
   computeVoteScoreDelta,
 } from './voteMath';
 
+/**
+ * NIP-25: the reacted-to event is the LAST 'e' tag. Reactions from other
+ * clients often carry multiple 'e' tags (root + reply), so using the first
+ * tag would misattribute comment reactions to their parent post.
+ */
+export function getReactionTargetId(event: NostrEvent): string | null {
+  for (let i = event.tags.length - 1; i >= 0; i--) {
+    const tag = event.tags[i];
+    if (tag && tag[0] === 'e' && tag[1]) return tag[1];
+  }
+  return null;
+}
+
 // ============================================
 // VOTING SERVICE CLASS
 // ============================================
@@ -120,6 +133,7 @@ class VotingService {
   private workerPingInterval: ReturnType<typeof setInterval> | null = null;
   private readonly WORKER_PING_INTERVAL_MS = 30 * 1000; // 30 seconds
   private readonly WORKER_PING_TIMEOUT_MS = 5 * 1000; // 5 second timeout for ping response
+  private readonly WORKER_VERIFY_TIMEOUT_MS = 10 * 1000; // 10 second timeout per verify batch
   private pendingPing: { resolve: () => void; reject: () => void } | null = null;
 
   constructor() {
@@ -260,10 +274,15 @@ class VotingService {
    */
   private async verifyVoteEventsBatch(events: NostrEvent[]): Promise<Map<string, boolean>> {
     if (this.worker && this.workerReady) {
-      return this.verifyVoteEventsWorker(events);
-    } else {
-      return this.verifyVoteEventsMainThread(events);
+      try {
+        return await this.verifyVoteEventsWorker(events);
+      } catch (error) {
+        // Worker crashed or timed out — don't leave vote fetching hanging
+        logger.warn('Voting', 'Worker verification failed, falling back to main thread', error);
+        return this.verifyVoteEventsMainThread(events);
+      }
     }
+    return this.verifyVoteEventsMainThread(events);
   }
 
   /**
@@ -273,7 +292,22 @@ class VotingService {
     return new Promise((resolve, reject) => {
       const id = `verify-${this.workerRequestId++}`;
 
-      this.workerPromises.set(id, { resolve, reject });
+      // A wedged worker (ping only detects death every 30s) must not hang callers
+      const timer = setTimeout(() => {
+        this.workerPromises.delete(id);
+        reject(new Error('Vote verification worker timeout'));
+      }, this.WORKER_VERIFY_TIMEOUT_MS);
+
+      this.workerPromises.set(id, {
+        resolve: (results) => {
+          clearTimeout(timer);
+          resolve(results);
+        },
+        reject: (error) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      });
 
       // Send batch to worker
       this.worker!.postMessage({ id, events });
@@ -365,8 +399,7 @@ class VotingService {
     }
 
     // 4. Verify it references a post (has 'e' tag)
-    const postTag = event.tags.find((t) => t[0] === 'e');
-    if (!postTag || !postTag[1]) {
+    if (!getReactionTargetId(event)) {
       logger.warn('Voting', 'Vote missing post reference');
       return false;
     }
@@ -378,12 +411,12 @@ class VotingService {
    * Extract vote data from a verified Nostr event
    */
   private eventToVote(event: NostrEvent, isVerified: boolean): Vote | null {
-    const postTag = event.tags.find((t) => t[0] === 'e');
-    if (!postTag) return null;
+    const targetId = getReactionTargetId(event);
+    if (!targetId) return null;
 
     return {
       eventId: event.id,
-      postId: postTag[1] ?? '',
+      postId: targetId,
       voterPubkey: event.pubkey,
       direction: event.content === '+' ? 'up' : 'down',
       timestamp: event.created_at * 1000,
@@ -540,9 +573,9 @@ class VotingService {
         continue;
       }
 
-      const postTag = event.tags.find((t) => t[0] === 'e');
-      if (!postTag || !postTag[1]) {
-        logger.warn('Voting', 'Vote missing post reference');
+      // The relay filter matches ANY 'e' tag; only tally reactions whose
+      // NIP-25 target (last 'e' tag) is actually this post.
+      if (getReactionTargetId(event) !== postId) {
         continue;
       }
 
@@ -679,8 +712,8 @@ class VotingService {
           continue;
         }
 
-        const postTag = event.tags.find((t) => t[0] === 'e');
-        if (!postTag || !postTag[1]) {
+        // Only tally reactions whose NIP-25 target (last 'e' tag) is this post
+        if (getReactionTargetId(event) !== postId) {
           continue;
         }
 
@@ -834,6 +867,70 @@ class VotingService {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to publish vote',
+      };
+    }
+  }
+
+  /**
+   * Retract a vote on a post by publishing a NIP-09 deletion of the user's
+   * kind-7 reaction. Without this, "unvoting" would only be local — relays
+   * would keep counting the reaction and the vote would reappear on refetch.
+   */
+  async retractVote(
+    postId: string,
+    identity: NostrIdentity | PublicNostrIdentity,
+  ): Promise<VoteResult> {
+    const userPubkey = identity.pubkey;
+    if (!rateLimiter.allowVote(userPubkey)) {
+      return {
+        success: false,
+        error: 'Rate limit exceeded. Please wait before voting again.',
+      };
+    }
+
+    try {
+      // Locate the reaction to delete: cached tally first, then the relays.
+      let reactionEventId = this.voteTallies.get(postId)?.votes.get(userPubkey)?.eventId ?? null;
+      if (!reactionEventId) {
+        const events = await nostrService.fetchVoteEvents(postId);
+        const own = events
+          .filter((e) => e.pubkey === userPubkey && getReactionTargetId(e) === postId)
+          .sort((a, b) => b.created_at - a.created_at)[0];
+        reactionEventId = own?.id ?? null;
+      }
+
+      if (reactionEventId) {
+        const unsigned = nostrService.buildReactionDeleteEvent(reactionEventId, userPubkey);
+        const signed = await identityService.signEvent(unsigned);
+        await nostrService.publishSignedEvent(signed);
+      }
+      // No reaction found means the vote never reached the relays —
+      // clearing local state below is all that's needed.
+
+      const tally = this.voteTallies.get(postId);
+      if (tally) {
+        const existing = tally.votes.get(userPubkey);
+        if (existing) {
+          if (existing.direction === 'up') {
+            tally.upvotes--;
+          } else {
+            tally.downvotes--;
+          }
+          tally.votes.delete(userPubkey);
+          tally.uniqueVoters = Math.max(0, tally.uniqueVoters - 1);
+          tally.score = tally.upvotes - tally.downvotes;
+          tally.lastUpdated = Date.now();
+        }
+      }
+
+      this.userVotes.get(userPubkey)?.delete(postId);
+
+      return tally ? { success: true, newTally: tally } : { success: true };
+    } catch (error) {
+      logger.error('Voting', 'Failed to retract vote', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to retract vote',
       };
     }
   }
