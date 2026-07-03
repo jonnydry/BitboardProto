@@ -37,10 +37,7 @@ const QUERY_TIMEOUT_MS = Number(process.env.BITBOARD_INDEXER_QUERY_MS || '12000'
 const pool = new SimplePool();
 
 function buildFilter(searchParams) {
-  const limit = Math.min(
-    200,
-    Math.max(1, Number(searchParams.get('limit') || '50') || 50),
-  );
+  const limit = Math.min(200, Math.max(1, Number(searchParams.get('limit') || '50') || 50));
   const boardId = searchParams.get('boardId') || undefined;
   const boardAddress = searchParams.get('boardAddress') || undefined;
   const geohash = searchParams.get('geohash') || undefined;

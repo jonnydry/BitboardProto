@@ -18,8 +18,9 @@ export const BitsExplanation = React.memo(function BitsExplanation({
       <div className={`flex gap-2.5`}>
         <Zap size={iconSize} className="text-terminal-dim shrink-0 mt-0.5" />
         <p className={`${textSize} text-terminal-dim leading-relaxed`}>
-          <span className="text-terminal-text font-bold">Bit-weighted global feed:</span> verified
-          identities spend limited bits to push the best posts upward.
+          <span className="text-terminal-text font-bold">Daily ritual — bit-weighted signal:</span>{' '}
+          verified identities spend limited bits to push the best posts upward. Your scarce spend is
+          the point.
         </p>
       </div>
       <div className={spacing}>

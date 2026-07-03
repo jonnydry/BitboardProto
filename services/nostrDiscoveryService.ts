@@ -184,7 +184,9 @@ class NostrDiscoveryService {
     const titleTag = event.tags.find((tag) => tag[0] === 'title')?.[1]?.trim();
     const title = titleTag || firstLine?.slice(0, 120) || 'Untitled Nostr post';
     const tags = event.tags
-      .filter((tag): tag is [string, string, ...string[]] => tag[0] === 't' && typeof tag[1] === 'string')
+      .filter(
+        (tag): tag is [string, string, ...string[]] => tag[0] === 't' && typeof tag[1] === 'string',
+      )
       .map((tag) => tag[1])
       .slice(0, 8);
     const url = this.extractUrl(event, rawContent);

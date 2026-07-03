@@ -78,9 +78,7 @@ export function useBoardUrlRouting(args: {
     if (viewMode !== ViewMode.FEED) return;
 
     const url = new URL(window.location.href);
-    const desiredPath = activeBoardId
-      ? buildBoardPathname(activeBoardId)
-      : appBasePath() || '/';
+    const desiredPath = activeBoardId ? buildBoardPathname(activeBoardId) : appBasePath() || '/';
 
     if (url.pathname === desiredPath) return;
 

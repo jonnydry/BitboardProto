@@ -138,7 +138,10 @@ describe('CreatePost', () => {
 
     expect(
       screen.getByText(
-        new RegExp(`content must be ${InputLimits.MAX_POST_CONTENT_LENGTH} characters or less`, 'i'),
+        new RegExp(
+          `content must be ${InputLimits.MAX_POST_CONTENT_LENGTH} characters or less`,
+          'i',
+        ),
       ),
     ).toBeInTheDocument();
   });

@@ -380,6 +380,14 @@ const PostItemComponent: React.FC<PostItemProps> = ({
             {post.score > 0 ? '+' : ''}
             {post.score}
           </span>
+          {hasInvested && (
+            <span
+              className="text-[8px] font-mono uppercase text-terminal-text/70 mt-0.5"
+              title="1 bit locked in this signal (retract to refund; switch free)"
+            >
+              bit locked
+            </span>
+          )}
 
           <button
             onClick={handleVoteDown}
@@ -404,27 +412,30 @@ const PostItemComponent: React.FC<PostItemProps> = ({
             </svg>
           </button>
 
-          {/* Nostr Verification Badge + Voter Count */}
+          {/* Nostr Verification Badge + Voter Count — bits + crypto identity */}
           {post.nostrEventId && (
             <div className="mt-1 flex flex-col items-center gap-0.5">
               {post.votesVerified ? (
                 <div
                   className="flex flex-col items-center gap-0.5"
-                  title="Score synced with verified Nostr votes"
+                  title="Score synced with verified Nostr votes (bits economy + cryptographic sigs)"
                 >
                   <div className="flex items-center gap-1">
                     <Shield size={10} className="text-terminal-text" />
                     {typeof post.uniqueVoters === 'number' && (
-                      <span className="text-xs text-terminal-dim flex items-center gap-0.5">
-                        <Users size={8} /> {post.uniqueVoters}
+                      <span
+                        className="text-[10px] font-mono text-terminal-text flex items-center gap-0.5"
+                        title="Unique verified Nostr voters (1 pubkey = 1 cryptographic vote) — your bits signal + verified sigs"
+                      >
+                        <Users size={8} /> {post.uniqueVoters} verified sigs
                       </span>
                     )}
                   </div>
                   <span
-                    className="whitespace-nowrap text-center text-[8px] font-mono uppercase tracking-wide text-terminal-dim"
-                    title="Votes verified on Nostr"
+                    className="whitespace-nowrap text-center text-[8px] font-mono uppercase tracking-wide text-terminal-text"
+                    title="Votes verified on Nostr (bits economy + crypto)"
                   >
-                    verified
+                    verified sigs
                   </span>
                 </div>
               ) : (

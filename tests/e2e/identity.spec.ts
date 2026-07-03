@@ -7,7 +7,9 @@ test.describe('Identity Management', () => {
 
   test('should allow creating a new identity', async ({ page }) => {
     // Look for identity creation button/link
-    const createIdentity = page.getByRole('button', { name: /create.*identity|generate.*key|new.*identity/i });
+    const createIdentity = page.getByRole('button', {
+      name: /create.*identity|generate.*key|new.*identity/i,
+    });
 
     if (await createIdentity.isVisible()) {
       await createIdentity.click();
@@ -22,7 +24,9 @@ test.describe('Identity Management', () => {
 
         // Should have created an identity
         await page.waitForTimeout(1000);
-        await expect(page.locator('text=/identity created|key generated/i')).toBeVisible({ timeout: 5000 });
+        await expect(page.locator('text=/identity created|key generated/i')).toBeVisible({
+          timeout: 5000,
+        });
       }
     }
   });

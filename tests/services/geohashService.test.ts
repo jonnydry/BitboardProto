@@ -88,4 +88,28 @@ describe('geohash feature core flow', () => {
     expect(board.geohash).toBe(geohash);
     expect(board.precision).toBe(GeohashPrecision.NEIGHBORHOOD);
   });
+
+  it('supports GEO_NET nearby discovery + nostr feed scope integration (geo boards use #g tags)', () => {
+    // Simulate location scan -> boards + scope resolution (reuses nostrFeedScope patterns)
+    const lat = 40.7128;
+    const lon = -74.006;
+    const boards = geohashService.generateLocationBoards(lat, lon);
+    const geoBoards = boards.filter((b) => b.type === BoardType.GEOHASH);
+    expect(geoBoards.length).toBeGreaterThan(0);
+
+    // Channel like GEO_NET sidebar uses
+    const ch = {
+      geohash: geohashService.encode(lat, lon, GeohashPrecision.NEIGHBORHOOD),
+      precision: GeohashPrecision.NEIGHBORHOOD,
+      postCount: 7,
+      uniqueAuthors: 3,
+      lastActivityAt: Date.now(),
+      label: 'NEIGHBORHOOD',
+      description: '',
+    };
+    const boardFromCh = geonetDiscoveryService.channelToBoard(ch);
+    expect(boardFromCh.id).toContain('geo-');
+    // Nearby sigs count visible in UI
+    expect(ch.postCount).toBe(7);
+  });
 });

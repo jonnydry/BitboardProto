@@ -28,7 +28,7 @@ const mocks = vi.hoisted(() => {
     },
   };
   const boardState = {
-    activeBoardId: null,
+    activeBoardId: null as string | null,
     setActiveBoardId: vi.fn((value: string | null) => {
       boardState.activeBoardId = value;
     }),
@@ -159,7 +159,7 @@ describe('AppHeader', () => {
   it('toggles the bits panel and closes it on outside click', () => {
     render(<AppHeader />);
 
-    fireEvent.click(screen.getByTitle('Bits — click to learn more'));
+    fireEvent.click(screen.getByTitle(/Bits — your daily scarce signal ritual/));
     expect(screen.getByText('How bits work')).toBeInTheDocument();
 
     fireEvent.keyDown(document, { key: 'Escape' });

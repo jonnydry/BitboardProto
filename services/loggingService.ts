@@ -1,22 +1,22 @@
 /**
  * Logging Service for BitBoard
- * 
+ *
  * Provides structured logging with log levels and optional module prefixes.
  * In production, debug logs are suppressed for better performance.
- * 
+ *
  * ## Usage
- * 
+ *
  * ```typescript
  * import { logger } from './loggingService';
- * 
+ *
  * logger.debug('MyModule', 'Debug message');
  * logger.info('MyModule', 'Info message');
  * logger.warn('MyModule', 'Warning message');
  * logger.error('MyModule', 'Error message', { extra: 'context' });
  * ```
- * 
+ *
  * ## Log Levels
- * 
+ *
  * - DEBUG: Detailed information for debugging (suppressed in production)
  * - INFO: General operational messages
  * - WARN: Warnings that should be noticed
@@ -45,9 +45,10 @@ class LoggingService {
 
   constructor() {
     // Default configuration based on environment
-    const isDev = typeof process !== 'undefined' 
-      ? process.env.NODE_ENV === 'development'
-      : !window.location.hostname.includes('bitboard');
+    const isDev =
+      typeof process !== 'undefined'
+        ? process.env.NODE_ENV === 'development'
+        : !window.location.hostname.includes('bitboard');
 
     this.config = {
       level: isDev ? LogLevel.DEBUG : LogLevel.INFO,
@@ -80,11 +81,7 @@ class LoggingService {
   /**
    * Format a log message with optional prefix and context
    */
-  private formatMessage(
-    level: LogLevel,
-    module: string,
-    message: string
-  ): string {
+  private formatMessage(level: LogLevel, module: string, message: string): string {
     const parts: string[] = [];
 
     if (this.config.includeTimestamp) {
@@ -107,7 +104,7 @@ class LoggingService {
    */
   debug(module: string, message: string, context?: unknown): void {
     if (this.config.level > LogLevel.DEBUG) return;
-    
+
     const formatted = this.formatMessage(LogLevel.DEBUG, module, message);
     if (context !== undefined) {
       console.debug(formatted, context);
@@ -121,7 +118,7 @@ class LoggingService {
    */
   info(module: string, message: string, context?: unknown): void {
     if (this.config.level > LogLevel.INFO) return;
-    
+
     const formatted = this.formatMessage(LogLevel.INFO, module, message);
     if (context !== undefined) {
       console.log(formatted, context);
@@ -135,7 +132,7 @@ class LoggingService {
    */
   warn(module: string, message: string, context?: unknown): void {
     if (this.config.level > LogLevel.WARN) return;
-    
+
     const formatted = this.formatMessage(LogLevel.WARN, module, message);
     if (context !== undefined) {
       console.warn(formatted, context);
@@ -149,7 +146,7 @@ class LoggingService {
    */
   error(module: string, message: string, context?: unknown): void {
     if (this.config.level > LogLevel.ERROR) return;
-    
+
     const formatted = this.formatMessage(LogLevel.ERROR, module, message);
     if (context !== undefined) {
       console.error(formatted, context);
@@ -160,7 +157,7 @@ class LoggingService {
 
   /**
    * Create a scoped logger for a specific module
-   * 
+   *
    * @example
    * const log = logger.scope('MyComponent');
    * log.info('Something happened');
@@ -182,7 +179,7 @@ class LoggingService {
   /**
    * Log with performance timing
    * Returns a function to call when the operation completes
-   * 
+   *
    * @example
    * const done = logger.time('MyModule', 'Expensive operation');
    * await expensiveOperation();
@@ -191,7 +188,7 @@ class LoggingService {
   time(module: string, operation: string): () => void {
     const start = performance.now();
     this.debug(module, `${operation} started`);
-    
+
     return () => {
       const duration = Math.round(performance.now() - start);
       this.debug(module, `${operation} completed in ${duration}ms`);
@@ -214,7 +211,7 @@ class LoggingService {
 
   /**
    * Measure duration between two marks
-   * 
+   *
    * @example
    * logger.mark('fetch-start');
    * await fetchData();

@@ -253,7 +253,8 @@ export const INITIAL_POSTS: Post[] = [
     boardId: 'b-system',
     title: 'Welcome to BitBoard v3.0 - Nostr Edition',
     author: 'system/admin',
-    content: 'BitBoard is now powered by the Nostr protocol for true decentralization. Your posts are stored across 290+ global relays. Create topic-based boards or location-based channels using geohash technology from BitChat. No accounts required - your identity lives in your keys.',
+    content:
+      'BitBoard is now powered by the Nostr protocol for true decentralization. Your posts are stored across 290+ global relays. Create topic-based boards or location-based channels using geohash technology from BitChat. Vote with scarce daily "bits" (spend/refund ritual) for real signal — uniqueVoters + "verified sigs" via Nostr crypto (1-pubkey-1-vote). GEO_NET shows nearby sigs. No accounts: your keys = identity. Bits + geo = the reason to be here.',
     timestamp: Date.now(),
     score: 999,
     commentCount: 0,
@@ -261,5 +262,5 @@ export const INITIAL_POSTS: Post[] = [
     comments: [],
     upvotes: 999,
     downvotes: 0,
-  }
+  },
 ];

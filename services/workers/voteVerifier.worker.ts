@@ -30,9 +30,9 @@ self.onmessage = (e: MessageEvent<{ id: string; events: NostrEvent[] }>) => {
     self.postMessage({ id, results });
   } catch (error) {
     // Send error back to main thread
-    self.postMessage({ 
-      id, 
-      error: error instanceof Error ? error.message : 'Unknown error during verification' 
+    self.postMessage({
+      id,
+      error: error instanceof Error ? error.message : 'Unknown error during verification',
     });
   }
 };

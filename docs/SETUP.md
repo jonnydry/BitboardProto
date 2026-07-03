@@ -182,6 +182,7 @@ VITE_GEMINI_API_KEY=your_api_key
 ### Web Vitals
 
 Web Vitals are automatically tracked and sent to:
+
 - Console (development)
 - PostHog (if enabled)
 - Sentry (poor metrics only)
@@ -199,11 +200,13 @@ For AI-powered link previews:
 ### PWA (Progressive Web App)
 
 PWA is enabled by default in production builds:
+
 - Service worker for offline caching
 - Web app manifest for installation
 - Cache-first strategy for fonts and static assets
 
 Test PWA locally:
+
 ```bash
 npm run build:prod
 npm run preview:prod
@@ -213,6 +216,7 @@ npm run preview:prod
 ## Deployment
 
 See [DEPLOYMENT.md](./DEPLOYMENT.md) for platform-specific deployment guides:
+
 - Vercel (recommended)
 - Netlify
 - Cloudflare Pages
@@ -270,6 +274,7 @@ GitHub Actions workflows are included:
 - **test-only.yml**: Quick test runs
 
 Required secrets:
+
 - `VITE_SENTRY_DSN`
 - `VITE_SENTRY_DSN_STAGING`
 - `VITE_POSTHOG_API_KEY`
@@ -279,6 +284,7 @@ Required secrets:
 ## Development Workflow
 
 1. **Create feature branch**
+
    ```bash
    git checkout -b feature/my-feature
    ```
@@ -289,11 +295,13 @@ Required secrets:
    - Run `npm run lint` before committing
 
 3. **Commit with conventional commits**
+
    ```bash
    git commit -m "feat: add keyboard shortcuts"
    ```
 
 4. **Push and create PR**
+
    ```bash
    git push origin feature/my-feature
    ```

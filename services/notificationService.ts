@@ -309,10 +309,12 @@ class NotificationService {
 
     const notification: Notification = {
       id: `${args.type}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      type: args.type,
       timestamp: Date.now(),
       isRead: false,
       ...args,
+      // The spread above already sets `type`; the explicit assignment below
+      // narrows the type from `string` to the Notification['type'] union.
+      type: args.type,
     };
 
     this.addNotification(notification);

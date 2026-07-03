@@ -65,7 +65,7 @@ export function calculateBoardMemberCounts(boards: Board[], posts: Post[]): Map<
 export function enrichBoardsWithMemberCounts(boards: Board[], posts: Post[]): Board[] {
   const memberCounts = calculateBoardMemberCounts(boards, posts);
 
-  return boards.map(board => ({
+  return boards.map((board) => ({
     ...board,
     memberCount: memberCounts.get(board.id) ?? 0,
   }));

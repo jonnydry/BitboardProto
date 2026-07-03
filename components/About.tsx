@@ -136,10 +136,11 @@ export const About: React.FC = () => {
           <div className="flex gap-3">
             <Coins size={18} className="text-terminal-dim/40 shrink-0 mt-0.5 hidden sm:block" />
             <p className="text-sm text-terminal-dim leading-relaxed">
-              You get <span className="text-terminal-text font-medium">100 bits</span> each day.
-              Each vote costs <span className="text-terminal-text font-medium">1 bit</span> — change
-              your mind? Retract and it comes back. Because every vote costs something, the signal
-              stays honest. No bots flooding the feed.
+              You get <span className="text-terminal-text font-medium">100 bits</span> each day
+              (daily ritual). Each vote costs{' '}
+              <span className="text-terminal-text font-medium">1 bit</span> — change your mind?
+              Retract and it comes back (refund). Spend to signal; see uniqueVoters + "verified
+              sigs" in feed (bits + cryptographic Nostr 1-per-pubkey). No bots.
             </p>
           </div>
         </div>
@@ -154,7 +155,9 @@ export const About: React.FC = () => {
           <ul className="text-sm text-terminal-dim space-y-2.5 columns-1 md:columns-2 gap-x-8">
             <li className="flex gap-2 break-inside-avoid">
               <Globe size={14} className="text-terminal-dim shrink-0 mt-0.5" />
-              <span>Topic, location & encrypted boards</span>
+              <span>
+                Topic boards + GEO local channels (nearby sigs discovery, geohash from BitChat)
+              </span>
             </li>
             <li className="flex gap-2 break-inside-avoid">
               <Lock size={14} className="text-terminal-dim shrink-0 mt-0.5" />

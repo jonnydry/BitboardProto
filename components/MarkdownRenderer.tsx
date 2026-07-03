@@ -52,10 +52,7 @@ interface MarkdownRendererProps {
 /**
  * Custom component for rendering markdown content with terminal-themed styling
  */
-export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
-  content,
-  className = ''
-}) => {
+export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className = '' }) => {
   // prose* utilities require @tailwindcss/typography (see tailwind.config.cjs); theme tokens map prose colors to terminal CSS variables.
   return (
     <div className={`prose prose-sm max-w-none ${className}`}>
@@ -102,10 +99,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
             if (childArray.length === 1) {
               const child = childArray[0];
               // Check if the child is a React element with type 'a' (link)
-              if (
-                React.isValidElement(child) &&
-                (child.props as { href?: unknown })?.href
-              ) {
+              if (React.isValidElement(child) && (child.props as { href?: unknown })?.href) {
                 const href = (child.props as { href: string }).href;
                 // Check if it's an external URL (not an image)
                 if (href.startsWith('http') && !/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(href)) {
@@ -117,11 +111,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
                 }
               }
             }
-            return (
-              <p className="text-terminal-text leading-relaxed mb-3">
-                {children}
-              </p>
-            );
+            return <p className="text-terminal-text leading-relaxed mb-3">{children}</p>;
           },
 
           // Links
@@ -149,10 +139,20 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
           ),
 
           // Code blocks
-          code: ({ inline, className, children, ...props }: { inline?: boolean; className?: string; children?: React.ReactNode; [key: string]: unknown }) => {
-            const match = /language-(\w+)/.exec(className || '');
+          // Cast to `any` to satisfy react-markdown's strict `code` component
+          // type (ElementType<HTMLAttributes<code> & ExtraProps>). Our return
+          // shape (JSX.Element | null) is structurally compatible at runtime;
+          // the cast is the minimum escape hatch needed to keep the existing
+          // implementation compiling under strict tsc.
+          code: ((props: {
+            inline?: boolean;
+            className?: string;
+            children?: React.ReactNode;
+            [key: string]: unknown;
+          }) => {
+            const match = /language-(\w+)/.exec(props.className || '');
             const language = match?.[1];
-            return !inline && language ? (
+            return !props.inline && language ? (
               <div className="my-4 border border-terminal-dim rounded">
                 <div className="bg-terminal-dim/20 px-3 py-1 text-xs text-terminal-dim flex items-center gap-2 border-b border-terminal-dim">
                   <Code size={12} />
@@ -165,18 +165,15 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
                   className="!bg-terminal-bg !border-0 !rounded-none"
                   {...props}
                 >
-                  {String(children).replace(/\n$/, '')}
+                  {String(props.children).replace(/\n$/, '')}
                 </SyntaxHighlighter>
               </div>
             ) : (
-              <code
-                className="bg-terminal-dim/20 px-1 py-0.5 rounded text-sm font-mono"
-                {...props}
-              >
-                {children}
+              <code className="bg-terminal-dim/20 px-1 py-0.5 rounded text-sm font-mono" {...props}>
+                {props.children}
               </code>
             );
-          },
+          }) as unknown as React.ComponentType<unknown>,
 
           // Blockquotes
           blockquote: ({ children }) => (
@@ -200,56 +197,32 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
           ),
 
           li: ({ children }) => (
-            <li className="text-terminal-text [&>p]:mb-1 [&>p:last-child]:mb-0">
-              {children}
-            </li>
+            <li className="text-terminal-text [&>p]:mb-1 [&>p:last-child]:mb-0">{children}</li>
           ),
 
           // Strong/Bold
           strong: ({ children }) => (
-            <strong className="font-bold text-terminal-text">
-              {children}
-            </strong>
+            <strong className="font-bold text-terminal-text">{children}</strong>
           ),
 
           // Emphasis/Italic
-          em: ({ children }) => (
-            <em className="italic text-terminal-text">
-              {children}
-            </em>
-          ),
+          em: ({ children }) => <em className="italic text-terminal-text">{children}</em>,
 
           // Horizontal rule
-          hr: () => (
-            <hr className="border-terminal-dim my-6" />
-          ),
+          hr: () => <hr className="border-terminal-dim my-6" />,
 
           // Tables
           table: ({ children }) => (
             <div className="overflow-x-auto my-4">
-              <table className="border border-terminal-dim w-full">
-                {children}
-              </table>
+              <table className="border border-terminal-dim w-full">{children}</table>
             </div>
           ),
 
-          thead: ({ children }) => (
-            <thead className="bg-terminal-dim/20">
-              {children}
-            </thead>
-          ),
+          thead: ({ children }) => <thead className="bg-terminal-dim/20">{children}</thead>,
 
-          tbody: ({ children }) => (
-            <tbody>
-              {children}
-            </tbody>
-          ),
+          tbody: ({ children }) => <tbody>{children}</tbody>,
 
-          tr: ({ children }) => (
-            <tr className="border-b border-terminal-dim/30">
-              {children}
-            </tr>
-          ),
+          tr: ({ children }) => <tr className="border-b border-terminal-dim/30">{children}</tr>,
 
           th: ({ children }) => (
             <th className="border border-terminal-dim px-3 py-2 text-left font-bold text-terminal-text">
@@ -258,9 +231,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
           ),
 
           td: ({ children }) => (
-            <td className="border border-terminal-dim px-3 py-2 text-terminal-text">
-              {children}
-            </td>
+            <td className="border border-terminal-dim px-3 py-2 text-terminal-text">{children}</td>
           ),
         }}
       >

@@ -23,8 +23,11 @@ const STORAGE_KEYS = {
   LEGACY_ENC_KEY: 'bitboard_enc_key',
 } as const;
 
-// PBKDF2 iteration count — high enough to be slow on commodity hardware
-const PBKDF2_ITERATIONS = 310_000;
+// PBKDF2 iteration count — meets OWASP 2023 password storage guidance for
+// PBKDF2-SHA256 (600k minimum). Bumping from the previous 310k
+// strengthens against offline brute-force attacks on a stolen
+// localStorage blob at the cost of ~50-100ms per unlock.
+const PBKDF2_ITERATIONS = 600_000;
 
 class CryptoService {
   /** In-memory AES-GCM key derived from the passphrase. Never persisted. */

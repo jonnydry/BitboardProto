@@ -32,10 +32,10 @@ const TRUST_DECAY_FACTOR = 0.5; // Trust halves with each hop
 class WoTService {
   // Cache of contact lists (pubkey -> followed pubkeys)
   private contactListCache: Map<string, { follows: string[]; timestamp: number }> = new Map();
-  
+
   // Cache of computed WoT scores for a given root pubkey
   private wotCache: Map<string, { scores: Map<string, WoTScore>; timestamp: number }> = new Map();
-  
+
   // Track in-flight requests
   private inFlightRequests: Map<string, Promise<Map<string, WoTScore>>> = new Map();
 
@@ -119,7 +119,7 @@ class WoTService {
     const BATCH_SIZE = 20;
     for (let i = 0; i < uncached.length; i += BATCH_SIZE) {
       const batch = uncached.slice(i, i + BATCH_SIZE);
-      const promises = batch.map(pk => this.fetchContactList(pk));
+      const promises = batch.map((pk) => this.fetchContactList(pk));
       const lists = await Promise.all(promises);
 
       for (let j = 0; j < batch.length; j++) {
@@ -142,7 +142,10 @@ class WoTService {
    * Build the Web of Trust graph starting from a root pubkey
    * Returns a map of pubkey -> WoTScore
    */
-  async buildWoTGraph(rootPubkey: string, maxDepth: number = MAX_GRAPH_DEPTH): Promise<Map<string, WoTScore>> {
+  async buildWoTGraph(
+    rootPubkey: string,
+    maxDepth: number = MAX_GRAPH_DEPTH,
+  ): Promise<Map<string, WoTScore>> {
     // Check cache
     const cacheKey = `${rootPubkey}:${maxDepth}`;
     const cached = this.wotCache.get(cacheKey);
@@ -171,10 +174,10 @@ class WoTService {
 
   private async _buildWoTGraphInternal(
     rootPubkey: string,
-    maxDepth: number
+    maxDepth: number,
   ): Promise<Map<string, WoTScore>> {
     const scores = new Map<string, WoTScore>();
-    
+
     // Add self at distance 0
     scores.set(rootPubkey, {
       pubkey: rootPubkey,
@@ -190,17 +193,17 @@ class WoTService {
     while (depth < maxDepth && currentLevel.length > 0) {
       depth++;
       const nextLevel: string[] = [];
-      
+
       // Fetch contact lists for current level
       const contactLists = await this.fetchContactLists(currentLevel);
-      
+
       for (const [followerPubkey, follows] of contactLists) {
         // Limit follows per person to prevent explosion
         const limitedFollows = follows.slice(0, MAX_FOLLOWS_PER_LEVEL);
-        
+
         for (const followedPubkey of limitedFollows) {
           const existing = scores.get(followedPubkey);
-          
+
           if (existing) {
             // Already seen at equal or closer distance
             // Add to followedBy if not already there
@@ -222,9 +225,12 @@ class WoTService {
       }
 
       currentLevel = nextLevel;
-      
+
       // Log progress
-      logger.debug('WoT', `Depth ${depth}: discovered ${nextLevel.length} new pubkeys, total ${scores.size}`);
+      logger.debug(
+        'WoT',
+        `Depth ${depth}: discovered ${nextLevel.length} new pubkeys, total ${scores.size}`,
+      );
     }
 
     logger.info('WoT', `Built WoT graph with ${scores.size} pubkeys up to depth ${maxDepth}`);
@@ -281,7 +287,7 @@ class WoTService {
     }
 
     const graph = await this.buildWoTGraph(this.userPubkey);
-    return pubkeys.filter(pk => {
+    return pubkeys.filter((pk) => {
       const score = graph.get(pk);
       return score && score.distance <= maxDistance;
     });
@@ -297,7 +303,7 @@ class WoTService {
 
     const graph = await this.buildWoTGraph(this.userPubkey);
     const results = new Map<string, WoTScore>();
-    
+
     for (const pubkey of pubkeys) {
       const score = graph.get(pubkey);
       if (score) {
@@ -318,20 +324,18 @@ class WoTService {
    */
   async filterPostsByWoT<T extends { authorPubkey?: string }>(
     posts: T[],
-    maxDistance: number = 2
+    maxDistance: number = 2,
   ): Promise<T[]> {
     if (!this.userPubkey) {
       return posts; // No filtering if no user
     }
 
-    const authorPubkeys = posts
-      .map(p => p.authorPubkey)
-      .filter((pk): pk is string => !!pk);
-    
+    const authorPubkeys = posts.map((p) => p.authorPubkey).filter((pk): pk is string => !!pk);
+
     const uniquePubkeys = [...new Set(authorPubkeys)];
     const scores = await this.getScores(uniquePubkeys);
 
-    return posts.filter(post => {
+    return posts.filter((post) => {
       if (!post.authorPubkey) return true; // Allow posts without author
       const score = scores.get(post.authorPubkey);
       return score && score.distance <= maxDistance;
@@ -346,16 +350,14 @@ class WoTService {
       return posts;
     }
 
-    const authorPubkeys = posts
-      .map(p => p.authorPubkey)
-      .filter((pk): pk is string => !!pk);
-    
+    const authorPubkeys = posts.map((p) => p.authorPubkey).filter((pk): pk is string => !!pk);
+
     const uniquePubkeys = [...new Set(authorPubkeys)];
     const scores = await this.getScores(uniquePubkeys);
 
     return [...posts].sort((a, b) => {
-      const scoreA = a.authorPubkey ? scores.get(a.authorPubkey)?.score ?? 0 : 0;
-      const scoreB = b.authorPubkey ? scores.get(b.authorPubkey)?.score ?? 0 : 0;
+      const scoreA = a.authorPubkey ? (scores.get(a.authorPubkey)?.score ?? 0) : 0;
+      const scoreB = b.authorPubkey ? (scores.get(b.authorPubkey)?.score ?? 0) : 0;
       return scoreB - scoreA; // Higher score first
     });
   }
@@ -391,7 +393,7 @@ class WoTService {
 
     // Find intersection
     const theirFollowsSet = new Set(theirFollows);
-    return userFollows.filter(pk => theirFollowsSet.has(pk));
+    return userFollows.filter((pk) => theirFollowsSet.has(pk));
   }
 
   // ----------------------------------------

@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ExternalLink, Globe, Loader2, AlertCircle } from 'lucide-react';
-import { fetchLinkPreview, getCachedPreview, type LinkPreviewData } from '../services/linkPreviewService';
+import {
+  fetchLinkPreview,
+  getCachedPreview,
+  type LinkPreviewData,
+} from '../services/linkPreviewService';
 
 interface LinkPreviewProps {
   url: string;
@@ -10,7 +14,7 @@ interface LinkPreviewProps {
 
 /**
  * OpenGraph Link Preview Card Component
- * 
+ *
  * Displays a rich preview card for URLs with:
  * - Title, description, and image from OpenGraph/Twitter Card metadata
  * - Favicon and site name
@@ -21,7 +25,9 @@ export const LinkPreview: React.FC<LinkPreviewProps> = ({
   className = '',
   compact = false,
 }) => {
-  const [preview, setPreview] = useState<LinkPreviewData | null>(() => getCachedPreview(url) || null);
+  const [preview, setPreview] = useState<LinkPreviewData | null>(
+    () => getCachedPreview(url) || null,
+  );
   const [isLoading, setIsLoading] = useState(!getCachedPreview(url));
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -54,7 +60,9 @@ export const LinkPreview: React.FC<LinkPreviewProps> = ({
     };
 
     loadPreview();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [url]);
 
   const handleImageError = useCallback(() => {
@@ -70,18 +78,20 @@ export const LinkPreview: React.FC<LinkPreviewProps> = ({
   }, []);
 
   // Extract domain for display
-  const displayDomain = preview?.siteName || (() => {
-    try {
-      return new URL(url).hostname.replace('www.', '');
-    } catch {
-      return url;
-    }
-  })();
+  const displayDomain =
+    preview?.siteName ||
+    (() => {
+      try {
+        return new URL(url).hostname.replace('www.', '');
+      } catch {
+        return url;
+      }
+    })();
 
   // Loading state
   if (isLoading) {
     return (
-      <div 
+      <div
         className={`
           border border-terminal-dim/50 bg-terminal-bg/50 
           p-4 flex items-center gap-3 animate-pulse
@@ -118,11 +128,11 @@ export const LinkPreview: React.FC<LinkPreviewProps> = ({
           <div className="flex-1 min-w-0">
             <div className="text-xs text-terminal-dim mb-1 flex items-center gap-2">
               {preview?.favicon && (
-                <img 
-                  src={preview.favicon} 
-                  alt="" 
-                  className="w-4 h-4" 
-                  onError={(e) => e.currentTarget.style.display = 'none'}
+                <img
+                  src={preview.favicon}
+                  alt=""
+                  className="w-4 h-4"
+                  onError={(e) => (e.currentTarget.style.display = 'none')}
                 />
               )}
               <span className="truncate">{displayDomain}</span>
@@ -154,11 +164,11 @@ export const LinkPreview: React.FC<LinkPreviewProps> = ({
         `}
       >
         {preview?.favicon && (
-          <img 
-            src={preview.favicon} 
-            alt="" 
-            className="w-4 h-4" 
-            onError={(e) => e.currentTarget.style.display = 'none'}
+          <img
+            src={preview.favicon}
+            alt=""
+            className="w-4 h-4"
+            onError={(e) => (e.currentTarget.style.display = 'none')}
           />
         )}
         <span className="text-terminal-text truncate max-w-[200px]">
@@ -213,15 +223,17 @@ export const LinkPreview: React.FC<LinkPreviewProps> = ({
         )}
 
         {/* Content */}
-        <div className={`flex-1 p-3 min-w-0 flex flex-col justify-center ${hasImage ? 'sm:p-4' : ''}`}>
+        <div
+          className={`flex-1 p-3 min-w-0 flex flex-col justify-center ${hasImage ? 'sm:p-4' : ''}`}
+        >
           {/* Site info */}
           <div className="flex items-center gap-2 mb-1.5">
             {preview?.favicon ? (
-              <img 
-                src={preview.favicon} 
-                alt="" 
-                className="w-4 h-4 flex-shrink-0" 
-                onError={(e) => e.currentTarget.style.display = 'none'}
+              <img
+                src={preview.favicon}
+                alt=""
+                className="w-4 h-4 flex-shrink-0"
+                onError={(e) => (e.currentTarget.style.display = 'none')}
               />
             ) : (
               <Globe size={14} className="text-terminal-dim flex-shrink-0" />
@@ -289,5 +301,3 @@ export const LinkPreviewList: React.FC<LinkPreviewListProps> = ({
     </div>
   );
 };
-
-

@@ -96,7 +96,7 @@ describe('LoggingService', () => {
     it('should create a scoped logger', () => {
       loggingService.setLevel(LogLevel.DEBUG);
       const scoped = loggingService.scope('ScopedModule');
-      
+
       scoped.info('Test message');
       expect(consoleSpy.log).toHaveBeenCalledWith(expect.stringContaining('[ScopedModule]'));
     });
@@ -104,12 +104,12 @@ describe('LoggingService', () => {
     it('should support all log levels in scoped logger', () => {
       loggingService.setLevel(LogLevel.DEBUG);
       const scoped = loggingService.scope('TestScope');
-      
+
       scoped.debug('Debug');
       scoped.info('Info');
       scoped.warn('Warn');
       scoped.error('Error');
-      
+
       expect(consoleSpy.debug).toHaveBeenCalled();
       expect(consoleSpy.log).toHaveBeenCalled();
       expect(consoleSpy.warn).toHaveBeenCalled();
@@ -120,14 +120,14 @@ describe('LoggingService', () => {
   describe('Timer', () => {
     it('should measure operation duration', async () => {
       loggingService.setLevel(LogLevel.DEBUG);
-      
+
       const done = loggingService.time('TestModule', 'Test operation');
-      
+
       // Simulate some async work
-      await new Promise(resolve => setTimeout(resolve, 10));
-      
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
       done();
-      
+
       // Should log start and completion
       expect(consoleSpy.debug).toHaveBeenCalledTimes(2);
       expect(consoleSpy.debug).toHaveBeenCalledWith(expect.stringContaining('started'));

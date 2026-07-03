@@ -529,43 +529,47 @@ export function NostrDiscoveryBrowser({
                   key={candidate.id}
                   className="overflow-hidden border border-terminal-dim/40 bg-terminal-bg/60"
                 >
-                  {candidate.post.url && (() => {
-                    const preview = linkPreviews[candidate.post.url];
-                    if (!preview) return null;
-                    return (
-                    <div className="border-b border-terminal-dim/20 bg-terminal-bg/80 px-4 py-3">
-                      <div className="flex items-start gap-3">
-                        {preview.favicon ? (
-                          <img
-                            src={preview.favicon}
-                            alt=""
-                            className="mt-0.5 h-4 w-4 shrink-0 rounded-sm"
-                          />
-                        ) : (
-                          <ExternalLink size={14} className="mt-0.5 shrink-0 text-terminal-dim" />
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[11px] uppercase tracking-[0.22em] text-terminal-dim">
-                            Source Preview
-                          </div>
-                          <div className="mt-1 text-sm font-semibold text-terminal-text">
-                            {preview.title || getDomain(candidate.post.url)}
-                          </div>
-                          {(preview.siteName || getDomain(candidate.post.url)) && (
-                            <div className="mt-1 text-[11px] uppercase tracking-wide text-terminal-dim/80">
-                              {preview.siteName || getDomain(candidate.post.url)}
+                  {candidate.post.url &&
+                    (() => {
+                      const preview = linkPreviews[candidate.post.url];
+                      if (!preview) return null;
+                      return (
+                        <div className="border-b border-terminal-dim/20 bg-terminal-bg/80 px-4 py-3">
+                          <div className="flex items-start gap-3">
+                            {preview.favicon ? (
+                              <img
+                                src={preview.favicon}
+                                alt=""
+                                className="mt-0.5 h-4 w-4 shrink-0 rounded-sm"
+                              />
+                            ) : (
+                              <ExternalLink
+                                size={14}
+                                className="mt-0.5 shrink-0 text-terminal-dim"
+                              />
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <div className="text-[11px] uppercase tracking-[0.22em] text-terminal-dim">
+                                Source Preview
+                              </div>
+                              <div className="mt-1 text-sm font-semibold text-terminal-text">
+                                {preview.title || getDomain(candidate.post.url)}
+                              </div>
+                              {(preview.siteName || getDomain(candidate.post.url)) && (
+                                <div className="mt-1 text-[11px] uppercase tracking-wide text-terminal-dim/80">
+                                  {preview.siteName || getDomain(candidate.post.url)}
+                                </div>
+                              )}
+                              {preview.description && (
+                                <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-terminal-dim">
+                                  {preview.description}
+                                </p>
+                              )}
                             </div>
-                          )}
-                          {preview.description && (
-                            <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-terminal-dim">
-                              {preview.description}
-                            </p>
-                          )}
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                    );
-                  })()}
+                      );
+                    })()}
                   <div className="border-b border-terminal-dim/20 bg-terminal-bg/70 px-4 py-3">
                     <div className="flex flex-wrap items-center gap-2 text-xs text-terminal-dim">
                       <span className="border border-terminal-dim/30 px-2 py-0.5 uppercase tracking-wide text-terminal-text">

@@ -4,17 +4,17 @@ Generated 2026-05-31. See `REMAINING_WORK.md` for the older analysis.
 
 ## Inventory of remaining work
 
-| Category | Count | Risk | Notes |
-|---|---|---|---|
-| Base `tsc` errors | 13 | Low | All mechanical, ~1 hr |
-| Strict `tsc` errors | ~349 | Med | Mostly `noUncheckedIndexedAccess` catches, real bugs |
-| `App.tsx` defines `IdentityUnlockModal` inline | 1 | Low | Extract to `components/` |
-| `AppContext.tsx` 50+ dep `useMemo` | 1 | Med | Split into 2-3 contexts |
-| Test coverage gaps (hooks) | ~3 hooks | Low | Add focused tests |
-| NIP-44 PBKDF2 iterations (310k → 600k) | 1 | Low | Security hardening |
-| No CSP meta tag | 1 | Low | Security hardening |
-| Large file splits (NostrService, OnboardingFlow, CommentThread) | 3 | High | Own PRs |
-| Dependency upgrades (Sentry v10, Vite v8, Tailwind v4, Zustand v5) | ~10 | High | Own PRs |
+| Category                                                           | Count    | Risk | Notes                                                |
+| ------------------------------------------------------------------ | -------- | ---- | ---------------------------------------------------- |
+| Base `tsc` errors                                                  | 13       | Low  | All mechanical, ~1 hr                                |
+| Strict `tsc` errors                                                | ~349     | Med  | Mostly `noUncheckedIndexedAccess` catches, real bugs |
+| `App.tsx` defines `IdentityUnlockModal` inline                     | 1        | Low  | Extract to `components/`                             |
+| `AppContext.tsx` 50+ dep `useMemo`                                 | 1        | Med  | Split into 2-3 contexts                              |
+| Test coverage gaps (hooks)                                         | ~3 hooks | Low  | Add focused tests                                    |
+| NIP-44 PBKDF2 iterations (310k → 600k)                             | 1        | Low  | Security hardening                                   |
+| No CSP meta tag                                                    | 1        | Low  | Security hardening                                   |
+| Large file splits (NostrService, OnboardingFlow, CommentThread)    | 3        | High | Own PRs                                              |
+| Dependency upgrades (Sentry v10, Vite v8, Tailwind v4, Zustand v5) | ~10      | High | Own PRs                                              |
 
 ## Execution plan
 

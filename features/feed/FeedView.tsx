@@ -260,7 +260,10 @@ export function FeedView(props: {
       // virtualizer's scrollToIndex instead, which works regardless of render state.
       const firstIndex = postsByTimeChunk[chunk].firstIndex;
       if (firstIndex >= 0) {
-        feedVirtualizerRef.current.scrollToIndex(firstIndex, { align: 'start', behavior: 'smooth' });
+        feedVirtualizerRef.current.scrollToIndex(firstIndex, {
+          align: 'start',
+          behavior: 'smooth',
+        });
       }
       return;
     }

@@ -87,7 +87,7 @@ describe('ZapConfig', () => {
     expect(ZapConfig.DEFAULT_AMOUNT).toBe(100);
     expect(ZapConfig.LNURL_TIMEOUT_MS).toBe(10000);
     expect(ZapConfig.MAX_TOP_ZAPPERS).toBe(10);
-    
+
     // Verify suggested amounts are reasonable
     expect(ZapConfig.SUGGESTED_AMOUNTS).toContain(21);
     expect(ZapConfig.SUGGESTED_AMOUNTS).toContain(100);
@@ -114,19 +114,19 @@ describe('FeatureFlags', () => {
 
   it('has new NIP features defined', () => {
     // These are the new feature flags that should be added
-    expect(FeatureFlags.ENABLE_ZAPS).toBeDefined();       // NIP-57
-    expect(FeatureFlags.ENABLE_BADGES).toBeDefined();     // NIP-58
-    expect(FeatureFlags.ENABLE_WOT).toBeDefined();        // Web of Trust
-    expect(FeatureFlags.ENABLE_COMMUNITIES).toBeDefined();// NIP-72
-    expect(FeatureFlags.ENABLE_LISTS).toBeDefined();      // NIP-51
-    expect(FeatureFlags.ENABLE_LONG_FORM).toBeDefined();  // NIP-23
-    expect(FeatureFlags.ENABLE_LIVE_EVENTS).toBeDefined();// NIP-53
+    expect(FeatureFlags.ENABLE_ZAPS).toBeDefined(); // NIP-57
+    expect(FeatureFlags.ENABLE_BADGES).toBeDefined(); // NIP-58
+    expect(FeatureFlags.ENABLE_WOT).toBeDefined(); // Web of Trust
+    expect(FeatureFlags.ENABLE_COMMUNITIES).toBeDefined(); // NIP-72
+    expect(FeatureFlags.ENABLE_LISTS).toBeDefined(); // NIP-51
+    expect(FeatureFlags.ENABLE_LONG_FORM).toBeDefined(); // NIP-23
+    expect(FeatureFlags.ENABLE_LIVE_EVENTS).toBeDefined(); // NIP-53
   });
 
   it('has safe defaults for new features', () => {
     // Live events should be disabled by default until fully implemented
     expect(FeatureFlags.ENABLE_LIVE_EVENTS).toBe(false);
-    
+
     // Other new features can be enabled by default if ready
     // These are just verifying the current state
     expect(FeatureFlags.ENABLE_ZAPS).toBe(true);
@@ -144,10 +144,10 @@ describe('Config Type Safety', () => {
     // Numbers
     expect(typeof WoTConfig.CACHE_TTL_MS).toBe('number');
     expect(typeof ZapConfig.DEFAULT_AMOUNT).toBe('number');
-    
+
     // Booleans
     expect(typeof FeatureFlags.ENABLE_ZAPS).toBe('boolean');
-    
+
     // Arrays
     expect(Array.isArray(ZapConfig.SUGGESTED_AMOUNTS)).toBe(true);
     expect(Array.isArray(NostrConfig.DEFAULT_RELAYS)).toBe(true);

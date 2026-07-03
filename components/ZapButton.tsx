@@ -165,7 +165,9 @@ export const ZapButton: React.FC<ZapButtonProps> = ({
         )}
 
         {!compact && zapTally.count === 0 && (
-          <span className="text-2xs font-bold uppercase tracking-tighter text-terminal-dim">Zap</span>
+          <span className="text-2xs font-bold uppercase tracking-tighter text-terminal-dim">
+            Zap
+          </span>
         )}
       </button>
 

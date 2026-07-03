@@ -41,25 +41,10 @@ The UI treats the **latest** edit companion event as the current content, while 
 
 - UI entry: `App.tsx` + `features/*`
 - Nostr transport + parsing: `services/nostrService.ts` (public) and `services/nostr/*` (implementation)
-- Voting tallying: `services/votingService.ts` + `services/voteMath.ts`
+- Voting tallying: `services/votingService.ts` + `services/voteMath.ts` (hybrid: local daily bits quota + Nostr kind-7 verified uniqueVoters + optimistic)
+- Geo / location channels: `services/geohashService.ts` + `geonetDiscoveryService.ts` (geohash boards + GEO_NET nearby sigs discovery; #g tags + BitChat heritage)
 - Identity: `services/identityService.ts`
 - Input hardening: `services/inputValidator.ts`
 - Local diagnostics: `services/diagnosticsService.ts`
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+**Niche identity**: Bits economy (spend 1/refund on retract, daily ritual) + verified sigs surfaced in PostItem feed cards + Sidebar GEO_NET make the voting/geo visceral. See README features and voteMath for pure compute functions.

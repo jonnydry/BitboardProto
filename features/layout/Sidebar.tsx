@@ -148,7 +148,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
     TOPIC_NET: true,
     COMMUNITIES: false,
     SECURE_NET: false,
-    GEO_NET: false,
+    GEO_NET: true,
     DISCOVER: false,
     THEME: false,
     IDENTITY: false,
@@ -485,7 +485,8 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
       {geohashBoards.length > 0 && (
         <div className="ui-surface-panel p-3">
           <SectionButton isOpen={openSections.GEO_NET} onClick={() => toggleSection('GEO_NET')}>
-            GEO_NET ({totalNearbyPosts > 0 ? `${totalNearbyPosts} sig` : geohashBoards.length})
+            📍 GEO_NET / LOCAL CHANNELS (
+            {totalNearbyPosts > 0 ? `${totalNearbyPosts} sigs` : geohashBoards.length})
           </SectionButton>
           <div className="hide-scrollbar mt-2 max-h-40 space-y-0.5 overflow-y-auto">
             {nearbyActivity.slice(0, 6).map((ch) => {
@@ -510,7 +511,7 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
             className="mt-2 w-full border border-dashed border-terminal-dim/30 px-2 py-1.5 text-[10px] font-mono uppercase text-terminal-dim hover:border-terminal-dim/60 hover:text-terminal-text transition-all flex items-center justify-center gap-1"
           >
             <MapPin size={10} />
-            {isLoadingActivity ? 'Scanning...' : 'Scan Nearby'}
+            {isLoadingActivity ? 'Scanning...' : 'Scan Nearby (local sigs)'}
           </button>
         </div>
       )}

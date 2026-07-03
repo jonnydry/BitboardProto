@@ -8,21 +8,24 @@ import { http, HttpResponse } from 'msw';
 
 // Mock Gemini API responses
 export const geminiHandlers = [
-  http.post('https://generativelanguage.googleapis.com/v1beta/models/:model:generateContent', () => {
-    return HttpResponse.json({
-      candidates: [
-        {
-          content: {
-            parts: [
-              {
-                text: 'This is a test link preview: A great article about Nostr protocol.',
-              },
-            ],
+  http.post(
+    'https://generativelanguage.googleapis.com/v1beta/models/:model:generateContent',
+    () => {
+      return HttpResponse.json({
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  text: 'This is a test link preview: A great article about Nostr protocol.',
+                },
+              ],
+            },
           },
-        },
-      ],
-    });
-  }),
+        ],
+      });
+    },
+  ),
 ];
 
 // Mock PostHog analytics (if needed)

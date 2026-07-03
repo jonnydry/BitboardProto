@@ -63,9 +63,7 @@ function loadInitialUserState(): UserState {
         // Validate each entry is a 64-char hex pubkey to prevent tampered storage from
         // injecting invalid values into the mute list.
         if (Array.isArray(parsed)) {
-          mutedPubkeys = parsed.filter(
-            (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v),
-          );
+          mutedPubkeys = parsed.filter((v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v));
         }
       }
     }
@@ -85,8 +83,7 @@ function loadInitialUserState(): UserState {
     guestUsername = 'u/guest_' + Math.random().toString(36).slice(2, 10);
   }
 
-  const bits =
-    typeof localStorage !== 'undefined' ? loadPersistedBits() : MAX_DAILY_BITS;
+  const bits = typeof localStorage !== 'undefined' ? loadPersistedBits() : MAX_DAILY_BITS;
 
   return {
     username: guestUsername,

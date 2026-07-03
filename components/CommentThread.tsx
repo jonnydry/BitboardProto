@@ -117,7 +117,11 @@ const CommentThreadComponent: React.FC<CommentThreadProps> = ({
   }, [comment.authorPubkey]);
 
   const authorDisplayName = useMemo(
-    () => profileService.getDisplayName(comment.authorPubkey || comment.author, authorProfile ?? undefined),
+    () =>
+      profileService.getDisplayName(
+        comment.authorPubkey || comment.author,
+        authorProfile ?? undefined,
+      ),
     [comment.author, comment.authorPubkey, authorProfile],
   );
 
@@ -988,22 +992,22 @@ const CommentListComponent: React.FC<CommentListProps> = ({
           visibleComments.map((comment) => {
             if (!comment) return null;
             return (
-            <CommentThread
-              key={comment.id}
-              comment={comment}
-              userState={userState}
-              onReply={onReply}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onViewProfile={onViewProfile}
-              onVote={onVote}
-              postId={postId}
-              formatTime={formatTime}
-              knownUsers={knownUsers}
-              depth={0}
-              onToggleMute={onToggleMute}
-              isMuted={isMuted}
-            />
+              <CommentThread
+                key={comment.id}
+                comment={comment}
+                userState={userState}
+                onReply={onReply}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onViewProfile={onViewProfile}
+                onVote={onVote}
+                postId={postId}
+                formatTime={formatTime}
+                knownUsers={knownUsers}
+                depth={0}
+                onToggleMute={onToggleMute}
+                isMuted={isMuted}
+              />
             );
           })
         )}

@@ -15,7 +15,9 @@ test.describe('Post Creation', () => {
       await createButton.click();
 
       // Should show post creation form
-      const postForm = page.locator('[data-testid="create-post-form"], [data-testid="post-editor"]');
+      const postForm = page.locator(
+        '[data-testid="create-post-form"], [data-testid="post-editor"]',
+      );
       await expect(postForm).toBeVisible({ timeout: 5000 });
 
       // Fill in post details
@@ -35,9 +37,9 @@ test.describe('Post Creation', () => {
       await submitButton.click();
 
       // Should show success message or redirect
-      await expect(
-        page.locator('text=/post.*created|post.*published|success/i')
-      ).toBeVisible({ timeout: 10000 });
+      await expect(page.locator('text=/post.*created|post.*published|success/i')).toBeVisible({
+        timeout: 10000,
+      });
     }
   });
 
@@ -54,7 +56,9 @@ test.describe('Post Creation', () => {
         await submitButton.click();
 
         // Should show validation error
-        await expect(page.locator('text=/required|cannot be empty/i')).toBeVisible({ timeout: 3000 });
+        await expect(page.locator('text=/required|cannot be empty/i')).toBeVisible({
+          timeout: 3000,
+        });
       }
     }
   });

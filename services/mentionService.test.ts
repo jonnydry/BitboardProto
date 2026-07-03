@@ -6,8 +6,8 @@ describe('mentionService', () => {
     const content = 'hello @alice and @u/bob.test!';
     const matches = mentionService.parseMentions(content);
     expect(matches.map((m) => m.username)).toEqual(['alice', 'u/bob.test']);
-    expect(matches[0].startIndex).toBe(content.indexOf('@alice'));
-    expect(matches[1].startIndex).toBe(content.indexOf('@u/bob.test'));
+    expect(matches[0]!.startIndex).toBe(content.indexOf('@alice'));
+    expect(matches[1]!.startIndex).toBe(content.indexOf('@u/bob.test'));
   });
 
   it('detectMentionInProgress detects partial mention near cursor', () => {
@@ -24,23 +24,3 @@ describe('mentionService', () => {
     expect(r).toBeNull();
   });
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

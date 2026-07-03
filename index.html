@@ -1,54 +1,69 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    
+
     <!-- Primary Meta Tags -->
     <title>BitBoard - Decentralized Message Board on Nostr</title>
     <meta name="title" content="BitBoard - Decentralized Message Board on Nostr" />
-    <meta name="description" content="BitBoard is a terminal-styled message board built on the Nostr protocol. Create topic boards, location-based channels, and encrypted discussions." />
-    <meta name="keywords" content="nostr, decentralized, message board, forum, social media, terminal, retro" />
+    <meta
+      name="description"
+      content="BitBoard is a terminal-styled message board built on the Nostr protocol. Create topic boards, location-based channels, and encrypted discussions."
+    />
+    <meta
+      name="keywords"
+      content="nostr, decentralized, message board, forum, social media, terminal, retro"
+    />
     <meta name="author" content="BitBoard" />
     <meta name="robots" content="index, follow" />
     <meta name="language" content="English" />
-    
+
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="" id="og-url" />
     <meta property="og:title" content="BitBoard - Decentralized Message Board on Nostr" />
-    <meta property="og:description" content="Terminal-styled message board built on the Nostr protocol. Create boards, post, comment, and vote." />
+    <meta
+      property="og:description"
+      content="Terminal-styled message board built on the Nostr protocol. Create boards, post, comment, and vote."
+    />
     <meta property="og:image" content="" id="og-image" />
-    
+
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
     <meta property="twitter:url" content="" id="twitter-url" />
     <meta property="twitter:title" content="BitBoard - Decentralized Message Board on Nostr" />
-    <meta property="twitter:description" content="Terminal-styled message board built on the Nostr protocol." />
+    <meta
+      property="twitter:description"
+      content="Terminal-styled message board built on the Nostr protocol."
+    />
     <meta property="twitter:image" content="" id="twitter-image" />
-    
+
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="/assets/bitboard-logo.png" />
     <link rel="apple-touch-icon" href="/assets/bitboard-logo.png" />
-    
+
     <!-- Preconnect for performance -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
     <!-- DNS Prefetch for Nostr Relays (reduces WebSocket connection latency by ~50-100ms) -->
-    <link rel="dns-prefetch" href="//relay.damus.io">
-    <link rel="dns-prefetch" href="//relay.nostr.band">
-    <link rel="dns-prefetch" href="//nos.lol">
-    <link rel="dns-prefetch" href="//relay.snort.social">
-    <link rel="dns-prefetch" href="//nostr.wine">
-    <link rel="dns-prefetch" href="//relay.nostr.info">
-    
+    <link rel="dns-prefetch" href="//relay.damus.io" />
+    <link rel="dns-prefetch" href="//relay.nostr.band" />
+    <link rel="dns-prefetch" href="//nos.lol" />
+    <link rel="dns-prefetch" href="//relay.snort.social" />
+    <link rel="dns-prefetch" href="//nostr.wine" />
+    <link rel="dns-prefetch" href="//relay.nostr.info" />
+
     <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=VT323&family=Fira+Code:wght@400;700&family=Space+Grotesk:wght@600&display=swap" rel="stylesheet">
-    
+    <link
+      href="https://fonts.googleapis.com/css2?family=VT323&family=Fira+Code:wght@400;700&family=Space+Grotesk:wght@600&display=swap"
+      rel="stylesheet"
+    />
+
     <!-- Manifest -->
     <link rel="manifest" href="/manifest.json" />
-    
+
     <!-- Theme Color -->
     <meta name="theme-color" content="#000000" />
 
@@ -81,20 +96,21 @@
 
     <!-- Dynamic URL Script - Updates meta tags with current origin -->
     <script>
-      (function() {
+      (function () {
         const origin = window.location.origin;
         const ogUrl = document.getElementById('og-url');
         const ogImage = document.getElementById('og-image');
         const twitterUrl = document.getElementById('twitter-url');
         const twitterImage = document.getElementById('twitter-image');
-        
+
         if (ogUrl) ogUrl.setAttribute('content', origin + '/');
         if (ogImage) ogImage.setAttribute('content', origin + '/assets/bitboard-logo.png');
         if (twitterUrl) twitterUrl.setAttribute('content', origin + '/');
-        if (twitterImage) twitterImage.setAttribute('content', origin + '/assets/bitboard-logo.png');
+        if (twitterImage)
+          twitterImage.setAttribute('content', origin + '/assets/bitboard-logo.png');
       })();
     </script>
-</head>
+  </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>

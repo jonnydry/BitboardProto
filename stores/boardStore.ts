@@ -54,7 +54,7 @@ function loadInitialBoards(): Board[] {
         'id' in b &&
         'name' in b &&
         typeof (b as Board).id === 'string' &&
-        typeof (b as Board).name === 'string'
+        typeof (b as Board).name === 'string',
     ) as Board[];
 
     // Merge cached boards with INITIAL_BOARDS to ensure new defaults appear
@@ -87,7 +87,7 @@ export const useBoardStore = create<BoardStoreState>()(
       persistLastActiveBoardId(id);
       set({ activeBoardId: id });
     },
-  }))
+  })),
 );
 
 // Computed selectors

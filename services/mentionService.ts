@@ -23,10 +23,10 @@ class MentionService {
   parseMentions(content: string): MentionMatch[] {
     const matches: MentionMatch[] = [];
     let match: RegExpExecArray | null;
-    
+
     // Reset regex lastIndex
     MENTION_REGEX.lastIndex = 0;
-    
+
     while ((match = MENTION_REGEX.exec(content)) !== null) {
       if (match[1] === undefined) continue;
       matches.push({
@@ -35,7 +35,7 @@ class MentionService {
         endIndex: match.index + match[0].length,
       });
     }
-    
+
     return matches;
   }
 
@@ -52,7 +52,7 @@ class MentionService {
    */
   getUniqueMentions(content: string): string[] {
     const mentions = this.parseMentions(content);
-    return [...new Set(mentions.map(m => m.username))];
+    return [...new Set(mentions.map((m) => m.username))];
   }
 
   /**
@@ -61,10 +61,10 @@ class MentionService {
    */
   renderWithMentions(
     content: string,
-    onMentionClick?: (username: string) => void
+    onMentionClick?: (username: string) => void,
   ): React.ReactNode[] {
     const mentions = this.parseMentions(content);
-    
+
     if (mentions.length === 0) {
       return [content];
     }
@@ -89,11 +89,12 @@ class MentionService {
               e.stopPropagation();
               onMentionClick?.(mention.username);
             },
-            className: 'text-terminal-text font-bold hover:underline cursor-pointer bg-transparent border-none p-0 inline',
+            className:
+              'text-terminal-text font-bold hover:underline cursor-pointer bg-transparent border-none p-0 inline',
             title: `View ${mention.username}'s profile`,
           },
-          mentionText
-        )
+          mentionText,
+        ),
       );
 
       lastIndex = mention.endIndex;
@@ -113,11 +114,7 @@ class MentionService {
    * @param knownUsers - Set of known usernames to search
    * @param limit - Maximum number of suggestions
    */
-  getAutocompleteSuggestions(
-    query: string,
-    knownUsers: Set<string>,
-    limit: number = 5
-  ): string[] {
+  getAutocompleteSuggestions(query: string, knownUsers: Set<string>, limit: number = 5): string[] {
     if (!query.trim()) return [];
 
     const lowerQuery = query.toLowerCase();
@@ -133,10 +130,7 @@ class MentionService {
     // If not enough prefix matches, try contains
     if (suggestions.length < limit) {
       for (const username of knownUsers) {
-        if (
-          !suggestions.includes(username) &&
-          username.toLowerCase().includes(lowerQuery)
-        ) {
+        if (!suggestions.includes(username) && username.toLowerCase().includes(lowerQuery)) {
           suggestions.push(username);
           if (suggestions.length >= limit) break;
         }
@@ -154,11 +148,11 @@ class MentionService {
    */
   detectMentionInProgress(
     text: string,
-    cursorPosition: number
+    cursorPosition: number,
   ): { query: string; startIndex: number } | null {
     // Look backwards from cursor to find @
     let startIndex = cursorPosition - 1;
-    
+
     while (startIndex >= 0) {
       const char = text[startIndex];
       if (char === undefined) break;
@@ -172,15 +166,15 @@ class MentionService {
         }
         return null;
       }
-      
+
       // Invalid character for mention - stop searching
       if (!/[a-zA-Z0-9_./]/.test(char)) {
         return null;
       }
-      
+
       startIndex--;
     }
-    
+
     return null;
   }
 
@@ -191,12 +185,12 @@ class MentionService {
     text: string,
     username: string,
     mentionStartIndex: number,
-    cursorPosition: number
+    cursorPosition: number,
   ): { newText: string; newCursorPosition: number } {
     const before = text.slice(0, mentionStartIndex);
     const after = text.slice(cursorPosition);
     const mention = `@${username} `;
-    
+
     return {
       newText: before + mention + after,
       newCursorPosition: mentionStartIndex + mention.length,

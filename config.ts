@@ -51,17 +51,17 @@ export const NostrConfig = {
   /** Default relay URLs */
   DEFAULT_RELAYS: [
     // Tier 1: Major, highly reliable relays
-    'wss://relay.damus.io',       // Damus — one of the largest and most stable
-    'wss://relay.primal.net',     // Primal — high availability, well-indexed
-    'wss://relay.nostr.band',     // nostr.band — search-indexed, very stable
-    'wss://nos.lol',              // nos.lol — reliable public relay
+    'wss://relay.damus.io', // Damus — one of the largest and most stable
+    'wss://relay.primal.net', // Primal — high availability, well-indexed
+    'wss://relay.nostr.band', // nostr.band — search-indexed, very stable
+    'wss://nos.lol', // nos.lol — reliable public relay
     // Tier 2: Well-established open relays
-    'wss://relay.snort.social',   // Snort — active relay
-    'wss://offchain.pub',         // offchain.pub — reliable, run by known dev
-    'wss://nostr.mom',            // nostr.mom — high uptime open relay
-    'wss://relay.nostr.bg',       // nostr.bg — stable European relay
-    'wss://nostr21.com',          // nostr21 — reliable community relay
-    'wss://relay.noswhere.com',   // noswhere — reliable public relay
+    'wss://relay.snort.social', // Snort — active relay
+    'wss://offchain.pub', // offchain.pub — reliable, run by known dev
+    'wss://nostr.mom', // nostr.mom — high uptime open relay
+    'wss://relay.nostr.bg', // nostr.bg — stable European relay
+    'wss://nostr21.com', // nostr21 — reliable community relay
+    'wss://relay.noswhere.com', // noswhere — reliable public relay
   ] as const,
 
   /** Maximum number of posts to fetch at once */

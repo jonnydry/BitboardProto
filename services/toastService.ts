@@ -52,7 +52,7 @@ class ToastService {
 
     if (partial.dedupeKey) {
       const recent = this.toasts.find(
-        (t) => t.dedupeKey === partial.dedupeKey && now - t.createdAt < this.DEDUPE_WINDOW_MS
+        (t) => t.dedupeKey === partial.dedupeKey && now - t.createdAt < this.DEDUPE_WINDOW_MS,
       );
       if (recent) {
         return recent;

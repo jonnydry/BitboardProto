@@ -5,13 +5,7 @@ import { Plus } from 'lucide-react';
  * Fixed compose control — lives outside the feed scroll subtree so layout/spacing of
  * end-of-feed + site footer can be tuned independently.
  */
-export function FeedNewBitFab({
-  visible,
-  onNewBit,
-}: {
-  visible: boolean;
-  onNewBit: () => void;
-}) {
+export function FeedNewBitFab({ visible, onNewBit }: { visible: boolean; onNewBit: () => void }) {
   if (!visible) return null;
 
   return (

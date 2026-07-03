@@ -142,7 +142,12 @@ interface Window {
     // The NIP-07 spec accepts an UnsignedEvent. The signature returns a
     // signed NIP07Event. We type the input loosely so callers can pass any
     // structurally-compatible object.
-    signEvent(event: { kind: number; created_at: number; tags: string[][]; content: string }): Promise<NIP07Event>;
+    signEvent(event: {
+      kind: number;
+      created_at: number;
+      tags: string[][];
+      content: string;
+    }): Promise<NIP07Event>;
     getRelays?: () => Promise<Record<string, { read: boolean; write: boolean }>>;
     nip04?: {
       encrypt(pubkey: string, plaintext: string): Promise<string>;

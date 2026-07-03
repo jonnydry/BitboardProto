@@ -383,7 +383,7 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
             type="button"
             onClick={() => setShowBitsPanel((p) => !p)}
             className="w-full flex items-center gap-2.5 md:gap-3 py-1.5 px-1 text-terminal-text hover:bg-terminal-dim/5 transition-colors"
-            title="Bits — click to learn more"
+            title="Bits — your daily scarce signal ritual (click for economy + refund details)"
           >
             <div className="flex items-center gap-2 shrink-0">
               <Zap
@@ -391,7 +391,7 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
                 className={userState.bits === 0 ? 'text-terminal-alert' : 'text-terminal-text'}
               />
               <span className="text-2xs md:text-xs uppercase tracking-wide text-terminal-dim hidden sm:inline">
-                Bits available
+                DAILY BITS
               </span>
             </div>
             <div className="flex-1 h-2 md:h-3 overflow-hidden border border-terminal-dim/30 bg-terminal-bg/70 rounded">

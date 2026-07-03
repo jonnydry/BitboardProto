@@ -6,15 +6,15 @@ BitBoard uses custom Nostr event types and tags to implement boards, posts, comm
 
 ## Event Kinds
 
-| Kind | Type | Description |
-|------|------|-------------|
-| 1 | Post/Comment | Standard Nostr text note (NIP-01) |
-| 3 | Contacts | Contact list for follows (NIP-02) |
-| 5 | Deletion | Event deletion (NIP-09) |
-| 7 | Reaction | Vote/reaction (NIP-25) |
+| Kind  | Type             | Description                                                 |
+| ----- | ---------------- | ----------------------------------------------------------- |
+| 1     | Post/Comment     | Standard Nostr text note (NIP-01)                           |
+| 3     | Contacts         | Contact list for follows (NIP-02)                           |
+| 5     | Deletion         | Event deletion (NIP-09)                                     |
+| 7     | Reaction         | Vote/reaction (NIP-25)                                      |
 | 30001 | Board Definition | Parameterized replaceable event for board metadata (NIP-33) |
-| 1984 | Report | Content reporting (NIP-56) |
-| 10002 | Relay List | User's relay list (NIP-65) |
+| 1984  | Report           | Content reporting (NIP-56)                                  |
+| 10002 | Relay List       | User's relay list (NIP-65)                                  |
 
 ## Custom Tags
 
@@ -25,6 +25,7 @@ BitBoard uses a custom `bb` (BitBoard) tag to identify event types:
 ```
 
 ### Event Types:
+
 - `post` - Original post
 - `comment` - Comment on a post
 - `post_edit` - Edit to a post
@@ -57,6 +58,7 @@ Original post on a board.
 ```
 
 **Tags:**
+
 - `bb`: `post` - Identifies as a BitBoard post
 - `client`: `bitboard` - Client identifier
 - `board`: Board ID (uppercase, e.g., `TECH`, `RANDOM`)
@@ -88,6 +90,7 @@ Comment on a post.
 ```
 
 **Tags (NIP-10):**
+
 - `e` with `root` marker: References the root post
 - `e` with `reply` marker: References the parent comment
 - `p`: Mentioned pubkeys (post/comment authors)
@@ -112,6 +115,7 @@ Upvote or downvote on a post/comment.
 ```
 
 **Content:**
+
 - `+` - Upvote
 - `-` - Downvote
 
@@ -140,6 +144,7 @@ Defines a custom board.
 ```
 
 **Tags:**
+
 - `d`: Board identifier (unique per pubkey)
 - `name`: Display name
 - `description`: Board description
@@ -228,6 +233,7 @@ Report inappropriate content (NIP-56).
 ```
 
 **Report Types:**
+
 - `spam` - Spam/commercial content
 - `illegal` - Illegal content
 - `nsfw` - Not safe for work
@@ -291,6 +297,7 @@ Report inappropriate content (NIP-56).
 ## Client Identifier
 
 All BitBoard events include:
+
 ```json
 ["client", "bitboard"]
 ```
@@ -300,6 +307,7 @@ This helps identify events created by BitBoard for filtering and analytics.
 ## Rate Limiting
 
 BitBoard implements client-side rate limiting:
+
 - Posts: 5 per minute
 - Votes: 10 per minute
 - Comments: 10 per minute
@@ -316,11 +324,13 @@ BitBoard implements client-side rate limiting:
 ## Error Handling
 
 Relays may return `OK` messages:
+
 ```json
 ["OK", "<event-id>", false, "error: reason"]
 ```
 
 Common errors:
+
 - `duplicate:` - Event already exists
 - `blocked:` - Event rejected by relay policy
 - `rate-limited:` - Too many requests
@@ -329,6 +339,7 @@ Common errors:
 ## Future Extensions
 
 Planned features:
+
 - **Polls** (NIP-69) - On-chain voting
 - **Zaps** (NIP-57) - Lightning tips for posts
 - **Long-form** (NIP-23) - Article-style posts

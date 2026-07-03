@@ -17,11 +17,7 @@
 // - p tags: Participants with roles (host, speaker, participant)
 
 import { type Event as NostrEvent } from 'nostr-tools';
-import {
-  NOSTR_KINDS,
-  type LiveEvent,
-  type UnsignedNostrEvent,
-} from '../types';
+import { NOSTR_KINDS, type LiveEvent, type UnsignedNostrEvent } from '../types';
 import { nostrService } from './nostr/NostrService';
 import { logger } from './loggingService';
 
@@ -31,7 +27,7 @@ import { logger } from './loggingService';
 
 export interface LiveChatMessage {
   id: string;
-  eventId: string;           // Live event this message belongs to
+  eventId: string; // Live event this message belongs to
   authorPubkey: string;
   content: string;
   timestamp: number;
@@ -52,7 +48,7 @@ const LIVE_CACHE_TTL_MS = 30 * 1000; // 30 seconds (live events change frequentl
 class LiveEventService {
   // Cache for live events
   private eventCache: Map<string, { event: LiveEvent; timestamp: number }> = new Map();
-  
+
   // Active chat subscriptions
   private chatSubscriptions: Map<string, string> = new Map(); // eventId -> subscriptionId
 
@@ -64,21 +60,21 @@ class LiveEventService {
    * Build a live event definition (kind 30311)
    */
   buildLiveEvent(args: {
-    id: string;                 // Unique identifier (d tag)
+    id: string; // Unique identifier (d tag)
     title: string;
     summary?: string;
     image?: string;
     streamingUrl?: string;
     status: LiveEventStatus;
-    startsAt?: number;          // Unix timestamp
-    endsAt?: number;            // Unix timestamp
+    startsAt?: number; // Unix timestamp
+    endsAt?: number; // Unix timestamp
     hashtags?: string[];
     participants?: Array<{
       pubkey: string;
       role: 'host' | 'speaker' | 'participant';
       relay?: string;
     }>;
-    pubkey: string;             // Host's pubkey
+    pubkey: string; // Host's pubkey
   }): UnsignedNostrEvent {
     const now = Math.floor(Date.now() / 1000);
     const tags: string[][] = [
@@ -138,13 +134,11 @@ class LiveEventService {
    * Build a live chat message (kind 1311)
    */
   buildLiveChatMessage(args: {
-    liveEventAddress: string;   // "30311:<pubkey>:<d>"
+    liveEventAddress: string; // "30311:<pubkey>:<d>"
     content: string;
     pubkey: string;
   }): UnsignedNostrEvent {
-    const tags: string[][] = [
-      ['a', args.liveEventAddress],
-    ];
+    const tags: string[][] = [['a', args.liveEventAddress]];
 
     // Add BitBoard client tag
     tags.push(['client', 'bitboard']);
@@ -171,14 +165,16 @@ class LiveEventService {
     }
 
     const getTag = (name: string): string | undefined => {
-      const tag = event.tags.find(t => t[0] === name);
+      const tag = event.tags.find((t) => t[0] === name);
       return tag?.[1];
     };
 
     const getAllTags = (name: string): string[] => {
       return event.tags
-        .filter((t): t is [string, string, ...string[]] => t[0] === name && typeof t[1] === 'string')
-        .map(t => t[1]);
+        .filter(
+          (t): t is [string, string, ...string[]] => t[0] === name && typeof t[1] === 'string',
+        )
+        .map((t) => t[1]);
     };
 
     const id = getTag('d');
@@ -193,7 +189,7 @@ class LiveEventService {
     // Parse participants
     const participants: LiveEvent['participants'] = event.tags
       .filter((t): t is [string, string, ...string[]] => t[0] === 'p' && typeof t[1] === 'string')
-      .map(t => ({
+      .map((t) => ({
         pubkey: t[1],
         role: (t[3] as 'host' | 'speaker' | 'participant') || 'participant',
         relay: t[2] || undefined,
@@ -227,7 +223,7 @@ class LiveEventService {
       return null;
     }
 
-    const aTag = event.tags.find(t => t[0] === 'a');
+    const aTag = event.tags.find((t) => t[0] === 'a');
     if (!aTag?.[1]) {
       return null;
     }
@@ -250,7 +246,7 @@ class LiveEventService {
    */
   async fetchLiveEvent(hostPubkey: string, eventId: string): Promise<LiveEvent | null> {
     const cacheKey = `${hostPubkey}:${eventId}`;
-    
+
     const cached = this.eventCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < LIVE_CACHE_TTL_MS) {
       return cached.event;
@@ -278,7 +274,7 @@ class LiveEventService {
   async fetchLiveNow(opts: { limit?: number } = {}): Promise<LiveEvent[]> {
     try {
       const events = await nostrService.fetchLiveEvents({ status: 'live', limit: opts.limit });
-      
+
       const liveEvents: LiveEvent[] = [];
       for (const event of events) {
         const parsed = this.parseLiveEvent(event);
@@ -300,7 +296,7 @@ class LiveEventService {
   async fetchUpcoming(opts: { limit?: number } = {}): Promise<LiveEvent[]> {
     try {
       const events = await nostrService.fetchLiveEvents({ status: 'planned', limit: opts.limit });
-      
+
       const liveEvents: LiveEvent[] = [];
       for (const event of events) {
         const parsed = this.parseLiveEvent(event);
@@ -323,7 +319,7 @@ class LiveEventService {
   async fetchPastEvents(opts: { limit?: number } = {}): Promise<LiveEvent[]> {
     try {
       const events = await nostrService.fetchLiveEvents({ status: 'ended', limit: opts.limit });
-      
+
       const liveEvents: LiveEvent[] = [];
       for (const event of events) {
         const parsed = this.parseLiveEvent(event);
@@ -347,13 +343,16 @@ class LiveEventService {
   /**
    * Fetch chat messages for a live event
    */
-  async fetchChatMessages(liveEventAddress: string, opts: {
-    limit?: number;
-    since?: number;
-  } = {}): Promise<LiveChatMessage[]> {
+  async fetchChatMessages(
+    liveEventAddress: string,
+    opts: {
+      limit?: number;
+      since?: number;
+    } = {},
+  ): Promise<LiveChatMessage[]> {
     try {
       const events = await nostrService.fetchLiveChatMessages(liveEventAddress, opts);
-      
+
       const messages: LiveChatMessage[] = [];
       for (const event of events) {
         const parsed = this.parseLiveChatMessage(event);
@@ -375,7 +374,7 @@ class LiveEventService {
    */
   subscribeToChatMessages(
     liveEventAddress: string,
-    onMessage: (message: LiveChatMessage) => void
+    onMessage: (message: LiveChatMessage) => void,
   ): () => void {
     // Unsubscribe from any existing subscription for this event
     const existingSubId = this.chatSubscriptions.get(liveEventAddress);
@@ -390,7 +389,7 @@ class LiveEventService {
         if (message) {
           onMessage(message);
         }
-      }
+      },
     );
 
     this.chatSubscriptions.set(liveEventAddress, subscriptionId);

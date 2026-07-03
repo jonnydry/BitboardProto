@@ -172,4 +172,25 @@ describe('CryptoService', () => {
     const service = new CryptoService();
     expect(service.isAvailable()).toBe(true);
   });
+
+  it('uses OWASP-recommended PBKDF2 iteration count (600k) when deriving a key', async () => {
+    // Spy on crypto.subtle.deriveKey to capture the iteration count actually
+    // passed by deriveKeyFromPassphrase. This guards against accidental
+    // downgrades below the OWASP 2023 minimum (600k for PBKDF2-SHA256).
+    const deriveKeySpy = vi.fn((_params: unknown, _baseKey: unknown, _deriveParams: unknown) =>
+      Promise.resolve({} as CryptoKey),
+    );
+    const original = crypto.subtle.deriveKey;
+    crypto.subtle.deriveKey = deriveKeySpy as typeof crypto.subtle.deriveKey;
+    try {
+      const service = new CryptoService();
+      await service.deriveKeyFromPassphrase('correct-horse-battery-staple');
+      expect(deriveKeySpy).toHaveBeenCalledTimes(1);
+      const call = deriveKeySpy.mock.calls[0]!;
+      const params = call[0] as { iterations?: number };
+      expect(params.iterations).toBeGreaterThanOrEqual(600_000);
+    } finally {
+      crypto.subtle.deriveKey = original;
+    }
+  });
 });

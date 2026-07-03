@@ -36,7 +36,7 @@ export class NostrProfileCache {
     this.getReadRelays = args.getReadRelays;
     this.ttlMs = args.ttlMs ?? 6 * 60 * 60 * 1000; // 6 hours
     this.maxCount = args.maxCount ?? 2000;
-    
+
     // Load cached profiles from localStorage
     this.loadFromStorage();
   }
@@ -50,7 +50,7 @@ export class NostrProfileCache {
   private loadFromStorage(): void {
     try {
       if (typeof localStorage === 'undefined') return;
-      
+
       const stored = localStorage.getItem(PROFILE_CACHE_KEY);
       if (!stored) return;
 
@@ -104,7 +104,7 @@ export class NostrProfileCache {
       logger.debug('ProfileCache', `Saved ${this.profileCache.size} profiles to localStorage`);
     } catch (e) {
       logger.warn('ProfileCache', 'Failed to save to localStorage', e);
-      
+
       // Handle quota exceeded
       if (e instanceof Error && e.name === 'QuotaExceededError') {
         logger.warn('ProfileCache', 'Storage quota exceeded, clearing old cache');
@@ -143,7 +143,7 @@ export class NostrProfileCache {
       this.profileCache.clear();
       this.clearStorage();
     }
-    
+
     // Schedule save after clearing
     this.scheduleSave();
   }
@@ -161,7 +161,7 @@ export class NostrProfileCache {
       const [pubkey] = entry;
       this.profileCache.delete(pubkey);
     }
-    
+
     // Schedule save after eviction
     this.scheduleSave();
   }
@@ -182,7 +182,8 @@ export class NostrProfileCache {
       if (!raw || typeof raw !== 'object') return null;
 
       const obj = raw as Record<string, unknown>;
-      const getTrimmedString = (key: string) => (typeof obj[key] === 'string' ? obj[key].trim() : undefined);
+      const getTrimmedString = (key: string) =>
+        typeof obj[key] === 'string' ? obj[key].trim() : undefined;
 
       const name = getTrimmedString('name');
       const displayNameRaw = getTrimmedString('display_name');
@@ -195,7 +196,10 @@ export class NostrProfileCache {
       const lud16 = getTrimmedString('lud16');
 
       const displayName =
-        displayNameRaw || name || (nip05 ? nip05.split('@')[0] : '') || `${event.pubkey.slice(0, 8)}...`;
+        displayNameRaw ||
+        name ||
+        (nip05 ? nip05.split('@')[0] : '') ||
+        `${event.pubkey.slice(0, 8)}...`;
 
       return {
         pubkey: event.pubkey,
@@ -216,7 +220,10 @@ export class NostrProfileCache {
     }
   }
 
-  async fetchProfiles(pubkeys: string[], opts: { force?: boolean } = {}): Promise<Map<string, NostrProfileMetadata>> {
+  async fetchProfiles(
+    pubkeys: string[],
+    opts: { force?: boolean } = {},
+  ): Promise<Map<string, NostrProfileMetadata>> {
     const unique = Array.from(new Set(pubkeys.filter(Boolean)));
     const result = new Map<string, NostrProfileMetadata>();
 
@@ -247,7 +254,10 @@ export class NostrProfileCache {
     return result;
   }
 
-  private async fetchProfile(pubkey: string, opts: { force?: boolean } = {}): Promise<NostrProfileMetadata | null> {
+  private async fetchProfile(
+    pubkey: string,
+    opts: { force?: boolean } = {},
+  ): Promise<NostrProfileMetadata | null> {
     if (!pubkey) return null;
 
     if (!opts.force) {
@@ -298,7 +308,7 @@ export class NostrProfileCache {
     this.inFlightProfiles.set(pubkey, p);
     return p;
   }
-  
+
   /**
    * Cleanup method to save immediately before unload
    */
@@ -309,10 +319,3 @@ export class NostrProfileCache {
     this.saveToStorage();
   }
 }
-
-
-
-
-
-
-

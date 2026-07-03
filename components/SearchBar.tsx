@@ -167,9 +167,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         {/* Status indicators */}
         <div className="absolute right-2 flex items-center gap-1">
           {isSearching && (
-            <span className="text-2xs text-terminal-dim uppercase animate-pulse">
-              Searching...
-            </span>
+            <span className="text-2xs text-terminal-dim uppercase animate-pulse">Searching...</span>
           )}
           {query && !isSearching && (
             <button

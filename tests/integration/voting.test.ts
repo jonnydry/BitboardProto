@@ -19,16 +19,19 @@ describe('Voting Integration', () => {
     // Mock vote fetching
     vi.mocked(votingService.fetchVotesForPosts).mockResolvedValue(
       new Map([
-        ['event-1', {
-          postId: 'event-1',
-          upvotes: 5,
-          downvotes: 1,
-          score: 4,
-          uniqueVoters: 6,
-          votes: new Map(),
-          lastUpdated: Date.now(),
-        }],
-      ])
+        [
+          'event-1',
+          {
+            postId: 'event-1',
+            upvotes: 5,
+            downvotes: 1,
+            score: 4,
+            uniqueVoters: 6,
+            votes: new Map(),
+            lastUpdated: Date.now(),
+          },
+        ],
+      ]),
     );
 
     const voteTallies = await votingService.fetchVotesForPosts(['event-1']);
@@ -42,7 +45,7 @@ describe('Voting Integration', () => {
 
   it('handles voting on posts without Nostr event ID', () => {
     const post = createMockPost({ id: 'local-post', nostrEventId: undefined });
-    
+
     // Local posts without Nostr event ID should not fetch votes
     expect(post.nostrEventId).toBeUndefined();
   });

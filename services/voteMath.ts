@@ -36,7 +36,10 @@ export interface VoteRollback {
  * Calculate bit cost for a vote action.
  * Returns the bit cost (positive = spend, negative = refund, 0 = free)
  */
-export function computeBitCost(previousVote: 'up' | 'down' | null, newDirection: 'up' | 'down'): number {
+export function computeBitCost(
+  previousVote: 'up' | 'down' | null,
+  newDirection: 'up' | 'down',
+): number {
   if (previousVote === newDirection) {
     // Retracting vote - refund bit
     return -1;
@@ -56,7 +59,10 @@ export function computeBitCost(previousVote: 'up' | 'down' | null, newDirection:
  * - Switching direction: +/-2
  * - Retracting: -/+1
  */
-export function computeVoteScoreDelta(previousDirection: 'up' | 'down' | null, newDirection: 'up' | 'down'): number {
+export function computeVoteScoreDelta(
+  previousDirection: 'up' | 'down' | null,
+  newDirection: 'up' | 'down',
+): number {
   if (previousDirection === newDirection) {
     // Retract vote
     return newDirection === 'up' ? -1 : 1;
@@ -80,7 +86,7 @@ export function computeOptimisticUpdate(
   newDirection: 'up' | 'down',
   currentBits: number,
   currentVotedPosts: Record<string, 'up' | 'down'>,
-  postId: string
+  postId: string,
 ): OptimisticVoteUpdate {
   const bitCost = computeBitCost(currentVote, newDirection);
   const scoreDelta = computeVoteScoreDelta(currentVote, newDirection);
@@ -118,7 +124,7 @@ export function computeOptimisticUpdate(
 export function computeRollback(
   optimisticUpdate: OptimisticVoteUpdate,
   originalVotedPosts: Record<string, 'up' | 'down'>,
-  postId: string
+  postId: string,
 ): VoteRollback {
   // To revert, subtract the bitCost (reverses the optimistic change)
   const bitAdjustment = -optimisticUpdate.bitCost;

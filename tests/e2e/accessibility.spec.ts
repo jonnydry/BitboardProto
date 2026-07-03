@@ -2,7 +2,9 @@ import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
 test.describe('Accessibility Tests', () => {
-  test('should not have any automatically detectable accessibility issues on homepage', async ({ page }) => {
+  test('should not have any automatically detectable accessibility issues on homepage', async ({
+    page,
+  }) => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
@@ -49,12 +51,12 @@ test.describe('Accessibility Tests', () => {
       headings.map(async (h) => {
         const tagName = await h.evaluate((el) => el.tagName);
         return parseInt(tagName.replace('H', ''));
-      })
+      }),
     );
 
     // Check for skipped levels
     for (let i = 1; i < levels.length; i++) {
-      const diff = levels[i] - levels[i - 1];
+      const diff = levels[i]! - levels[i - 1]!;
       expect(diff).toBeLessThanOrEqual(1); // Should not skip heading levels
     }
   });
@@ -85,9 +87,7 @@ test.describe('Accessibility Tests', () => {
       const ariaLabelledby = await button.getAttribute('aria-labelledby');
 
       // Button should have either text content, aria-label, or aria-labelledby
-      expect(
-        (text && text.trim() !== '') || ariaLabel || ariaLabelledby
-      ).toBeTruthy();
+      expect((text && text.trim() !== '') || ariaLabel || ariaLabelledby).toBeTruthy();
     }
   });
 });

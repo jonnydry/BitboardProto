@@ -116,9 +116,7 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
           if (cancelled || reqId !== hydrateRequestRef.current) return;
           setPosts((prev) =>
             prev.map((p) =>
-              p.authorPubkey
-                ? { ...p, author: nostrService.getDisplayName(p.authorPubkey) }
-                : p,
+              p.authorPubkey ? { ...p, author: nostrService.getDisplayName(p.authorPubkey) } : p,
             ),
           );
         }
@@ -368,8 +366,8 @@ export const Bookmarks: React.FC<BookmarksProps> = ({
             <Loader2 size={40} className="animate-spin text-terminal-text opacity-60" />
             <p className="text-sm font-bold uppercase tracking-wide">Loading saved posts…</p>
             <p className="text-xs max-w-sm">
-              Fetching from relays (saved bits can drop out of the feed cache while bookmarks stay on
-              this device).
+              Fetching from relays (saved bits can drop out of the feed cache while bookmarks stay
+              on this device).
             </p>
           </div>
         ) : (

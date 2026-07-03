@@ -45,7 +45,6 @@ export function SEOHead({
       <meta name="description" content={description} />
       {author && <meta name="author" content={author} />}
       {tags.length > 0 && <meta name="keywords" content={tags.join(', ')} />}
-
       {/* Open Graph / Facebook */}
       <meta property="og:type" content={type} />
       <meta property="og:title" content={fullTitle} />
@@ -53,7 +52,6 @@ export function SEOHead({
       <meta property="og:image" content={fullImage} />
       <meta property="og:url" content={fullUrl} />
       <meta property="og:site_name" content={SITE_NAME} />
-
       {/* Article-specific OG tags */}
       {type === 'article' && publishedTime && (
         <meta property="article:published_time" content={publishedTime} />
@@ -61,25 +59,21 @@ export function SEOHead({
       {type === 'article' && author && <meta property="article:author" content={author} />}
       {type === 'article' &&
         tags.map((tag) => <meta key={tag} property="article:tag" content={tag} />)}
-
       {/* Twitter Card */}
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:site" content={TWITTER_HANDLE} />
       <meta name="twitter:title" content={fullTitle} />
       <meta name="twitter:description" content={description} />
       <meta name="twitter:image" content={fullImage} />
-
       {/* Additional meta tags */}
       <meta name="robots" content="index, follow" />
       <meta name="googlebot" content="index, follow" />
       <link rel="canonical" href={fullUrl} />
-
       {/* PWA tags */}
       <meta name="apple-mobile-web-app-capable" content="yes" />
       <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       <meta name="apple-mobile-web-app-title" content={SITE_NAME} />
       <meta name="theme-color" content="#00ff00" />
-
       {/* Nostr-specific meta tags */}
       <meta name="nostr:npub" content="" /> {/* Add your npub here */}
     </Helmet>
@@ -109,10 +103,7 @@ export function getPostSEO(post: {
 /**
  * Generate SEO props for a board
  */
-export function getBoardSEO(board: {
-  name: string;
-  description: string;
-}): SEOHeadProps {
+export function getBoardSEO(board: { name: string; description: string }): SEOHeadProps {
   return {
     title: board.name,
     description: board.description,

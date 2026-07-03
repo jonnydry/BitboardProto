@@ -17,61 +17,65 @@ interface DecryptionState {
  * Uses async decryption with loading state and caching to prevent re-decryption
  * Tracks decryption failures and provides option to remove invalid keys
  */
-export function usePostDecryption(
-  posts: Post[],
-  boardsById: Map<string, Board>
-): DecryptionState {
-  const [decryptedCache, setDecryptedCache] = useState<Map<string, { title: string; content: string }>>(new Map());
-  const [decryptedCommentCache, setDecryptedCommentCache] = useState<Map<string, string>>(new Map());
+export function usePostDecryption(posts: Post[], boardsById: Map<string, Board>): DecryptionState {
+  const [decryptedCache, setDecryptedCache] = useState<
+    Map<string, { title: string; content: string }>
+  >(new Map());
+  const [decryptedCommentCache, setDecryptedCommentCache] = useState<Map<string, string>>(
+    new Map(),
+  );
   const [failedBoardIds, setFailedBoardIds] = useState<Set<string>>(new Set());
-  
+
   // Track which posts/comments we've already attempted to decrypt to avoid re-processing
   const processedPostsRef = useRef<Set<string>>(new Set());
   const processedCommentsRef = useRef<Set<string>>(new Set());
   const notifiedBoardsRef = useRef<Set<string>>(new Set());
 
   // Function to remove a failed key and retry
-  const removeFailedKey = useCallback((boardId: string) => {
-    encryptedBoardService.removeBoardKey(boardId);
-    
-    // Clear the failure tracking so we don't show error again
-    setFailedBoardIds(prev => {
-      const next = new Set(prev);
-      next.delete(boardId);
-      return next;
-    });
-    
-    // Clear processed posts for this board so they can be retried with new key
-    const postsToRetry = posts.filter(p => p.boardId === boardId);
-    postsToRetry.forEach(p => {
-      processedPostsRef.current.delete(p.id);
-      setDecryptedCache(prev => {
-        const next = new Map(prev);
-        next.delete(p.id);
+  const removeFailedKey = useCallback(
+    (boardId: string) => {
+      encryptedBoardService.removeBoardKey(boardId);
+
+      // Clear the failure tracking so we don't show error again
+      setFailedBoardIds((prev) => {
+        const next = new Set(prev);
+        next.delete(boardId);
         return next;
       });
-    });
-    
-    notifiedBoardsRef.current.delete(boardId);
-    
-    toastService.push({
-      type: 'success',
-      message: 'Encryption key removed',
-      detail: 'You can import a new share link for this board',
-      durationMs: UIConfig.TOAST_DURATION_MS,
-      dedupeKey: `key-removed-${boardId}`,
-    });
-  }, [posts]);
+
+      // Clear processed posts for this board so they can be retried with new key
+      const postsToRetry = posts.filter((p) => p.boardId === boardId);
+      postsToRetry.forEach((p) => {
+        processedPostsRef.current.delete(p.id);
+        setDecryptedCache((prev) => {
+          const next = new Map(prev);
+          next.delete(p.id);
+          return next;
+        });
+      });
+
+      notifiedBoardsRef.current.delete(boardId);
+
+      toastService.push({
+        type: 'success',
+        message: 'Encryption key removed',
+        detail: 'You can import a new share link for this board',
+        durationMs: UIConfig.TOAST_DURATION_MS,
+        dedupeKey: `key-removed-${boardId}`,
+      });
+    },
+    [posts],
+  );
 
   useEffect(() => {
     // Find posts that need decryption (encrypted and not yet processed)
     const postsToDecrypt = posts.filter((post) => {
       if (!post.isEncrypted) return false;
       if (processedPostsRef.current.has(post.id)) return false;
-      
+
       const board = boardsById.get(post.boardId);
       if (!board?.isEncrypted) return false;
-      
+
       const boardKey = encryptedBoardService.getBoardKey(post.boardId);
       return !!boardKey;
     });
@@ -87,7 +91,11 @@ export function usePostDecryption(
 
       const collectEncryptedComments = (comments: Comment[]) => {
         comments.forEach((comment) => {
-          if (comment.isEncrypted && comment.encryptedContent && !processedCommentsRef.current.has(comment.id)) {
+          if (
+            comment.isEncrypted &&
+            comment.encryptedContent &&
+            !processedCommentsRef.current.has(comment.id)
+          ) {
             commentsToDecrypt.push({ postId: post.boardId, comment });
           }
           if (comment.replies) {
@@ -113,17 +121,23 @@ export function usePostDecryption(
       try {
         // Mark as processed immediately to prevent re-attempts
         processedPostsRef.current.add(post.id);
-        
+
         // Only decrypt if we have encrypted fields
         let decryptedTitle = post.title;
         let decryptedContent = post.content;
-        
+
         if (post.encryptedTitle) {
-          decryptedTitle = await encryptedBoardService.decryptContent(post.encryptedTitle, boardKey);
+          decryptedTitle = await encryptedBoardService.decryptContent(
+            post.encryptedTitle,
+            boardKey,
+          );
         }
-        
+
         if (post.encryptedContent) {
-          decryptedContent = await encryptedBoardService.decryptContent(post.encryptedContent, boardKey);
+          decryptedContent = await encryptedBoardService.decryptContent(
+            post.encryptedContent,
+            boardKey,
+          );
         }
 
         return {
@@ -151,8 +165,11 @@ export function usePostDecryption(
       try {
         // Mark as processed immediately
         processedCommentsRef.current.add(comment.id);
-        
-        const decrypted = await encryptedBoardService.decryptContent(comment.encryptedContent!, boardKey);
+
+        const decrypted = await encryptedBoardService.decryptContent(
+          comment.encryptedContent!,
+          boardKey,
+        );
         return { commentId: comment.id, content: decrypted };
       } catch (error) {
         logger.error('usePostDecryption', 'Failed to decrypt comment', error);
@@ -164,10 +181,10 @@ export function usePostDecryption(
       const newPostCache = new Map(decryptedCache);
       const newCommentCache = new Map(decryptedCommentCache);
       const newFailedBoards = new Set<string>();
-      
+
       results.forEach((result) => {
         if (!result) return;
-        
+
         if ('postId' in result && 'success' in result) {
           // Post decryption result
           if (result.success && 'title' in result && 'content' in result) {
@@ -183,22 +200,25 @@ export function usePostDecryption(
           newCommentCache.set(result.commentId, result.content ?? '');
         }
       });
-      
+
       // Update caches if changed
-      if (newPostCache.size !== decryptedCache.size || newCommentCache.size !== decryptedCommentCache.size) {
+      if (
+        newPostCache.size !== decryptedCache.size ||
+        newCommentCache.size !== decryptedCommentCache.size
+      ) {
         setDecryptedCache(newPostCache);
         setDecryptedCommentCache(newCommentCache);
       }
-      
+
       // Track and notify about failures
       if (newFailedBoards.size > 0) {
-        setFailedBoardIds(prev => {
+        setFailedBoardIds((prev) => {
           const combined = new Set([...prev, ...newFailedBoards]);
           return combined;
         });
-        
+
         // Show toast for new failures (only once per board)
-        newFailedBoards.forEach(boardId => {
+        newFailedBoards.forEach((boardId) => {
           if (!notifiedBoardsRef.current.has(boardId)) {
             notifiedBoardsRef.current.add(boardId);
             const board = boardsById.get(boardId);
@@ -267,4 +287,3 @@ export function usePostDecryption(
     removeFailedKey,
   };
 }
-

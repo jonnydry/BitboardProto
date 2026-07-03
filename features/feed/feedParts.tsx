@@ -112,10 +112,7 @@ export const FeedLoaderRow: React.FC<{
 }> = (props) => {
   const { loaderRef, isLoadingMore, hasMorePosts, postCount, style } = props;
   const endOfFeed = !hasMorePosts && postCount > 0;
-  const rowPad =
-    endOfFeed && !isLoadingMore
-      ? 'pt-6 pb-0 md:py-2 md:pb-0 md:mb-0 mb-4'
-      : 'py-4';
+  const rowPad = endOfFeed && !isLoadingMore ? 'pt-6 pb-0 md:py-2 md:pb-0 md:mb-0 mb-4' : 'py-4';
 
   return (
     <div ref={loaderRef} style={style} className={rowPad}>

@@ -68,14 +68,17 @@ This generates `dist/stats.html` with a visual breakdown of bundle sizes.
 Vercel provides the easiest deployment experience for React SPAs.
 
 1. **Install Vercel CLI** (optional):
+
    ```bash
    npm i -g vercel
    ```
 
 2. **Deploy**:
+
    ```bash
    vercel
    ```
+
    Or connect your GitHub repository in the Vercel dashboard.
 
 3. **Configure Environment Variables**:
@@ -126,6 +129,7 @@ Vercel provides the easiest deployment experience for React SPAs.
 
 1. **Update `vite.config.ts`**:
    Set `base` to your repository name:
+
    ```typescript
    base: '/your-repo-name/',
    ```
@@ -158,16 +162,19 @@ Vercel provides the easiest deployment experience for React SPAs.
 ### Option 5: Docker
 
 1. **Build Docker Image**:
+
    ```bash
    docker build -t bitboard:latest .
    ```
 
 2. **Run Container**:
+
    ```bash
    docker run -d -p 80:80 --name bitboard bitboard:latest
    ```
 
 3. **With Environment Variables**:
+
    ```bash
    docker run -d -p 80:80 \
      -e VITE_GEMINI_API_KEY=your_key_here \
@@ -182,6 +189,7 @@ Vercel provides the easiest deployment experience for React SPAs.
 ### Option 6: Traditional Web Server (Nginx/Apache)
 
 1. **Build the application**:
+
    ```bash
    npm ci
    npm run build:prod
@@ -262,16 +270,7 @@ To enable automatic deployment, configure your hosting platform to deploy on suc
 ## Support
 
 For deployment issues, check:
+
 - [Architecture Documentation](architecture.md)
 - [Services Documentation](services.md)
 - GitHub Issues
-
-
-
-
-
-
-
-
-
-

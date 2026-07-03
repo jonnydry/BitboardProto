@@ -19,9 +19,5 @@ export const MentionText: React.FC<MentionTextProps> = ({
     return mentionService.renderWithMentions(content, onMentionClick);
   }, [content, onMentionClick]);
 
-  return (
-    <span className={className}>
-      {renderedContent}
-    </span>
-  );
+  return <span className={className}>{renderedContent}</span>;
 };

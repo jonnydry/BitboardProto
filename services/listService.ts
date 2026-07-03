@@ -15,10 +15,7 @@
 // Private entries are encrypted in the content field.
 
 import { type Event as NostrEvent } from 'nostr-tools';
-import {
-  type NostrList,
-  type UnsignedNostrEvent,
-} from '../types';
+import { type NostrList, type UnsignedNostrEvent } from '../types';
 import { nostrService } from './nostr/NostrService';
 import { logger } from './loggingService';
 
@@ -53,7 +50,7 @@ export const LIST_KINDS = {
 class ListService {
   // Cache for user lists
   private listCache: Map<string, { list: NostrList; timestamp: number }> = new Map();
-  
+
   // Current user's pubkey
   private userPubkey: string | null = null;
 
@@ -80,12 +77,12 @@ class ListService {
    */
   buildListEvent(args: {
     kind: number;
-    name?: string;            // For parameterized lists (d tag)
-    pubkeys?: string[];       // p tags
-    eventIds?: string[];      // e tags
-    addresses?: string[];     // a tags (parameterized replaceable)
-    hashtags?: string[];      // t tags
-    privateContent?: string;  // Encrypted private entries
+    name?: string; // For parameterized lists (d tag)
+    pubkeys?: string[]; // p tags
+    eventIds?: string[]; // e tags
+    addresses?: string[]; // a tags (parameterized replaceable)
+    hashtags?: string[]; // t tags
+    privateContent?: string; // Encrypted private entries
     pubkey: string;
   }): UnsignedNostrEvent {
     const tags: string[][] = [];
@@ -135,10 +132,7 @@ class ListService {
   /**
    * Build a mute list event (kind 10000)
    */
-  buildMuteList(args: {
-    pubkeys: string[];
-    pubkey: string;
-  }): UnsignedNostrEvent {
+  buildMuteList(args: { pubkeys: string[]; pubkey: string }): UnsignedNostrEvent {
     return this.buildListEvent({
       kind: LIST_KINDS.MUTE,
       pubkeys: args.pubkeys,
@@ -168,7 +162,7 @@ class ListService {
    * Build a categorized bookmarks list (kind 30001)
    */
   buildCategorizedBookmarks(args: {
-    name: string;             // List name (d tag)
+    name: string; // List name (d tag)
     eventIds: string[];
     hashtags?: string[];
     pubkey: string;
@@ -186,7 +180,7 @@ class ListService {
    * Build a categorized people list (kind 30000) - "follow packs"
    */
   buildCategorizedPeople(args: {
-    name: string;             // List name (d tag)
+    name: string; // List name (d tag)
     pubkeys: string[];
     pubkey: string;
   }): UnsignedNostrEvent {
@@ -207,14 +201,16 @@ class ListService {
    */
   parseListEvent(event: NostrEvent): NostrList {
     const getTag = (name: string): string | undefined => {
-      const tag = event.tags.find(t => t[0] === name);
+      const tag = event.tags.find((t) => t[0] === name);
       return tag?.[1];
     };
 
     const getAllTags = (name: string): string[] => {
       return event.tags
-        .filter((t): t is [string, string, ...string[]] => t[0] === name && typeof t[1] === 'string')
-        .map(t => t[1]);
+        .filter(
+          (t): t is [string, string, ...string[]] => t[0] === name && typeof t[1] === 'string',
+        )
+        .map((t) => t[1]);
     };
 
     return {
@@ -238,7 +234,7 @@ class ListService {
    */
   async fetchMuteList(pubkey: string): Promise<NostrList | null> {
     const cacheKey = `mute:${pubkey}`;
-    
+
     const cached = this.listCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < LIST_CACHE_TTL_MS) {
       return cached.list;
@@ -262,7 +258,7 @@ class ListService {
    */
   async fetchBookmarks(pubkey: string): Promise<NostrList | null> {
     const cacheKey = `bookmarks:${pubkey}`;
-    
+
     const cached = this.listCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < LIST_CACHE_TTL_MS) {
       return cached.list;
@@ -286,7 +282,7 @@ class ListService {
    */
   async fetchNamedList(pubkey: string, kind: number, name: string): Promise<NostrList | null> {
     const cacheKey = `${kind}:${pubkey}:${name}`;
-    
+
     const cached = this.listCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < LIST_CACHE_TTL_MS) {
       return cached.list;
@@ -311,7 +307,7 @@ class ListService {
   async fetchAllNamedLists(pubkey: string, kind: number): Promise<NostrList[]> {
     try {
       const events = await nostrService.fetchAllNamedLists(pubkey, kind);
-      return events.map(e => this.parseListEvent(e));
+      return events.map((e) => this.parseListEvent(e));
     } catch (error) {
       logger.error('List', 'Failed to fetch all named lists', error);
       return [];
@@ -327,7 +323,7 @@ class ListService {
    */
   async isMuted(pubkey: string): Promise<boolean> {
     if (!this.userPubkey) return false;
-    
+
     const muteList = await this.fetchMuteList(this.userPubkey);
     return muteList?.pubkeys.includes(pubkey) ?? false;
   }
@@ -337,7 +333,7 @@ class ListService {
    */
   async isBookmarked(eventId: string): Promise<boolean> {
     if (!this.userPubkey) return false;
-    
+
     const bookmarks = await this.fetchBookmarks(this.userPubkey);
     return bookmarks?.eventIds.includes(eventId) ?? false;
   }
@@ -347,7 +343,7 @@ class ListService {
    */
   async getMutedPubkeys(): Promise<string[]> {
     if (!this.userPubkey) return [];
-    
+
     const muteList = await this.fetchMuteList(this.userPubkey);
     return muteList?.pubkeys ?? [];
   }
@@ -357,7 +353,7 @@ class ListService {
    */
   async getBookmarkedEventIds(): Promise<string[]> {
     if (!this.userPubkey) return [];
-    
+
     const bookmarks = await this.fetchBookmarks(this.userPubkey);
     return bookmarks?.eventIds ?? [];
   }
@@ -390,19 +386,19 @@ class ListService {
     if (mutedPubkeys.length === 0) return posts;
 
     const mutedSet = new Set(mutedPubkeys);
-    return posts.filter(p => !p.authorPubkey || !mutedSet.has(p.authorPubkey));
+    return posts.filter((p) => !p.authorPubkey || !mutedSet.has(p.authorPubkey));
   }
 
   /**
    * Mark which posts are bookmarked
    */
   async markBookmarkedPosts<T extends { nostrEventId?: string }>(
-    posts: T[]
+    posts: T[],
   ): Promise<Array<T & { isBookmarked: boolean }>> {
     const bookmarkedIds = await this.getBookmarkedEventIds();
     const bookmarkedSet = new Set(bookmarkedIds);
 
-    return posts.map(p => ({
+    return posts.map((p) => ({
       ...p,
       isBookmarked: p.nostrEventId ? bookmarkedSet.has(p.nostrEventId) : false,
     }));
@@ -437,7 +433,7 @@ class ListService {
    */
   invalidateUserLists(): void {
     if (!this.userPubkey) return;
-    
+
     // Clear all entries for current user
     const keysToDelete: string[] = [];
     for (const key of this.listCache.keys()) {
@@ -445,7 +441,7 @@ class ListService {
         keysToDelete.push(key);
       }
     }
-    keysToDelete.forEach(k => this.listCache.delete(k));
+    keysToDelete.forEach((k) => this.listCache.delete(k));
   }
 }
 

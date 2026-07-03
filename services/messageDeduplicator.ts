@@ -16,8 +16,8 @@
 // ============================================
 
 export const DeduplicatorConfig = {
-  MAX_AGE_MS: 5 * 60 * 1000,  // 5 minutes (matches BitChat)
-  MAX_COUNT: 1000,            // Max entries to track
+  MAX_AGE_MS: 5 * 60 * 1000, // 5 minutes (matches BitChat)
+  MAX_COUNT: 1000, // Max entries to track
   CLEANUP_INTERVAL_MS: 60 * 1000, // Cleanup every minute
 } as const;
 
@@ -159,7 +159,7 @@ class MessageDeduplicator {
   private startCleanup(): void {
     this.cleanupInterval = setInterval(() => {
       this.cleanupOldEntries();
-      
+
       // Shrink capacity if way over-allocated
       if (this.entries.length > 0 && this.entries.length < DeduplicatorConfig.MAX_COUNT / 2) {
         // Let the array naturally shrink on next operations
@@ -239,9 +239,3 @@ export const voteDeduplicator = new VoteDeduplicator();
 
 // Export class for custom instances
 export { MessageDeduplicator, NostrEventDeduplicator, VoteDeduplicator };
-
-
-
-
-
-

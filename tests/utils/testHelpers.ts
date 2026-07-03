@@ -75,7 +75,7 @@ export function createMockPost(overrides?: Partial<Post>): Post {
  * Wait for a specified amount of time (for async testing)
  */
 export function wait(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**

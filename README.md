@@ -4,13 +4,17 @@ BitBoard is a terminal-styled message board built on the **Nostr** protocol. Cre
 
 ### Features
 
-- **Posts + boards**: topic boards and geohash-based location channels
-- **Comments**: threaded discussions with edit/delete support
-- **Voting**: Nostr reactions (kind 7) + local score math
-- **Encryption**: AES-256-GCM encrypted boards for private discussions
-- **Offline-friendly**: local caching and queued publishes
-- **Performance**: feed virtualization for large timelines
-- **Diagnostics**: local-only relay/queue diagnostics panel
+- **Posts + boards**: topic boards and geohash-based location channels (BitChat heritage)
+- **Comments**: threaded discussions with edit/delete support (companion events)
+- **Unique Voting (the niche)**: Hybrid "bits" economy (daily local quota for deliberate signal) + cryptographically verified Nostr kind-7 reactions (1 vote per pubkey per item, uniqueVoters tallies, optimistic + rollbacks). Skin in the game without tokens.
+- **Encryption**: AES-256-GCM encrypted boards for private discussions (keys only via shareable URL fragments + localStorage)
+- **Location / GEO**: Generated precision geohash boards + nearby activity discovery (geonet). "Local channels" today on Nostr; natural bridge to mesh.
+- **Offline-friendly**: local caching, persisted message queue, post outbox, PWA service worker
+- **Nostr-native + extras**: Broad NIP support (zaps, badges, communities, lists, profiles, reports...), seeding from external Nostr, WoT, advanced search worker
+- **Production**: Full monitoring (Sentry/PostHog/Web Vitals), E2E + a11y, keyboard shortcuts, onboarding, relay health/circuit breakers (BitChat-inspired resilience)
+- **Performance & DX**: Feed virtualization, diagnostics panel, strict-capable TS, bundle analysis
+
+The terminal CLI aesthetic + scarce bits for ranking + geohash location scoping make BitBoard a distinctive high-signal Nostr board client — and a stepping stone toward true Bluetooth mesh hybrid (see docs for vision).
 
 ### Quickstart
 
@@ -61,17 +65,19 @@ npm run format           # Format code with Prettier
 ### Project Structure
 
 ```
-├── AppNew.tsx              # Main app component (context-based)
+├── App.tsx                 # Main app (uses features/layout context + Zustand stores)
 ├── features/                # Feature-level UI
 │   ├── feed/               # Feed view components
-│   └── layout/             # Layout components (header, sidebar, context)
+│   └── layout/             # Layout components (header, sidebar, context + handlers)
 ├── components/              # Reusable UI components
-├── hooks/                   # React hooks (feed, voting, routing)
-├── services/                # Business logic (Nostr, identity, encryption)
-├── tests/                   # Test files
-│   ├── components/         # Component tests
-│   ├── integration/        # Integration tests
-│   └── utils/              # Test utilities
+├── hooks/                   # React hooks (feed, voting, routing, decryption)
+├── services/                # Business logic (Nostr + 60+ singletons, workers)
+├── stores/                  # Zustand (user, post w/ LRU, board, ui)
+├── tests/                   # Test files (53+ including e2e + services coverage)
+│   ├── components/
+│   ├── services/
+│   ├── integration/
+│   └── e2e/
 └── docs/                    # Documentation
 ```
 

@@ -332,7 +332,8 @@ class VotingService {
 
     const removeCount = this.voteTallies.size - this.MAX_CACHE_SIZE;
     for (let i = 0; i < removeCount; i++) {
-      this.voteTallies.delete(entries[i][0]);
+      const entry = entries[i];
+      if (entry) this.voteTallies.delete(entry[0]);
     }
   }
 

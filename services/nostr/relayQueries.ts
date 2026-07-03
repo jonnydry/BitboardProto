@@ -82,6 +82,8 @@ export async function fetchContactListEvent(
 
 export function parseContactList(event: NostrEvent): string[] {
   return event.tags
-    .filter((tag): tag is [string, string, ...string[]] => tag[0] === 'p' && typeof tag[1] === 'string')
+    .filter(
+      (tag): tag is [string, string, ...string[]] => tag[0] === 'p' && typeof tag[1] === 'string',
+    )
     .map((tag) => tag[1]);
 }

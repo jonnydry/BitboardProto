@@ -53,10 +53,7 @@ export function postOutboxStorageUpsert(post: Post) {
   if (post.syncStatus !== 'pending' && post.syncStatus !== 'failed') return;
   const all = pruneByAge(loadRaw(OUTBOX_KEY), OUTBOX_MAX_AGE_MS);
   const without = all.filter(
-    (p) =>
-      p.id !== post.id &&
-      p.nostrEventId !== post.nostrEventId &&
-      p.id !== post.nostrEventId,
+    (p) => p.id !== post.id && p.nostrEventId !== post.nostrEventId && p.id !== post.nostrEventId,
   );
   saveRaw(OUTBOX_KEY, [post, ...without]);
 }

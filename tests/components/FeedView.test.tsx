@@ -92,7 +92,7 @@ import { FeedView } from '../../features/feed/FeedView';
 import { BoardType, ViewMode } from '../../types';
 
 const baseProps = {
-  sortedPosts: [] as any[],
+  sortedPosts: [] as import('../../types').Post[],
   getBoardName: vi.fn(),
   knownUsers: new Set<string>(),
   onVote: vi.fn(),
@@ -101,7 +101,7 @@ const baseProps = {
   onDeleteComment: vi.fn(),
   onDeletePost: vi.fn(),
   onToggleBookmark: vi.fn(),
-  loaderRef: { current: null } as React.RefObject<HTMLDivElement | null>,
+  loaderRef: { current: null } as unknown as React.RefObject<HTMLDivElement>,
   isLoadingMore: false,
 };
 
@@ -141,7 +141,9 @@ describe('FeedView', () => {
       <FeedView
         {...baseProps}
         sortedPosts={
-          [{ id: 'post-1', title: 'A Post', timestamp: Date.now(), comments: [] }] as any
+          [
+            { id: 'post-1', title: 'A Post', timestamp: Date.now(), comments: [] },
+          ] as unknown as import('../../types').Post[]
         }
       />,
     );
@@ -159,7 +161,9 @@ describe('FeedView', () => {
       <FeedView
         {...baseProps}
         sortedPosts={
-          [{ id: 'post-1', title: 'A Post', timestamp: Date.now(), comments: [], tags: [] }] as any
+          [
+            { id: 'post-1', title: 'A Post', timestamp: Date.now(), comments: [], tags: [] },
+          ] as unknown as import('../../types').Post[]
         }
       />,
     );

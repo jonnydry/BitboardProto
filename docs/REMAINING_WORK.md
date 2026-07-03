@@ -17,6 +17,7 @@ While the **infrastructure** for production readiness is 100% complete, several 
 **Missing Integrations:**
 
 #### index.tsx - Initialize Monitoring
+
 ```typescript
 // ADD TO index.tsx (before ReactDOM.createRoot)
 
@@ -50,6 +51,7 @@ webVitalsService.trackPageLoad();
 ```
 
 #### App.tsx - Add SEO and Keyboard Shortcuts
+
 ```typescript
 // ADD TO App.tsx
 
@@ -110,6 +112,7 @@ function App() {
 ```
 
 #### Add Data Export to Settings
+
 ```typescript
 // ADD TO settings/profile component
 
@@ -133,6 +136,7 @@ import { dataExportService } from '../services/dataExportService';
 **Missing Tests (Priority Order):**
 
 #### Critical Services (No Tests)
+
 - [ ] `services/nostr/NostrService.ts` (1600+ lines!) - HIGHEST PRIORITY
 - [ ] `services/votingService.ts`
 - [ ] `services/identityService.ts`
@@ -144,6 +148,7 @@ import { dataExportService } from '../services/dataExportService';
 - [ ] `services/reportService.ts`
 
 #### Critical Components (No Tests)
+
 - [ ] `components/CreatePost.tsx`
 - [ ] `components/PostItem.tsx`
 - [ ] `components/CommentThread.tsx`
@@ -154,6 +159,7 @@ import { dataExportService } from '../services/dataExportService';
 - [ ] `components/RelaySettings.tsx`
 
 #### New Services (No Tests)
+
 - [ ] `services/sentryService.ts`
 - [ ] `services/analyticsService.ts`
 - [ ] `services/webVitalsService.ts`
@@ -161,11 +167,13 @@ import { dataExportService } from '../services/dataExportService';
 - [ ] `services/keyboardShortcutsService.ts`
 
 #### New Components (No Tests)
+
 - [ ] `components/KeyboardShortcutsHelp.tsx`
 - [ ] `components/OnboardingFlow.tsx`
 - [ ] `components/SEOHead.tsx`
 
 **Recommended Approach:**
+
 1. Write tests for NostrService (most critical, most complex)
 2. Write tests for voting and identity services
 3. Write component tests for CreatePost, PostItem, CommentThread
@@ -186,12 +194,14 @@ import { dataExportService } from '../services/dataExportService';
 **Target:** Stories for all 34 components
 
 **Missing Stories:**
+
 - All 34 components need `.stories.tsx` files
 - Focus on reusable components first
 - Add interactive controls for props
 - Document component usage
 
 **Example:**
+
 ```typescript
 // components/PostItem.stories.tsx
 import type { Meta, StoryObj } from '@storybook/react';
@@ -232,6 +242,7 @@ export const Default: Story = {
 **Missing:** jsx-a11y rules not enabled
 
 **Add to eslint.config.js:**
+
 ```javascript
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 
@@ -254,6 +265,7 @@ export default [
 ```
 
 **Then Fix Linting Errors:**
+
 ```bash
 npm run lint
 # Fix all a11y violations
@@ -268,6 +280,7 @@ npm run lint
 
 **Current README:** Doesn't mention new features
 **Missing:**
+
 - Monitoring (Sentry, PostHog)
 - Testing (E2E, a11y)
 - PWA support
@@ -276,20 +289,24 @@ npm run lint
 - Onboarding
 
 **Add to README.md:**
+
 ```markdown
 ## New Features (v2.0)
 
 ### Production Monitoring
+
 - **Sentry**: Error tracking and performance monitoring
 - **PostHog**: Product analytics and feature flags
 - **Web Vitals**: Real-time performance metrics
 
 ### Testing
+
 - **Playwright E2E**: Automated browser testing
 - **Accessibility**: WCAG 2.0 AA/AAA compliance
 - **Coverage**: 80%+ test coverage target
 
 ### User Features
+
 - **PWA**: Installable app with offline support
 - **Keyboard Shortcuts**: Press `?` for help
 - **Data Export**: GDPR-compliant export/import
@@ -310,6 +327,7 @@ npm run lint
 **Status:** Not implemented (major refactor required)
 
 **Options:**
+
 1. **Next.js Migration** (Recommended)
    - Migrate to Next.js App Router
    - Use React Server Components
@@ -339,6 +357,7 @@ npm run lint
 **Missing:** ML-based spam detection
 
 **Options:**
+
 1. **Client-side heuristics:**
    - Repeated content detection
    - URL spam patterns
@@ -365,6 +384,7 @@ npm run lint
 **Current:** Hard-coded English strings
 
 **Implementation:**
+
 ```bash
 npm install react-i18next i18next
 ```
@@ -380,6 +400,7 @@ npm install react-i18next i18next
 **Current:** E2E tests include mobile viewports
 
 **Recommendations:**
+
 1. **BrowserStack/Sauce Labs** (Paid)
    - Test on real devices
    - iOS Safari, Android Chrome
@@ -400,15 +421,18 @@ npm install react-i18next i18next
 ## 📊 Summary
 
 ### Must Do (Before Production)
+
 1. ✅ **Integrate new services** → 2-3 hours → HIGH impact
 2. ⚠️ **80% test coverage** → 1-2 weeks → HIGH impact
 
 ### Should Do (Next Sprint)
+
 3. ⚠️ **Storybook stories** → 1 week → MEDIUM impact
 4. ⚠️ **a11y ESLint rules** → 3-4 hours → MEDIUM impact
 5. ⚠️ **Update README** → 30 min → LOW impact
 
 ### Optional (Later)
+
 6. ⭕ **SSR/SSG** → 1-3 weeks → LOW-MEDIUM impact
 7. ⭕ **Advanced spam detection** → 1-2 days → LOW impact
 8. ⭕ **i18n** → 1 week → LOW impact
@@ -419,30 +443,35 @@ npm install react-i18next i18next
 ## Immediate Next Steps (This Week)
 
 ### Day 1: Service Integration (2-3 hours)
+
 - [ ] Update `index.tsx` to initialize Sentry, analytics, Web Vitals
 - [ ] Update `App.tsx` to add SEOHead, keyboard shortcuts, onboarding
 - [ ] Add data export button to settings
 - [ ] Test that monitoring works (check Sentry/PostHog dashboards)
 
 ### Day 2-3: Critical Tests (8-12 hours)
+
 - [ ] Write tests for NostrService (connection, publish, subscribe)
 - [ ] Write tests for votingService
 - [ ] Write tests for identityService
 - [ ] Run coverage: `npm run test:coverage`
 
 ### Day 4-5: Component Tests (8-12 hours)
+
 - [ ] Write tests for CreatePost
 - [ ] Write tests for PostItem
 - [ ] Write tests for CommentThread
 - [ ] Run coverage again, target 60%+
 
 ### Week 2: Finish Coverage (20-30 hours)
+
 - [ ] Write tests for remaining services
 - [ ] Write tests for remaining components
 - [ ] Add integration tests for complex flows
 - [ ] Reach 80%+ coverage
 
 ### Week 3: Polish (10-15 hours)
+
 - [ ] Create Storybook stories for key components
 - [ ] Add a11y ESLint rules and fix violations
 - [ ] Update README and documentation
@@ -453,6 +482,7 @@ npm install react-i18next i18next
 ## Definition of Done
 
 **Production Ready = 100%** when:
+
 - ✅ All new services integrated and working
 - ✅ 80%+ test coverage achieved
 - ✅ All E2E tests passing
@@ -463,6 +493,7 @@ npm install react-i18next i18next
 - ✅ Documentation updated
 
 **Current Progress:**
+
 - Infrastructure: 100% ✅
 - Integration: 60% ⚠️
 - Testing: 17% → Target: 80% ⚠️

@@ -36,10 +36,10 @@ const DEFAULT_ZAP_AMOUNTS = [21, 100, 500, 1000, 5000, 10000]; // Suggested amou
 class ZapService {
   // Cache for zap tallies
   private zapTallies: Map<string, ZapTally> = new Map();
-  
+
   // Cache for LNURL-pay responses
   private lnurlCache: Map<string, { data: LNURLPayResponse; timestamp: number }> = new Map();
-  
+
   // Track in-flight requests
   private inFlightRequests: Map<string, Promise<ZapTally>> = new Map();
 
@@ -50,15 +50,15 @@ class ZapService {
   /**
    * Parse a Lightning Address (user@domain.com) into LNURL endpoint
    * Returns null if invalid
-   * 
+   *
    * Supports lud16 format (Lightning Address): user@domain.com
    * lud06 format (LNURL bech32) is less common and not currently supported
    */
   parseLightningAddress(address: string): string | null {
     if (!address || typeof address !== 'string') return null;
-    
+
     const trimmed = address.trim();
-    
+
     // Handle lud16 format: user@domain.com (most common)
     const lud16Match = trimmed.match(/^([a-zA-Z0-9._-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})$/);
     if (lud16Match) {
@@ -77,11 +77,13 @@ class ZapService {
   /**
    * Check if a pubkey can receive zaps by looking at their profile metadata
    */
-  async canReceiveZaps(pubkey: string): Promise<{ canZap: boolean; lnurl?: string; error?: string }> {
+  async canReceiveZaps(
+    pubkey: string,
+  ): Promise<{ canZap: boolean; lnurl?: string; error?: string }> {
     try {
       const profiles = await nostrService.fetchProfiles([pubkey]);
       const profile = profiles.get(pubkey);
-      
+
       if (!profile) {
         return { canZap: false, error: 'Profile not found' };
       }
@@ -138,8 +140,8 @@ class ZapService {
         return null;
       }
 
-      const data = await response.json() as LNURLPayResponse;
-      
+      const data = (await response.json()) as LNURLPayResponse;
+
       // Validate response
       if (data.tag !== 'payRequest') {
         logger.warn('Zap', 'Invalid LNURL response: not a payRequest');
@@ -148,7 +150,7 @@ class ZapService {
 
       // Cache the response
       this.lnurlCache.set(lnurl, { data, timestamp: Date.now() });
-      
+
       return data;
     } catch (error) {
       logger.error('Zap', 'Failed to fetch LNURL info', error);
@@ -161,9 +163,9 @@ class ZapService {
    */
   async getZapInvoice(args: {
     lnurl: string;
-    amount: number;           // Amount in satoshis
-    zapRequest: NostrEvent;   // Signed zap request event
-  }): Promise<{ invoice: string; } | { error: string }> {
+    amount: number; // Amount in satoshis
+    zapRequest: NostrEvent; // Signed zap request event
+  }): Promise<{ invoice: string } | { error: string }> {
     try {
       const lnurlPay = await this.fetchLNURLPayInfo(args.lnurl);
       if (!lnurlPay) {
@@ -222,10 +224,10 @@ class ZapService {
    */
   buildZapRequest(args: {
     recipientPubkey: string;
-    eventId?: string;         // Post/comment being zapped (optional for profile zaps)
-    amount: number;           // Amount in satoshis
-    relays: string[];         // Relays to publish receipt to
-    content?: string;         // Optional zap comment
+    eventId?: string; // Post/comment being zapped (optional for profile zaps)
+    amount: number; // Amount in satoshis
+    relays: string[]; // Relays to publish receipt to
+    content?: string; // Optional zap comment
     senderPubkey: string;
   }): UnsignedNostrEvent {
     const tags: string[][] = [
@@ -267,11 +269,11 @@ class ZapService {
     }
 
     try {
-      const pTag = event.tags.find(t => t[0] === 'p');
-      const eTag = event.tags.find(t => t[0] === 'e');
-      const bolt11Tag = event.tags.find(t => t[0] === 'bolt11');
-      const descriptionTag = event.tags.find(t => t[0] === 'description');
-      const preimageTag = event.tags.find(t => t[0] === 'preimage');
+      const pTag = event.tags.find((t) => t[0] === 'p');
+      const eTag = event.tags.find((t) => t[0] === 'e');
+      const bolt11Tag = event.tags.find((t) => t[0] === 'bolt11');
+      const descriptionTag = event.tags.find((t) => t[0] === 'description');
+      const preimageTag = event.tags.find((t) => t[0] === 'preimage');
 
       if (!pTag || !descriptionTag) {
         logger.warn('Zap', 'Invalid zap receipt: missing required tags');
@@ -290,7 +292,7 @@ class ZapService {
         content = zapRequest.content || '';
 
         // Extract amount from zap request
-        const amountTag = zapRequest.tags.find(t => t[0] === 'amount');
+        const amountTag = zapRequest.tags.find((t) => t[0] === 'amount');
         if (amountTag && amountTag[1]) {
           amount = Math.floor(parseInt(amountTag[1], 10) / 1000); // Convert from millisats
         }
@@ -326,7 +328,7 @@ class ZapService {
   async fetchZapsForEvent(eventId: string): Promise<ZapReceipt[]> {
     try {
       const events = await nostrService.fetchZapReceipts(eventId);
-      
+
       const receipts: ZapReceipt[] = [];
       for (const event of events) {
         const receipt = this.parseZapReceipt(event);
@@ -379,7 +381,7 @@ class ZapService {
 
     for (const receipt of receipts) {
       totalSats += receipt.amount;
-      
+
       const existing = zapperTotals.get(receipt.zapperPubkey);
       if (existing) {
         existing.amount += receipt.amount;
@@ -440,7 +442,7 @@ class ZapService {
     const BATCH_SIZE = 10;
     for (let i = 0; i < uncached.length; i += BATCH_SIZE) {
       const batch = uncached.slice(i, i + BATCH_SIZE);
-      const tallies = await Promise.all(batch.map(id => this.getZapTally(id)));
+      const tallies = await Promise.all(batch.map((id) => this.getZapTally(id)));
 
       for (let j = 0; j < batch.length; j++) {
         const id = batch[j];
@@ -462,28 +464,22 @@ class ZapService {
    * Subscribe to zap receipts for specific events
    * Returns an unsubscribe function
    */
-  subscribeToZaps(
-    eventIds: string[],
-    onZap: (receipt: ZapReceipt) => void
-  ): () => void {
+  subscribeToZaps(eventIds: string[], onZap: (receipt: ZapReceipt) => void): () => void {
     if (eventIds.length === 0) {
       return () => {};
     }
 
-    const subscriptionId = nostrService.subscribeToZapReceipts(
-      eventIds,
-      (event: NostrEvent) => {
-        const receipt = this.parseZapReceipt(event);
-        if (receipt) {
-          // Update cache
-          this.invalidateEventCache(receipt.eventId || '');
-          onZap(receipt);
-        }
+    const subscriptionId = nostrService.subscribeToZapReceipts(eventIds, (event: NostrEvent) => {
+      const receipt = this.parseZapReceipt(event);
+      if (receipt) {
+        // Update cache
+        this.invalidateEventCache(receipt.eventId || '');
+        onZap(receipt);
       }
-    );
+    });
 
     logger.debug('Zap', `Subscribed to zaps for ${eventIds.length} events`);
-    
+
     return () => {
       nostrService.unsubscribe(subscriptionId);
       logger.debug('Zap', 'Unsubscribed from zaps');
@@ -529,7 +525,6 @@ class ZapService {
   invalidateEventCache(eventId: string): void {
     this.zapTallies.delete(eventId);
   }
-
 }
 
 // Export singleton

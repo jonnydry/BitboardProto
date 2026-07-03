@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 describe('New Services Import Verification', () => {
   it('articleService imports and has expected exports', async () => {
     const module = await import('../services/articleService');
-    
+
     // Check singleton export
     expect(module.articleService).toBeDefined();
     expect(typeof module.articleService.buildArticleEvent).toBe('function');
@@ -21,14 +21,14 @@ describe('New Services Import Verification', () => {
     expect(typeof module.articleService.generateSlug).toBe('function');
     expect(typeof module.articleService.clearCache).toBe('function');
     expect(typeof module.articleService.invalidateArticle).toBe('function');
-    
+
     // Check class export
     expect(module.ArticleService).toBeDefined();
   });
 
   it('badgeService imports and has expected exports', async () => {
     const module = await import('../services/badgeService');
-    
+
     // Check singleton export
     expect(module.badgeService).toBeDefined();
     expect(typeof module.badgeService.buildBadgeDefinition).toBe('function');
@@ -43,10 +43,10 @@ describe('New Services Import Verification', () => {
     expect(typeof module.badgeService.getUserBadgeInfo).toBe('function');
     expect(typeof module.badgeService.getDisplayedBadges).toBe('function');
     expect(typeof module.badgeService.clearCache).toBe('function');
-    
+
     // Check class export
     expect(module.BadgeService).toBeDefined();
-    
+
     // Check BITBOARD_BADGES constant
     expect(module.BITBOARD_BADGES).toBeDefined();
     expect(module.BITBOARD_BADGES.FOUNDING_MEMBER).toBe('bitboard-founding-member');
@@ -55,7 +55,7 @@ describe('New Services Import Verification', () => {
 
   it('communityService imports and has expected exports', async () => {
     const module = await import('../services/communityService');
-    
+
     // Check singleton export
     expect(module.communityService).toBeDefined();
     expect(typeof module.communityService.buildCommunityDefinition).toBe('function');
@@ -70,14 +70,14 @@ describe('New Services Import Verification', () => {
     expect(typeof module.communityService.isModerator).toBe('function');
     expect(typeof module.communityService.getCommunityAddress).toBe('function');
     expect(typeof module.communityService.clearCache).toBe('function');
-    
+
     // Check class export
     expect(module.CommunityService).toBeDefined();
   });
 
   it('listService imports and has expected exports', async () => {
     const module = await import('../services/listService');
-    
+
     // Check singleton export
     expect(module.listService).toBeDefined();
     expect(typeof module.listService.setUserPubkey).toBe('function');
@@ -94,10 +94,10 @@ describe('New Services Import Verification', () => {
     expect(typeof module.listService.isMuted).toBe('function');
     expect(typeof module.listService.isBookmarked).toBe('function');
     expect(typeof module.listService.clearCache).toBe('function');
-    
+
     // Check class export
     expect(module.ListService).toBeDefined();
-    
+
     // Check LIST_KINDS constant
     expect(module.LIST_KINDS).toBeDefined();
     expect(module.LIST_KINDS.MUTE).toBe(10000);
@@ -106,7 +106,7 @@ describe('New Services Import Verification', () => {
 
   it('liveEventService imports and has expected exports', async () => {
     const module = await import('../services/liveEventService');
-    
+
     // Check singleton export
     expect(module.liveEventService).toBeDefined();
     expect(typeof module.liveEventService.buildLiveEvent).toBe('function');
@@ -123,14 +123,14 @@ describe('New Services Import Verification', () => {
     expect(typeof module.liveEventService.parseLiveEventAddress).toBe('function');
     expect(typeof module.liveEventService.clearCache).toBe('function');
     expect(typeof module.liveEventService.cleanup).toBe('function');
-    
+
     // Check class export
     expect(module.LiveEventService).toBeDefined();
   });
 
   it('wotService imports and has expected exports', async () => {
     const module = await import('../services/wotService');
-    
+
     // Check singleton export
     expect(module.wotService).toBeDefined();
     expect(typeof module.wotService.setUserPubkey).toBe('function');
@@ -150,14 +150,14 @@ describe('New Services Import Verification', () => {
     expect(typeof module.wotService.getMutualFollows).toBe('function');
     expect(typeof module.wotService.clearCache).toBe('function');
     expect(typeof module.wotService.getCacheStats).toBe('function');
-    
+
     // Check class export
     expect(module.WoTService).toBeDefined();
   });
 
   it('zapService imports and has expected exports', async () => {
     const module = await import('../services/zapService');
-    
+
     // Check singleton export
     expect(module.zapService).toBeDefined();
     expect(typeof module.zapService.parseLightningAddress).toBe('function');
@@ -174,7 +174,7 @@ describe('New Services Import Verification', () => {
     expect(typeof module.zapService.formatSats).toBe('function');
     expect(typeof module.zapService.clearCache).toBe('function');
     expect(typeof module.zapService.invalidateEventCache).toBe('function');
-    
+
     // Check class export
     expect(module.ZapService).toBeDefined();
   });

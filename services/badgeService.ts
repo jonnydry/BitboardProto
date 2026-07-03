@@ -48,12 +48,13 @@ export const BITBOARD_BADGES = {
 class BadgeService {
   // Cache for badge definitions
   private badgeDefCache: Map<string, { badge: BadgeDefinition; timestamp: number }> = new Map();
-  
+
   // Cache for user's awarded badges
   private userBadgesCache: Map<string, { badges: BadgeAward[]; timestamp: number }> = new Map();
-  
+
   // Cache for user's profile badges (which they display)
-  private profileBadgesCache: Map<string, { badges: ProfileBadge[]; timestamp: number }> = new Map();
+  private profileBadgesCache: Map<string, { badges: ProfileBadge[]; timestamp: number }> =
+    new Map();
 
   // ----------------------------------------
   // BADGE DEFINITION METHODS
@@ -63,12 +64,12 @@ class BadgeService {
    * Build a badge definition event (kind 30009)
    */
   buildBadgeDefinition(args: {
-    id: string;               // Unique badge identifier (d tag)
+    id: string; // Unique badge identifier (d tag)
     name: string;
     description?: string;
-    image?: string;           // Badge image URL
-    thumbImage?: string;      // Thumbnail URL
-    pubkey: string;           // Creator's pubkey
+    image?: string; // Badge image URL
+    thumbImage?: string; // Thumbnail URL
+    pubkey: string; // Creator's pubkey
   }): UnsignedNostrEvent {
     const tags: string[][] = [
       ['d', args.id],
@@ -106,7 +107,7 @@ class BadgeService {
     }
 
     const getTag = (name: string): string | undefined => {
-      const tag = event.tags.find(t => t[0] === name);
+      const tag = event.tags.find((t) => t[0] === name);
       return tag?.[1];
     };
 
@@ -132,9 +133,12 @@ class BadgeService {
   /**
    * Fetch a badge definition by its address (pubkey:d)
    */
-  async fetchBadgeDefinition(creatorPubkey: string, badgeId: string): Promise<BadgeDefinition | null> {
+  async fetchBadgeDefinition(
+    creatorPubkey: string,
+    badgeId: string,
+  ): Promise<BadgeDefinition | null> {
     const cacheKey = `${creatorPubkey}:${badgeId}`;
-    
+
     // Check cache
     const cached = this.badgeDefCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < BADGE_CACHE_TTL_MS) {
@@ -143,7 +147,7 @@ class BadgeService {
 
     try {
       const event = await nostrService.fetchBadgeDefinition(creatorPubkey, badgeId);
-      
+
       if (!event) {
         return null;
       }
@@ -169,13 +173,11 @@ class BadgeService {
    * Build a badge award event (kind 8)
    */
   buildBadgeAward(args: {
-    badgeDefinitionAddress: string;  // "30009:<pubkey>:<d>"
-    awardedTo: string[];             // Pubkeys receiving the badge
-    pubkey: string;                  // Awarder's pubkey (must be badge creator)
+    badgeDefinitionAddress: string; // "30009:<pubkey>:<d>"
+    awardedTo: string[]; // Pubkeys receiving the badge
+    pubkey: string; // Awarder's pubkey (must be badge creator)
   }): UnsignedNostrEvent {
-    const tags: string[][] = [
-      ['a', args.badgeDefinitionAddress],
-    ];
+    const tags: string[][] = [['a', args.badgeDefinitionAddress]];
 
     // Add recipient pubkeys
     for (const recipientPubkey of args.awardedTo) {
@@ -202,7 +204,7 @@ class BadgeService {
       return null;
     }
 
-    const aTag = event.tags.find(t => t[0] === 'a');
+    const aTag = event.tags.find((t) => t[0] === 'a');
     if (!aTag || !aTag[1]) {
       logger.warn('Badge', 'Invalid badge award: missing a tag');
       return null;
@@ -210,7 +212,7 @@ class BadgeService {
 
     const awardedTo = event.tags
       .filter((t): t is [string, string, ...string[]] => t[0] === 'p' && typeof t[1] === 'string')
-      .map(t => t[1]);
+      .map((t) => t[1]);
 
     if (awardedTo.length === 0) {
       logger.warn('Badge', 'Invalid badge award: no recipients');
@@ -267,13 +269,13 @@ class BadgeService {
    */
   buildProfileBadges(args: {
     badges: Array<{
-      badgeDefinitionAddress: string;  // "30009:<pubkey>:<d>"
-      awardEventId: string;            // The award event ID
+      badgeDefinitionAddress: string; // "30009:<pubkey>:<d>"
+      awardEventId: string; // The award event ID
     }>;
     pubkey: string;
   }): UnsignedNostrEvent {
     const tags: string[][] = [
-      ['d', 'profile_badges'],  // Required d tag for parameterized replaceable
+      ['d', 'profile_badges'], // Required d tag for parameterized replaceable
     ];
 
     // Add badge references
@@ -303,8 +305,8 @@ class BadgeService {
     }
 
     const badges: ProfileBadge[] = [];
-    const aTags = event.tags.filter(t => t[0] === 'a' && t[1]);
-    const eTags = event.tags.filter(t => t[0] === 'e' && t[1]);
+    const aTags = event.tags.filter((t) => t[0] === 'a' && t[1]);
+    const eTags = event.tags.filter((t) => t[0] === 'e' && t[1]);
 
     // Pair a and e tags (they should alternate or be in order)
     for (let i = 0; i < Math.min(aTags.length, eTags.length); i++) {
@@ -355,12 +357,14 @@ class BadgeService {
   /**
    * Get full badge info for a user (awards + definitions)
    */
-  async getUserBadgeInfo(pubkey: string): Promise<Array<{
-    award: BadgeAward;
-    definition: BadgeDefinition | null;
-  }>> {
+  async getUserBadgeInfo(pubkey: string): Promise<
+    Array<{
+      award: BadgeAward;
+      definition: BadgeDefinition | null;
+    }>
+  > {
     const awards = await this.fetchBadgesForUser(pubkey);
-    
+
     const results = await Promise.all(
       awards.map(async (award) => {
         // Parse the badge address to get creator pubkey and badge id
@@ -373,7 +377,7 @@ class BadgeService {
           return { award, definition };
         }
         return { award, definition: null };
-      })
+      }),
     );
 
     return results;
@@ -382,10 +386,12 @@ class BadgeService {
   /**
    * Get displayed badges with full info for a profile
    */
-  async getDisplayedBadges(pubkey: string): Promise<Array<{
-    profileBadge: ProfileBadge;
-    definition: BadgeDefinition | null;
-  }>> {
+  async getDisplayedBadges(pubkey: string): Promise<
+    Array<{
+      profileBadge: ProfileBadge;
+      definition: BadgeDefinition | null;
+    }>
+  > {
     const profileBadges = await this.fetchProfileBadges(pubkey);
 
     const results = await Promise.all(
@@ -399,7 +405,7 @@ class BadgeService {
           return { profileBadge, definition };
         }
         return { profileBadge, definition: null };
-      })
+      }),
     );
 
     return results;
@@ -412,7 +418,10 @@ class BadgeService {
   /**
    * Create a BitBoard badge definition address
    */
-  createBitBoardBadgeAddress(creatorPubkey: string, badgeType: keyof typeof BITBOARD_BADGES): string {
+  createBitBoardBadgeAddress(
+    creatorPubkey: string,
+    badgeType: keyof typeof BITBOARD_BADGES,
+  ): string {
     return `${NOSTR_KINDS.BADGE_DEFINITION}:${creatorPubkey}:${BITBOARD_BADGES[badgeType]}`;
   }
 
@@ -422,11 +431,11 @@ class BadgeService {
   async hasBitBoardBadge(
     userPubkey: string,
     badgeType: keyof typeof BITBOARD_BADGES,
-    badgeCreatorPubkey: string
+    badgeCreatorPubkey: string,
   ): Promise<boolean> {
     const awards = await this.fetchBadgesForUser(userPubkey);
     const expectedAddress = this.createBitBoardBadgeAddress(badgeCreatorPubkey, badgeType);
-    return awards.some(award => award.badgeId === expectedAddress);
+    return awards.some((award) => award.badgeId === expectedAddress);
   }
 
   // ----------------------------------------

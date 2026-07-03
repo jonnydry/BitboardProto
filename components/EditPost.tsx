@@ -99,8 +99,8 @@ export const EditPost: React.FC<EditPostProps> = ({ post, boards, onSave, onDele
     const updates: Partial<Post> = {
       title: inputValidator.validateTitle(title)!,
       content: content.trim() ? inputValidator.validatePostContent(content) || '' : '',
-      url: url.trim() ? inputValidator.validateUrl(url) ?? '' : '',
-      imageUrl: imageUrl.trim() ? inputValidator.validateUrl(imageUrl) ?? '' : '',
+      url: url.trim() ? (inputValidator.validateUrl(url) ?? '') : '',
+      imageUrl: imageUrl.trim() ? (inputValidator.validateUrl(imageUrl) ?? '') : '',
       tags: sanitizedTags.length > 0 ? sanitizedTags : ['general'],
     };
 

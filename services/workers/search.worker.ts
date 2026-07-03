@@ -67,7 +67,7 @@ function buildIndex(posts: UpdateIndexMessage['posts']): void {
   for (const post of posts) {
     // Precompute lowercase strings for fast search
     const commentText = post.comments
-      .map(c => `${c.author} ${c.content}`)
+      .map((c) => `${c.author} ${c.content}`)
       .join(' ')
       .toLowerCase();
 
@@ -82,7 +82,7 @@ function buildIndex(posts: UpdateIndexMessage['posts']): void {
       titleLower: post.title.toLowerCase(),
       authorLower: post.author.toLowerCase(),
       contentLower: post.content.toLowerCase(),
-      tagsLower: post.tags.map(t => t.toLowerCase()),
+      tagsLower: post.tags.map((t) => t.toLowerCase()),
       commentText,
     });
   }
@@ -108,7 +108,7 @@ function searchPosts(query: string): string[] {
       post.titleLower.includes(queryLower) ||
       post.authorLower.includes(queryLower) ||
       post.contentLower.includes(queryLower) ||
-      post.tagsLower.some(tag => tag.includes(queryLower)) ||
+      post.tagsLower.some((tag) => tag.includes(queryLower)) ||
       post.commentText.includes(queryLower);
 
     if (matches) {

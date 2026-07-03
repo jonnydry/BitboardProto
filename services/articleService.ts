@@ -26,18 +26,18 @@ import { logger } from './loggingService';
 // ============================================
 
 export interface Article {
-  id: string;                   // d tag (unique identifier)
-  nostrEventId?: string;        // Event ID
+  id: string; // d tag (unique identifier)
+  nostrEventId?: string; // Event ID
   title: string;
-  content: string;              // Markdown content
+  content: string; // Markdown content
   summary?: string;
-  image?: string;               // Header image URL
+  image?: string; // Header image URL
   authorPubkey: string;
-  publishedAt: number;          // Timestamp in ms
-  createdAt: number;            // Event created_at in ms
+  publishedAt: number; // Timestamp in ms
+  createdAt: number; // Event created_at in ms
   hashtags: string[];
   // Board integration
-  boardId?: string;             // If posted to a specific board
+  boardId?: string; // If posted to a specific board
   // Metadata
   wordCount: number;
   readingTimeMinutes: number;
@@ -66,15 +66,15 @@ class ArticleService {
    * Build a long-form article event (kind 30023)
    */
   buildArticleEvent(args: {
-    id: string;               // Unique identifier (d tag) - usually slug-like
+    id: string; // Unique identifier (d tag) - usually slug-like
     title: string;
-    content: string;          // Markdown content
+    content: string; // Markdown content
     summary?: string;
-    image?: string;           // Header image URL
+    image?: string; // Header image URL
     hashtags?: string[];
-    boardId?: string;         // Optional board association
+    boardId?: string; // Optional board association
     pubkey: string;
-    publishedAt?: number;     // Defaults to now
+    publishedAt?: number; // Defaults to now
   }): UnsignedNostrEvent {
     const now = Math.floor(Date.now() / 1000);
     const tags: string[][] = [
@@ -128,14 +128,16 @@ class ArticleService {
     }
 
     const getTag = (name: string): string | undefined => {
-      const tag = event.tags.find(t => t[0] === name);
+      const tag = event.tags.find((t) => t[0] === name);
       return tag?.[1];
     };
 
     const getAllTags = (name: string): string[] => {
       return event.tags
-        .filter((t): t is [string, string, ...string[]] => t[0] === name && typeof t[1] === 'string')
-        .map(t => t[1]);
+        .filter(
+          (t): t is [string, string, ...string[]] => t[0] === name && typeof t[1] === 'string',
+        )
+        .map((t) => t[1]);
     };
 
     const id = getTag('d');
@@ -151,8 +153,8 @@ class ArticleService {
     const readingTimeMinutes = Math.ceil(wordCount / WORDS_PER_MINUTE);
 
     const publishedAtStr = getTag('published_at');
-    const publishedAt = publishedAtStr 
-      ? parseInt(publishedAtStr, 10) * 1000 
+    const publishedAt = publishedAtStr
+      ? parseInt(publishedAtStr, 10) * 1000
       : event.created_at * 1000;
 
     return {
@@ -179,14 +181,14 @@ class ArticleService {
     // Remove markdown syntax for more accurate count
     const plainText = content
       .replace(/```[\s\S]*?```/g, '') // Remove code blocks
-      .replace(/`[^`]*`/g, '')        // Remove inline code
+      .replace(/`[^`]*`/g, '') // Remove inline code
       .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // Replace links with text
-      .replace(/[#*_~>`-]/g, '')      // Remove markdown characters
-      .replace(/\s+/g, ' ')           // Normalize whitespace
+      .replace(/[#*_~>`-]/g, '') // Remove markdown characters
+      .replace(/\s+/g, ' ') // Normalize whitespace
       .trim();
 
     if (!plainText) return 0;
-    return plainText.split(' ').filter(w => w.length > 0).length;
+    return plainText.split(' ').filter((w) => w.length > 0).length;
   }
 
   // ----------------------------------------
@@ -198,7 +200,7 @@ class ArticleService {
    */
   async fetchArticle(authorPubkey: string, articleId: string): Promise<Article | null> {
     const cacheKey = `${authorPubkey}:${articleId}`;
-    
+
     const cached = this.articleCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < ARTICLE_CACHE_TTL_MS) {
       return cached.article;
@@ -223,10 +225,13 @@ class ArticleService {
   /**
    * Fetch articles by author
    */
-  async fetchArticlesByAuthor(authorPubkey: string, opts: { limit?: number } = {}): Promise<Article[]> {
+  async fetchArticlesByAuthor(
+    authorPubkey: string,
+    opts: { limit?: number } = {},
+  ): Promise<Article[]> {
     try {
       const events = await nostrService.fetchArticlesByAuthor(authorPubkey, opts);
-      
+
       const articles: Article[] = [];
       for (const event of events) {
         const article = this.parseArticle(event);
@@ -252,7 +257,7 @@ class ArticleService {
   async fetchArticlesForBoard(boardId: string, opts: { limit?: number } = {}): Promise<Article[]> {
     try {
       const events = await nostrService.fetchArticlesForBoard(boardId, opts);
-      
+
       const articles: Article[] = [];
       for (const event of events) {
         const article = this.parseArticle(event);
@@ -274,7 +279,7 @@ class ArticleService {
   async fetchRecentArticles(opts: { limit?: number; since?: number } = {}): Promise<Article[]> {
     try {
       const events = await nostrService.fetchRecentArticles(opts);
-      
+
       const articles: Article[] = [];
       for (const event of events) {
         const article = this.parseArticle(event);
@@ -296,7 +301,7 @@ class ArticleService {
   async fetchArticlesByHashtag(hashtag: string, opts: { limit?: number } = {}): Promise<Article[]> {
     try {
       const events = await nostrService.fetchArticlesByHashtag(hashtag, opts);
-      
+
       const articles: Article[] = [];
       for (const event of events) {
         const article = this.parseArticle(event);

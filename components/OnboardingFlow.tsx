@@ -705,11 +705,12 @@ export function OnboardingFlow({
                 {/* Value proposition */}
                 <div className="max-w-2xl mx-auto">
                   <p className="text-xl md:text-2xl leading-relaxed text-terminal-text/90 font-light">
-                    Spend limited influence on what deserves attention.
+                    Spend limited influence on what deserves attention — or join local geohash
+                    channels.
                     <br />
                     <span className="text-terminal-dim">
                       Verified identities allocate scarce bits. The global feed rises from
-                      deliberate public judgment, not opaque ranking.
+                      deliberate public judgment, not opaque ranking. GEO_NET for nearby sigs.
                     </span>
                   </p>
                 </div>
@@ -729,8 +730,8 @@ export function OnboardingFlow({
                     },
                     {
                       icon: Globe,
-                      label: 'GLOBAL FEED',
-                      desc: 'The strongest content surfaces globally when many users choose the same winners',
+                      label: 'GLOBAL + LOCAL',
+                      desc: 'Global feed via bits; GEO local channels + nearby sigs discovery (geohash)',
                     },
                   ].map(({ icon: Icon, label, desc }, i) => (
                     <div

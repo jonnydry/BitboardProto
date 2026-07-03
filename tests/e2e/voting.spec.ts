@@ -34,7 +34,7 @@ test.describe('Voting System', () => {
       const upvoteButton = firstPost.getByRole('button', { name: /upvote|▲|\+/i });
       const downvoteButton = firstPost.getByRole('button', { name: /downvote|▼|-/i });
 
-      if (await upvoteButton.isVisible() && await downvoteButton.isVisible()) {
+      if ((await upvoteButton.isVisible()) && (await downvoteButton.isVisible())) {
         // First upvote
         await upvoteButton.click();
         await page.waitForTimeout(500);

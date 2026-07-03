@@ -121,19 +121,17 @@ export function useAppPostMutationHandlers({
               downvotes: 0,
             };
 
-            const pubkey = userState.identity.pubkey;
-            if (!pubkey) return;
-            const unsigned = nostrService.buildPostEvent(
-              eventPayload,
-              pubkey,
-              geohash,
-              {
-                boardAddress,
-                boardName: targetBoard?.name,
-                encryptedTitle: newPost.encryptedTitle,
-                encryptedContent: newPost.encryptedContent,
-              },
-            );
+            // Capture identity locally — TS narrowing from the outer `if`
+            // doesn't survive into the async IIFE closure.
+            const identity = userState.identity;
+            if (!identity) return;
+            const pubkey = identity.pubkey;
+            const unsigned = nostrService.buildPostEvent(eventPayload, pubkey, geohash, {
+              boardAddress,
+              boardName: targetBoard?.name,
+              encryptedTitle: newPost.encryptedTitle,
+              encryptedContent: newPost.encryptedContent,
+            });
             const signed = await identityService.signEvent(unsigned);
             const event = await nostrService.publishSignedEvent(signed);
 
@@ -283,8 +281,9 @@ export function useAppPostMutationHandlers({
               }
             }
 
-            const editPubkey = userState.identity.pubkey;
-            if (!editPubkey) return;
+            const identity = userState.identity;
+            if (!identity) return;
+            const editPubkey = identity.pubkey;
             const unsigned = nostrService.buildPostEditEvent({
               rootPostEventId: existing.nostrEventId ?? '',
               boardId: existing.boardId,
@@ -361,9 +360,13 @@ export function useAppPostMutationHandlers({
 
       setPosts((currentPosts) => currentPosts.filter((candidate) => candidate.id !== postId));
       bookmarkService.removeBookmark(postId);
-      postOutboxStorageRemoveMatching(postId, post.nostrEventId);
-      ownPostsCacheRemove(postId, post.nostrEventId ?? '');
-      if (!post.nostrEventId) return;
+      const eventId = post.nostrEventId;
+      if (!eventId) {
+        setEditingPostId(null);
+        return;
+      }
+      postOutboxStorageRemoveMatching(postId, eventId);
+      ownPostsCacheRemove(postId, eventId);
       setEditingPostId(null);
       setViewMode(ViewMode.FEED);
 
