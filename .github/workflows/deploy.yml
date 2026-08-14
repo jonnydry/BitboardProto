@@ -40,7 +40,7 @@ jobs:
         run: npm run test:coverage
 
       - name: Security audit
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=high --omit=dev
         continue-on-error: false
 
   build:

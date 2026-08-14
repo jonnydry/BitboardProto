@@ -40,7 +40,7 @@
     "posthog-js": "^1.99.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-helmet-async": "^2.0.4",
+    "react-helmet-async": "^3.0.0",
     "react-markdown": "^9.0.1",
     "react-syntax-highlighter": "^16.1.0",
     "remark-gfm": "^4.0.1",
@@ -92,5 +92,8 @@
     "vite-plugin-pwa": "^1.2.0",
     "vitest": "^2.1.9",
     "ws": "^8.18.0"
+  },
+  "overrides": {
+    "preact": "^10.28.2"
   }
 }

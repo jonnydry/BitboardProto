@@ -233,12 +233,7 @@ export default defineConfig(({ mode }) => {
       globals: true,
       passWithNoTests: false,
       setupFiles: ['./tests/setup.ts'],
-      pool: 'vmThreads',
-      poolOptions: {
-        vmThreads: {
-          singleThread: true,
-        },
-      },
+      pool: 'threads',
       coverage: {
         provider: 'v8',
         reporter: ['text', 'json', 'html', 'lcov'],
