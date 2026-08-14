@@ -128,21 +128,24 @@ export default defineConfig(({ mode }) => {
       // Chunk size warning threshold (in KB)
       chunkSizeWarningLimit: 600,
 
-      // Provide predictable, cache-friendly chunks.
+      // Provide cache-friendly chunks. Keep scheduler with React, and do not
+      // force a catch-all vendor file: those two choices produced circular
+      // bundles that crashed before first paint (Lighthouse NO_FCP).
       rollupOptions: {
         output: {
           manualChunks(id) {
-            // React core
-            if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) {
+            if (
+              id.includes('node_modules/react/') ||
+              id.includes('node_modules/react-dom/') ||
+              id.includes('node_modules/scheduler/')
+            ) {
               return 'react';
             }
 
-            // Nostr libraries
             if (id.includes('node_modules/nostr-tools/') || id.includes('node_modules/@noble/')) {
               return 'nostr';
             }
 
-            // Markdown rendering
             if (
               id.includes('react-markdown') ||
               id.includes('react-syntax-highlighter') ||
@@ -156,17 +159,14 @@ export default defineConfig(({ mode }) => {
               return 'markdown';
             }
 
-            // Virtualization
             if (id.includes('@tanstack/react-virtual') || id.includes('@tanstack/virtual-core')) {
               return 'virtual';
             }
 
-            // Icons - only frequently used ones in main bundle
             if (id.includes('lucide-react')) {
               return 'icons';
             }
 
-            // Monitoring and analytics
             if (
               id.includes('node_modules/@sentry/') ||
               id.includes('node_modules/posthog-js/') ||
@@ -175,35 +175,20 @@ export default defineConfig(({ mode }) => {
               return 'monitoring';
             }
 
-            // App state
             if (id.includes('node_modules/zustand/')) {
               return 'state';
             }
 
-            // App shell utilities
             if (id.includes('node_modules/react-helmet-async/')) {
               return 'app-shell';
             }
 
-            // Location/geospatial helpers
             if (id.includes('node_modules/ngeohash/')) {
               return 'location';
             }
 
-            // Crypto libraries
             if (id.includes('@scure/') || id.includes('secp256k1') || id.includes('bech32')) {
               return 'crypto';
-            }
-
-            // All other vendor modules in a separate chunk
-            if (id.includes('node_modules')) {
-              // Extract package name
-              const match = id.match(/node_modules\/(@[^/]+\/[^/]+|[^/]+)/);
-              if (match) {
-                // Package name available: match[1].replace(/[@/]/g, '_')
-                // Group small packages into vendor chunk
-                return 'vendor';
-              }
             }
 
             return undefined;
