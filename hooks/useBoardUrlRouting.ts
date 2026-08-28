@@ -37,7 +37,7 @@ export function useBoardUrlRouting(args: {
           hydratedRef.current = true;
           const pref = readLastBoardPreference();
           if (pref === 'unset') {
-            setActiveBoardId(UIConfig.DEFAULT_LANDING_BOARD_ID);
+            setActiveBoardId(UIConfig.DEFAULT_LANDING_BOARD_ID || null);
             return;
           }
           if (pref === 'global') {

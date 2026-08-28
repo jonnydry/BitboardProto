@@ -131,6 +131,9 @@ export function useAppPostMutationHandlers({
               boardName: targetBoard?.name,
               encryptedTitle: newPost.encryptedTitle,
               encryptedContent: newPost.encryptedContent,
+              nickname: geohash
+                ? identity.displayName || userState.username
+                : undefined,
             });
             const signed = await identityService.signEvent(unsigned);
             const event = await nostrService.publishSignedEvent(signed);
@@ -469,6 +472,7 @@ export function useAppPostMutationHandlers({
             boardName: targetBoard?.name,
             encryptedTitle: post.encryptedTitle,
             encryptedContent: post.encryptedContent,
+            nickname: geohash ? userState.identity.displayName || userState.username : undefined,
           },
         );
         const signed = await identityService.signEvent(unsigned);
@@ -604,6 +608,7 @@ export function useAppPostMutationHandlers({
             seedSourceEventId: sourcePost.nostrEventId || sourcePost.id,
             seedSourceAuthorPubkey: sourcePost.authorPubkey,
             seedSourceCommunityAddress: sourcePost.communityAddress,
+            nickname: geohash ? userState.identity.displayName || userState.username : undefined,
           },
         );
         const signed = await identityService.signEvent(unsigned);

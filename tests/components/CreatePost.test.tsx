@@ -187,4 +187,39 @@ describe('CreatePost', () => {
     await user.click(screen.getByRole('button', { name: /transmit bit/i }));
     expect(screen.getByText('Transmitting…')).toBeInTheDocument();
   });
+
+  it('uses content-first compose on geohash channels', async () => {
+    const geoBoard: Board = {
+      id: 'geo-dpz83',
+      name: 'NEIGHBORHOOD',
+      description: 'Local channel',
+      isPublic: true,
+      memberCount: 0,
+      type: BoardType.GEOHASH,
+      geohash: 'dpz83',
+      createdBy: 'pubkey1',
+      isEncrypted: false,
+    };
+
+    render(<CreatePost {...mockProps} availableBoards={[geoBoard]} currentBoardId="geo-dpz83" />);
+
+    expect(screen.queryByPlaceholderText('Title your bit…')).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Write a note/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /transmit bit/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /transmit bit/i }));
+    expect(screen.getByText('* Write a note')).toBeInTheDocument();
+    expect(mockProps.onSubmit).not.toHaveBeenCalled();
+
+    await user.type(screen.getByPlaceholderText(/Write a note/i), 'Park is loud tonight');
+    await user.click(screen.getByRole('button', { name: /transmit bit/i }));
+
+    expect(mockProps.onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        boardId: 'geo-dpz83',
+        title: 'Park is loud tonight',
+        content: 'Park is loud tonight',
+      }),
+    );
+  });
 });

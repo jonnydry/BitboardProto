@@ -159,7 +159,7 @@ describe('AppHeader', () => {
   it('toggles the bits panel and closes it on outside click', () => {
     render(<AppHeader />);
 
-    fireEvent.click(screen.getByTitle(/Bits — your daily scarce signal ritual/));
+    fireEvent.click(screen.getByTitle(/Bits — local daily quota/));
     expect(screen.getByText('How bits work')).toBeInTheDocument();
 
     fireEvent.keyDown(document, { key: 'Escape' });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ChevronRight,
   ChevronLeft,
@@ -9,129 +9,33 @@ import {
   RefreshCw,
   CheckCircle,
   Copy,
-  Zap,
   Shield,
   Globe,
-  Radio,
+  MapPin,
 } from 'lucide-react';
 import { nip19 } from 'nostr-tools';
 import { identityService } from '../services/identityService';
-import { listService, LIST_KINDS } from '../services/listService';
-import { nostrService } from '../services/nostr/NostrService';
 import { toastService } from '../services/toastService';
 import { logger } from '../services/loggingService';
 import { UIConfig } from '../config';
-import { INITIAL_BOARDS } from '../constants';
+import { geohashService } from '../services/geohashService';
+import { GeohashPrecision } from '../types';
 import type { NostrIdentity, Board } from '../types';
+
+export type OnboardingResult = {
+  locationBoards?: Board[];
+  activeBoardId?: string;
+};
 
 interface OnboardingFlowProps {
   isOpen: boolean;
-  onComplete: () => void;
+  onComplete: (result?: OnboardingResult) => void;
   onSkip: () => void;
   onIdentityChange?: (identity: NostrIdentity | null) => void;
 }
 
-type OnboardingStep = 'signal' | 'welcome' | 'identity' | 'boards' | 'complete';
+type OnboardingStep = 'welcome' | 'place' | 'identity' | 'complete';
 type IdentityMode = 'select' | 'generate' | 'import' | 'nip07' | 'success';
-
-// Board categories for organization
-const BOARD_CATEGORIES = {
-  'TECH / DECENTRALIZATION': [
-    'b-tech',
-    'b-dev',
-    'b-nostr',
-    'b-crypto',
-    'b-security',
-    'b-opensource',
-    'b-ai',
-    'b-selfhost',
-  ],
-  'ENTERTAINMENT / MEDIA': ['b-gaming', 'b-music', 'b-movies', 'b-books', 'b-anime'],
-  'CREATIVE / LEARNING': ['b-art', 'b-science', 'b-diy', 'b-learn'],
-  'LIFESTYLE / GENERAL': ['b-news', 'b-finance', 'b-health', 'b-food'],
-  'CORE / META': ['b-system', 'b-meta', 'b-random'],
-};
-
-// Default boards to pre-select
-const DEFAULT_SELECTED_BOARDS = new Set(['b-tech', 'b-random', 'b-news', 'b-nostr']);
-
-// Signal strength animation component
-function SignalBars({ strength, className = '' }: { strength: number; className?: string }) {
-  return (
-    <div className={`flex items-end gap-[2px] h-4 ${className}`}>
-      {[1, 2, 3, 4, 5].map((bar) => (
-        <div
-          key={bar}
-          className={`w-[3px] transition-all duration-300 ${
-            bar <= strength
-              ? 'bg-terminal-text shadow-[0_0_6px_rgba(var(--color-terminal-text),0.8)]'
-              : 'bg-terminal-dim/30'
-          }`}
-          style={{ height: `${bar * 3 + 2}px` }}
-        />
-      ))}
-    </div>
-  );
-}
-
-// Glitchy text reveal component
-function GlitchReveal({
-  text,
-  delay = 0,
-  className = '',
-}: {
-  text: string;
-  delay?: number;
-  className?: string;
-}) {
-  const [revealed, setRevealed] = useState(false);
-  const [displayText, setDisplayText] = useState('');
-  const chars = '!@#$%^&*()_+-=[]{}|;:,.<>?/~`0123456789ABCDEF';
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      let iterations = 0;
-      const maxIterations = text.length * 3;
-
-      intervalRef.current = setInterval(() => {
-        setDisplayText(
-          text
-            .split('')
-            .map((char, i) => {
-              if (i < iterations / 3) return char;
-              return chars[Math.floor(Math.random() * chars.length)];
-            })
-            .join(''),
-        );
-
-        iterations++;
-        if (iterations > maxIterations) {
-          if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
-          }
-          setDisplayText(text);
-          setRevealed(true);
-        }
-      }, 30);
-    }, delay);
-
-    return () => {
-      clearTimeout(timer);
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [text, delay]);
-
-  return (
-    <span className={`${className} ${revealed ? '' : 'text-terminal-dim'}`}>
-      {displayText || text.replace(/./g, '░')}
-    </span>
-  );
-}
 
 export function OnboardingFlow({
   isOpen,
@@ -139,10 +43,7 @@ export function OnboardingFlow({
   onSkip,
   onIdentityChange,
 }: OnboardingFlowProps) {
-  const [currentStep, setCurrentStep] = useState<OnboardingStep>('signal');
-  const [signalPhase, setSignalPhase] = useState(0);
-  const [signalStrength, setSignalStrength] = useState(0);
-  const [noiseLevel, setNoiseLevel] = useState(100);
+  const [currentStep, setCurrentStep] = useState<OnboardingStep>('welcome');
 
   // Identity management state
   const [identity, setIdentity] = useState<NostrIdentity | null>(null);
@@ -157,63 +58,15 @@ export function OnboardingFlow({
   const [hasNip07, setHasNip07] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Board selection state
-  const [selectedBoards, setSelectedBoards] = useState<Set<string>>(
-    new Set(DEFAULT_SELECTED_BOARDS),
-  );
-  const [boardSearchQuery, setBoardSearchQuery] = useState('');
+  const [locationBoards, setLocationBoards] = useState<Board[]>([]);
+  const [locationBusy, setLocationBusy] = useState(false);
+  const [activeGeoBoardId, setActiveGeoBoardId] = useState<string | null>(null);
 
   // Check for NIP-07 extension on mount
   useEffect(() => {
     setHasNip07(identityService.hasNip07Extension());
   }, []);
 
-  // Signal acquisition animation
-  const strengthIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    if (!isOpen || currentStep !== 'signal') return;
-
-    // Phase 1: Static noise
-    const phase1 = setTimeout(() => setSignalPhase(1), 300);
-
-    // Phase 2: Signal detection
-    const phase2 = setTimeout(() => {
-      setSignalPhase(2);
-      // Animate signal strength
-      let strength = 0;
-      strengthIntervalRef.current = setInterval(() => {
-        strength += 1;
-        setSignalStrength(strength);
-        setNoiseLevel(Math.max(0, 100 - strength * 20));
-        if (strength >= 5) {
-          if (strengthIntervalRef.current) {
-            clearInterval(strengthIntervalRef.current);
-            strengthIntervalRef.current = null;
-          }
-        }
-      }, 200);
-    }, 700);
-
-    // Phase 3: Lock erreicht
-    const phase3 = setTimeout(() => setSignalPhase(3), 1300);
-
-    // Phase 4: Transition to welcome
-    const phase4 = setTimeout(() => {
-      setCurrentStep('welcome');
-    }, 1800);
-
-    return () => {
-      clearTimeout(phase1);
-      clearTimeout(phase2);
-      clearTimeout(phase3);
-      clearTimeout(phase4);
-      if (strengthIntervalRef.current) {
-        clearInterval(strengthIntervalRef.current);
-        strengthIntervalRef.current = null;
-      }
-    };
-  }, [isOpen, currentStep]);
 
   // Identity handlers
   const handleGenerateIdentity = async () => {
@@ -364,236 +217,53 @@ export function OnboardingFlow({
     }
   };
 
-  const toggleBoardSelection = (boardId: string) => {
+  const handleEnableLocation = async () => {
+    setLocationBusy(true);
     setError(null);
-    setSelectedBoards((prev) => {
-      const next = new Set(prev);
-      if (next.has(boardId)) {
-        next.delete(boardId);
-      } else {
-        next.add(boardId);
-      }
-      return next;
-    });
-  };
-
-  const publishBoardFollows = async () => {
-    if (!identity || selectedBoards.size === 0) return;
-
     try {
-      const addresses = Array.from(selectedBoards).map((boardId) => `30001:bitboard:${boardId}`);
-
-      const listEvent = listService.buildListEvent({
-        kind: LIST_KINDS.COMMUNITIES,
-        addresses,
-        pubkey: identity.pubkey,
-      });
-
-      const signedEvent = await identityService.signEvent(listEvent);
-      if (signedEvent) {
-        await nostrService.publishSignedEvent(signedEvent);
-        logger.info('Onboarding', `Published board follows: ${selectedBoards.size}`);
-      }
-    } catch (err) {
-      logger.error('Onboarding', 'Failed to publish board follows', err);
+      const position = await geohashService.getCurrentPosition();
+      const boards = geohashService.generateLocationBoards(
+        position.coords.latitude,
+        position.coords.longitude,
+      );
+      setLocationBoards(boards);
+      const neighborhood =
+        boards.find((board) => board.precision === GeohashPrecision.NEIGHBORHOOD) || boards[0];
+      setActiveGeoBoardId(neighborhood?.id ?? null);
+    } catch {
+      setError('Location unavailable. Skip and pick a named board from the sidebar later.');
+    } finally {
+      setLocationBusy(false);
     }
   };
-
-  const filteredBoardCategories = useMemo(() => {
-    const query = boardSearchQuery.trim().toLowerCase();
-
-    return Object.entries(BOARD_CATEGORIES)
-      .map(([category, boardIds]) => {
-        const categoryBoards = boardIds
-          .map((id) => INITIAL_BOARDS.find((b) => b.id === id))
-          .filter((b): b is Board => b !== undefined)
-          .filter((board) => {
-            if (!query) return true;
-            return (
-              board.name.toLowerCase().includes(query) ||
-              board.description.toLowerCase().includes(query)
-            );
-          });
-
-        return [category, categoryBoards] as const;
-      })
-      .filter(([, boards]) => boards.length > 0);
-  }, [boardSearchQuery]);
 
   if (!isOpen) return null;
 
-  const steps: OnboardingStep[] = ['signal', 'welcome', 'identity', 'boards', 'complete'];
-  const visibleSteps = steps.filter((s): s is Exclude<OnboardingStep, 'signal'> => s !== 'signal');
-  const visibleStepIndex = visibleSteps.indexOf(currentStep as Exclude<OnboardingStep, 'signal'>);
+  const steps: OnboardingStep[] = ['welcome', 'place', 'identity', 'complete'];
+  const visibleStepIndex = steps.indexOf(currentStep);
 
-  const handleNext = async () => {
-    if (currentStep === 'boards' && selectedBoards.size === 0) {
-      setError('Select at least one board to personalize your feed.');
-      return;
-    }
-
+  const handleNext = () => {
     const currentIndex = steps.indexOf(currentStep);
     const next = currentIndex >= 0 ? steps[currentIndex + 1] : undefined;
     if (next) {
       setError(null);
       setCurrentStep(next);
-    } else {
-      await publishBoardFollows();
-      onComplete();
+      return;
     }
+    onComplete({
+      locationBoards,
+      activeBoardId: activeGeoBoardId ?? undefined,
+    });
   };
 
   const handleBack = () => {
     const currentIndex = steps.indexOf(currentStep);
-    const prev = currentIndex > 1 ? steps[currentIndex - 1] : undefined;
+    const prev = currentIndex > 0 ? steps[currentIndex - 1] : undefined;
     if (prev) {
       setCurrentStep(prev);
     }
   };
 
-  // Signal acquisition screen
-  if (currentStep === 'signal') {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black font-mono overflow-hidden">
-        {/* Dynamic noise background */}
-        <div
-          className="absolute inset-0 pointer-events-none transition-opacity duration-500"
-          style={{
-            opacity: noiseLevel / 100,
-            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
-            mixBlendMode: 'overlay',
-          }}
-        />
-
-        {/* Scan lines */}
-        <div className="absolute inset-0 pointer-events-none opacity-30">
-          <div className="absolute inset-0 bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,rgba(0,0,0,0.3)_2px,rgba(0,0,0,0.3)_4px)]" />
-        </div>
-
-        {/* Main content */}
-        <div className="relative z-10 text-center px-4">
-          {/* Signal indicator */}
-          <div className="mb-8">
-            <div className="inline-flex items-center gap-4 px-6 py-3 border border-terminal-dim/50 bg-black/50">
-              <Radio
-                size={24}
-                className={`text-terminal-text ${signalPhase >= 2 ? 'animate-pulse' : 'opacity-30'}`}
-              />
-              <div className="text-left">
-                <div className="text-xs text-terminal-dim uppercase tracking-widest">
-                  {signalPhase === 0 && 'INITIALIZING...'}
-                  {signalPhase === 1 && 'SCANNING FREQUENCIES...'}
-                  {signalPhase === 2 && 'SIGNAL DETECTED'}
-                  {signalPhase === 3 && 'LOCK ACHIEVED'}
-                </div>
-                <div className="flex items-center gap-3 mt-1">
-                  <SignalBars strength={signalStrength} />
-                  <span className="text-terminal-text font-bold text-sm">
-                    {signalPhase >= 2 ? `${signalStrength * 20}%` : '---'}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Central logo area */}
-          <div className="relative mb-8">
-            {/* Rotating outer ring */}
-            <div
-              className={`absolute inset-0 m-auto w-48 h-48 md:w-64 md:h-64 rounded-full border-2 border-dashed transition-all duration-1000 ${
-                signalPhase >= 2
-                  ? 'border-terminal-text/50 animate-spin-slow'
-                  : 'border-terminal-dim/20'
-              }`}
-              style={{ animationDuration: '20s' }}
-            />
-
-            {/* Inner ring */}
-            <div
-              className={`absolute inset-0 m-auto w-36 h-36 md:w-48 md:h-48 rounded-full border transition-all duration-700 ${
-                signalPhase >= 3
-                  ? 'border-terminal-text shadow-[0_0_30px_rgba(var(--color-terminal-text),0.5)]'
-                  : 'border-terminal-dim/30'
-              }`}
-            />
-
-            {/* Central element */}
-            <div className="relative w-48 h-48 md:w-64 md:h-64 mx-auto flex items-center justify-center">
-              <div
-                className={`text-6xl md:text-8xl font-terminal font-bold transition-all duration-500 ${
-                  signalPhase >= 3
-                    ? 'text-terminal-text scale-100 opacity-100'
-                    : 'text-terminal-dim/70 scale-90 opacity-70'
-                }`}
-                style={{
-                  textShadow:
-                    signalPhase >= 3
-                      ? '0 0 20px rgba(var(--color-terminal-text), 0.8), 0 0 40px rgba(var(--color-terminal-text), 0.4)'
-                      : 'none',
-                }}
-              >
-                B
-              </div>
-            </div>
-          </div>
-
-          {/* Status text */}
-          <div className="space-y-2">
-            <div
-              className={`text-2xl md:text-3xl font-terminal uppercase tracking-[0.3em] transition-all duration-500 ${
-                signalPhase >= 3 ? 'text-terminal-text' : 'text-terminal-dim/70'
-              }`}
-            >
-              {signalPhase >= 3 ? (
-                <GlitchReveal text="BITBOARD" delay={0} />
-              ) : (
-                <span className="animate-pulse">ACQUIRING SIGNAL</span>
-              )}
-            </div>
-            <div className="text-xs text-terminal-dim uppercase tracking-[0.4em]">
-              {signalPhase >= 3 ? 'DECENTRALIZED TRUTH NETWORK' : 'NOSTR PROTOCOL HANDSHAKE'}
-            </div>
-          </div>
-
-          {/* Relay connection indicators */}
-          {signalPhase >= 2 && (
-            <div className="mt-8 flex justify-center gap-6 text-xs font-mono">
-              {['DAMUS', 'NOS.LOL', 'SNORT'].map((relay, i) => (
-                <div
-                  key={relay}
-                  className="flex items-center gap-2 animate-fade-in"
-                  style={{ animationDelay: `${i * 200}ms` }}
-                >
-                  <div
-                    className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                      signalStrength > i + 2
-                        ? 'bg-terminal-text shadow-[0_0_6px_rgba(var(--color-terminal-text),0.8)]'
-                        : 'bg-terminal-dim/30'
-                    }`}
-                  />
-                  <span
-                    className={
-                      signalStrength > i + 2 ? 'text-terminal-text' : 'text-terminal-dim/70'
-                    }
-                  >
-                    {relay}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Skip button */}
-        <button
-          onClick={() => setCurrentStep('welcome')}
-          className="absolute top-6 right-6 border border-terminal-dim/40 px-3 py-2 text-terminal-dim hover:text-terminal-text hover:border-terminal-text text-xs uppercase tracking-wider transition-colors"
-        >
-          Skip Intro
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div
@@ -635,7 +305,7 @@ export function OnboardingFlow({
 
             {/* Step indicator */}
             <div className="hidden sm:flex items-center gap-2">
-              {visibleSteps.map((step, i) => (
+              {steps.map((step, i) => (
                 <React.Fragment key={step}>
                   <div
                     className={`w-2 h-2 transition-all duration-300 ${
@@ -644,7 +314,7 @@ export function OnboardingFlow({
                         : 'bg-terminal-dim/30'
                     }`}
                   />
-                  {i < visibleSteps.length - 1 && (
+                  {i < steps.length - 1 && (
                     <div
                       className={`w-8 h-[1px] transition-all duration-300 ${
                         i < visibleStepIndex ? 'bg-terminal-text' : 'bg-terminal-dim/30'
@@ -698,40 +368,38 @@ export function OnboardingFlow({
                   </div>
 
                   <p className="text-terminal-dim text-sm md:text-base uppercase tracking-[0.3em]">
-                    The Uncensorable Forum
+                    Nostr boards + BitChat places
                   </p>
                 </div>
 
-                {/* Value proposition */}
                 <div className="max-w-2xl mx-auto">
                   <p className="text-xl md:text-2xl leading-relaxed text-terminal-text/90 font-light">
-                    Spend limited influence on what deserves attention — or join local geohash
-                    channels.
+                    Named topic boards on Nostr. Nearby rooms tagged with a geohash — the same
+                    channels BitChat uses on the internet.
                     <br />
                     <span className="text-terminal-dim">
-                      Verified identities allocate scarce bits. The global feed rises from
-                      deliberate public judgment, not opaque ranking. GEO_NET for nearby sigs.
+                      Empty boards stay empty until someone writes. Bluetooth mesh lives in the
+                      BitChat app; this client shares the geohash notes.
                     </span>
                   </p>
                 </div>
 
-                {/* Feature cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
                   {[
                     {
-                      icon: Zap,
-                      label: 'SCARCE INFLUENCE',
-                      desc: 'Every vote costs a limited bit, so influence is spent deliberately',
-                    },
-                    {
-                      icon: Shield,
-                      label: 'VERIFIED IDENTITY',
-                      desc: 'Votes are tied to signed Nostr identities, making influence accountable',
+                      icon: MapPin,
+                      label: 'LOCAL',
+                      desc: 'Geohash channels. Kind-1 notes with a g tag, including BitChat location notes.',
                     },
                     {
                       icon: Globe,
-                      label: 'GLOBAL + LOCAL',
-                      desc: 'Global feed via bits; GEO local channels + nearby sigs discovery (geohash)',
+                      label: 'BOARDS',
+                      desc: 'Named Nostr topics. Signed posts and comments, stored on relays you choose.',
+                    },
+                    {
+                      icon: Shield,
+                      label: 'KEYS',
+                      desc: 'Your identity is a Nostr key. Optional. Needed to post and vote.',
                     },
                   ].map(({ icon: Icon, label, desc }, i) => (
                     <div
@@ -773,11 +441,11 @@ export function OnboardingFlow({
                   </h2>
                   <p className="text-terminal-dim text-sm">
                     {identityMode === 'select' &&
-                      'Choose how to establish the identity that will sign your posts and votes'}
+                      'Choose how this client will sign your posts and votes'}
                     {identityMode === 'generate' &&
-                      'Generate a fresh Nostr identity for accountable voting'}
+                      'Generate a fresh Nostr keypair for this client'}
                     {identityMode === 'import' &&
-                      'Import your existing Nostr identity to keep your reputation and influence'}
+                      'Import an existing Nostr key so this client can sign as you'}
                     {identityMode === 'nip07' &&
                       'Connect a browser extension so your key never leaves the wallet'}
                     {identityMode === 'success' && 'Identity established successfully'}
@@ -824,8 +492,8 @@ export function OnboardingFlow({
                               Generate New Keys
                             </div>
                             <div className="text-terminal-dim text-sm">
-                              Create a fresh identity so your votes and posts are signed, public,
-                              and accountable.
+                              Create a fresh keypair. Posts and votes from this client will be
+                              signed with it.
                             </div>
                           </div>
                           <ChevronRight
@@ -850,8 +518,8 @@ export function OnboardingFlow({
                               Import Existing Key
                             </div>
                             <div className="text-terminal-dim text-sm">
-                              Already on Nostr? Bring your existing identity, reputation, and social
-                              graph with you.
+                              Already on Nostr? Paste your nsec so this client signs as the same
+                              identity you use elsewhere.
                             </div>
                           </div>
                           <ChevronRight
@@ -1234,113 +902,54 @@ export function OnboardingFlow({
               </div>
             )}
 
-            {/* Board Selection */}
-            {currentStep === 'boards' && (
-              <div className="animate-fade-in">
-                <div className="text-center mb-8">
+            {/* Place / BitChat geohash */}
+            {currentStep === 'place' && (
+              <div className="animate-fade-in text-center space-y-8 max-w-xl mx-auto">
+                <div>
                   <h2 className="text-3xl md:text-4xl font-terminal font-bold text-terminal-text mb-3">
-                    Choose Your Boards
+                    Nearby channel
                   </h2>
                   <p className="text-terminal-dim text-sm">
-                    Select the communities you want to follow ({selectedBoards.size} selected)
+                    Share location to open a geohash room. Notes there are kind-1 events with a g
+                    tag — BitChat location notes show up in the same feed.
                   </p>
                 </div>
 
                 {error && (
-                  <div className="mb-6 p-4 border border-terminal-alert/50 bg-terminal-alert/10 text-terminal-alert flex items-center gap-3 text-sm animate-fade-in">
+                  <div className="p-4 border border-terminal-alert/50 bg-terminal-alert/10 text-terminal-alert flex items-center gap-3 text-sm text-left">
                     <AlertTriangle size={18} />
                     {error}
                   </div>
                 )}
 
-                <div className="mb-4">
-                  <input
-                    type="text"
-                    value={boardSearchQuery}
-                    onChange={(e) => setBoardSearchQuery(e.target.value)}
-                    placeholder="Filter boards..."
-                    className="w-full border border-terminal-dim bg-terminal-bg px-4 py-3 text-sm text-terminal-text font-mono placeholder:text-terminal-dim/60 focus:border-terminal-text focus:outline-none"
-                  />
-                </div>
-
-                <div className="space-y-6 max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-track-terminal-dim/10 scrollbar-thumb-terminal-text/30">
-                  {filteredBoardCategories.length === 0 && (
-                    <div className="p-6 border border-terminal-dim/30 text-sm text-terminal-dim">
-                      No boards match &quot;{boardSearchQuery}&quot;.
+                {activeGeoBoardId ? (
+                  <div className="border border-terminal-text/40 p-5 text-left font-mono text-sm">
+                    <div className="text-terminal-dim uppercase text-xs tracking-wider mb-2">
+                      Channel
                     </div>
-                  )}
-
-                  {filteredBoardCategories.map(([category, categoryBoards]) => {
-                    return (
-                      <div key={category}>
-                        <div className="text-xs text-terminal-dim font-bold mb-3 uppercase tracking-wider flex items-center gap-2">
-                          <span className="w-4 h-[1px] bg-terminal-dim/30" />
-                          {category}
-                          <span className="flex-1 h-[1px] bg-terminal-dim/30" />
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                          {categoryBoards.map((board) => {
-                            const isSelected = selectedBoards.has(board.id);
-                            return (
-                              <button
-                                key={board.id}
-                                onClick={() => toggleBoardSelection(board.id)}
-                                className={`
-                                  relative p-3 border text-left transition-all duration-200 flex h-full flex-col
-                                  ${
-                                    isSelected
-                                      ? 'border-terminal-text bg-terminal-text/10'
-                                      : 'border-terminal-dim/30 hover:border-terminal-dim'
-                                  }
-                                `}
-                              >
-                                {/* Selection indicator */}
-                                <div
-                                  className={`
-                                  absolute top-2 right-2 w-4 h-4 border flex items-center justify-center text-2xs font-bold transition-all
-                                  ${
-                                    isSelected
-                                      ? 'border-terminal-text bg-terminal-text text-terminal-bg'
-                                      : 'border-terminal-dim/50'
-                                  }
-                                `}
-                                >
-                                  {isSelected && '✓'}
-                                </div>
-
-                                <div className="pr-6">
-                                  <div
-                                    className={`font-bold text-sm mb-1 transition-colors ${isSelected ? 'text-terminal-text' : 'text-terminal-dim'}`}
-                                  >
-                                    /{board.name.toLowerCase()}
-                                  </div>
-                                  <div className="text-xs text-terminal-dim/70 line-clamp-2">
-                                    {board.description}
-                                  </div>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="flex gap-3 mt-6 pt-4 border-t border-terminal-dim/20">
+                    <div className="text-terminal-text">
+                      {locationBoards.find((b) => b.id === activeGeoBoardId)?.name || activeGeoBoardId}
+                    </div>
+                    <p className="text-terminal-dim text-xs mt-3">
+                      Continue to create a key if you want to post. Guests can still read.
+                    </p>
+                  </div>
+                ) : (
                   <button
-                    onClick={() => setSelectedBoards(new Set())}
-                    className="px-4 py-2 text-xs border border-terminal-dim/50 hover:border-terminal-alert hover:text-terminal-alert transition-colors uppercase tracking-wider"
+                    type="button"
+                    onClick={() => void handleEnableLocation()}
+                    disabled={locationBusy}
+                    className="inline-flex items-center gap-2 border border-terminal-text px-6 py-3 font-mono text-sm uppercase tracking-wider text-terminal-text hover:bg-terminal-text hover:text-terminal-bg disabled:opacity-50"
                   >
-                    Clear All
+                    <MapPin size={16} />
+                    {locationBusy ? 'Locating…' : 'Use my location'}
                   </button>
-                  <button
-                    onClick={() => setSelectedBoards(new Set(INITIAL_BOARDS.map((b) => b.id)))}
-                    className="px-4 py-2 text-xs border border-terminal-dim/50 hover:border-terminal-text transition-colors uppercase tracking-wider"
-                  >
-                    Select All
-                  </button>
-                </div>
+                )}
+
+                <p className="text-xs text-terminal-dim">
+                  Skip if you only want named topic boards. You can enable location anytime from
+                  Local in the sidebar.
+                </p>
               </div>
             )}
 
@@ -1371,9 +980,8 @@ export function OnboardingFlow({
                   You're In
                 </h2>
                 <p className="text-terminal-dim mb-8 max-w-md mx-auto">
-                  Welcome to BitBoard. Your identity signs your actions, and your limited bits
-                  decide what deserves more attention. Use them well — the global feed is shaped by
-                  choices like yours.
+                  Named boards live on Nostr. Local channels share BitChat geohash notes. Empty
+                  rooms stay empty until someone writes.
                 </p>
 
                 {/* Status summary */}
@@ -1397,13 +1005,17 @@ export function OnboardingFlow({
                     )}
                     <div className="flex items-center gap-3">
                       <span className="w-2 h-2 bg-terminal-text rounded-full" />
-                      <span className="text-terminal-dim">Boards:</span>
-                      <span className="text-terminal-text">{selectedBoards.size} FOLLOWED</span>
+                      <span className="text-terminal-dim">Place:</span>
+                      <span className="text-terminal-text">
+                        {activeGeoBoardId
+                          ? locationBoards.find((b) => b.id === activeGeoBoardId)?.name || 'SET'
+                          : 'SKIPPED'}
+                      </span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="w-2 h-2 bg-terminal-text rounded-full animate-pulse" />
-                      <span className="text-terminal-dim">Network:</span>
-                      <span className="text-terminal-text">CONNECTED</span>
+                      <span className="w-2 h-2 bg-terminal-text rounded-full" />
+                      <span className="text-terminal-dim">Relays:</span>
+                      <span className="text-terminal-text">NOSTR</span>
                     </div>
                   </div>
                 </div>
@@ -1438,7 +1050,8 @@ export function OnboardingFlow({
 
           {/* Center progress indicator (mobile) */}
           <div className="flex sm:hidden items-center gap-1">
-            {visibleSteps.map((_, i) => (
+            {visibleStepIndex >= 0 &&
+              steps.map((_, i) => (
               <div
                 key={i}
                 className={`w-1.5 h-1.5 rounded-full transition-all ${

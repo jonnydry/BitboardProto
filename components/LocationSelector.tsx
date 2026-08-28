@@ -111,7 +111,7 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
       <div className="flex items-center justify-between border-b border-terminal-dim/15 px-5 py-3">
         <h2 className="flex items-center gap-2 font-display text-2xl font-semibold text-terminal-text">
           <MapPin size={20} />
-          Location Channels
+          Local Channels
         </h2>
         <button
           onClick={onClose}
@@ -125,9 +125,9 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
         {/* Info */}
         <div className="p-4 border border-terminal-dim/50 bg-terminal-dim/5 text-sm mb-6">
           <p className="text-terminal-dim leading-relaxed">
-            <span className="text-terminal-text">Location-based boards</span> use geohash technology
-            (like BitChat) to create channels tied to your physical location. Connect with nearby
-            users at different geographic scales.
+            <span className="text-terminal-text">Local channels</span> are geohash rooms on Nostr —
+            the same kind-1 notes BitChat publishes on the internet. Pick a scale, then open the
+            channel.
           </p>
         </div>
 
@@ -191,7 +191,7 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
               <div className="flex items-center justify-between">
                 <label className="text-xs text-terminal-dim uppercase font-bold flex items-center gap-2">
                   <Activity size={12} />
-                  Nearby Active Channels
+                  Nearby Channels
                 </label>
                 <button
                   onClick={() => setShowActiveChannels(!showActiveChannels)}
@@ -210,7 +210,7 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
                     </div>
                   ) : activeChannels.length === 0 ? (
                     <div className="p-4 text-center text-terminal-dim text-sm">
-                      No recent activity found nearby. Be the first to post!
+                      No recent notes nearby. Empty is honest — open a channel and write one.
                     </div>
                   ) : (
                     <div className="max-h-[200px] overflow-y-auto">
@@ -231,17 +231,17 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
                               )}
                             </div>
                             <span className="text-xs text-terminal-dim opacity-0 group-hover:opacity-100">
-                              JOIN →
+                              OPEN →
                             </span>
                           </div>
                           <div className="flex items-center gap-4 mt-1 text-2xs text-terminal-dim">
                             <span className="flex items-center gap-1">
                               <Activity size={10} />
-                              {channel.postCount} posts
+                              {channel.postCount} notes
                             </span>
                             <span className="flex items-center gap-1">
                               <Users size={10} />
-                              {channel.uniqueAuthors} users
+                              {channel.uniqueAuthors} authors
                             </span>
                             <span>
                               {geonetDiscoveryService.formatLastActivity(channel.lastActivityAt)}
@@ -331,7 +331,7 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onSelectBoar
                         className="ui-button-primary flex w-full items-center justify-center gap-2 px-4 py-3"
                       >
                         <Check size={16} />
-                        Join Channel
+                        OPEN CHANNEL
                       </button>
                     </div>
                   );

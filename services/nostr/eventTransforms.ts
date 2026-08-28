@@ -11,7 +11,15 @@ import {
   isBitboardCommentDeleteEvent,
   isBitboardCommentEditEvent,
   isBitboardPostEditEvent,
+  isBitboardPostEvent,
 } from './eventHelpers';
+
+function titleFromNoteContent(content: string): string {
+  const line = content.split(/\r?\n/).find((part) => part.trim().length > 0);
+  if (!line) return 'Note';
+  const trimmed = line.trim();
+  return trimmed.length > 80 ? `${trimmed.slice(0, 77)}…` : trimmed;
+}
 
 export function eventToPost(event: NostrEvent, getDisplayName: (pubkey: string) => string): Post {
   const getAllTags = (name: string): string[] => {
@@ -31,8 +39,8 @@ export function eventToPost(event: NostrEvent, getDisplayName: (pubkey: string) 
 
   const isEncrypted = getTagValue(event, 'encrypted') === 'true';
   const encryptedTitle = getTagValue(event, 'encrypted_title');
-  const titleRaw = getTagValue(event, 'title') || 'Untitled';
   const contentRaw = event.content ?? '';
+  const titleRaw = getTagValue(event, 'title') || titleFromNoteContent(contentRaw);
   const tagsRaw = getAllTags('t');
   const urlRaw = getTagValue(event, 'r');
   const imageRaw = getTagValue(event, 'image');
@@ -40,13 +48,17 @@ export function eventToPost(event: NostrEvent, getDisplayName: (pubkey: string) 
   const seedSourceEventId = getTagValue(event, 'seed_event');
   const seedSourceAuthorPubkey = getTagValue(event, 'seed_author');
   const seedSourceCommunityAddress = getTagValue(event, 'seed_community');
+  const geohash = getTagValue(event, 'g');
+  const nickname = getTagValue(event, 'n');
+  const bitboardNative = isBitboardPostEvent(event);
 
   const post: Post = {
     id: event.id,
     nostrEventId: event.id,
-    boardId: getTagValue(event, 'board') || boardIdFromA || 'b-random',
+    boardId: getTagValue(event, 'board') || boardIdFromA || (geohash ? `geo-${geohash}` : 'b-random'),
+    source: bitboardNative ? 'bitboard' : 'nostr',
     title: inputValidator.validateTitle(titleRaw) ?? 'Untitled',
-    author: getDisplayName(event.pubkey),
+    author: nickname || getDisplayName(event.pubkey),
     authorPubkey: event.pubkey,
     content: '',
     timestamp: event.created_at * 1000,

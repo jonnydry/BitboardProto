@@ -48,7 +48,7 @@ export const useUIStore = create<UIState>()(
     viewMode: ViewMode.FEED,
     theme: ThemeId.AMBER,
     searchQuery: '',
-    sortMode: SortMode.TOP,
+    sortMode: SortMode.NEWEST,
     profileUser: null,
     editingPostId: null,
     feedFilter: 'all' as FeedFilter,

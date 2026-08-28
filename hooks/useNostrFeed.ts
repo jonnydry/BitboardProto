@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import type { Board, Post } from '../types';
-import { UIConfig } from '../config';
+import { UIConfig, FeatureFlags } from '../config';
 import { nostrService } from '../services/nostr/NostrService';
 import { toastService } from '../services/toastService';
 import { logger } from '../services/loggingService';
@@ -63,12 +63,12 @@ export function useNostrFeed(args: {
       try {
         logger.mark('nostr-init-start');
 
-        // Start the cold-start blend fetch in parallel with the native fetch —
-        // on an empty network the native query runs to its full timeout, and
-        // serializing the two would push first content out by that much.
-        // The result is only applied if the scope turns out sparse.
         const blendScopeKey =
-          scope.mode === 'community' ? null : activeBoard ? activeBoard.id : GLOBAL_BLEND_SCOPE;
+          FeatureFlags.ENABLE_BLENDED_FEED && scope.mode !== 'community'
+            ? activeBoard
+              ? activeBoard.id
+              : GLOBAL_BLEND_SCOPE
+            : null;
         const blendPromise = blendScopeKey
           ? blendedFeedService.fetchBlendedPosts(blendScopeKey, activeBoard, []).catch((err) => {
               logger.warn('NostrFeed', 'Blended feed fetch failed', err);
@@ -200,7 +200,12 @@ export function useNostrFeed(args: {
     const subscribeFilters = scope.mode === 'scoped' ? scope.subscribe : {};
 
     const subId = nostrService.subscribeToFeed((event) => {
-      if (!nostrService.isBitboardPostEvent(event)) return;
+      const geo = Boolean(subscribeFilters.geohash);
+      if (geo) {
+        if (!nostrService.isLocalChannelPostEvent(event)) return;
+      } else if (!nostrService.isBitboardPostEvent(event)) {
+        return;
+      }
       const post = nostrService.eventToPost(event);
       setPosts((prev) => {
         if (prev.some((p) => p.nostrEventId === post.nostrEventId)) return prev;

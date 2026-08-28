@@ -2,7 +2,7 @@
 
 This doc describes the main service modules and the responsibilities they own.
 
-### `services/nostrService.ts`
+### `services/nostr/NostrService.ts`
 
 Public entrypoint for Nostr functionality.
 

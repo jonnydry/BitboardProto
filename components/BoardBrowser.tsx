@@ -160,7 +160,11 @@ export function BoardBrowser({
         </p>
 
         <div className="flex items-center justify-between text-xs">
-          <span className="text-terminal-dim">MEMBERS: {board.memberCount}</span>
+          {board.memberCount > 0 ? (
+            <span className="text-terminal-dim">AUTHORS: {board.memberCount}</span>
+          ) : (
+            <span />
+          )}
           <span
             className={
               isLocked
@@ -182,7 +186,7 @@ export function BoardBrowser({
         className="mb-4 flex items-center gap-2 text-sm font-bold uppercase text-terminal-dim group hover:text-terminal-text"
       >
         <ArrowLeft size={16} className="transition-transform group-hover:-translate-x-1" />
-        BACK TO FEED
+        BACK
       </button>
 
       <div className="mb-6 flex items-end justify-between border-b border-terminal-dim/30 pb-2">
@@ -312,7 +316,7 @@ export function BoardBrowser({
             <p className="mt-2 text-xs">
               {searchQuery.trim()
                 ? `No boards match "${searchQuery}".`
-                : 'Be the first to create a board for this frequency.'}
+                : 'No boards yet. Create one, or it stays empty.'}
             </p>
           </div>
         </div>

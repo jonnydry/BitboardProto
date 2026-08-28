@@ -2,16 +2,16 @@
 
 ### Overview
 
-BitBoard is a client-side React + TypeScript app that uses Nostr relays as the primary transport.
+BitBoard is a client-side React + TypeScript SPA. Nostr relays are the store and transport.
 
-Core concepts:
+Two channel types:
 
-- **Posts**: Nostr kind `1` events tagged as BitBoard posts
-- **Comments**: Nostr kind `1` events tagged as BitBoard comments and linked via NIP-10 `e` tags
-- **Votes**: Nostr kind `7` reaction events (`+` / `-`) scoped by `e` tags
-- **Boards**:
-  - **Topic boards**: user-defined
-  - **Geohash boards**: derived from location/geohash
+- **LOCAL (geohash)** — kind `1` notes with a `g` tag. Fetch and subscribe **without** `#client:bitboard`, over a 9-cell window (center + 8 neighbors) so BitChat location notes on a cell boundary still appear. Optional `n` nickname tag (BitChat).
+- **BOARDS (named)** — kind `1` BitBoard posts tagged `client=bitboard` plus `#board` / `#a`.
+
+Bluetooth mesh is **not** implemented in this web client. Mesh stays BitChat-native.
+
+Empty boards stay empty. Blended external-Nostr fill is off (`ENABLE_BLENDED_FEED`).
 
 ### Nostr event immutability (edits/deletes)
 
@@ -23,11 +23,18 @@ Nostr events are immutable, so BitBoard uses companion events:
 
 The UI treats the **latest** edit companion event as the current content, while votes remain tied to the original post event id.
 
+### Votes and bits
+
+- Votes are Nostr kind `7` reactions (`+` / `-`) scoped by `e` tags.
+- **Bits** are a local daily quota in this client: spend before publish, refund on retract or failed publish. They do not prevent other clients from reacting and are not sybil-proof.
+- `votedPosts` / `votedComments` persist in `localStorage` so this client does not double-spend bits on reload.
+
 ### Data flow (high level)
 
 - **Startup**
   - Load cached posts/boards from `localStorage`
-  - Initialize Nostr feed subscriptions
+  - First-run: welcome → place (optional geolocation) → identity → complete. No default fake `b-tech` landing board.
+  - Initialize Nostr feed subscriptions for the selected board or geohash
   - Fetch latest posts and apply vote tallies + edit companion events
 
 - **Realtime updates**
@@ -40,11 +47,10 @@ The UI treats the **latest** edit companion event as the current content, while 
 ### Key modules
 
 - UI entry: `App.tsx` + `features/*`
-- Nostr transport + parsing: `services/nostrService.ts` (public) and `services/nostr/*` (implementation)
-- Voting tallying: `services/votingService.ts` + `services/voteMath.ts` (hybrid: local daily bits quota + Nostr kind-7 verified uniqueVoters + optimistic)
-- Geo / location channels: `services/geohashService.ts` + `geonetDiscoveryService.ts` (geohash boards + GEO_NET nearby sigs discovery; #g tags + BitChat heritage)
+- Nostr transport + parsing: `services/nostr/NostrService.ts` and `services/nostr/*`
+- Voting tallying: `services/votingService.ts` + `services/voteMath.ts`
+- Geo / location channels: `services/geohashService.ts` (`getSearchCellSet`) + `geonetDiscoveryService.ts`
+- Local-channel detection: `services/nostr/eventHelpers.ts` (`isGeohashChannelEvent`, `isLocalChannelPostEvent`)
 - Identity: `services/identityService.ts`
 - Input hardening: `services/inputValidator.ts`
 - Local diagnostics: `services/diagnosticsService.ts`
-
-**Niche identity**: Bits economy (spend 1/refund on retract, daily ritual) + verified sigs surfaced in PostItem feed cards + Sidebar GEO_NET make the voting/geo visceral. See README features and voteMath for pure compute functions.

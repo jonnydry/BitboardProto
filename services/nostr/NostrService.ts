@@ -12,6 +12,7 @@ import { NostrConfig } from '../../config';
 import { nostrEventDeduplicator } from '../messageDeduplicator';
 import { diagnosticsService } from '../diagnosticsService';
 import { logger } from '../loggingService';
+import { geohashService } from '../geohashService';
 import { NostrProfileCache, type NostrProfileMetadata } from './profileCache';
 import {
   buildBoardEvent,
@@ -38,6 +39,8 @@ import {
   isBitboardCommentEvent as isBitboardCommentEventHelper,
   isBitboardPostEditEvent as isBitboardPostEditEventHelper,
   isBitboardPostEvent as isBitboardPostEventHelper,
+  isGeohashChannelEvent as isGeohashChannelEventHelper,
+  isLocalChannelPostEvent as isLocalChannelPostEventHelper,
 } from './eventHelpers';
 import {
   eventToBoard as mapEventToBoard,
@@ -1028,6 +1031,14 @@ class NostrService {
     return isBitboardPostEventHelper(event);
   }
 
+  isGeohashChannelEvent(event: NostrEvent, geohashes?: string[]): boolean {
+    return isGeohashChannelEventHelper(event, geohashes);
+  }
+
+  isLocalChannelPostEvent(event: NostrEvent, geohashes?: string[]): boolean {
+    return isLocalChannelPostEventHelper(event, geohashes);
+  }
+
   /**
    * Determine if an event should be treated as a BitBoard "comment".
    * Supports both:
@@ -1091,6 +1102,8 @@ class NostrService {
       seedSourceAuthorPubkey?: string;
       /** Original source community if this BitBoard post was seeded */
       seedSourceCommunityAddress?: string;
+      /** BitChat location-note nickname (`n` tag) */
+      nickname?: string;
     },
   ): UnsignedNostrEvent {
     return buildPostEvent(post, pubkey, geohash, opts);
@@ -1350,11 +1363,15 @@ class NostrService {
     }
 
     if (filters.geohash) {
-      filter['#g'] = [filters.geohash];
+      filter['#g'] = geohashService.getSearchCellSet(filters.geohash);
     }
 
-    // Filter for BitBoard client posts
-    filter['#client'] = ['bitboard'];
+    // Topic boards stay BitBoard-scoped. Geohash channels omit #client so
+    // BitChat kind-1 location notes (g tag only) appear alongside BitBoard posts.
+    const geoMode = Boolean(filters.geohash) && !filters.boardId && !filters.boardAddress;
+    if (!geoMode) {
+      filter['#client'] = ['bitboard'];
+    }
 
     this._activeFetches++;
     try {
@@ -1388,10 +1405,14 @@ class NostrService {
       // Use the non-mutating contains() here: fetch is a read path, and marking fetched ids
       // as "seen" would make any refetch within the dedup window return nothing.
       // Only subscription/publish paths mark events as processed.
-      return events.filter(
-        (event) =>
-          !nostrEventDeduplicator.contains(event.id) && this.isBitboardPostEvent(event),
-      );
+      const cells = filters.geohash ? geohashService.getSearchCellSet(filters.geohash) : undefined;
+      const geoMode = Boolean(filters.geohash) && !filters.boardId && !filters.boardAddress;
+      return events.filter((event) => {
+        if (nostrEventDeduplicator.contains(event.id)) return false;
+        return geoMode
+          ? this.isLocalChannelPostEvent(event, cells)
+          : this.isBitboardPostEvent(event);
+      });
     } catch (error) {
       logger.error('Nostr', 'Failed to fetch posts:', error);
       // Don't throw - return empty array for graceful degradation
@@ -1680,11 +1701,17 @@ class NostrService {
   ): string {
     const subscriptionId = this.nextSubId('feed');
 
+    const geoMode = Boolean(filters.geohash) && !filters.boardId && !filters.boardAddress;
+    const cells = filters.geohash ? geohashService.getSearchCellSet(filters.geohash) : undefined;
+
     const filter: FilterWithTags = {
       kinds: [NOSTR_KINDS.POST],
-      '#client': ['bitboard'],
       since: Math.floor(Date.now() / 1000) - NostrConfig.SUBSCRIPTION_SINCE_SECONDS,
     };
+
+    if (!geoMode) {
+      filter['#client'] = ['bitboard'];
+    }
 
     if (filters.boardAddress) {
       filter['#a'] = [filters.boardAddress];
@@ -1695,7 +1722,7 @@ class NostrService {
     }
 
     if (filters.geohash) {
-      filter['#g'] = [filters.geohash];
+      filter['#g'] = cells ?? [filters.geohash];
     }
 
     // Debounce event handler to reduce UI updates during rapid event streams
@@ -1709,8 +1736,11 @@ class NostrService {
         return;
       }
 
-      // Only allow post-shaped events through this subscription
-      if (!this.isBitboardPostEvent(event)) {
+      if (geoMode) {
+        if (!this.isLocalChannelPostEvent(event, cells)) {
+          return;
+        }
+      } else if (!this.isBitboardPostEvent(event)) {
         return;
       }
 

@@ -37,6 +37,8 @@ export function buildPostEvent(
     seedSourceAuthorPubkey?: string;
     /** Original source community if this BitBoard post was seeded */
     seedSourceCommunityAddress?: string;
+    /** BitChat location-note nickname (`n` tag) */
+    nickname?: string;
   },
 ): UnsignedNostrEvent {
   const isEncrypted = !!(opts?.encryptedTitle || opts?.encryptedContent);
@@ -103,9 +105,13 @@ export function buildPostEvent(
     tags.push(['image', post.imageUrl]);
   }
 
-  // Add geohash for location-based posts (BitChat compatible)
+  // Geohash + optional nickname so BitChat location notes can display this post
   if (geohash) {
     tags.push(['g', geohash]);
+    const nick = (opts?.nickname || post.author || '').trim();
+    if (nick && nick.toLowerCase() !== 'anonymous') {
+      tags.push(['n', nick.slice(0, 32)]);
+    }
   }
 
   const event: Partial<NostrEvent> = {

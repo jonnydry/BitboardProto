@@ -124,8 +124,10 @@ describe('FeedView', () => {
 
     mocks.uiState.feedFilter = 'all';
     rerender(<FeedView {...baseProps} />);
-    fireEvent.click(screen.getByText('Init Bit'));
-    expect(mocks.uiState.setViewMode).toHaveBeenCalledWith(ViewMode.CREATE);
+    fireEvent.click(screen.getByText('Enable location'));
+    expect(mocks.uiState.setViewMode).toHaveBeenCalledWith(ViewMode.LOCATION);
+    fireEvent.click(screen.getByText('Browse boards'));
+    expect(mocks.uiState.setViewMode).toHaveBeenCalledWith(ViewMode.BROWSE_BOARDS);
   });
 
   it('renders board header controls and share modal for encrypted boards', () => {

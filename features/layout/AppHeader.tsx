@@ -31,7 +31,6 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
   const showSearch = useUIStore((s) => s.showSearch);
   const setShowSearch = useUIStore((s) => s.setShowSearch);
   const bookmarkedCount = useUIStore((s) => s.bookmarkedIds?.length ?? 0);
-  const activeBoardId = useBoardStore((s) => s.activeBoardId);
   const setActiveBoardId = useBoardStore((s) => s.setActiveBoardId);
   const identity = useUserStore((s) => s.userState.identity);
   const userState = useUserStore((s) => s.userState);
@@ -83,7 +82,6 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
     ownProfile?.name ||
     identity?.displayName ||
     (identity ? `${identity.npub.slice(0, 10)}...` : 'CONNECT');
-  const isGlobalFeedActive = viewMode === ViewMode.FEED && activeBoardId === null;
   const desktopActionClass = (active = false, emphasis = false) =>
     `flex items-center gap-2 border px-3 py-1.5 font-mono text-xs uppercase tracking-[0.16em] transition-colors lg:text-sm ${
       active
@@ -175,7 +173,7 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
           type="button"
           onClick={() => navigateToBoard(null)}
           className="flex items-center gap-2"
-          aria-label="Go to global feed"
+          aria-label="Home"
         >
           {theme === ThemeId.BITBORING ? (
             <span className="text-xl font-bold">BitBoring</span>
@@ -232,7 +230,7 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
         type="button"
         className="hidden md:flex items-center gap-2 cursor-pointer text-left shrink-0 transition-colors hover:text-terminal-text"
         onClick={() => navigateToBoard(null)}
-        aria-label="Go to global feed"
+        aria-label="Home"
       >
         {theme === ThemeId.BITBORING ? (
           <div className="flex flex-col">
@@ -285,7 +283,7 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
                 BitBoard
               </h1>
               <span className="text-2xs lg:text-xs text-terminal-dim tracking-[0.15em] lg:tracking-[0.2em]">
-                DECENTRALIZED SOCIAL NEWS
+                NOSTR · BITCHAT PLACES
               </span>
             </div>
           </>
@@ -294,13 +292,6 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
 
       {/* Desktop Navigation (hidden on mobile) */}
       <nav className="hidden md:flex flex-wrap items-center gap-x-2 gap-y-2 border border-terminal-dim/20 bg-terminal-bg/45 px-3 py-2 text-xs backdrop-blur-sm lg:gap-x-3 lg:text-sm">
-        <button
-          onClick={() => navigateToBoard(null)}
-          className={desktopActionClass(isGlobalFeedActive)}
-          title="Global Feed"
-        >
-          <span>GLOBAL FEED</span>
-        </button>
         <button
           onClick={() => setViewMode(ViewMode.CREATE)}
           className={desktopActionClass(viewMode === ViewMode.CREATE)}
@@ -363,7 +354,9 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
         </button>
       </nav>
 
-      {/* Full-width Bits Bar */}
+      {/* Bits bar — only for signed-in identities (quota gates kind-7 in this client) */}
+      {identity ? (
+        <>
       <div ref={bitsSentinelRef} className="h-px w-full shrink-0" aria-hidden />
       {bitsBarPinned && (
         <div
@@ -383,7 +376,7 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
             type="button"
             onClick={() => setShowBitsPanel((p) => !p)}
             className="w-full flex items-center gap-2.5 md:gap-3 py-1.5 px-1 text-terminal-text hover:bg-terminal-dim/5 transition-colors"
-            title="Bits — your daily scarce signal ritual (click for economy + refund details)"
+            title="Bits — local daily quota for votes in this client"
           >
             <div className="flex items-center gap-2 shrink-0">
               <Zap
@@ -428,8 +421,9 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
                 <div className="px-4 py-3 border-b border-terminal-dim/30 flex items-start gap-3">
                   <Zap size={16} className="text-terminal-text shrink-0 mt-0.5" />
                   <p className="text-sm text-terminal-dim leading-relaxed">
-                    <span className="text-terminal-text font-bold">Bit-weighted global feed:</span>{' '}
-                    verified identities spend limited bits to push the best posts upward.
+                    <span className="text-terminal-text font-bold">Local vote quota:</span>{' '}
+                    bits gate kind-7 reactions in this browser. They are not a network-wide
+                    uniqueness token.
                   </p>
                 </div>
                 <div className="px-4 py-4 space-y-3">
@@ -452,6 +446,8 @@ export const AppHeader = React.memo(function AppHeader({ onOpenDrawer }: AppHead
             document.body,
           )}
       </div>
+        </>
+      ) : null}
 
       {/* Search Modal */}
       {showSearch &&

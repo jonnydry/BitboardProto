@@ -112,4 +112,12 @@ describe('geohash feature core flow', () => {
     // Nearby sigs count visible in UI
     expect(ch.postCount).toBe(7);
   });
+
+  it('builds a 9-cell search window around the center geohash', () => {
+    const center = geohashService.encode(40.7128, -74.006, GeohashPrecision.NEIGHBORHOOD);
+    const cells = geohashService.getSearchCellSet(center);
+    expect(cells).toHaveLength(9);
+    expect(cells).toContain(center.toLowerCase());
+    expect(new Set(cells).size).toBe(9);
+  });
 });

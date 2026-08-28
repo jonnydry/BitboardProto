@@ -64,6 +64,10 @@ export const CreatePost: React.FC<CreatePostProps> = ({
   const [showPreview, setShowPreview] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
+  const selectedBoard = availableBoards.find((b) => b.id === selectedBoardId);
+  const isGeoChannel = selectedBoard?.type === BoardType.GEOHASH;
+  const isEncryptedBoard = selectedBoard?.isEncrypted ?? false;
+
   // Validation error states
   const [titleError, setTitleError] = useState<string | null>(null);
   const [contentError, setContentError] = useState<string | null>(null);
@@ -194,23 +198,30 @@ export const CreatePost: React.FC<CreatePostProps> = ({
   const validateForm = (): boolean => {
     let isValid = true;
 
-    // Validate title
-    const validatedTitle = inputValidator.validateTitle(title);
-    if (!validatedTitle) {
-      if (!title.trim()) {
-        setTitleError('Title is required');
-      } else if (title.length > InputLimits.MAX_TITLE_LENGTH) {
-        setTitleError(`Title must be ${InputLimits.MAX_TITLE_LENGTH} characters or less`);
+    // Validate title (optional on geohash channels — first line of the note is used)
+    if (!isGeoChannel) {
+      const validatedTitle = inputValidator.validateTitle(title);
+      if (!validatedTitle) {
+        if (!title.trim()) {
+          setTitleError('Title is required');
+        } else if (title.length > InputLimits.MAX_TITLE_LENGTH) {
+          setTitleError(`Title must be ${InputLimits.MAX_TITLE_LENGTH} characters or less`);
+        } else {
+          setTitleError('Title contains invalid characters');
+        }
+        isValid = false;
       } else {
-        setTitleError('Title contains invalid characters');
+        setTitleError(null);
       }
-      isValid = false;
     } else {
       setTitleError(null);
     }
 
-    // Validate content (optional but must be valid if provided)
-    if (content.trim()) {
+    // Validate content
+    if (isGeoChannel && !content.trim()) {
+      setContentError('Write a note');
+      isValid = false;
+    } else if (content.trim()) {
       const validatedContent = inputValidator.validatePostContent(content);
       if (!validatedContent) {
         if (content.length > InputLimits.MAX_POST_CONTENT_LENGTH) {
@@ -270,7 +281,14 @@ export const CreatePost: React.FC<CreatePostProps> = ({
 
     try {
       // Sanitize inputs
-      const sanitizedTitle = inputValidator.validateTitle(title)!;
+      const firstLine =
+        content
+          .split(/\r?\n/)
+          .find((line) => line.trim().length > 0)
+          ?.trim() ?? 'Note';
+      const sanitizedTitle = isGeoChannel
+        ? (inputValidator.validateTitle(title.trim() || firstLine) ?? firstLine.slice(0, 80))
+        : inputValidator.validateTitle(title)!;
       const sanitizedContent = content.trim()
         ? inputValidator.validatePostContent(content) || ''
         : '';
@@ -313,9 +331,8 @@ export const CreatePost: React.FC<CreatePostProps> = ({
   const titleOverLimit = titleCharCount > InputLimits.MAX_TITLE_LENGTH;
   const contentOverLimit = contentCharCount > InputLimits.MAX_POST_CONTENT_LENGTH;
 
-  // Check if selected board is encrypted
-  const selectedBoard = availableBoards.find((b) => b.id === selectedBoardId);
-  const isEncryptedBoard = selectedBoard?.isEncrypted ?? false;
+  const localBoards = availableBoards.filter((board) => board.type === BoardType.GEOHASH);
+  const namedBoards = availableBoards.filter((board) => board.type !== BoardType.GEOHASH);
 
   const handleTagInputKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',') {
@@ -359,7 +376,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({
         {/* Board selector row */}
         <div className="flex items-center gap-2.5 py-2.5 px-5 border-b border-terminal-dim/15">
           <span className="text-sm tracking-widest text-terminal-dim/70 font-mono uppercase flex-shrink-0">
-            Board
+            {isGeoChannel ? 'Channel' : 'Board'}
           </span>
           <div className="relative flex-1">
             <select
@@ -367,14 +384,26 @@ export const CreatePost: React.FC<CreatePostProps> = ({
               onChange={(e) => setSelectedBoardId(e.target.value)}
               className="w-full bg-terminal-bg/60 border border-terminal-dim/40 py-1.5 pl-2.5 pr-6 text-terminal-text focus:border-terminal-dim focus:outline-none font-mono text-sm appearance-none cursor-pointer"
             >
-              {availableBoards.map((board) => (
-                <option key={board.id} value={board.id}>
-                  {board.type === BoardType.GEOHASH ? '📍 ' : '// '}
-                  {board.name}
-                  {board.isPublic ? '' : ' [LOCKED]'}
-                  {board.isEncrypted ? ' 🔒' : ''}
-                </option>
-              ))}
+              {localBoards.length > 0 && (
+                <optgroup label="LOCAL">
+                  {localBoards.map((board) => (
+                    <option key={board.id} value={board.id}>
+                      #{board.geohash || board.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {namedBoards.length > 0 && (
+                <optgroup label="BOARDS">
+                  {namedBoards.map((board) => (
+                    <option key={board.id} value={board.id}>
+                      // {board.name}
+                      {board.isPublic ? '' : ' [LOCKED]'}
+                      {board.isEncrypted ? ' 🔒' : ''}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
             <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-terminal-text" />
           </div>
@@ -388,30 +417,32 @@ export const CreatePost: React.FC<CreatePostProps> = ({
 
         {/* Writing area — title + content */}
         <div className="flex flex-col border-b border-terminal-dim/15 px-5">
-          {/* Title */}
-          <div className="py-3.5 border-b border-terminal-dim/20">
-            <input
-              id="title-input"
-              type="text"
-              value={title}
-              onChange={(e) => {
-                setTitle(e.target.value);
-                setTitleError(null);
-              }}
-              className={`w-full bg-transparent text-2xl md:text-3xl leading-tight font-display font-semibold text-terminal-text focus:outline-none placeholder:text-terminal-dim/30 ${
-                titleError ? 'placeholder:text-terminal-alert/50' : ''
-              }`}
-              placeholder="Title your bit…"
-            />
-            {titleError && (
-              <span className="text-terminal-alert text-sm mt-1 block">* {titleError}</span>
-            )}
-            {titleOverLimit && (
-              <span className="text-terminal-alert text-sm mt-1 block">
-                {titleCharCount}/{InputLimits.MAX_TITLE_LENGTH}
-              </span>
-            )}
-          </div>
+          {/* Title — named boards only. Geohash notes are content-first. */}
+          {!isGeoChannel && (
+            <div className="py-3.5 border-b border-terminal-dim/20">
+              <input
+                id="title-input"
+                type="text"
+                value={title}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  setTitleError(null);
+                }}
+                className={`w-full bg-transparent text-2xl md:text-3xl leading-tight font-display font-semibold text-terminal-text focus:outline-none placeholder:text-terminal-dim/30 ${
+                  titleError ? 'placeholder:text-terminal-alert/50' : ''
+                }`}
+                placeholder="Title your bit…"
+              />
+              {titleError && (
+                <span className="text-terminal-alert text-sm mt-1 block">* {titleError}</span>
+              )}
+              {titleOverLimit && (
+                <span className="text-terminal-alert text-sm mt-1 block">
+                  {titleCharCount}/{InputLimits.MAX_TITLE_LENGTH}
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Content */}
           <div className="pt-3.5">
@@ -431,7 +462,11 @@ export const CreatePost: React.FC<CreatePostProps> = ({
                   setContentError(null);
                 }}
                 knownUsers={new Set()}
-                placeholder="Write your signal… Markdown and @mentions supported."
+                placeholder={
+                  isGeoChannel
+                    ? 'Write a note… Markdown and @mentions supported.'
+                    : 'Write your signal… Markdown and @mentions supported.'
+                }
                 minHeight="120px"
               />
             )}

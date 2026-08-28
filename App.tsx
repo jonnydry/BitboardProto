@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { ToastHost } from './components/ToastHost';
 import { SEOHead } from './components/SEOHead';
 import { KeyboardShortcutsHelp } from './components/KeyboardShortcutsHelp';
-import { OnboardingFlow } from './components/OnboardingFlow';
+import { OnboardingFlow, type OnboardingResult } from './components/OnboardingFlow';
 import { OfflineBanner } from './components/OfflineBanner';
 import { ConsentBanner } from './components/ConsentBanner';
 import { AppProvider, useApp } from './features/layout/AppContext';
@@ -338,9 +338,9 @@ const AppContent: React.FC = () => {
 
     keyboardShortcutsService.register({
       key: 'e',
-      description: 'Discover Nostr content',
+      description: 'Nearby geohash channel',
       category: 'navigation',
-      action: () => useUIStore.getState().setViewMode(ViewMode.DISCOVER_NOSTR),
+      action: () => useUIStore.getState().setViewMode(ViewMode.LOCATION),
     });
 
     const focusSearchInput = () => {
@@ -412,10 +412,19 @@ const AppContent: React.FC = () => {
     }
   }, [app.userState.identity, app.userState.username]);
 
-  const handleOnboardingComplete = () => {
+  const handleOnboardingComplete = (result?: OnboardingResult) => {
     localStorage.setItem('bitboard_onboarding_complete', 'true');
     setShowOnboarding(false);
     analyticsService.track(AnalyticsEvents.ONBOARDING_COMPLETED);
+    if (result?.locationBoards && result.locationBoards.length > 0) {
+      app.setLocationBoards((prev) => {
+        const ids = new Set(prev.map((board) => board.id));
+        return [...prev, ...result.locationBoards!.filter((board) => !ids.has(board.id))];
+      });
+    }
+    if (result?.activeBoardId) {
+      app.navigateToBoard(result.activeBoardId);
+    }
   };
 
   const handleOnboardingSkip = () => {
@@ -782,8 +791,7 @@ const AppContent: React.FC = () => {
               </div>
             )}
             <div className="mb-2">
-              BitBoard NOSTR PROTOCOL V3.0 // RELAYS: {nostrService.getRelays().length} // NODES
-              ACTIVE: {(app.boards?.length ?? 0) + (app.locationBoards?.length ?? 0)}
+              BitBoard // NOSTR · BITCHAT // RELAYS: {nostrService.getRelays().length}
             </div>
             <div className="flex items-center justify-center gap-4">
               <button

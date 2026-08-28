@@ -13,7 +13,10 @@ export async function processFetchedPostEvents(nostrPosts: NostrEvent[]): Promis
   }
 
   const convertedPosts = nostrPosts
-    .filter((event) => nostrService.isBitboardPostEvent(event))
+    .filter(
+      (event) =>
+        nostrService.isBitboardPostEvent(event) || nostrService.isGeohashChannelEvent(event),
+    )
     .map((event) => nostrService.eventToPost(event));
 
   const postsWithNostrIds = convertedPosts.filter((post) => post.nostrEventId);
