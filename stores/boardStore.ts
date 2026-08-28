@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { type Board } from '../types';
-import { INITIAL_BOARDS } from '../constants';
+import { INITIAL_BOARDS, RETIRED_DEFAULT_BOARD_IDS } from '../constants';
 import { StorageKeys } from '../config';
 import { persistLastActiveBoardId } from '../services/boardUrlService';
 import { logger } from '../services/loggingService';
@@ -20,18 +20,16 @@ interface BoardStoreState {
 
 /**
  * Merge cached boards with INITIAL_BOARDS.
- * - All INITIAL_BOARDS are always included (ensures updates propagate to users)
- * - User-created boards from cache are preserved
+ * Default catalog updates replace old seed boards. User-created boards stay.
  */
-function mergeWithInitialBoards(cachedBoards: Board[]): Board[] {
+export function mergeWithInitialBoards(cachedBoards: Board[]): Board[] {
   const initialBoardIds = new Set(INITIAL_BOARDS.map((b) => b.id));
+  const retiredBoardIds = new Set(RETIRED_DEFAULT_BOARD_IDS);
 
-  // Start with all default boards (ensures updates to defaults propagate)
   const merged = [...INITIAL_BOARDS];
 
-  // Add any user-created boards from cache (boards not in INITIAL_BOARDS)
   for (const cached of cachedBoards) {
-    if (!initialBoardIds.has(cached.id)) {
+    if (!initialBoardIds.has(cached.id) && !retiredBoardIds.has(cached.id)) {
       merged.push(cached);
     }
   }

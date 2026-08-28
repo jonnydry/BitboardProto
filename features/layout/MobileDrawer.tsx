@@ -1,10 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import {
   X,
-  Globe,
   Bookmark,
   Bell,
-  Compass,
   User,
   Settings,
   MapPin,
@@ -32,9 +30,9 @@ export const MobileDrawer = React.memo(function MobileDrawer({
   isOpen,
   onClose,
   viewMode,
-  activeBoardId,
+  activeBoardId: _activeBoardId,
   onSetViewMode,
-  onNavigateGlobal,
+  onNavigateGlobal: _onNavigateGlobal,
   identity,
   userState: _userState,
   bookmarkedCount,
@@ -87,11 +85,11 @@ export const MobileDrawer = React.memo(function MobileDrawer({
 
   const navLinks = [
     {
-      id: 'global',
-      icon: Globe,
-      label: 'Global Feed',
-      isActive: viewMode === ViewMode.FEED && activeBoardId === null,
-      onClick: () => handleNavClick(onNavigateGlobal),
+      id: 'location',
+      icon: MapPin,
+      label: 'NEARBY',
+      isActive: viewMode === ViewMode.LOCATION,
+      onClick: () => handleNavClick(() => onSetViewMode(ViewMode.LOCATION)),
     },
     {
       id: 'bookmarks',
@@ -103,23 +101,9 @@ export const MobileDrawer = React.memo(function MobileDrawer({
     {
       id: 'notifications',
       icon: Bell,
-      label: 'Notifications',
+      label: 'ALERTS',
       isActive: viewMode === ViewMode.NOTIFICATIONS,
       onClick: () => handleNavClick(() => onSetViewMode(ViewMode.NOTIFICATIONS)),
-    },
-    {
-      id: 'discover-nostr',
-      icon: Compass,
-      label: 'Discover Nostr',
-      isActive: viewMode === ViewMode.DISCOVER_NOSTR,
-      onClick: () => handleNavClick(() => onSetViewMode(ViewMode.DISCOVER_NOSTR)),
-    },
-    {
-      id: 'location',
-      icon: MapPin,
-      label: 'Scan Nearby',
-      isActive: viewMode === ViewMode.LOCATION,
-      onClick: () => handleNavClick(() => onSetViewMode(ViewMode.LOCATION)),
     },
     {
       id: 'identity',
@@ -217,7 +201,7 @@ export const MobileDrawer = React.memo(function MobileDrawer({
         {/* Footer */}
         <div className="mt-auto border-t border-terminal-dim/20 bg-terminal-bg/95 p-4 text-center">
           <span className="text-2xs text-terminal-dim uppercase tracking-wider">
-            NOSTR PROTOCOL V3.0
+            NOSTR · BITCHAT
           </span>
         </div>
       </div>

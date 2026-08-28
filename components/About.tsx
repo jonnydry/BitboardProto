@@ -68,37 +68,38 @@ export const About: React.FC = () => {
               BitBoard
             </h1>
             <p className="text-xs tracking-[0.25em] text-terminal-dim uppercase mt-1">
-              Decentralized Message Board · Nostr Protocol
+              Nostr boards · BitChat places
             </p>
           </div>
         </div>
 
         <p className="text-sm leading-relaxed text-terminal-text/90 max-w-xl">
-          Discussion boards with no company, accounts, or servers. Your identity is a key that lives
-          on your device — fully yours.
+          Named topic boards on Nostr. Nearby rooms tagged with a geohash — the same kind-1
+          location notes BitChat publishes on the internet. Empty boards stay empty. Bluetooth mesh
+          lives in the BitChat app, not here.
         </p>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatPill
-          value="6"
+          value="10"
           label="Default relays"
           icon={<Radio size={18} className={iconClass} />}
         />
         <StatPill
           value="100"
-          label="Bits per identity"
+          label="Local bits / day"
           icon={<Coins size={18} className={iconClass} />}
         />
         <StatPill
-          value="E2E"
-          label="Encrypted DMs"
+          value="AES"
+          label="Encrypted boards"
           icon={<Lock size={18} className={iconClass} />}
         />
         <StatPill
           value="0"
-          label="Backend servers"
+          label="App servers"
           icon={<ShieldCheck size={18} className={iconClass} />}
         />
       </div>
@@ -119,11 +120,11 @@ export const About: React.FC = () => {
         <div className="flex gap-3">
           <KeyRound size={16} className="text-terminal-dim/70 shrink-0 mt-0.5 hidden sm:block" />
           <p className="text-sm text-terminal-dim leading-relaxed">
-            When you join, BitBoard creates a keypair right in your browser. Your private key stays
-            on your device — encrypted and never shared. Every post, vote, and comment is
-            cryptographically signed and broadcast to relays anyone can run. Real ownership, real
-            verification.
-          </p>
+              When you join, BitBoard can create a Nostr keypair in your browser. Your private key
+              stays on this device — encrypted with a passphrase, never uploaded to a BitBoard
+              server (there isn&apos;t one). Posts and votes are signed events on relays anyone can
+              run.
+            </p>
         </div>
       </section>
 
@@ -136,11 +137,11 @@ export const About: React.FC = () => {
           <div className="flex gap-3">
             <Coins size={18} className="text-terminal-dim/40 shrink-0 mt-0.5 hidden sm:block" />
             <p className="text-sm text-terminal-dim leading-relaxed">
-              You get <span className="text-terminal-text font-medium">100 bits</span> each day
-              (daily ritual). Each vote costs{' '}
-              <span className="text-terminal-text font-medium">1 bit</span> — change your mind?
-              Retract and it comes back (refund). Spend to signal; see uniqueVoters + "verified
-              sigs" in feed (bits + cryptographic Nostr 1-per-pubkey). No bots.
+              You get <span className="text-terminal-text font-medium">100 bits</span> each day in
+              this browser. Each vote here costs{' '}
+              <span className="text-terminal-text font-medium">1 bit</span> (refunded if you
+              retract). Bits only gate kind-7 reactions in BitBoard — other clients can react
+              without them. Not a uniqueness token. Not sybil-proof.
             </p>
           </div>
         </div>
@@ -156,24 +157,28 @@ export const About: React.FC = () => {
             <li className="flex gap-2 break-inside-avoid">
               <Globe size={14} className="text-terminal-dim shrink-0 mt-0.5" />
               <span>
-                Topic boards + GEO local channels (nearby sigs discovery, geohash from BitChat)
+                LOCAL: geohash channels. Kind-1 notes with a g tag, including BitChat location notes
               </span>
             </li>
             <li className="flex gap-2 break-inside-avoid">
+              <LayoutGrid size={14} className="text-terminal-dim shrink-0 mt-0.5" />
+              <span>BOARDS: named Nostr topics, scoped with a client=bitboard tag</span>
+            </li>
+            <li className="flex gap-2 break-inside-avoid">
               <Lock size={14} className="text-terminal-dim shrink-0 mt-0.5" />
-              <span>End-to-end encrypted DMs</span>
+              <span>Encrypted boards (AES-256-GCM, key in the share URL fragment)</span>
             </li>
             <li className="flex gap-2 break-inside-avoid">
               <Users size={14} className="text-terminal-dim shrink-0 mt-0.5" />
-              <span>Follow, mute & Web of Trust ranking</span>
+              <span>Follow, mute, and optional Web of Trust ranking</span>
             </li>
             <li className="flex gap-2 break-inside-avoid">
               <Zap size={14} className="text-terminal-dim shrink-0 mt-0.5" />
-              <span>Lightning Zaps to tip posts</span>
+              <span>Lightning Zaps (NIP-57) when you set a lightning address</span>
             </li>
             <li className="flex gap-2 break-inside-avoid">
               <Smartphone size={14} className="text-terminal-dim shrink-0 mt-0.5" />
-              <span>PWA, works offline, 8 themes</span>
+              <span>PWA + offline cache. Bluetooth mesh is BitChat-native, not this web client</span>
             </li>
           </ul>
         </div>

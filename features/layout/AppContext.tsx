@@ -264,10 +264,19 @@ const AppProviderInternal: React.FC<{ children: React.ReactNode }> = ({ children
   }, [boards]);
 
   const geohashBoards = useMemo(() => {
-    return boards.filter(
-      (board) => board.type === BoardType.GEOHASH && board.source !== 'nostr-community',
-    );
-  }, [boards]);
+    const merged = new Map<string, Board>();
+    for (const board of boards) {
+      if (board.type === BoardType.GEOHASH && board.source !== 'nostr-community') {
+        merged.set(board.id, board);
+      }
+    }
+    for (const board of locationBoards) {
+      if (board.type === BoardType.GEOHASH) {
+        merged.set(board.id, board);
+      }
+    }
+    return Array.from(merged.values());
+  }, [boards, locationBoards]);
 
   const externalCommunities = useMemo(() => {
     return boards.filter((board) => board.source === 'nostr-community');

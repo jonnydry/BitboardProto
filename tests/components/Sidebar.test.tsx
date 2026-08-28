@@ -161,6 +161,7 @@ describe('Sidebar', () => {
       render(<Sidebar {...baseProps} layout="drawer" />);
     });
 
+    fireEvent.click(screen.getByRole('button', { name: /ENCRYPTED/i }));
     fireEvent.click(screen.getByText('Secure One'));
     expect(baseProps.navigateToBoard).toHaveBeenCalledWith('secure-1');
     expect(baseProps.onRequestCloseNav).toHaveBeenCalled();
@@ -171,7 +172,7 @@ describe('Sidebar', () => {
       render(<Sidebar {...baseProps} layout="drawer" />);
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /SECURE_NET/i }));
+    fireEvent.click(screen.getByRole('button', { name: /ENCRYPTED/i }));
     fireEvent.click(screen.getByTitle('Remove invalid key'));
     expect(baseProps.removeFailedDecryptionKey).toHaveBeenCalledWith('broken-1');
   });
@@ -195,12 +196,13 @@ describe('Sidebar', () => {
     expect(baseProps.setTheme).toHaveBeenCalledWith(ThemeId.PHOSPHOR);
   });
 
-  it('changes the feed filter', () => {
+  it('opens location settings from Enable location', () => {
     act(() => {
       render(<Sidebar {...baseProps} />);
     });
 
-    fireEvent.click(screen.getByText('TOPIC'));
-    expect(baseProps.setFeedFilter).toHaveBeenCalledWith('topic');
+    fireEvent.click(screen.getByText('Enable location'));
+    expect(baseProps.onSetViewMode).toHaveBeenCalledWith(ViewMode.LOCATION);
+    expect(baseProps.onRequestCloseNav).toHaveBeenCalled();
   });
 });

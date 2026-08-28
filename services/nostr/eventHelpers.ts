@@ -43,6 +43,36 @@ export function isBitboardPostEvent(event: NostrEvent): boolean {
   return titlePresent && (boardPresent || boardAddressPresent) && !hasThreadRefs;
 }
 
+/**
+ * BitChat location notes are kind-1 events with a `g` geohash tag.
+ * They do not use BitBoard `bb`/`board`/`client` tags. Replies (NIP-10 `e`)
+ * are excluded so chat threads do not appear as top-level board posts.
+ */
+export function isGeohashChannelEvent(event: NostrEvent, geohashes?: string[]): boolean {
+  if (event.kind !== NOSTR_KINDS.POST) return false;
+  const explicit = getBitboardType(event);
+  if (
+    explicit === BITBOARD_TYPE_COMMENT ||
+    explicit === BITBOARD_TYPE_POST_EDIT ||
+    explicit === BITBOARD_TYPE_COMMENT_EDIT ||
+    explicit === BITBOARD_TYPE_COMMENT_DELETE
+  ) {
+    return false;
+  }
+  if (isBitboardCommentEvent(event)) return false;
+  const geohash = getTagValue(event, 'g');
+  if (!geohash) return false;
+  if (geohashes && geohashes.length > 0) {
+    const needle = geohash.toLowerCase();
+    return geohashes.some((cell) => cell.toLowerCase() === needle);
+  }
+  return true;
+}
+
+export function isLocalChannelPostEvent(event: NostrEvent, geohashes?: string[]): boolean {
+  return isBitboardPostEvent(event) || isGeohashChannelEvent(event, geohashes);
+}
+
 export function isBitboardCommentEvent(event: NostrEvent, rootPostEventId?: string): boolean {
   const explicit = getBitboardType(event);
   if (explicit === BITBOARD_TYPE_COMMENT) return true;

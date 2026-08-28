@@ -1,5 +1,5 @@
 import React from 'react';
-import { Zap, Target, Undo2, Users } from 'lucide-react';
+import { Zap, Target, Undo2, AlertTriangle } from 'lucide-react';
 
 interface BitsExplanationProps {
   size?: 'desktop' | 'mobile';
@@ -18,9 +18,9 @@ export const BitsExplanation = React.memo(function BitsExplanation({
       <div className={`flex gap-2.5`}>
         <Zap size={iconSize} className="text-terminal-dim shrink-0 mt-0.5" />
         <p className={`${textSize} text-terminal-dim leading-relaxed`}>
-          <span className="text-terminal-text font-bold">Daily ritual — bit-weighted signal:</span>{' '}
-          verified identities spend limited bits to push the best posts upward. Your scarce spend is
-          the point.
+          <span className="text-terminal-text font-bold">Local daily quota:</span> this client
+          spends 1 bit before publishing a Nostr kind-7 reaction. Other clients can still react
+          without bits. This is not a uniqueness proof and not sybil-resistant.
         </p>
       </div>
       <div className={spacing}>
@@ -30,10 +30,10 @@ export const BitsExplanation = React.memo(function BitsExplanation({
             <div
               className={`${textSize} text-terminal-text font-bold uppercase tracking-wide mb-0.5`}
             >
-              Spend deliberately
+              Spend to vote here
             </div>
             <div className={`${textSize} text-terminal-dim leading-relaxed`}>
-              Each new vote locks 1 bit, so influence goes where you think it matters most.
+              Each new vote in BitBoard locks 1 bit from today&apos;s quota on this device.
             </div>
           </div>
         </div>
@@ -46,22 +46,21 @@ export const BitsExplanation = React.memo(function BitsExplanation({
               Refund by retracting
             </div>
             <div className={`${textSize} text-terminal-dim leading-relaxed`}>
-              Remove your vote to refund the bit. Switching directions keeps the same bit locked in
-              place.
+              Remove your vote to refund the bit. Switching directions keeps the same bit locked.
             </div>
           </div>
         </div>
         <div className="flex gap-2.5">
-          <Users size={iconSize} className="text-terminal-dim shrink-0 mt-0.5" />
+          <AlertTriangle size={iconSize} className="text-terminal-dim shrink-0 mt-0.5" />
           <div>
             <div
               className={`${textSize} text-terminal-text font-bold uppercase tracking-wide mb-0.5`}
             >
-              Verified consensus
+              Client-side only
             </div>
             <div className={`${textSize} text-terminal-dim leading-relaxed`}>
-              The global feed improves when many verified identities choose the same high-signal
-              posts.
+              Votes you cast here are remembered on this device so you don&apos;t double-spend bits.
+              Relays still accept reactions from anywhere.
             </div>
           </div>
         </div>

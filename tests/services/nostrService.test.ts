@@ -327,17 +327,34 @@ describe('NostrService', () => {
       );
     });
 
-    it('should filter posts by geohash', async () => {
+    it('should filter posts by geohash without a BitBoard client tag', async () => {
       mockPool.querySync.mockResolvedValue([mockPostEvent]);
 
       await service.fetchPosts({ geohash: 'abc123' });
 
-      expect(mockPool.querySync).toHaveBeenCalledWith(
-        expect.any(Array),
-        expect.objectContaining({
-          '#g': ['abc123'],
-        }),
-      );
+      const filter = mockPool.querySync.mock.calls[0]?.[1] as Record<string, unknown>;
+      expect(filter['#g']).toEqual(expect.arrayContaining(['abc123']));
+      expect(filter['#client']).toBeUndefined();
+    });
+
+    it('should accept BitChat-style geohash notes without client=bitboard', async () => {
+      const locationNote = {
+        id: 'geo-note-1',
+        pubkey: 'author-pubkey',
+        created_at: Math.floor(Date.now() / 1000),
+        kind: 1,
+        tags: [
+          ['g', 'abc123'],
+          ['n', 'alice'],
+        ],
+        content: 'hello from the cell',
+        sig: 'signature',
+      };
+      mockPool.querySync.mockResolvedValue([locationNote]);
+
+      const posts = await service.fetchPosts({ geohash: 'abc123' });
+      expect(posts).toHaveLength(1);
+      expect(posts[0]).toBe(locationNote);
     });
 
     it('should handle query timeouts gracefully', async () => {
@@ -503,6 +520,17 @@ describe('NostrService', () => {
           oneose: expect.any(Function),
         }),
       );
+    });
+
+    it('should subscribe to geohash feeds without a BitBoard client tag', () => {
+      const mockSub = { close: vi.fn() };
+      mockPool.subscribeMany.mockReturnValue(mockSub);
+
+      service.subscribeToFeed(vi.fn(), { geohash: 'abc123' });
+
+      const filters = mockPool.subscribeMany.mock.calls[0]?.[1] as Array<Record<string, unknown>>;
+      expect(filters[0]?.['#g']).toEqual(expect.arrayContaining(['abc123']));
+      expect(filters[0]?.['#client']).toBeUndefined();
     });
 
     it('should filter feed subscription by board', () => {

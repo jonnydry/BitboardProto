@@ -53,4 +53,24 @@ describe('buildPostEvent (BitBoard → Nostr tags)', () => {
     expect(unsigned.tags).toContainEqual(['a', boardAddress]);
     expect(unsigned.tags).toContainEqual(['board', 'my-d']);
   });
+
+  it('adds g and n tags for geohash posts so BitChat can display them', () => {
+    const unsigned = buildPostEvent(
+      {
+        boardId: 'geo-abc1234',
+        title: 'Here',
+        content: 'On the corner',
+        author: 'alice',
+        authorPubkey: pubkey,
+        tags: [],
+        timestamp: Date.now(),
+      },
+      pubkey,
+      'abc1234',
+      { nickname: 'alice' },
+    );
+
+    expect(unsigned.tags).toContainEqual(['g', 'abc1234']);
+    expect(unsigned.tags).toContainEqual(['n', 'alice']);
+  });
 });

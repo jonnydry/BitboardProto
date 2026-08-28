@@ -27,15 +27,15 @@ export const UserConfig = {
   /**
    * Cost to vote (refunded if vote is retracted)
    *
-   * BIT-TO-VOTE MAPPING:
-   * - 1 bit = permission to cast 1 cryptographic Nostr vote
-   * - Bits are spent locally BEFORE publishing to Nostr
-   * - If Nostr publish fails, bit is refunded (rollback)
-   * - Switching vote direction is FREE (bit stays locked)
-   * - Retracting vote refunds the bit
+   * Bits are a local daily quota in this client:
+   * - 1 bit is spent locally BEFORE publishing a kind-7 reaction
+   * - If publish fails, the bit is refunded
+   * - Switching vote direction keeps the same bit locked
+   * - Retracting refunds the bit
    *
-   * This matches the cryptographic model: one vote per pubkey per post.
-   * Bits gate access; Nostr enforces the rule cryptographically.
+   * Other Nostr clients can still react without this quota. Kind-7
+   * uniqueness is per-pubkey on relays, not a BitBoard-enforced uniqueness
+   * proof, and bits are not sybil-resistant.
    */
   VOTE_COST: 1,
 
@@ -203,10 +203,10 @@ export const UIConfig = {
   INITIAL_POSTS_COUNT: 50,
 
   /**
-   * When there is no `/board/...` URL and no saved last board, land new sessions on this board
-   * so the feed is scoped (not empty global) by default.
+   * Empty: first visit stays on the honest empty feed until the user picks a
+   * nearby geohash channel or a named board. Do not fake a populated topic.
    */
-  DEFAULT_LANDING_BOARD_ID: 'b-tech',
+  DEFAULT_LANDING_BOARD_ID: '',
 
   /** Number of posts to load on scroll */
   POSTS_LOAD_MORE_COUNT: 25,
@@ -390,11 +390,14 @@ export const IndexerConfig = {
 // ============================================
 
 export const FeatureFlags = {
-  /** Enable geohash/location features */
+  /** Enable geohash/location features (BitChat-compatible #g channels) */
   ENABLE_GEOHASH: true,
 
+  /** Fill sparse boards with unrelated Nostr notes. Off: empty boards stay empty. */
+  ENABLE_BLENDED_FEED: false,
+
   /** Enable Gemini AI link scanning */
-  ENABLE_LINK_SCANNING: true,
+  ENABLE_LINK_SCANNING: false,
 
   /** Enable NIP-07 browser extension support */
   ENABLE_NIP07: true,
@@ -415,13 +418,13 @@ export const FeatureFlags = {
   ENABLE_WOT: true,
 
   /** Enable NIP-72 Moderated Communities */
-  ENABLE_COMMUNITIES: true,
+  ENABLE_COMMUNITIES: false,
 
   /** Enable NIP-51 Lists (bookmarks, etc.) */
   ENABLE_LISTS: true,
 
   /** Enable NIP-23 Long-form content */
-  ENABLE_LONG_FORM: true,
+  ENABLE_LONG_FORM: false,
 
   /** Enable NIP-53 Live Events */
   ENABLE_LIVE_EVENTS: false, // Disabled by default until implemented

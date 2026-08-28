@@ -7,10 +7,8 @@ interface SortSelectorProps {
 }
 
 const SORT_OPTIONS = [
-  { id: SortMode.TRENDING, label: 'HOT', description: 'Trending now' },
   { id: SortMode.NEWEST, label: 'NEW', description: 'Most recent' },
   { id: SortMode.TOP, label: 'TOP', description: 'Highest score' },
-  { id: SortMode.COMMENTS, label: 'ACTIVE', description: 'Most discussed' },
 ] as const;
 
 export const SortSelector: React.FC<SortSelectorProps> = ({ currentSort, onSortChange }) => {

@@ -115,3 +115,32 @@ describe('userStore — daily bit refresh', () => {
     expect(isValid).toBe(false);
   });
 });
+
+describe('userStore — vote persistence', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useUserStore.getState().setUserState((prev) => ({
+      ...prev,
+      votedPosts: {},
+      votedComments: {},
+    }));
+  });
+
+  it('persists votedPosts to localStorage', () => {
+    useUserStore.getState().setUserState((prev) => ({
+      ...prev,
+      votedPosts: { 'post-1': 'up' },
+    }));
+    expect(localStorage.getItem('bitboard_voted_posts')).toBe(JSON.stringify({ 'post-1': 'up' }));
+  });
+
+  it('persists votedComments to localStorage', () => {
+    useUserStore.getState().setUserState((prev) => ({
+      ...prev,
+      votedComments: { 'c-1': 'down' },
+    }));
+    expect(localStorage.getItem('bitboard_voted_comments')).toBe(
+      JSON.stringify({ 'c-1': 'down' }),
+    );
+  });
+});

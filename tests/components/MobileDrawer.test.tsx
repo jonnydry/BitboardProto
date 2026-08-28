@@ -70,8 +70,8 @@ describe('MobileDrawer', () => {
     expect(onSetViewMode).toHaveBeenCalledWith(ViewMode.BOOKMARKS);
     expect(onClose).toHaveBeenCalled();
 
-    fireEvent.click(screen.getByText('Global Feed'));
-    expect(onNavigateGlobal).toHaveBeenCalled();
+    fireEvent.click(screen.getByText('NEARBY'));
+    expect(onSetViewMode).toHaveBeenCalledWith(ViewMode.LOCATION);
   });
 
   it('closes on escape', () => {
@@ -94,8 +94,8 @@ describe('MobileDrawer', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('does not mark global feed active when a board is selected', () => {
-    render(
+  it('marks NEARBY active only on the location view', () => {
+    const { rerender } = render(
       <MobileDrawer
         isOpen={true}
         onClose={() => undefined}
@@ -109,7 +109,22 @@ describe('MobileDrawer', () => {
       />,
     );
 
-    const globalBtn = screen.getByText('Global Feed').closest('button');
-    expect(globalBtn).not.toHaveClass('bg-terminal-dim/10');
+    expect(screen.getByText('NEARBY').closest('button')).not.toHaveClass('bg-terminal-dim/10');
+
+    rerender(
+      <MobileDrawer
+        isOpen={true}
+        onClose={() => undefined}
+        viewMode={ViewMode.LOCATION}
+        activeBoardId={'board-1'}
+        onSetViewMode={() => undefined}
+        onNavigateGlobal={() => undefined}
+        userState={{ bits: 2, maxBits: 4 }}
+        bookmarkedCount={0}
+        isNostrConnected={true}
+      />,
+    );
+
+    expect(screen.getByText('NEARBY').closest('button')).toHaveClass('bg-terminal-dim/10');
   });
 });

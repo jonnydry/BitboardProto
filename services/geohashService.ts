@@ -62,6 +62,21 @@ class GeohashService {
   }
 
   /**
+   * Center cell plus 8 neighbors — same 9-cell window BitChat uses for
+   * location-note subscriptions so notes on a cell boundary still appear.
+   */
+  getSearchCellSet(geohash: string): string[] {
+    const center = geohash.trim().toLowerCase();
+    if (!center) return [];
+    try {
+      const neighbors = this.getNeighbors(center).map((cell) => cell.toLowerCase());
+      return Array.from(new Set([center, ...neighbors]));
+    } catch {
+      return [center];
+    }
+  }
+
+  /**
    * Get all geohashes at different precisions for a location
    */
   getAllPrecisions(lat: number, lon: number): Record<GeohashPrecision, string> {

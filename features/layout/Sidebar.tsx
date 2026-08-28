@@ -1,15 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Hash,
-  Globe,
   MapPin,
-  User,
   ChevronDown,
   ChevronRight,
   Shield,
   Trash2,
-  ExternalLink,
-  Compass,
 } from 'lucide-react';
 import type { Board } from '../../types';
 import { BoardType, ThemeId, ViewMode } from '../../types';
@@ -17,6 +13,7 @@ import { geonetDiscoveryService, type GeoChannel } from '../../services/geonetDi
 import { geohashService } from '../../services/geohashService';
 import { encryptedBoardService } from '../../services/encryptedBoardService';
 import { nostrService, type RelayStatus } from '../../services/nostr/NostrService';
+import { FeatureFlags } from '../../config';
 
 export type SidebarLayout = 'inline' | 'drawer';
 
@@ -68,52 +65,17 @@ function SectionButton({
   );
 }
 
-function NavRow({
-  icon: Icon,
-  label,
-  active,
-  badge,
-  onClick,
-}: {
-  icon: React.ElementType;
-  label: string;
-  active?: boolean;
-  badge?: React.ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`group flex w-full items-center gap-3 border px-3 py-2.5 text-left text-xs transition-all ${
-        active
-          ? 'border-terminal-text bg-terminal-dim/10 text-terminal-text'
-          : 'border-transparent text-terminal-dim hover:border-terminal-dim/30 hover:bg-terminal-dim/5 hover:text-terminal-text'
-      }`}
-    >
-      <Icon size={14} strokeWidth={1.75} className="shrink-0" />
-      <span className="flex-1 font-mono uppercase tracking-[0.12em]">{label}</span>
-      {badge}
-      <span
-        className={`text-terminal-dim transition-transform ${active ? 'opacity-100' : 'opacity-0 group-hover:opacity-70'}`}
-      >
-        →
-      </span>
-    </button>
-  );
-}
-
 export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
   const {
     userState,
     theme,
     setTheme,
-    viewMode,
+    viewMode: _viewMode,
     activeBoardId,
-    feedFilter,
-    setFeedFilter,
+    feedFilter: _feedFilter,
+    setFeedFilter: _setFeedFilter,
     topicBoards = [],
-    externalCommunities = [],
+    externalCommunities: _externalCommunities = [],
     geohashBoards = [],
     boardsById = new Map<string, Board>(),
     decryptionFailedBoardIds = new Set<string>(),
@@ -133,23 +95,12 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
   const [showRelayDetails, setShowRelayDetails] = useState(false);
   // Use a specific string-literal union so `noUncheckedIndexedAccess` doesn't
   // return `boolean | undefined` for every section access below.
-  type SectionKey =
-    | 'FILTER'
-    | 'TOPIC_NET'
-    | 'COMMUNITIES'
-    | 'SECURE_NET'
-    | 'GEO_NET'
-    | 'DISCOVER'
-    | 'THEME'
-    | 'IDENTITY';
+  type SectionKey = 'LOCAL' | 'BOARDS' | 'SECURE_NET' | 'THEME' | 'IDENTITY';
 
   const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({
-    FILTER: true,
-    TOPIC_NET: true,
-    COMMUNITIES: false,
+    LOCAL: true,
+    BOARDS: true,
     SECURE_NET: false,
-    GEO_NET: true,
-    DISCOVER: false,
     THEME: false,
     IDENTITY: false,
   });
@@ -181,9 +132,8 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
   }, []);
 
   useEffect(() => {
-    if (geohashBoards.length === 0) return;
     const cached = geohashService.getCachedPosition();
-    if (!cached) return;
+    if (!cached || !FeatureFlags.ENABLE_GEOHASH) return;
     setIsLoadingActivity(true);
     geonetDiscoveryService
       .discoverNearbyChannels(cached.coords.latitude, cached.coords.longitude)
@@ -191,8 +141,6 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
       .catch(() => {})
       .finally(() => setIsLoadingActivity(false));
   }, [geohashBoards.length]);
-
-  const totalNearbyPosts = nearbyActivity.reduce((s, ch) => s + ch.postCount, 0);
 
   // ── Boards ───────────────────────────────────────────────────────────────
   const encryptedBoards = useMemo(() => {
@@ -317,65 +265,71 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
         )}
       </div>
 
-      {/* ── Feed filter (global feed only) ── */}
-      {!activeBoardId && viewMode === ViewMode.FEED && (
+      {/* ── Local / BitChat geohash channels ── */}
+      {FeatureFlags.ENABLE_GEOHASH && (
         <div className="ui-surface-panel p-3">
-          <SectionButton isOpen={openSections.FILTER} onClick={() => toggleSection('FILTER')}>
-            FILTER
+          <SectionButton isOpen={openSections.LOCAL} onClick={() => toggleSection('LOCAL')}>
+            LOCAL ({geohashBoards.length})
           </SectionButton>
-          {openSections.FILTER && (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {(
-                [
-                  { id: 'all', label: 'ALL', Icon: Globe },
-                  { id: 'topic', label: 'TOPIC', Icon: Hash },
-                  { id: 'location', label: 'GEO', Icon: MapPin },
-                  { id: 'following', label: 'FOLLOW', Icon: User },
-                ] as const
-              ).map(({ id, label, Icon }) => (
+          {openSections.LOCAL && (
+            <div className="hide-scrollbar mt-2 max-h-48 space-y-0.5 overflow-y-auto">
+              {geohashBoards.map((board) => (
                 <button
-                  key={id}
+                  key={board.id}
                   type="button"
-                  onClick={() => nav(() => setFeedFilter(id))}
-                  className={`flex items-center gap-1.5 border px-2 py-1 font-mono text-[10px] uppercase tracking-wider transition-all ${
-                    feedFilter === id
-                      ? 'border-terminal-text bg-terminal-dim/10 text-terminal-text'
-                      : 'border-terminal-dim/30 text-terminal-dim hover:border-terminal-dim/60 hover:text-terminal-text'
+                  onClick={() => nav(() => navigateToBoard(board.id))}
+                  className={`flex w-full items-center gap-2 border-l-2 px-2 py-1.5 text-left text-xs font-mono transition-all ${
+                    activeBoardId === board.id
+                      ? 'border-l-terminal-text bg-terminal-dim/10 text-terminal-text'
+                      : 'border-l-transparent text-terminal-dim hover:border-l-terminal-dim/40 hover:bg-terminal-dim/5 hover:text-terminal-text'
                   }`}
                 >
-                  <Icon size={10} />
-                  {label}
+                  <MapPin size={10} />
+                  <span className="truncate">{board.geohash ? `#${board.geohash}` : board.name}</span>
                 </button>
               ))}
+              {nearbyActivity.slice(0, 6).map((ch) => {
+                if (geohashBoards.some((b) => b.geohash === ch.geohash)) return null;
+                const board = geonetDiscoveryService.channelToBoard(ch);
+                return (
+                  <button
+                    key={ch.geohash}
+                    type="button"
+                    onClick={() => nav(() => navigateToBoard(board.id))}
+                    className="flex w-full items-center gap-2 border-l-2 border-l-transparent px-2 py-1.5 text-left text-xs font-mono text-terminal-dim hover:border-l-terminal-dim/40 hover:bg-terminal-dim/5 hover:text-terminal-text transition-all"
+                  >
+                    <MapPin size={10} />
+                    <span className="truncate font-mono">#{ch.geohash}</span>
+                    <span className="ml-auto text-[9px] text-terminal-dim/60">{ch.postCount} notes</span>
+                  </button>
+                );
+              })}
+              {geohashBoards.length === 0 && nearbyActivity.length === 0 && (
+                <p className="px-2 py-1.5 text-[10px] font-mono text-terminal-dim/70">
+                  Nearby Nostr notes tagged with a geohash — same channels BitChat uses on the
+                  internet.
+                </p>
+              )}
             </div>
           )}
+          <button
+            type="button"
+            onClick={() => nav(() => onSetViewMode(ViewMode.LOCATION))}
+            className="mt-2 w-full border border-dashed border-terminal-dim/30 px-2 py-1.5 text-[10px] font-mono uppercase text-terminal-dim hover:border-terminal-dim/60 hover:text-terminal-text transition-all flex items-center justify-center gap-1"
+          >
+            <MapPin size={10} />
+            {isLoadingActivity ? 'Scanning...' : 'Enable location'}
+          </button>
         </div>
       )}
 
-      {/* ── Topic boards + global ── */}
+      {/* ── Named Nostr boards ── */}
       <div className="ui-surface-panel p-3">
-        <SectionButton isOpen={openSections.TOPIC_NET} onClick={() => toggleSection('TOPIC_NET')}>
-          TOPIC_NET ({publicTopicBoards.length})
+        <SectionButton isOpen={openSections.BOARDS} onClick={() => toggleSection('BOARDS')}>
+          BOARDS ({publicTopicBoards.length})
         </SectionButton>
-        {openSections.TOPIC_NET && (
+        {openSections.BOARDS && (
           <div className="hide-scrollbar mt-2 max-h-48 space-y-0.5 overflow-y-auto">
-            <button
-              type="button"
-              onClick={() =>
-                nav(() => {
-                  navigateToBoard(null);
-                  onSetViewMode(ViewMode.FEED);
-                })
-              }
-              className={`flex w-full items-center gap-2 border-l-2 px-2 py-1.5 text-left text-xs font-mono transition-all ${
-                activeBoardId === null
-                  ? 'border-l-terminal-text bg-terminal-dim/10 text-terminal-text'
-                  : 'border-l-transparent text-terminal-dim hover:border-l-terminal-dim/40 hover:bg-terminal-dim/5 hover:text-terminal-text'
-              }`}
-            >
-              <Globe size={10} />
-              <span className="truncate">GLOBAL</span>
-            </button>
             {publicTopicBoards.map((board) => (
               <button
                 key={board.id}
@@ -398,142 +352,54 @@ export const Sidebar = React.memo(function Sidebar(props: SidebarProps) {
           onClick={() => nav(() => onSetViewMode(ViewMode.BROWSE_BOARDS))}
           className="mt-2 w-full border border-dashed border-terminal-dim/30 px-2 py-1.5 text-[10px] font-mono uppercase text-terminal-dim hover:border-terminal-dim/60 hover:text-terminal-text transition-all"
         >
-          + Browse All
+          + Browse boards
         </button>
       </div>
 
-      {/* ── External communities ── */}
-      {externalCommunities.length > 0 && (
-        <div className="ui-surface-panel p-3">
-          <SectionButton
-            isOpen={openSections.COMMUNITIES}
-            onClick={() => toggleSection('COMMUNITIES')}
-          >
-            COMMUNITIES ({externalCommunities.length})
-          </SectionButton>
-          <div className="hide-scrollbar mt-2 max-h-40 space-y-0.5 overflow-y-auto">
-            {externalCommunities.slice(0, 8).map((board) => (
-              <button
-                key={board.id}
-                type="button"
-                onClick={() => nav(() => navigateToBoard(board.id))}
-                className={`flex w-full items-center gap-2 border-l-2 px-2 py-1.5 text-left text-xs font-mono transition-all ${
-                  activeBoardId === board.id
-                    ? 'border-l-terminal-text bg-terminal-dim/10 text-terminal-text'
-                    : 'border-l-transparent text-terminal-dim hover:border-l-terminal-dim/40 hover:bg-terminal-dim/5 hover:text-terminal-text'
-                }`}
-              >
-                <ExternalLink size={10} />
-                <span className="truncate">{board.name}</span>
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={() => nav(() => onSetViewMode(ViewMode.EXTERNAL_COMMUNITIES))}
-            className="mt-2 w-full border border-dashed border-terminal-dim/30 px-2 py-1.5 text-[10px] font-mono uppercase text-terminal-dim hover:border-terminal-dim/60 hover:text-terminal-text transition-all"
-          >
-            + Explore
-          </button>
-        </div>
-      )}
-
-      {/* ── Secure boards ── */}
+      {/* ── Encrypted boards ── */}
       {encryptedBoards.length > 0 && (
         <div className="ui-surface-panel p-3">
           <SectionButton
             isOpen={openSections.SECURE_NET}
             onClick={() => toggleSection('SECURE_NET')}
           >
-            SECURE_NET ({encryptedBoards.length})
+            ENCRYPTED ({encryptedBoards.length})
           </SectionButton>
-          <div className="hide-scrollbar mt-2 max-h-40 space-y-0.5 overflow-y-auto">
-            {encryptedBoards.map((board) => {
-              const failed = decryptionFailedBoardIds.has(board.id);
-              return (
-                <div key={board.id} className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => nav(() => navigateToBoard(board.id))}
-                    className={`flex flex-1 items-center gap-2 border-l-2 px-2 py-1.5 text-left text-xs font-mono transition-all ${
-                      activeBoardId === board.id
-                        ? 'border-l-terminal-text bg-terminal-dim/10 text-terminal-text'
-                        : 'border-l-transparent text-terminal-dim hover:border-l-terminal-dim/40 hover:bg-terminal-dim/5 hover:text-terminal-text'
-                    }`}
-                  >
-                    <Shield size={10} />
-                    <span className="truncate">{board.name}</span>
-                  </button>
-                  {failed && removeFailedDecryptionKey && (
+          {openSections.SECURE_NET && (
+            <div className="hide-scrollbar mt-2 max-h-40 space-y-0.5 overflow-y-auto">
+              {encryptedBoards.map((board) => {
+                const failed = decryptionFailedBoardIds.has(board.id);
+                return (
+                  <div key={board.id} className="flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={() => removeFailedDecryptionKey(board.id)}
-                      title="Remove invalid key"
-                      className="shrink-0 p-1 text-terminal-alert hover:text-terminal-alert/70 transition-colors"
+                      onClick={() => nav(() => navigateToBoard(board.id))}
+                      className={`flex flex-1 items-center gap-2 border-l-2 px-2 py-1.5 text-left text-xs font-mono transition-all ${
+                        activeBoardId === board.id
+                          ? 'border-l-terminal-text bg-terminal-dim/10 text-terminal-text'
+                          : 'border-l-transparent text-terminal-dim hover:border-l-terminal-dim/40 hover:bg-terminal-dim/5 hover:text-terminal-text'
+                      }`}
                     >
-                      <Trash2 size={10} />
+                      <Shield size={10} />
+                      <span className="truncate">{board.name}</span>
                     </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                    {failed && removeFailedDecryptionKey && (
+                      <button
+                        type="button"
+                        onClick={() => removeFailedDecryptionKey(board.id)}
+                        title="Remove invalid key"
+                        className="shrink-0 p-1 text-terminal-alert hover:text-terminal-alert/70 transition-colors"
+                      >
+                        <Trash2 size={10} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
-
-      {/* ── Location / geo boards ── */}
-      {geohashBoards.length > 0 && (
-        <div className="ui-surface-panel p-3">
-          <SectionButton isOpen={openSections.GEO_NET} onClick={() => toggleSection('GEO_NET')}>
-            📍 GEO_NET / LOCAL CHANNELS (
-            {totalNearbyPosts > 0 ? `${totalNearbyPosts} sigs` : geohashBoards.length})
-          </SectionButton>
-          <div className="hide-scrollbar mt-2 max-h-40 space-y-0.5 overflow-y-auto">
-            {nearbyActivity.slice(0, 6).map((ch) => {
-              const board = geonetDiscoveryService.channelToBoard(ch);
-              return (
-                <button
-                  key={ch.geohash}
-                  type="button"
-                  onClick={() => nav(() => navigateToBoard(board.id))}
-                  className="flex w-full items-center gap-2 border-l-2 border-l-transparent px-2 py-1.5 text-left text-xs font-mono text-terminal-dim hover:border-l-terminal-dim/40 hover:bg-terminal-dim/5 hover:text-terminal-text transition-all"
-                >
-                  <MapPin size={10} />
-                  <span className="truncate font-mono">#{ch.geohash}</span>
-                  <span className="ml-auto text-[9px] text-terminal-dim/60">{ch.postCount}p</span>
-                </button>
-              );
-            })}
-          </div>
-          <button
-            type="button"
-            onClick={() => nav(() => onSetViewMode(ViewMode.LOCATION))}
-            className="mt-2 w-full border border-dashed border-terminal-dim/30 px-2 py-1.5 text-[10px] font-mono uppercase text-terminal-dim hover:border-terminal-dim/60 hover:text-terminal-text transition-all flex items-center justify-center gap-1"
-          >
-            <MapPin size={10} />
-            {isLoadingActivity ? 'Scanning...' : 'Scan Nearby (local sigs)'}
-          </button>
-        </div>
-      )}
-
-      {/* ── Discover ── */}
-      <div className="ui-surface-panel p-3">
-        <SectionButton isOpen={openSections.DISCOVER} onClick={() => toggleSection('DISCOVER')}>
-          DISCOVER
-        </SectionButton>
-        <div className="mt-2 space-y-1">
-          <NavRow
-            icon={Compass}
-            label="Discover Nostr"
-            onClick={() => nav(() => onSetViewMode(ViewMode.DISCOVER_NOSTR))}
-          />
-          <NavRow
-            icon={ExternalLink}
-            label="Communities"
-            onClick={() => nav(() => onSetViewMode(ViewMode.EXTERNAL_COMMUNITIES))}
-          />
-        </div>
-      </div>
 
       {/* ── Theme selector ── */}
       <div className="ui-surface-panel p-3">

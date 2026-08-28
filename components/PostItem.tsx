@@ -756,7 +756,8 @@ const PostItemComponent: React.FC<PostItemProps> = ({
                   )}
 
                   {(post.source === 'nostr-community' || post.source === 'nostr') &&
-                    onSeedPost && (
+                    onSeedPost &&
+                    !post.boardId.startsWith('geo-') && (
                     <button
                       onClick={handleSeedClick}
                       className="flex w-full items-center gap-2 px-2 py-2 text-left text-xs uppercase tracking-wide text-terminal-dim transition-colors hover:bg-terminal-dim/10 hover:text-terminal-text"

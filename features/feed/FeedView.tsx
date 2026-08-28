@@ -368,10 +368,10 @@ export function FeedView(props: {
             </p>
           </div>
           <button
-            onClick={() => setViewMode(ViewMode.DISCOVER_NOSTR)}
+            onClick={() => setViewMode(ViewMode.BROWSE_BOARDS)}
             className="ui-button-secondary mt-4 px-4 py-2 text-sm"
           >
-            Discover Nostr
+            Browse boards
           </button>
         </div>
       );
@@ -451,32 +451,26 @@ export function FeedView(props: {
     if (!activeBoard) {
       return (
         <div className="border border-terminal-dim p-12 text-center text-terminal-dim flex flex-col items-center gap-4">
-          <div className="text-4xl opacity-20">::</div>
+          <MapPin size={48} className="opacity-20" />
           <div>
-            <p className="font-bold">&gt; GLOBAL FEED IS QUIET</p>
+            <p className="font-bold">&gt; PICK A PLACE OR A BOARD</p>
             <p className="text-xs mt-2 max-w-md">
-              Nothing loaded from the network yet — trending Nostr content usually appears here
-              within a few seconds. If this persists, relays may be slow or unreachable.
+              Local channels are geohash rooms on Nostr — the same #g notes BitChat publishes.
+              Named boards are topic threads. Empty stays empty until someone posts.
             </p>
           </div>
           <div className="flex flex-wrap justify-center gap-2">
             <button
-              onClick={() => navigateToBoard('b-tech')}
+              onClick={() => setViewMode(ViewMode.LOCATION)}
               className="ui-button-secondary px-4 py-2 text-sm"
             >
-              Open //TECH
+              Enable location
             </button>
             <button
               onClick={() => setViewMode(ViewMode.BROWSE_BOARDS)}
               className="ui-button-secondary px-4 py-2 text-sm"
             >
               Browse boards
-            </button>
-            <button
-              onClick={() => setViewMode(ViewMode.CREATE)}
-              className="ui-button-secondary px-4 py-2 text-sm"
-            >
-              Init Bit
             </button>
           </div>
         </div>
@@ -487,11 +481,16 @@ export function FeedView(props: {
       <div className="border border-terminal-dim p-12 text-center text-terminal-dim flex flex-col items-center gap-4">
         <div className="text-4xl opacity-20">¯\\_(ツ)_/¯</div>
         <div>
-          <p className="font-bold">&gt; NO POSTS ON THIS BOARD YET</p>
+          <p className="font-bold">
+            &gt;{' '}
+            {activeBoard.type === BoardType.GEOHASH
+              ? 'NO NOTES IN THIS CHANNEL'
+              : 'NO POSTS ON THIS BOARD YET'}
+          </p>
           <p className="text-xs mt-2 max-w-md">
-            Public posts load from Nostr relays — not from this device. If you expected notes here,
-            they may still be propagating, or your relay list may not overlap the posters&apos;
-            relays. Try Relay settings, or ask for a direct note link.
+            {activeBoard.type === BoardType.GEOHASH
+              ? 'No notes in this geohash yet. BitChat location notes and BitBoard posts share this channel. Write one, or it stays empty.'
+              : 'No posts on this board yet. They load from Nostr relays. Write the first one, or wait — empty is honest.'}
           </p>
         </div>
         <div className="flex flex-wrap justify-center gap-2">
@@ -530,10 +529,10 @@ export function FeedView(props: {
                           ? `#${activeBoard.geohash}`
                           : `// ${activeBoard.name}`
                         : feedFilter === 'location'
-                          ? 'GEO_CHANNELS'
+                          ? 'LOCAL'
                           : feedFilter === 'topic'
-                            ? 'TOPIC_BOARDS'
-                            : '// GLOBAL_FEED'}
+                            ? 'BOARDS'
+                            : 'SELECT'}
                   </h2>
                   <span className="text-sm text-terminal-dim">{sortedPosts.length} signals</span>
                   {canShareBoard && (
@@ -551,12 +550,10 @@ export function FeedView(props: {
                   {searchQuery
                     ? `${sortedPosts.length} results found`
                     : activeBoard
-                      ? activeBoard.description
-                      : feedFilter === 'location'
-                        ? 'Location-based channels near you'
-                        : feedFilter === 'topic'
-                          ? 'Topic-based discussion boards'
-                          : 'aggregating top signals from public sectors'}
+                      ? activeBoard.type === BoardType.GEOHASH
+                        ? `BitChat-compatible Nostr notes in #${activeBoard.geohash}`
+                        : activeBoard.description
+                      : 'Enable location for nearby channels, or open a named board'}
                 </p>
               </div>
 

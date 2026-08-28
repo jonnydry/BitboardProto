@@ -98,6 +98,7 @@ describe('ZapConfig', () => {
 
 describe('FeatureFlags', () => {
   it('has all expected properties', () => {
+    expect(typeof FeatureFlags.ENABLE_BLENDED_FEED).toBe('boolean');
     expect(typeof FeatureFlags.ENABLE_GEOHASH).toBe('boolean');
     expect(typeof FeatureFlags.ENABLE_LINK_SCANNING).toBe('boolean');
     expect(typeof FeatureFlags.ENABLE_NIP07).toBe('boolean');
@@ -132,9 +133,11 @@ describe('FeatureFlags', () => {
     expect(FeatureFlags.ENABLE_ZAPS).toBe(true);
     expect(FeatureFlags.ENABLE_BADGES).toBe(true);
     expect(FeatureFlags.ENABLE_WOT).toBe(true);
-    expect(FeatureFlags.ENABLE_COMMUNITIES).toBe(true);
+    expect(FeatureFlags.ENABLE_COMMUNITIES).toBe(false);
     expect(FeatureFlags.ENABLE_LISTS).toBe(true);
-    expect(FeatureFlags.ENABLE_LONG_FORM).toBe(true);
+    expect(FeatureFlags.ENABLE_LONG_FORM).toBe(false);
+    expect(FeatureFlags.ENABLE_BLENDED_FEED).toBe(false);
+    expect(FeatureFlags.ENABLE_LINK_SCANNING).toBe(false);
   });
 });
 

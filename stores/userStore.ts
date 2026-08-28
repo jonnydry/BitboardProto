@@ -26,9 +26,28 @@ interface UserStoreState {
 
 const BITS_KEY = 'bitboard_bits';
 const BITS_REFRESH_KEY = 'bitboard_bits_last_refresh';
+const VOTED_POSTS_KEY = 'bitboard_voted_posts';
+const VOTED_COMMENTS_KEY = 'bitboard_voted_comments';
 
 function todayString(): string {
   return new Date().toISOString().slice(0, 10); // "YYYY-MM-DD" in UTC
+}
+
+function loadVoteMap(key: string): Record<string, 'up' | 'down'> {
+  try {
+    if (typeof localStorage === 'undefined') return {};
+    const raw = localStorage.getItem(key);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const next: Record<string, 'up' | 'down'> = {};
+    for (const [id, dir] of Object.entries(parsed as Record<string, unknown>)) {
+      if (dir === 'up' || dir === 'down') next[id] = dir;
+    }
+    return next;
+  } catch {
+    return {};
+  }
 }
 
 /** Read persisted bits, resetting to MAX_DAILY_BITS if it's a new day. */
@@ -89,8 +108,8 @@ function loadInitialUserState(): UserState {
     username: guestUsername,
     bits,
     maxBits: MAX_DAILY_BITS,
-    votedPosts: {},
-    votedComments: {},
+    votedPosts: loadVoteMap(VOTED_POSTS_KEY),
+    votedComments: loadVoteMap(VOTED_COMMENTS_KEY),
     identity: undefined,
     hasIdentity: false,
     mutedPubkeys,
@@ -184,6 +203,28 @@ useUserStore.subscribe(
   (bits) => {
     try {
       localStorage.setItem(BITS_KEY, String(bits));
+    } catch {
+      // Silently ignore storage errors
+    }
+  },
+);
+
+useUserStore.subscribe(
+  (state) => state.userState.votedPosts,
+  (votedPosts) => {
+    try {
+      localStorage.setItem(VOTED_POSTS_KEY, JSON.stringify(votedPosts));
+    } catch {
+      // Silently ignore storage errors
+    }
+  },
+);
+
+useUserStore.subscribe(
+  (state) => state.userState.votedComments,
+  (votedComments) => {
+    try {
+      localStorage.setItem(VOTED_COMMENTS_KEY, JSON.stringify(votedComments));
     } catch {
       // Silently ignore storage errors
     }

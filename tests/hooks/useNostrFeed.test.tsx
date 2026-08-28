@@ -17,6 +17,7 @@ vi.mock('../../services/nostr/NostrService', () => {
       unsubscribe: vi.fn(),
       cleanup: vi.fn(),
       isBitboardPostEvent: () => true,
+      isLocalChannelPostEvent: () => true,
       eventToBoard: () => ({}) as never,
       eventToPost: () => ({}) as Post,
       getConnectedCount: () => 0,

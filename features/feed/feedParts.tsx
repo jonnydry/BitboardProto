@@ -114,7 +114,7 @@ export const FeedPostCard: React.FC<{ post: Post } & FeedPostActions> = (props) 
 /** Shared copy + frame for the feed terminator (desktop footer + mobile end-of-feed). */
 export const FeedEndMarker: React.FC = () => (
   <div className="inline-block border border-terminal-dim/30 px-4 py-2 text-xs uppercase tracking-wider text-terminal-dim">
-    END_OF_FEED // All signals loaded
+    END_OF_FEED // End of channel
   </div>
 );
 
